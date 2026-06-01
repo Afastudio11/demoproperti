@@ -2,14 +2,39 @@ import {
   useListQcDefects,
   useListMaterials,
 } from "@workspace/api-client-react";
-import { AlertTriangle, Package, Shield } from "lucide-react";
+import { AlertTriangle, Package, Shield, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DEFECT_STATUS: Record<string, string> = {
-  open: "bg-red-500/15 text-red-400 border-red-500/30",
-  in_repair: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  closed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  open: "bg-red-50 text-red-600 border-red-200",
+  in_repair: "bg-amber-50 text-amber-600 border-amber-200",
+  closed: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
+
+const KPI_TARGETS = [
+  { label: "Progress", target: "Sesuai Timeline" },
+  { label: "Defect Minor", target: "<5%" },
+  { label: "Kerapian Proyek", target: "Wajib" },
+  { label: "Ketepatan Material", target: "Wajib" },
+  { label: "Ready Akad", target: "Tepat Waktu" },
+];
+
+const PROGRESS_STAGES = [
+  { pekerjaan: "Galian", pct: 3 },
+  { pekerjaan: "Pondasi", pct: 8 },
+  { pekerjaan: "Slof", pct: 6 },
+  { pekerjaan: "Kolom", pct: 5 },
+  { pekerjaan: "Pasangan Bata", pct: 12 },
+  { pekerjaan: "Ring Balk", pct: 5 },
+  { pekerjaan: "Kuda-kuda", pct: 5 },
+  { pekerjaan: "Rangka Atap", pct: 4 },
+  { pekerjaan: "Pemasangan Spandek", pct: 5 },
+  { pekerjaan: "Plaster & Aplus", pct: 14 },
+  { pekerjaan: "Keramik", pct: 9 },
+  { pekerjaan: "Cat", pct: 5 },
+  { pekerjaan: "Instalasi Listrik & Air", pct: 7 },
+  { pekerjaan: "Finishing", pct: 7 },
+];
 
 export default function Produksi() {
   const { data: defects } = useListQcDefects({});
@@ -17,16 +42,32 @@ export default function Produksi() {
 
   const criticalMaterials = materials?.filter((m) => m.isBelowMinimum) ?? [];
   const openDefects = defects?.filter((d) => d.status === "open").length ?? 0;
+  const defectOk = openDefects === 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
           Produksi & Konstruksi
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Progress pembangunan, QC, dan stok material
+          Progress pembangunan, QC, stok material — Standar subsidi 36 m² / lahan 60–72 m²
         </p>
+      </div>
+
+      <div className="bg-card border rounded-xl p-3">
+        <div className="flex items-center gap-2 mb-2.5">
+          <CheckCircle2 className="size-3.5 text-emerald-600" />
+          <span className="text-xs font-semibold text-muted-foreground tracking-wider">INDIKATOR KEBERHASILAN</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {KPI_TARGETS.map((k) => (
+            <div key={k.label} className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 py-1">
+              <span className="text-xs text-muted-foreground">{k.label}:</span>
+              <span className="text-xs font-semibold text-foreground">{k.target}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -35,7 +76,7 @@ export default function Produksi() {
             label: "Material Kritis",
             value: criticalMaterials.length,
             icon: AlertTriangle,
-            color: "text-pink-400",
+            color: criticalMaterials.length > 0 ? "text-red-500" : "text-emerald-600",
           },
           {
             label: "Total Material",
@@ -47,7 +88,7 @@ export default function Produksi() {
             label: "Defect Open",
             value: openDefects,
             icon: Shield,
-            color: openDefects > 0 ? "text-red-400" : "text-emerald-400",
+            color: defectOk ? "text-emerald-600" : "text-red-500",
           },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-card text-card-foreground rounded-xl border p-4">
@@ -55,7 +96,7 @@ export default function Produksi() {
               <span className="text-sm font-medium">{label}</span>
               <Icon className="size-4 text-muted-foreground" />
             </div>
-            <div className="bg-muted/50 dark:bg-neutral-800/50 border rounded-lg p-3">
+            <div className="bg-muted/50 border rounded-lg p-3">
               <span className={cn("text-2xl font-semibold tracking-tight", color)}>
                 {value}
               </span>
@@ -64,13 +105,13 @@ export default function Produksi() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-card text-card-foreground rounded-xl border overflow-hidden">
           <div className="flex items-center gap-2 p-4 border-b border-border/50">
-            <AlertTriangle className="size-4 text-pink-400" />
+            <AlertTriangle className="size-4 text-amber-500" />
             <h3 className="font-medium text-sm">Material Stock Alert</h3>
             {criticalMaterials.length > 0 && (
-              <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/30">
+              <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-200">
                 {criticalMaterials.length} kritis
               </span>
             )}
@@ -88,7 +129,7 @@ export default function Produksi() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-pink-400 text-sm">
+                  <div className="font-semibold text-red-500 text-sm">
                     {m.stok} {m.satuan}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
@@ -140,6 +181,27 @@ export default function Produksi() {
                 Tidak ada defect tercatat.
               </div>
             )}
+          </div>
+        </div>
+
+        <div className="bg-card text-card-foreground rounded-xl border overflow-hidden">
+          <div className="flex items-center gap-2 p-4 border-b border-border/50">
+            <Package className="size-4 text-muted-foreground" />
+            <h3 className="font-medium text-sm">Standar Progress Pembangunan</h3>
+          </div>
+          <div className="p-3 space-y-1 overflow-y-auto max-h-72">
+            {PROGRESS_STAGES.map((s) => (
+              <div key={s.pekerjaan} className="flex items-center justify-between gap-3 py-1">
+                <span className="text-xs text-muted-foreground flex-1">{s.pekerjaan}</span>
+                <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-foreground/40 rounded-full"
+                    style={{ width: `${(s.pct / 14) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs font-semibold text-foreground w-6 text-right">{s.pct}%</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

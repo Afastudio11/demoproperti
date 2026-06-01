@@ -1,6 +1,7 @@
 import { useListLeads, useGetMarketingKpi } from "@workspace/api-client-react";
-import { Plus, TrendingUp, Users, DollarSign, Target } from "lucide-react";
+import { Plus, TrendingUp, Users, DollarSign, Target, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const STAGES: { key: string; label: string }[] = [
   { key: "lead_masuk", label: "Lead Masuk" },
@@ -12,19 +13,30 @@ const STAGES: { key: string; label: string }[] = [
   { key: "batal", label: "Batal" },
 ];
 
+const KPI_TARGETS = [
+  { label: "CPL", target: "Sesuai Target" },
+  { label: "Lead Conversion", target: ">10%" },
+  { label: "Booking → Akad", target: ">70%" },
+  { label: "Respons Admin", target: "<5 Menit" },
+  { label: "Survey Rate", target: "Tinggi" },
+];
+
 export default function Marketing() {
   const { data: leads } = useListLeads({});
   const { data: kpi } = useGetMarketingKpi({});
 
+  const convOk = (kpi?.conversionRate ?? 0) >= 10;
+  const b2aOk = (kpi?.bookingToAkadRate ?? 0) >= 70;
+
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="h-full flex flex-col space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
             Marketing Pipeline
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Lead tracker dan marketing KPI
+            Lead tracker, KPI marketing, dan pipeline akad
           </p>
         </div>
         <Button
@@ -36,6 +48,21 @@ export default function Marketing() {
         </Button>
       </div>
 
+      <div className="bg-card border rounded-xl p-3">
+        <div className="flex items-center gap-2 mb-2.5">
+          <CheckCircle2 className="size-3.5 text-emerald-600" />
+          <span className="text-xs font-semibold text-muted-foreground tracking-wider">INDIKATOR KEBERHASILAN</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {KPI_TARGETS.map((k) => (
+            <div key={k.label} className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 py-1">
+              <span className="text-xs text-muted-foreground">{k.label}:</span>
+              <span className="text-xs font-semibold text-foreground">{k.target}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
@@ -43,33 +70,49 @@ export default function Marketing() {
             value: kpi?.totalLeads ?? 0,
             icon: Users,
             fmt: (v: number) => String(v),
+            ok: null,
           },
           {
             label: "Cost per Lead",
             value: kpi?.cpl ?? 0,
             icon: DollarSign,
             fmt: (v: number) => `Rp${(v / 1e3).toFixed(0)}rb`,
+            ok: null,
           },
           {
             label: "Conversion Rate",
             value: kpi?.conversionRate ?? 0,
             icon: TrendingUp,
             fmt: (v: number) => `${v}%`,
+            ok: convOk,
+            target: "target >10%",
           },
           {
             label: "Booking to Akad",
             value: kpi?.bookingToAkadRate ?? 0,
             icon: Target,
             fmt: (v: number) => `${v}%`,
+            ok: b2aOk,
+            target: "target >70%",
           },
-        ].map(({ label, value, icon: Icon, fmt }) => (
+        ].map(({ label, value, icon: Icon, fmt, ok, target }) => (
           <div key={label} className="bg-card text-card-foreground rounded-xl border p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium">{label}</span>
               <Icon className="size-4 text-muted-foreground" />
             </div>
-            <div className="bg-muted/50 dark:bg-neutral-800/50 border rounded-lg p-3">
-              <span className="text-xl font-semibold tracking-tight">{fmt(value)}</span>
+            <div className="bg-muted/50 border rounded-lg p-3">
+              <span className={cn(
+                "text-xl font-semibold tracking-tight",
+                ok === true ? "text-emerald-600" : ok === false ? "text-red-500" : ""
+              )}>
+                {fmt(value)}
+              </span>
+              {target && (
+                <div className={cn("text-[10px] mt-1", ok ? "text-emerald-600" : "text-muted-foreground")}>
+                  {ok ? "✓ " : ""}{target}
+                </div>
+              )}
             </div>
           </div>
         ))}

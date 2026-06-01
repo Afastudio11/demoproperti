@@ -1,6 +1,14 @@
 import { useListHandovers } from "@workspace/api-client-react";
-import { Key, Star } from "lucide-react";
+import { Key, Star, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const KPI_TARGETS = [
+  { label: "Final QC", target: "Wajib" },
+  { label: "Cleaning", target: "Wajib" },
+  { label: "Checklist Serah Terima", target: "Lengkap" },
+  { label: "BAST", target: "Generated" },
+  { label: "Dokumentasi", target: "Wajib" },
+];
 
 export default function SerahTerima() {
   const { data: handovers } = useListHandovers({});
@@ -16,28 +24,43 @@ export default function SerahTerima() {
       : "-";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
           Serah Terima
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Daftar BAST dan customer satisfaction
+          Final QC · Cleaning · BAST · Serah Kunci · Dokumentasi
         </p>
+      </div>
+
+      <div className="bg-card border rounded-xl p-3">
+        <div className="flex items-center gap-2 mb-2.5">
+          <CheckCircle2 className="size-3.5 text-emerald-600" />
+          <span className="text-xs font-semibold text-muted-foreground tracking-wider">TAHAP SERAH TERIMA (SOP)</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {KPI_TARGETS.map((k) => (
+            <div key={k.label} className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 py-1">
+              <span className="text-xs text-muted-foreground">{k.label}:</span>
+              <span className="text-xs font-semibold text-foreground">{k.target}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "Total Handover", value: total, color: "text-foreground" },
-          { label: "BAST Generated", value: bast, color: "text-emerald-400" },
-          { label: "Avg. Kepuasan", value: `${avgScore}/5`, color: "text-amber-400" },
-        ].map(({ label, value, color }) => (
+          { label: "Total Handover", value: total, color: "text-foreground", icon: Key },
+          { label: "BAST Generated", value: bast, color: "text-emerald-600", icon: CheckCircle2 },
+          { label: "Avg. Kepuasan", value: `${avgScore}/5`, color: "text-amber-600", icon: Star },
+        ].map(({ label, value, color, icon: Icon }) => (
           <div key={label} className="bg-card text-card-foreground rounded-xl border p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium">{label}</span>
-              <Key className="size-4 text-muted-foreground" />
+              <Icon className="size-4 text-muted-foreground" />
             </div>
-            <div className="bg-muted/50 dark:bg-neutral-800/50 border rounded-lg p-3">
+            <div className="bg-muted/50 border rounded-lg p-3">
               <span className={cn("text-2xl font-semibold tracking-tight", color)}>
                 {value}
               </span>
@@ -83,7 +106,7 @@ export default function SerahTerima() {
                       className={cn(
                         "text-[10px] font-semibold px-2 py-0.5 rounded-md border",
                         h.bastGenerated
-                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                           : "bg-muted text-muted-foreground border-border/50"
                       )}
                     >
@@ -93,7 +116,7 @@ export default function SerahTerima() {
                   <td className="px-4 py-3">
                     {h.skorKepuasan ? (
                       <div className="flex items-center gap-1.5">
-                        <Star className="size-3.5 text-amber-400 fill-amber-400" />
+                        <Star className="size-3.5 text-amber-500 fill-amber-500" />
                         <span className="font-medium">{h.skorKepuasan} / 5</span>
                       </div>
                     ) : (

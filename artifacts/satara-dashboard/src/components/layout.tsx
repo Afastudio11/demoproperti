@@ -111,25 +111,7 @@ function DashboardSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="p-0 mt-4">
-          <SidebarGroupLabel className="flex items-center justify-between px-0 h-6">
-            <span className="text-[10px] font-medium tracking-wider text-muted-foreground">
-              Workflow
-            </span>
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {["LAND", "PLAN", "LEGAL", "SELL", "BUILD", "AKAD", "HANDOVER", "SCALE"].map((fase) => (
-                <SidebarMenuItem key={fase}>
-                  <SidebarMenuButton className="h-6 text-xs text-muted-foreground">
-                    <span className="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                    <span>{fase}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+
       </SidebarContent>
 
       <SidebarFooter className="px-2.5 pb-3 group-data-[collapsible=icon]:hidden">
