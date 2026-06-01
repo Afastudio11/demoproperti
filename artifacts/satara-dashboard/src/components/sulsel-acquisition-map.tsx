@@ -13,7 +13,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
-import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2 } from "lucide-react";
+import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RISK_COLORS: Record<string, string> = {
@@ -94,6 +94,15 @@ function calcArea(coords: [number, number][]): number {
     area += d * (2 + Math.sin(lat1) + Math.sin(lat2));
   }
   return (Math.abs(area) * R * R) / 2;
+}
+
+const HOUSE_SIZE_M2 = 100; // 10x10 m per rumah
+const PUBLIC_FACTOR = 0.4; // 40% untuk fasilitas publik
+
+function calcHouseCapacity(areaSqm: number) {
+  const usable = areaSqm * (1 - PUBLIC_FACTOR);
+  const units = Math.floor(usable / HOUSE_SIZE_M2);
+  return { usable, units };
 }
 
 function centroid(coords: [number, number][]): [number, number] {
@@ -250,6 +259,36 @@ function ProspectMarker({ p, selected, onSelect, onDeselect }: {
         </Marker>
       )}
     </>
+  );
+}
+
+function HouseCapacityCard({ areaSqm }: { areaSqm: number }) {
+  const { usable, units } = calcHouseCapacity(areaSqm);
+  return (
+    <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Home className="size-3.5 text-amber-600 shrink-0" />
+        <span className="text-[11px] font-semibold text-amber-700">Estimasi Kapasitas Rumah</span>
+      </div>
+      <div className="flex items-end gap-1 mb-1">
+        <span className="text-2xl font-bold text-amber-700 leading-none">{units.toLocaleString("id-ID")}</span>
+        <span className="text-[11px] text-amber-600 mb-0.5">unit</span>
+      </div>
+      <div className="space-y-1 text-[10px] text-amber-600 mt-2 border-t border-amber-200 pt-2">
+        <div className="flex justify-between">
+          <span>Ukuran per rumah</span>
+          <span className="font-medium">10 × 10 m</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Area publik (40%)</span>
+          <span className="font-medium">{formatLuas(areaSqm * PUBLIC_FACTOR)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Area efektif (60%)</span>
+          <span className="font-medium text-amber-700">{formatLuas(usable)}</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -473,6 +512,7 @@ export default function SulselAcquisitionMap() {
               <div className="text-2xl font-bold text-violet-700">{formatLuas(drawn.area)}</div>
               <div className="text-[11px] text-violet-500 mt-1">luas terhitung otomatis</div>
             </div>
+            <HouseCapacityCard areaSqm={drawn.area} />
             {drawn.kecamatan && (
               <div className="text-[11px] text-muted-foreground">
                 📍 {[drawn.kelurahan, drawn.kecamatan, drawn.kabupaten].filter(Boolean).join(", ")}
@@ -503,6 +543,7 @@ export default function SulselAcquisitionMap() {
                 {selectedPolyCoords ? `${selectedPolyCoords.length} titik polygon` : `≈ ${Math.round(Math.sqrt(selectedProspect.luas))}×${Math.round(Math.sqrt(selectedProspect.luas))} m`}
               </div>
             </div>
+            <HouseCapacityCard areaSqm={selectedArea} />
             <div className="space-y-1.5 text-[11px]">
               {[
                 { l: "ROI", v: `${selectedProspect.roi}%`, color: selectedProspect.roi >= 25 ? "text-emerald-600" : "text-amber-600" },
