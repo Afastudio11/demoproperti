@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,6 +14,11 @@ export const landProspectsTable = pgTable("land_prospects", {
   aksesJalan: real("akses_jalan"),
   riskLevel: text("risk_level"),
   catatan: text("catatan"),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  kelurahan: text("kelurahan"),
+  kecamatan: text("kecamatan"),
+  kabupaten: text("kabupaten"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

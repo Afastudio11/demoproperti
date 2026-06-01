@@ -217,6 +217,16 @@ export interface LandProspect {
   riskLevel?: LandProspectRiskLevel;
   /** @nullable */
   catatan?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  /** @nullable */
+  kelurahan?: string | null;
+  /** @nullable */
+  kecamatan?: string | null;
+  /** @nullable */
+  kabupaten?: string | null;
   createdAt: string;
 }
 
@@ -411,6 +421,11 @@ export interface LandProspectUpdate {
   margin?: number;
   aksesJalan?: number;
   catatan?: string;
+  lat?: number;
+  lng?: number;
+  kelurahan?: string;
+  kecamatan?: string;
+  kabupaten?: string;
 }
 
 export interface PipelineCount {

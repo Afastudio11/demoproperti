@@ -347,7 +347,12 @@ export const UpdateLandProspectBody = zod.object({
   "roi": zod.number().optional(),
   "margin": zod.number().optional(),
   "aksesJalan": zod.number().optional(),
-  "catatan": zod.string().optional()
+  "catatan": zod.string().optional(),
+  "lat": zod.number().optional(),
+  "lng": zod.number().optional(),
+  "kelurahan": zod.string().optional(),
+  "kecamatan": zod.string().optional(),
+  "kabupaten": zod.string().optional()
 })
 
 export const UpdateLandProspectResponse = zod.object({
