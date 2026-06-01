@@ -3,20 +3,44 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Satara Development Internal Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Executive overview and summaries
+  - name: projects
+    description: Project management
+  - name: land-prospects
+    description: Land acquisition pipeline
+  - name: feasibility
+    description: Feasibility studies
+  - name: legal
+    description: Legal documents and permits
+  - name: leads
+    description: Marketing lead pipeline
+  - name: customers
+    description: Customer database
+  - name: units
+    description: Property units
+  - name: construction
+    description: Construction progress
+  - name: qc
+    description: QC and defect tracking
+  - name: materials
+    description: Material management
+  - name: handovers
+    description: Serah terima
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +48,1645 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── DASHBOARD ────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Executive overview summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/kpi:
+    get:
+      operationId: getDashboardKpi
+      tags: [dashboard]
+      summary: KPI per division
+      responses:
+        "200":
+          description: KPI metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardKpi"
+
+  /dashboard/cashflow:
+    get:
+      operationId: getDashboardCashflow
+      tags: [dashboard]
+      summary: Cashflow overview
+      responses:
+        "200":
+          description: Cashflow data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashflowOverview"
+
+  /dashboard/alerts:
+    get:
+      operationId: getDashboardAlerts
+      tags: [dashboard]
+      summary: Risk and escalation alerts
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  # ─── PROJECTS ────────────────────────────────────────────────
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all projects
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get project by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}/health:
+    get:
+      operationId: getProjectHealth
+      tags: [projects]
+      summary: Get project health board data
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectHealth"
+
+  # ─── LAND PROSPECTS ──────────────────────────────────────────
+  /land-prospects:
+    get:
+      operationId: listLandProspects
+      tags: [land-prospects]
+      summary: List land prospects
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of land prospects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LandProspect"
+    post:
+      operationId: createLandProspect
+      tags: [land-prospects]
+      summary: Create land prospect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LandProspectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LandProspect"
+
+  /land-prospects/{id}:
+    get:
+      operationId: getLandProspect
+      tags: [land-prospects]
+      summary: Get land prospect
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Land prospect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LandProspect"
+    patch:
+      operationId: updateLandProspect
+      tags: [land-prospects]
+      summary: Update land prospect
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LandProspectUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LandProspect"
+
+  /land-prospects/pipeline-summary:
+    get:
+      operationId: getLandProspectPipelineSummary
+      tags: [land-prospects]
+      summary: Pipeline summary by status
+      responses:
+        "200":
+          description: Pipeline counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PipelineCount"
+
+  # ─── FEASIBILITY ─────────────────────────────────────────────
+  /feasibility:
+    get:
+      operationId: listFeasibilityStudies
+      tags: [feasibility]
+      summary: List feasibility studies
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeasibilityStudy"
+    post:
+      operationId: createFeasibilityStudy
+      tags: [feasibility]
+      summary: Create feasibility study
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeasibilityStudyInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeasibilityStudy"
+
+  /feasibility/{id}:
+    get:
+      operationId: getFeasibilityStudy
+      tags: [feasibility]
+      summary: Get feasibility study
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Feasibility study
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeasibilityStudy"
+    patch:
+      operationId: updateFeasibilityStudy
+      tags: [feasibility]
+      summary: Update feasibility study
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeasibilityStudyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeasibilityStudy"
+
+  # ─── LEGAL ───────────────────────────────────────────────────
+  /legal:
+    get:
+      operationId: listLegalDocuments
+      tags: [legal]
+      summary: List legal documents
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LegalDocument"
+    post:
+      operationId: createLegalDocument
+      tags: [legal]
+      summary: Create legal document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegalDocumentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalDocument"
+
+  /legal/{id}:
+    patch:
+      operationId: updateLegalDocument
+      tags: [legal]
+      summary: Update legal document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegalDocumentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalDocument"
+
+  /legal/bankable-gate/{projectId}:
+    get:
+      operationId: getBankableGate
+      tags: [legal]
+      summary: Get bankable gate status for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Bankable gate status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankableGate"
+
+  # ─── LEADS ───────────────────────────────────────────────────
+  /leads:
+    get:
+      operationId: listLeads
+      tags: [leads]
+      summary: List leads
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of leads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lead"
+    post:
+      operationId: createLead
+      tags: [leads]
+      summary: Create lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /leads/{id}:
+    patch:
+      operationId: updateLead
+      tags: [leads]
+      summary: Update lead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadUpdate"
+      responses:
+        "200":
+          description: Updated lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /leads/marketing-kpi:
+    get:
+      operationId: getMarketingKpi
+      tags: [leads]
+      summary: Marketing KPI metrics
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Marketing KPI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingKpi"
+
+  # ─── CUSTOMERS ───────────────────────────────────────────────
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List customers
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: kprStatus
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    patch:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  /customers/kpr-pipeline:
+    get:
+      operationId: getKprPipeline
+      tags: [customers]
+      summary: KPR pipeline summary
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: KPR pipeline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KprPipeline"
+
+  # ─── UNITS ───────────────────────────────────────────────────
+  /units:
+    get:
+      operationId: listUnits
+      tags: [units]
+      summary: List units
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of units
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Unit"
+    post:
+      operationId: createUnit
+      tags: [units]
+      summary: Create unit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnitInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Unit"
+
+  /units/{id}:
+    get:
+      operationId: getUnit
+      tags: [units]
+      summary: Get unit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Unit"
+    patch:
+      operationId: updateUnit
+      tags: [units]
+      summary: Update unit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnitUpdate"
+      responses:
+        "200":
+          description: Updated unit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Unit"
+
+  # ─── CONSTRUCTION ─────────────────────────────────────────────
+  /construction/tasks:
+    get:
+      operationId: listConstructionTasks
+      tags: [construction]
+      summary: List construction tasks
+      parameters:
+        - name: unitId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConstructionTask"
+    post:
+      operationId: createConstructionTask
+      tags: [construction]
+      summary: Create construction task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConstructionTaskInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConstructionTask"
+
+  /construction/tasks/{id}:
+    patch:
+      operationId: updateConstructionTask
+      tags: [construction]
+      summary: Update construction task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConstructionTaskUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConstructionTask"
+
+  /construction/progress-summary:
+    get:
+      operationId: getConstructionProgressSummary
+      tags: [construction]
+      summary: Construction progress summary by project
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Progress summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProgressSummary"
+
+  # ─── QC ───────────────────────────────────────────────────────
+  /qc/defects:
+    get:
+      operationId: listQcDefects
+      tags: [qc]
+      summary: List QC defects
+      parameters:
+        - name: unitId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of defects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QcDefect"
+    post:
+      operationId: createQcDefect
+      tags: [qc]
+      summary: Report QC defect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QcDefectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QcDefect"
+
+  /qc/defects/{id}:
+    patch:
+      operationId: updateQcDefect
+      tags: [qc]
+      summary: Update QC defect status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QcDefectUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QcDefect"
+
+  # ─── MATERIALS ───────────────────────────────────────────────
+  /materials:
+    get:
+      operationId: listMaterials
+      tags: [materials]
+      summary: List materials
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: belowMinimum
+          in: query
+          schema:
+            type: ["boolean", "null"]
+      responses:
+        "200":
+          description: List of materials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Material"
+    post:
+      operationId: createMaterial
+      tags: [materials]
+      summary: Create material
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MaterialInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+
+  /materials/{id}:
+    patch:
+      operationId: updateMaterial
+      tags: [materials]
+      summary: Update material stock
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MaterialUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+
+  # ─── HANDOVERS ───────────────────────────────────────────────
+  /handovers:
+    get:
+      operationId: listHandovers
+      tags: [handovers]
+      summary: List handovers
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List of handovers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Handover"
+    post:
+      operationId: createHandover
+      tags: [handovers]
+      summary: Create handover (BAST)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HandoverInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Handover"
+
+  /handovers/{id}:
+    get:
+      operationId: getHandover
+      tags: [handovers]
+      summary: Get handover detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Handover
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Handover"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ─── DASHBOARD ──────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      required: [totalProjects, totalUnits, totalLeads, totalCustomers, activePhases, overallProgress]
+      properties:
+        totalProjects: { type: integer }
+        totalUnits: { type: integer }
+        totalLeads: { type: integer }
+        totalCustomers: { type: integer }
+        activePhases:
+          type: array
+          items:
+            type: object
+            required: [phase, count]
+            properties:
+              phase: { type: string }
+              count: { type: integer }
+        overallProgress: { type: number }
+        projectsAtRisk: { type: integer }
+
+    DashboardKpi:
+      type: object
+      required: [marketing, admin, production, legal, acquisition]
+      properties:
+        marketing:
+          type: object
+          required: [leads, cpl, conversionRate, bookingToAkad]
+          properties:
+            leads: { type: integer }
+            cpl: { type: number }
+            conversionRate: { type: number }
+            bookingToAkad: { type: number }
+        admin:
+          type: object
+          required: [pendingBerkas, sp3kCount, akadCount, rejectRate]
+          properties:
+            pendingBerkas: { type: integer }
+            sp3kCount: { type: integer }
+            akadCount: { type: integer }
+            rejectRate: { type: number }
+        production:
+          type: object
+          required: [avgProgress, deviation, defectRate, readyAkad]
+          properties:
+            avgProgress: { type: number }
+            deviation: { type: number }
+            defectRate: { type: number }
+            readyAkad: { type: integer }
+        legal:
+          type: object
+          required: [totalDocs, approved, pending, bankableProjects]
+          properties:
+            totalDocs: { type: integer }
+            approved: { type: integer }
+            pending: { type: integer }
+            bankableProjects: { type: integer }
+        acquisition:
+          type: object
+          required: [prospects, avgRoi, legalCleanRate]
+          properties:
+            prospects: { type: integer }
+            avgRoi: { type: number }
+            legalCleanRate: { type: number }
+
+    CashflowOverview:
+      type: object
+      required: [totalIncome, totalExpense, netCashflow, forecast]
+      properties:
+        totalIncome: { type: number }
+        totalExpense: { type: number }
+        netCashflow: { type: number }
+        forecast:
+          type: array
+          items:
+            type: object
+            required: [month, income, expense]
+            properties:
+              month: { type: string }
+              income: { type: number }
+              expense: { type: number }
+
+    Alert:
+      type: object
+      required: [id, type, level, message, projectId, projectName, createdAt]
+      properties:
+        id: { type: integer }
+        type: { type: string }
+        level:
+          type: string
+          enum: [green, yellow, red]
+        message: { type: string }
+        projectId: { type: integer }
+        projectName: { type: string }
+        createdAt: { type: string }
+
+    # ─── PROJECT ─────────────────────────────────────────────────
+    Project:
+      type: object
+      required: [id, nama, lokasi, fase, status, totalUnit, createdAt]
+      properties:
+        id: { type: integer }
+        nama: { type: string }
+        lokasi: { type: string }
+        provinsi: { type: ["string", "null"] }
+        kabupaten: { type: ["string", "null"] }
+        kecamatan: { type: ["string", "null"] }
+        desa: { type: ["string", "null"] }
+        luas: { type: ["number", "null"] }
+        totalUnit: { type: integer }
+        fase:
+          type: string
+          enum: [LAND, PLAN, LEGAL, SELL, BUILD, AKAD, HANDOVER, SCALE]
+        status:
+          type: string
+          enum: [active, completed, on_hold]
+        targetStart: { type: ["string", "null"] }
+        targetEnd: { type: ["string", "null"] }
+        lat: { type: ["number", "null"] }
+        lng: { type: ["number", "null"] }
+        createdAt: { type: string }
+
+    ProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            units:
+              type: array
+              items:
+                $ref: "#/components/schemas/Unit"
+            landProspects:
+              type: array
+              items:
+                $ref: "#/components/schemas/LandProspect"
+            legalDocuments:
+              type: array
+              items:
+                $ref: "#/components/schemas/LegalDocument"
+
+    ProjectHealth:
+      type: object
+      required: [projectId, riskLevel, salesProgress, akadProgress, constructionProgress, cashflowStatus]
+      properties:
+        projectId: { type: integer }
+        riskLevel:
+          type: string
+          enum: [green, yellow, red]
+        salesProgress: { type: number }
+        akadProgress: { type: number }
+        constructionProgress: { type: number }
+        cashflowStatus: { type: string }
+        alerts:
+          type: array
+          items:
+            type: string
+
+    ProjectInput:
+      type: object
+      required: [nama, lokasi, fase, totalUnit]
+      properties:
+        nama: { type: string }
+        lokasi: { type: string }
+        provinsi: { type: string }
+        kabupaten: { type: string }
+        kecamatan: { type: string }
+        desa: { type: string }
+        luas: { type: number }
+        totalUnit: { type: integer }
+        fase:
+          type: string
+          enum: [LAND, PLAN, LEGAL, SELL, BUILD, AKAD, HANDOVER, SCALE]
+        status:
+          type: string
+          enum: [active, completed, on_hold]
+        targetStart: { type: string }
+        targetEnd: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+
+    ProjectUpdate:
+      type: object
+      properties:
+        nama: { type: string }
+        lokasi: { type: string }
+        provinsi: { type: string }
+        kabupaten: { type: string }
+        kecamatan: { type: string }
+        desa: { type: string }
+        luas: { type: number }
+        totalUnit: { type: integer }
+        fase:
+          type: string
+          enum: [LAND, PLAN, LEGAL, SELL, BUILD, AKAD, HANDOVER, SCALE]
+        status:
+          type: string
+          enum: [active, completed, on_hold]
+        targetStart: { type: string }
+        targetEnd: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+
+    # ─── LAND PROSPECT ───────────────────────────────────────────
+    LandProspect:
+      type: object
+      required: [id, lokasi, luas, hargaM2, status, roi, margin, projectId, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: ["integer", "null"] }
+        lokasi: { type: string }
+        luas: { type: number }
+        hargaM2: { type: number }
+        status:
+          type: string
+          enum: [prospek_baru, survey, analisis_kompetitor, negosiasi, legal_checking, pks_mou, ditolak]
+        roi: { type: number }
+        margin: { type: number }
+        aksesJalan: { type: ["number", "null"] }
+        riskLevel:
+          type: ["string", "null"]
+          enum: [green, yellow, red, null]
+        catatan: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    LandProspectInput:
+      type: object
+      required: [lokasi, luas, hargaM2, status]
+      properties:
+        projectId: { type: integer }
+        lokasi: { type: string }
+        luas: { type: number }
+        hargaM2: { type: number }
+        status:
+          type: string
+          enum: [prospek_baru, survey, analisis_kompetitor, negosiasi, legal_checking, pks_mou, ditolak]
+        roi: { type: number }
+        margin: { type: number }
+        aksesJalan: { type: number }
+        catatan: { type: string }
+
+    LandProspectUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [prospek_baru, survey, analisis_kompetitor, negosiasi, legal_checking, pks_mou, ditolak]
+        roi: { type: number }
+        margin: { type: number }
+        aksesJalan: { type: number }
+        catatan: { type: string }
+
+    PipelineCount:
+      type: object
+      required: [status, count]
+      properties:
+        status: { type: string }
+        count: { type: integer }
+
+    # ─── FEASIBILITY ─────────────────────────────────────────────
+    FeasibilityStudy:
+      type: object
+      required: [id, projectId, hpp, roi, margin, isApproved, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        hpp: { type: number }
+        roi: { type: number }
+        margin: { type: number }
+        cashflow: { type: ["number", "null"] }
+        bep: { type: ["number", "null"] }
+        rab: { type: ["number", "null"] }
+        rabVariance: { type: ["number", "null"] }
+        isApproved: { type: boolean }
+        approvedAt: { type: ["string", "null"] }
+        catatan: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    FeasibilityStudyInput:
+      type: object
+      required: [projectId, hpp, roi, margin]
+      properties:
+        projectId: { type: integer }
+        hpp: { type: number }
+        roi: { type: number }
+        margin: { type: number }
+        cashflow: { type: number }
+        bep: { type: number }
+        rab: { type: number }
+        catatan: { type: string }
+
+    FeasibilityStudyUpdate:
+      type: object
+      properties:
+        hpp: { type: number }
+        roi: { type: number }
+        margin: { type: number }
+        cashflow: { type: number }
+        bep: { type: number }
+        rab: { type: number }
+        rabVariance: { type: number }
+        isApproved: { type: boolean }
+        catatan: { type: string }
+
+    # ─── LEGAL ───────────────────────────────────────────────────
+    LegalDocument:
+      type: object
+      required: [id, projectId, tipeDokumen, status, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        tipeDokumen:
+          type: string
+          enum: [SHM, AJB, balik_nama, split, PBB, PKKPR, SPPL, PBG, SLF, bank_ready, sikumbang, lainnya]
+        status:
+          type: string
+          enum: [pending, in_progress, approved, rejected]
+        pic: { type: ["string", "null"] }
+        expiry: { type: ["string", "null"] }
+        catatan: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    LegalDocumentInput:
+      type: object
+      required: [projectId, tipeDokumen, status]
+      properties:
+        projectId: { type: integer }
+        tipeDokumen:
+          type: string
+          enum: [SHM, AJB, balik_nama, split, PBB, PKKPR, SPPL, PBG, SLF, bank_ready, sikumbang, lainnya]
+        status:
+          type: string
+          enum: [pending, in_progress, approved, rejected]
+        pic: { type: string }
+        expiry: { type: string }
+        catatan: { type: string }
+
+    LegalDocumentUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, in_progress, approved, rejected]
+        pic: { type: string }
+        expiry: { type: string }
+        catatan: { type: string }
+
+    BankableGate:
+      type: object
+      required: [projectId, isBankable, checks]
+      properties:
+        projectId: { type: integer }
+        isBankable: { type: boolean }
+        checks:
+          type: array
+          items:
+            type: object
+            required: [name, status]
+            properties:
+              name: { type: string }
+              status:
+                type: string
+                enum: [green, yellow, red]
+              notes: { type: ["string", "null"] }
+
+    # ─── LEADS ───────────────────────────────────────────────────
+    Lead:
+      type: object
+      required: [id, nama, kontak, status, source, projectId, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        nama: { type: string }
+        kontak: { type: string }
+        source:
+          type: string
+          enum: [meta_ads, instagram, tiktok, facebook, broker, afiliator, event, referral, lainnya]
+        status:
+          type: string
+          enum: [lead_masuk, qualified, survey, booking, berkas_kpr, akad, batal]
+        assignedTo: { type: ["string", "null"] }
+        campaign: { type: ["string", "null"] }
+        followUpAt: { type: ["string", "null"] }
+        alasanBatal: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    LeadInput:
+      type: object
+      required: [projectId, nama, kontak, source, status]
+      properties:
+        projectId: { type: integer }
+        nama: { type: string }
+        kontak: { type: string }
+        source:
+          type: string
+          enum: [meta_ads, instagram, tiktok, facebook, broker, afiliator, event, referral, lainnya]
+        status:
+          type: string
+          enum: [lead_masuk, qualified, survey, booking, berkas_kpr, akad, batal]
+        assignedTo: { type: string }
+        campaign: { type: string }
+
+    LeadUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [lead_masuk, qualified, survey, booking, berkas_kpr, akad, batal]
+        assignedTo: { type: string }
+        followUpAt: { type: string }
+        alasanBatal: { type: string }
+
+    MarketingKpi:
+      type: object
+      required: [totalLeads, cpl, conversionRate, bookingToAkadRate, surveyRate, responseTimeAvg]
+      properties:
+        totalLeads: { type: integer }
+        cpl: { type: number }
+        conversionRate: { type: number }
+        bookingToAkadRate: { type: number }
+        surveyRate: { type: number }
+        responseTimeAvg: { type: number }
+        bySource:
+          type: array
+          items:
+            type: object
+            required: [source, count]
+            properties:
+              source: { type: string }
+              count: { type: integer }
+
+    # ─── CUSTOMERS ───────────────────────────────────────────────
+    Customer:
+      type: object
+      required: [id, nama, nik, kontak, statusKpr, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: ["integer", "null"] }
+        unitId: { type: ["integer", "null"] }
+        nama: { type: string }
+        nik: { type: string }
+        kontak: { type: string }
+        pekerjaan: { type: ["string", "null"] }
+        bank: { type: ["string", "null"] }
+        statusKpr:
+          type: string
+          enum: [bi_checking, collect_berkas, input_bank, follow_up, sp3k, akad, selesai, ditolak]
+        berkasLengkap: { type: boolean }
+        catatan: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    CustomerInput:
+      type: object
+      required: [nama, nik, kontak, statusKpr]
+      properties:
+        projectId: { type: integer }
+        unitId: { type: integer }
+        nama: { type: string }
+        nik: { type: string }
+        kontak: { type: string }
+        pekerjaan: { type: string }
+        bank: { type: string }
+        statusKpr:
+          type: string
+          enum: [bi_checking, collect_berkas, input_bank, follow_up, sp3k, akad, selesai, ditolak]
+        catatan: { type: string }
+
+    CustomerUpdate:
+      type: object
+      properties:
+        unitId: { type: integer }
+        bank: { type: string }
+        statusKpr:
+          type: string
+          enum: [bi_checking, collect_berkas, input_bank, follow_up, sp3k, akad, selesai, ditolak]
+        berkasLengkap: { type: boolean }
+        catatan: { type: string }
+
+    KprPipeline:
+      type: object
+      required: [total, byStatus]
+      properties:
+        total: { type: integer }
+        byStatus:
+          type: array
+          items:
+            type: object
+            required: [status, count]
+            properties:
+              status: { type: string }
+              count: { type: integer }
+        rejectRate: { type: number }
+        avgDuration: { type: number }
+
+    # ─── UNIT ────────────────────────────────────────────────────
+    Unit:
+      type: object
+      required: [id, projectId, blok, nomor, tipe, harga, status, progress, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        customerId: { type: ["integer", "null"] }
+        blok: { type: string }
+        nomor: { type: string }
+        tipe: { type: string }
+        harga: { type: number }
+        status:
+          type: string
+          enum: [available, booked, kpr_process, ready_akad, akad, serah_terima]
+        progress: { type: number }
+        readyAkad: { type: boolean }
+        createdAt: { type: string }
+
+    UnitInput:
+      type: object
+      required: [projectId, blok, nomor, tipe, harga]
+      properties:
+        projectId: { type: integer }
+        blok: { type: string }
+        nomor: { type: string }
+        tipe: { type: string }
+        harga: { type: number }
+        status:
+          type: string
+          enum: [available, booked, kpr_process, ready_akad, akad, serah_terima]
+
+    UnitUpdate:
+      type: object
+      properties:
+        customerId: { type: integer }
+        status:
+          type: string
+          enum: [available, booked, kpr_process, ready_akad, akad, serah_terima]
+        readyAkad: { type: boolean }
+
+    # ─── CONSTRUCTION ─────────────────────────────────────────────
+    ConstructionTask:
+      type: object
+      required: [id, unitId, item, bobot, status, createdAt]
+      properties:
+        id: { type: integer }
+        unitId: { type: integer }
+        item: { type: string }
+        bobot: { type: number }
+        status:
+          type: string
+          enum: [belum_mulai, dalam_proses, selesai]
+        tanggalMulai: { type: ["string", "null"] }
+        tanggalSelesai: { type: ["string", "null"] }
+        catatan: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    ConstructionTaskInput:
+      type: object
+      required: [unitId, item, bobot]
+      properties:
+        unitId: { type: integer }
+        item: { type: string }
+        bobot: { type: number }
+        status:
+          type: string
+          enum: [belum_mulai, dalam_proses, selesai]
+        tanggalMulai: { type: string }
+
+    ConstructionTaskUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [belum_mulai, dalam_proses, selesai]
+        tanggalMulai: { type: string }
+        tanggalSelesai: { type: string }
+        catatan: { type: string }
+
+    ProgressSummary:
+      type: object
+      required: [unitId, unitLabel, progress, deviation, readyAkad]
+      properties:
+        unitId: { type: integer }
+        unitLabel: { type: string }
+        progress: { type: number }
+        deviation: { type: number }
+        readyAkad: { type: boolean }
+        openDefects: { type: integer }
+
+    # ─── QC ───────────────────────────────────────────────────────
+    QcDefect:
+      type: object
+      required: [id, unitId, kategori, deskripsi, status, createdAt]
+      properties:
+        id: { type: integer }
+        unitId: { type: integer }
+        kategori: { type: string }
+        deskripsi: { type: string }
+        status:
+          type: string
+          enum: [open, in_repair, verified, closed]
+        verifiedBy: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    QcDefectInput:
+      type: object
+      required: [unitId, kategori, deskripsi]
+      properties:
+        unitId: { type: integer }
+        kategori: { type: string }
+        deskripsi: { type: string }
+
+    QcDefectUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, in_repair, verified, closed]
+        verifiedBy: { type: string }
+
+    # ─── MATERIAL ─────────────────────────────────────────────────
+    Material:
+      type: object
+      required: [id, projectId, item, stok, satuan, minimumStock, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        item: { type: string }
+        stok: { type: number }
+        satuan: { type: string }
+        vendor: { type: ["string", "null"] }
+        harga: { type: ["number", "null"] }
+        minimumStock: { type: number }
+        isBelowMinimum: { type: boolean }
+        createdAt: { type: string }
+
+    MaterialInput:
+      type: object
+      required: [projectId, item, stok, satuan, minimumStock]
+      properties:
+        projectId: { type: integer }
+        item: { type: string }
+        stok: { type: number }
+        satuan: { type: string }
+        vendor: { type: string }
+        harga: { type: number }
+        minimumStock: { type: number }
+
+    MaterialUpdate:
+      type: object
+      properties:
+        stok: { type: number }
+        vendor: { type: string }
+        harga: { type: number }
+        minimumStock: { type: number }
+
+    # ─── HANDOVER ─────────────────────────────────────────────────
+    Handover:
+      type: object
+      required: [id, unitId, customerId, tanggal, skorKepuasan, createdAt]
+      properties:
+        id: { type: integer }
+        unitId: { type: integer }
+        customerId: { type: integer }
+        tanggal: { type: string }
+        skorKepuasan: { type: ["number", "null"] }
+        bastGenerated: { type: boolean }
+        catatan: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    HandoverInput:
+      type: object
+      required: [unitId, customerId, tanggal]
+      properties:
+        unitId: { type: integer }
+        customerId: { type: integer }
+        tanggal: { type: string }
+        skorKepuasan: { type: number }
+        catatan: { type: string }
