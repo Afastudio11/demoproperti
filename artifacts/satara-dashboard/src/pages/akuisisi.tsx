@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import {
-  Plus, CheckCircle2, Map, LayoutList, BookOpen, X,
-  ChevronRight, FileText, ClipboardList, ArrowRight, Home,
+  Plus, CheckCircle2, Map, LayoutList, X,
+  FileText, ClipboardList, ArrowRight, Lock, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
@@ -140,6 +140,22 @@ function CheckProgress({ checked, total }: { checked: number; total: number }) {
 
 // ─── Prospect Detail Panel ────────────────────────────────────────────────────
 
+const STAGE_COLORS: Record<string, { done: string; active: string; pending: string }> = {
+  survey:              { done: "border-blue-300 bg-blue-50",    active: "border-blue-400 bg-blue-50",    pending: "border-border bg-muted/30" },
+  analisis_kompetitor: { done: "border-violet-300 bg-violet-50", active: "border-violet-400 bg-violet-50", pending: "border-border bg-muted/30" },
+  negosiasi:           { done: "border-amber-300 bg-amber-50",  active: "border-amber-400 bg-amber-50",  pending: "border-border bg-muted/30" },
+  legal_checking:      { done: "border-orange-300 bg-orange-50", active: "border-orange-400 bg-orange-50", pending: "border-border bg-muted/30" },
+  pks_mou:             { done: "border-emerald-300 bg-emerald-50", active: "border-emerald-400 bg-emerald-50", pending: "border-border bg-muted/30" },
+};
+
+const STAGE_HEADER_COLORS: Record<string, { done: string; active: string; pending: string }> = {
+  survey:              { done: "text-blue-700",    active: "text-blue-700",    pending: "text-muted-foreground" },
+  analisis_kompetitor: { done: "text-violet-700",  active: "text-violet-700",  pending: "text-muted-foreground" },
+  negosiasi:           { done: "text-amber-700",   active: "text-amber-700",   pending: "text-muted-foreground" },
+  legal_checking:      { done: "text-orange-700",  active: "text-orange-700",  pending: "text-muted-foreground" },
+  pks_mou:             { done: "text-emerald-700", active: "text-emerald-700", pending: "text-muted-foreground" },
+};
+
 function ProspectDetailPanel({
   prospect,
   checklists,
@@ -155,15 +171,37 @@ function ProspectDetailPanel({
   onAdvanceStage: (id: number, nextStage: string) => void;
   advancing: boolean;
 }) {
+  const [expandedStages, setExpandedStages] = useState<string[]>([prospect.status]);
+
   const stage = STAGES.find((s) => s.key === prospect.status);
-  const checklist = STAGE_CHECKLISTS[prospect.status] ?? [];
-  const checked = (checklists[prospect.id] ?? []);
-  const nextStageIdx = STAGE_ORDER.indexOf(prospect.status) + 1;
-  const nextStage = nextStageIdx < STAGE_ORDER.length ? STAGE_ORDER[nextStageIdx] : null;
+  const checked = checklists[prospect.id] ?? [];
+  const currentStageIdx = STAGE_ORDER.indexOf(prospect.status);
+  const nextStage = currentStageIdx >= 0 && currentStageIdx + 1 < STAGE_ORDER.length
+    ? STAGE_ORDER[currentStageIdx + 1] : null;
   const nextStageLabel = STAGES.find((s) => s.key === nextStage)?.label;
+
+  const jobdeskStages = JOBDESK_STAGES;
+
+  function toggleExpand(key: string) {
+    setExpandedStages((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  }
+
+  // Total progress across all stages up to current
+  const totalItems = jobdeskStages.reduce((sum, s) => {
+    const sIdx = STAGE_ORDER.indexOf(s.key);
+    return sIdx <= currentStageIdx ? sum + s.checklist.length : sum;
+  }, 0);
+  const totalChecked = jobdeskStages.reduce((sum, s) => {
+    const sIdx = STAGE_ORDER.indexOf(s.key);
+    if (sIdx > currentStageIdx) return sum;
+    return sum + s.checklist.filter((c) => checked.includes(c.key)).length;
+  }, 0);
 
   return (
     <div className="w-72 shrink-0 bg-card border rounded-xl flex flex-col self-start max-h-[calc(100vh-220px)] overflow-y-auto">
+      {/* Header */}
       <div className="flex items-start justify-between gap-2 p-3 border-b sticky top-0 bg-card z-10">
         <div className="min-w-0">
           <div className="font-semibold text-sm leading-snug line-clamp-2">{prospect.lokasi}</div>
@@ -179,12 +217,13 @@ function ProspectDetailPanel({
       </div>
 
       <div className="p-3 space-y-3">
+        {/* Data ringkas */}
         <div className="grid grid-cols-2 gap-1.5 text-[11px]">
           {[
-            { l: "Luas",      v: formatLuas(prospect.luas) },
-            { l: "Harga/m²",  v: `Rp${prospect.hargaM2.toLocaleString("id-ID")}` },
-            { l: "ROI",       v: `${prospect.roi}%`, hi: prospect.roi >= 25 },
-            { l: "Status",    v: stage?.label ?? prospect.status },
+            { l: "Luas",     v: formatLuas(prospect.luas) },
+            { l: "Harga/m²", v: `Rp${prospect.hargaM2.toLocaleString("id-ID")}` },
+            { l: "ROI",      v: `${prospect.roi}%`, hi: prospect.roi >= 25 },
+            { l: "Status",   v: stage?.label ?? prospect.status },
           ].map(({ l, v, hi }) => (
             <div key={l} className="bg-muted rounded-md px-2 py-1.5">
               <div className="text-muted-foreground">{l}</div>
@@ -193,60 +232,18 @@ function ProspectDetailPanel({
           ))}
         </div>
 
-        {checklist.length > 0 && (
+        {/* Overall progress */}
+        {totalItems > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-muted-foreground">
-                CHECKLIST — {stage?.label?.toUpperCase()}
-              </span>
+            <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+              <span className="font-semibold tracking-wider">TOTAL PROGRESS JOBDESK</span>
+              <span>{totalChecked}/{totalItems}</span>
             </div>
-            <CheckProgress checked={checked.filter(k => checklist.some(c => c.key === k)).length} total={checklist.length} />
-            <div className="space-y-1 mt-2">
-              {checklist.map((item) => {
-                const done = checked.includes(item.key);
-                return (
-                  <label
-                    key={item.key}
-                    className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-[11px] transition-colors",
-                      done ? "bg-emerald-50 text-emerald-800" : "hover:bg-muted"
-                    )}
-                  >
-                    <div className={cn(
-                      "size-4 rounded border flex items-center justify-center shrink-0 transition-colors",
-                      done ? "bg-emerald-500 border-emerald-500" : "border-border bg-background"
-                    )}>
-                      {done && <CheckCircle2 className="size-3 text-white" strokeWidth={3} />}
-                    </div>
-                    <span className={cn(done && "line-through text-emerald-600")}>{item.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-            <button
-              className="w-full mt-2 text-[11px] text-muted-foreground hover:text-foreground py-1 border rounded-md hover:bg-muted transition-colors"
-              onClick={() => {
-                const allKeys = checklist.map((c) => c.key);
-                const allDone = allKeys.every((k) => checked.includes(k));
-                allKeys.forEach((k) => {
-                  if (allDone ? checked.includes(k) : !checked.includes(k))
-                    onToggleItem(prospect.id, k);
-                });
-              }}
-            >
-              {checklist.every((c) => checked.includes(c.key)) ? "Batal semua" : "Tandai semua selesai"}
-            </button>
+            <CheckProgress checked={totalChecked} total={totalItems} />
           </div>
         )}
 
-        {checklist.length === 0 && (
-          <div className="text-[11px] text-muted-foreground text-center py-2 bg-muted rounded-md">
-            {prospect.status === "prospek_baru"
-              ? "Pindahkan ke stage Survey untuk mulai checklist"
-              : "Tidak ada checklist di stage ini"}
-          </div>
-        )}
-
+        {/* Advance stage button */}
         {nextStage && nextStage !== "ditolak" && (
           <button
             disabled={advancing}
@@ -257,65 +254,106 @@ function ProspectDetailPanel({
             Naikan ke {nextStageLabel}
           </button>
         )}
-      </div>
-    </div>
-  );
-}
 
-// ─── Jobdesk View ─────────────────────────────────────────────────────────────
-
-function JobdeskView() {
-  return (
-    <div className="space-y-4 pb-4">
-      <div className="bg-card border rounded-xl p-4">
-        <div className="text-xs font-semibold text-muted-foreground mb-1 tracking-wider">TUJUAN DIVISI</div>
-        <p className="text-sm text-foreground">
-          Mencari dan mengamankan lahan potensial yang layak secara{" "}
-          <span className="font-medium">market, legal, akses, profit,</span> dan{" "}
-          <span className="font-medium">cashflow</span>.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {JOBDESK_STAGES.map((stage) => (
-          <div key={stage.key} className={cn("border rounded-xl overflow-hidden", stage.color)}>
-            <div className={cn("px-3 py-2 flex items-center gap-2", stage.headerColor)}>
-              <span className="text-[10px] font-bold opacity-60">#{stage.no}</span>
-              <span className="text-xs font-semibold flex-1">{stage.label}</span>
-              <span className="text-[10px] font-medium bg-white/50 rounded-full px-2 py-0.5">
-                {stage.checklist.length} poin
-              </span>
-            </div>
-            <div className="px-3 pt-2 pb-1">
-              <p className="text-[11px] text-muted-foreground mb-2">{stage.desc}</p>
-              <div className="space-y-1">
-                {stage.checklist.map((item) => (
-                  <div key={item.key} className="flex items-center gap-2 text-[11px] py-0.5">
-                    <div className="size-3.5 rounded border border-current opacity-40 shrink-0" />
-                    <span>{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Per-stage jobdesk */}
+        <div className="space-y-2">
+          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider pt-1 border-t">
+            JOBDESK LAHAN
           </div>
-        ))}
-      </div>
+          {jobdeskStages.map((jStage) => {
+            const sIdx = STAGE_ORDER.indexOf(jStage.key);
+            const status: "done" | "active" | "pending" =
+              sIdx < currentStageIdx ? "done" :
+              sIdx === currentStageIdx ? "active" : "pending";
+            const isPending = status === "pending";
+            const stageChecked = jStage.checklist.filter((c) => checked.includes(c.key));
+            const isExpanded = expandedStages.includes(jStage.key) && !isPending;
+            const colors = STAGE_COLORS[jStage.key];
+            const headerColor = STAGE_HEADER_COLORS[jStage.key];
 
-      <div className="bg-card border rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <FileText className="size-4 text-muted-foreground" />
-          <span className="text-xs font-semibold text-muted-foreground tracking-wider">OUTPUT DIVISI AKUISISI</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-          {OUTPUT_ITEMS.map((item) => {
-            const Icon = item.icon;
             return (
               <div
-                key={item.key}
-                className="flex flex-col items-center gap-2 bg-muted rounded-xl p-3 text-center"
+                key={jStage.key}
+                className={cn("border rounded-lg overflow-hidden transition-all",
+                  colors?.[status] ?? "border-border bg-muted/30"
+                )}
               >
-                <Icon className="size-5 text-muted-foreground" />
-                <span className="text-[11px] font-medium leading-tight">{item.label}</span>
+                <button
+                  disabled={isPending}
+                  onClick={() => !isPending && toggleExpand(jStage.key)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 text-left"
+                >
+                  <div className={cn("size-4 rounded-full flex items-center justify-center shrink-0",
+                    status === "done" ? "bg-emerald-500" :
+                    status === "active" ? "bg-foreground" : "bg-muted-foreground/20"
+                  )}>
+                    {status === "done"
+                      ? <CheckCircle2 className="size-3 text-white" strokeWidth={3} />
+                      : status === "active"
+                      ? <div className="size-1.5 rounded-full bg-background" />
+                      : <Lock className="size-2.5 text-muted-foreground/50" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={cn("text-[11px] font-semibold leading-tight", headerColor?.[status])}>
+                      {jStage.label}
+                    </div>
+                    {!isPending && (
+                      <div className="text-[10px] text-muted-foreground">
+                        {stageChecked.length}/{jStage.checklist.length} selesai
+                      </div>
+                    )}
+                  </div>
+                  {!isPending && (
+                    isExpanded
+                      ? <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
+                      : <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />
+                  )}
+                </button>
+
+                {isExpanded && (
+                  <div className="px-2.5 pb-2.5 space-y-1">
+                    {jStage.checklist.map((item) => {
+                      const done = checked.includes(item.key);
+                      const canToggle = status === "active";
+                      return (
+                        <label
+                          key={item.key}
+                          className={cn(
+                            "flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] transition-colors",
+                            canToggle ? "cursor-pointer" : "cursor-default",
+                            done ? "bg-emerald-100/60 text-emerald-800" : canToggle ? "hover:bg-white/60" : "opacity-60"
+                          )}
+                        >
+                          <div className={cn(
+                            "size-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                            done ? "bg-emerald-500 border-emerald-500" : "border-border bg-background"
+                          )}
+                            onClick={() => canToggle && onToggleItem(prospect.id, item.key)}
+                          >
+                            {done && <CheckCircle2 className="size-3 text-white" strokeWidth={3} />}
+                          </div>
+                          <span className={cn(done && "line-through text-emerald-600")}>{item.label}</span>
+                        </label>
+                      );
+                    })}
+                    {status === "active" && (
+                      <button
+                        className="w-full mt-1 text-[10px] text-muted-foreground hover:text-foreground py-1 border rounded-md hover:bg-white/60 transition-colors"
+                        onClick={() => {
+                          const allKeys = jStage.checklist.map((c) => c.key);
+                          const allDone = allKeys.every((k) => checked.includes(k));
+                          allKeys.forEach((k) => {
+                            if (allDone ? checked.includes(k) : !checked.includes(k))
+                              onToggleItem(prospect.id, k);
+                          });
+                        }}
+                      >
+                        {jStage.checklist.every((c) => checked.includes(c.key)) ? "Batal semua" : "Tandai semua selesai"}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -329,7 +367,7 @@ function JobdeskView() {
 
 export default function Akuisisi() {
   const { data: prospects, refetch } = useListLandProspects({});
-  const [tab, setTab] = useState<"peta" | "pipeline" | "jobdesk">("peta");
+  const [tab, setTab] = useState<"peta" | "pipeline">("peta");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [checklists, setChecklists] = useState<Record<number, string[]>>(loadChecklist);
   const [advancing, setAdvancing] = useState(false);
@@ -363,9 +401,8 @@ export default function Akuisisi() {
   }
 
   const TABS = [
-    { key: "peta",     label: "Peta Sulsel",  icon: Map },
-    { key: "pipeline", label: "Pipeline",      icon: LayoutList, badge: prospects?.length },
-    { key: "jobdesk",  label: "Jobdesk",       icon: BookOpen },
+    { key: "peta",     label: "Peta Sulsel", icon: Map },
+    { key: "pipeline", label: "Pipeline",     icon: LayoutList, badge: prospects?.length },
   ] as const;
 
   return (
@@ -536,11 +573,6 @@ export default function Akuisisi() {
         </div>
       )}
 
-      {tab === "jobdesk" && (
-        <div className="flex-1 overflow-y-auto">
-          <JobdeskView />
-        </div>
-      )}
     </div>
   );
 }
