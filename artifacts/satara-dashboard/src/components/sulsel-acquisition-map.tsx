@@ -540,15 +540,15 @@ export default function SulselAcquisitionMap() {
             center={SULSEL_CENTER}
             zoom={8}
             minZoom={7}
-            maxZoom={19}
+            maxZoom={20}
             maxBounds={SULSEL_BOUNDS}
             maxBoundsViscosity={1.0}
             style={{ height: "100%", width: "100%" }}
             scrollWheelZoom
           >
-            <TileLayer url={tile.url} attribution={tile.attribution} maxZoom={19} />
+            <TileLayer url={tile.url} attribution={tile.attribution} maxZoom={20} maxNativeZoom={18} />
             {layer === "satellite" && showLabel && (
-              <TileLayer url={TILE_LAYERS.satLabel.url} attribution={TILE_LAYERS.satLabel.attribution} maxZoom={19} opacity={0.85} />
+              <TileLayer url={TILE_LAYERS.satLabel.url} attribution={TILE_LAYERS.satLabel.attribution} maxZoom={20} maxNativeZoom={18} opacity={0.85} />
             )}
 
             <MapFlyHandler target={flyTarget} />
