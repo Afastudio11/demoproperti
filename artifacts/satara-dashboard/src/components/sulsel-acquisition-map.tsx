@@ -54,7 +54,13 @@ const TILE_LAYERS = {
   },
 } as const;
 
-type LayerKey = "osm" | "satellite" | "topo";
+type LayerKey = "satellite" | "topo";
+
+// Batas wilayah Sulawesi Selatan
+const SULSEL_BOUNDS: L.LatLngBoundsExpression = [
+  [-7.5, 118.0],  // SW
+  [-1.0, 123.5],  // NE
+];
 
 function createPinIcon(color: string, active = false) {
   const s = active ? 34 : 26;
@@ -294,7 +300,7 @@ function HouseCapacityCard({ areaSqm }: { areaSqm: number }) {
 
 export default function SulselAcquisitionMap() {
   const { data: prospects, refetch } = useListLandProspects({});
-  const [layer, setLayer] = useState<LayerKey>("osm");
+  const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
   const [addMode, setAddMode] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
@@ -374,7 +380,7 @@ export default function SulselAcquisitionMap() {
 
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border bg-muted p-0.5 text-[11px] font-medium">
-            {(["osm", "satellite", "topo"] as LayerKey[]).map((k) => (
+            {(["satellite", "topo"] as LayerKey[]).map((k) => (
               <button
                 key={k}
                 onClick={() => setLayer(k)}
@@ -383,7 +389,7 @@ export default function SulselAcquisitionMap() {
                   layer === k ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {k === "osm" ? "Peta" : k === "satellite" ? "🛰 Satelit" : "⛰ Topo"}
+                {k === "satellite" ? "Satelit" : "Topo"}
               </button>
             ))}
           </div>
@@ -447,6 +453,10 @@ export default function SulselAcquisitionMap() {
           <MapContainer
             center={SULSEL_CENTER}
             zoom={8}
+            minZoom={7}
+            maxZoom={19}
+            maxBounds={SULSEL_BOUNDS}
+            maxBoundsViscosity={1.0}
             style={{ height: "100%", width: "100%" }}
             scrollWheelZoom
           >
