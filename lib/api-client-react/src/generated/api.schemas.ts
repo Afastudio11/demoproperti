@@ -227,6 +227,8 @@ export interface LandProspect {
   kecamatan?: string | null;
   /** @nullable */
   kabupaten?: string | null;
+  /** @nullable */
+  polygonCoords?: string | null;
   createdAt: string;
 }
 
@@ -426,6 +428,7 @@ export interface LandProspectUpdate {
   kelurahan?: string;
   kecamatan?: string;
   kabupaten?: string;
+  polygonCoords?: string;
 }
 
 export interface PipelineCount {

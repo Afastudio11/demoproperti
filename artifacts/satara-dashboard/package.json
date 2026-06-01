@@ -75,6 +75,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@geoman-io/leaflet-geoman-free": "^2.19.3",
     "@types/leaflet": "^1.9.21",
     "leaflet": "^1.9.4",
     "react-leaflet": "^5.0.0"

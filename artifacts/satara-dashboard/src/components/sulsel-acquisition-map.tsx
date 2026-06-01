@@ -5,13 +5,15 @@ import {
   Marker,
   Popup,
   useMapEvents,
-  Rectangle,
+  Polygon,
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
-import { useListLandProspects, useUpdateLandProspect } from "@workspace/api-client-react";
+import "@geoman-io/leaflet-geoman-free";
+import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
+import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
-import { MapPin, SquareDashed, Info, Loader2 } from "lucide-react";
+import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RISK_COLORS: Record<string, string> = {
@@ -33,454 +35,424 @@ const STATUS_LABELS: Record<string, string> = {
 
 const SULSEL_CENTER: [number, number] = [-4.5, 120.5];
 
+const TILE_LAYERS = {
+  osm: {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  },
+  satellite: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: "Tiles &copy; Esri &mdash; Esri, Maxar, GeoEye, Earthstar Geographics",
+  },
+  topo: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    attribution: "Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS",
+  },
+  satLabel: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+    attribution: "Labels &copy; Esri",
+  },
+} as const;
+
+type LayerKey = "osm" | "satellite" | "topo";
+
 function createPinIcon(color: string, active = false) {
-  const size = active ? 36 : 28;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="${size}" height="${size * 1.5}">
+  const s = active ? 34 : 26;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="${s}" height="${Math.round(s * 1.5)}">
     <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="white" stroke-width="1.5"/>
-    <circle cx="12" cy="12" r="5" fill="white" opacity="0.95"/>
+    <circle cx="12" cy="12" r="5" fill="white" opacity="0.9"/>
   </svg>`;
-  return L.divIcon({
-    html: svg,
-    className: "",
-    iconSize: [size, size * 1.5],
-    iconAnchor: [size / 2, size * 1.5],
-    popupAnchor: [0, -(size * 1.5)],
-  });
+  return L.divIcon({ html: svg, className: "", iconSize: [s, Math.round(s * 1.5)], iconAnchor: [s / 2, Math.round(s * 1.5)], popupAnchor: [0, -Math.round(s * 1.5)] });
 }
 
 function createDraftIcon() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="32" height="48">
-    <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="#7c3aed" stroke="white" stroke-width="1.5" stroke-dasharray="3,2"/>
-    <circle cx="12" cy="12" r="5" fill="white" opacity="0.95"/>
-    <text x="12" y="16" text-anchor="middle" font-size="10" fill="#7c3aed" font-weight="bold">+</text>
+    <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="#7c3aed" stroke="white" stroke-width="1.5"/>
+    <circle cx="12" cy="12" r="6" fill="white" opacity="0.9"/>
+    <text x="12" y="16" text-anchor="middle" font-size="11" fill="#7c3aed" font-weight="bold">+</text>
   </svg>`;
-  return L.divIcon({
-    html: svg,
-    className: "",
-    iconSize: [32, 48],
-    iconAnchor: [16, 48],
-    popupAnchor: [0, -48],
-  });
+  return L.divIcon({ html: svg, className: "", iconSize: [32, 48], iconAnchor: [16, 48], popupAnchor: [0, -48] });
 }
 
-function formatLuas(luas: number) {
-  if (luas >= 10000) return `${(luas / 10000).toFixed(2)} Ha`;
-  return `${luas.toLocaleString("id-ID")} m²`;
+function formatLuas(n: number) {
+  return n >= 10000 ? `${(n / 10000).toFixed(2)} Ha` : `${n.toLocaleString("id-ID")} m²`;
 }
-
-function formatRupiah(n: number) {
+function formatRp(n: number) {
   return "Rp" + new Intl.NumberFormat("id-ID").format(n);
 }
 
-function calcActualBounds(lat: number, lng: number, luas: number): L.LatLngBounds {
-  const sideM = Math.sqrt(luas);
-  const latOff = sideM / 111320;
-  const lngOff = sideM / (111320 * Math.cos((lat * Math.PI) / 180));
-  return L.latLngBounds(
-    [lat - latOff / 2, lng - lngOff / 2],
-    [lat + latOff / 2, lng + lngOff / 2]
-  );
+function calcArea(coords: [number, number][]): number {
+  const R = 6371000;
+  const n = coords.length;
+  if (n < 3) return 0;
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const lat1 = (coords[i][0] * Math.PI) / 180;
+    const lat2 = (coords[j][0] * Math.PI) / 180;
+    const d = ((coords[j][1] - coords[i][1]) * Math.PI) / 180;
+    area += d * (2 + Math.sin(lat1) + Math.sin(lat2));
+  }
+  return (Math.abs(area) * R * R) / 2;
 }
 
-function MapClickHandler({
-  addMode,
-  onMapClick,
-}: {
-  addMode: boolean;
-  onMapClick: (lat: number, lng: number) => void;
-}) {
-  useMapEvents({
-    click(e) {
-      if (addMode) onMapClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
-
-function FitSulsel() {
-  const map = useMap();
-  useEffect(() => {
-    map.setView(SULSEL_CENTER, 8);
-  }, [map]);
-  return null;
-}
-
-interface DraftPin {
-  lat: number;
-  lng: number;
-  lokasi: string;
-  kelurahan?: string;
-  kecamatan?: string;
-  kabupaten?: string;
-  loading: boolean;
-}
-
-interface ActiveRect {
-  bounds: L.LatLngBounds;
-  luas: number;
-  sideM: number;
+function centroid(coords: [number, number][]): [number, number] {
+  return [
+    coords.reduce((s, c) => s + c[0], 0) / coords.length,
+    coords.reduce((s, c) => s + c[1], 0) / coords.length,
+  ];
 }
 
 async function reverseGeocode(lat: number, lng: number) {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`;
-    const res = await fetch(url, { headers: { "Accept-Language": "id" } });
-    const data = await res.json();
-    const a = data.address || {};
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
+      { headers: { "Accept-Language": "id" } }
+    );
+    const d = await r.json();
+    const a = d.address || {};
     return {
-      lokasi: data.display_name?.split(",").slice(0, 3).join(", ") ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+      lokasi: d.display_name?.split(",").slice(0, 3).join(", ") ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
       kelurahan: a.village || a.suburb || a.neighbourhood || "",
       kecamatan: a.city_district || a.district || a.county || "",
       kabupaten: a.city || a.county || a.regency || "",
     };
   } catch {
-    return {
-      lokasi: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-      kelurahan: "",
-      kecamatan: "",
-      kabupaten: "",
-    };
+    return { lokasi: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, kelurahan: "", kecamatan: "", kabupaten: "" };
   }
 }
 
-interface ProspectFormState {
+function parseCoords(str: string | null | undefined): [number, number][] | null {
+  if (!str) return null;
+  try { return JSON.parse(str) as [number, number][]; } catch { return null; }
+}
+
+interface DrawnPoly {
+  coords: [number, number][];
+  area: number;
+  center: [number, number];
+  geoStr: string;
   lokasi: string;
-  luas: string;
-  hargaM2: string;
-  roi: string;
-  aksesJalan: string;
+  kelurahan: string;
+  kecamatan: string;
+  kabupaten: string;
+}
+
+interface DraftPin {
+  lat: number; lng: number;
+  lokasi: string; kelurahan: string; kecamatan: string; kabupaten: string;
+  loading: boolean;
+}
+
+interface FormState {
+  lokasi: string; luas: string; hargaM2: string; roi: string; aksesJalan: string;
+}
+
+function GeomanControl({ drawMode, onCreated, onDisable }: {
+  drawMode: boolean;
+  onCreated: (p: DrawnPoly) => void;
+  onDisable: () => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map.pm) return;
+    const handle = async (e: any) => {
+      const layer = e.layer as L.Polygon;
+      const raw = layer.getLatLngs()[0] as L.LatLng[];
+      const coords: [number, number][] = raw.map((ll) => [ll.lat, ll.lng]);
+      const area = calcArea(coords);
+      const center = centroid(coords);
+      map.removeLayer(layer);
+      const geo = await reverseGeocode(center[0], center[1]);
+      onCreated({ coords, area, center, geoStr: JSON.stringify(coords), ...geo });
+      map.pm.disableDraw("Polygon");
+      onDisable();
+    };
+    map.on("pm:create", handle);
+    return () => { map.off("pm:create", handle); };
+  }, [map, onCreated, onDisable]);
+
+  useEffect(() => {
+    if (!map.pm) return;
+    if (drawMode) {
+      map.pm.enableDraw("Polygon", { snappable: true, allowSelfIntersection: false, finishOn: "dblclick" });
+    } else {
+      map.pm.disableDraw("Polygon");
+    }
+  }, [map, drawMode]);
+
+  return null;
+}
+
+function ClickHandler({ active, onClickMap }: { active: boolean; onClickMap: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) { if (active) onClickMap(e.latlng.lat, e.latlng.lng); },
+  });
+  return null;
+}
+
+function ProspectMarker({ p, selected, onSelect, onDeselect }: {
+  p: LandProspect; selected: boolean;
+  onSelect: () => void; onDeselect: () => void;
+}) {
+  const color = RISK_COLORS[p.riskLevel ?? "default"] ?? RISK_COLORS.default;
+  const polyCoords = parseCoords(p.polygonCoords);
+  const area = polyCoords ? calcArea(polyCoords) : p.luas;
+
+  const popupContent = (
+    <div style={{ fontFamily: "inherit", minWidth: 230 }}>
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{p.lokasi}</div>
+      {(p.kelurahan || p.kecamatan) && (
+        <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
+          {[p.kelurahan, p.kecamatan, p.kabupaten].filter(Boolean).join(", ")}
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 8 }}>
+        {[
+          { label: "Luas", value: formatLuas(area) },
+          { label: "Harga/m²", value: formatRp(p.hargaM2) },
+          { label: "ROI", value: `${p.roi}%`, hi: p.roi >= 25 },
+          { label: "Akses Jalan", value: p.aksesJalan ? `${p.aksesJalan} m` : "-" },
+          { label: "Status", value: STATUS_LABELS[p.status] ?? p.status },
+          { label: "Batas", value: polyCoords ? `Polygon ${polyCoords.length} titik` : "Titik pin" },
+        ].map(({ label, value, hi }) => (
+          <div key={label} style={{ background: "#f9fafb", borderRadius: 5, padding: "3px 7px", border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#9ca3af" }}>{label}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: hi ? "#16a34a" : "#111827" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      <span style={{ background: color + "20", color, border: `1px solid ${color}44`, padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600 }}>
+        {p.riskLevel === "green" ? "Risiko Rendah" : p.riskLevel === "yellow" ? "Risiko Sedang" : p.riskLevel === "red" ? "Risiko Tinggi" : "Belum Dinilai"}
+      </span>
+    </div>
+  );
+
+  return (
+    <>
+      {polyCoords && (
+        <Polygon
+          positions={polyCoords}
+          pathOptions={{ color, fillColor: color, fillOpacity: selected ? 0.35 : 0.18, weight: selected ? 3 : 2 }}
+          eventHandlers={{ click: onSelect }}
+        >
+          <Popup onClose={onDeselect} maxWidth={280}>{popupContent}</Popup>
+        </Polygon>
+      )}
+      {p.lat != null && p.lng != null && (
+        <Marker
+          position={[p.lat, p.lng]}
+          icon={createPinIcon(color, selected)}
+          eventHandlers={{ click: onSelect }}
+        >
+          <Popup onOpen={onSelect} onClose={onDeselect} maxWidth={280}>{popupContent}</Popup>
+        </Marker>
+      )}
+    </>
+  );
 }
 
 export default function SulselAcquisitionMap() {
   const { data: prospects, refetch } = useListLandProspects({});
-  const updateMutation = useUpdateLandProspect();
-
+  const [layer, setLayer] = useState<LayerKey>("osm");
+  const [showLabel, setShowLabel] = useState(false);
   const [addMode, setAddMode] = useState(false);
+  const [drawMode, setDrawMode] = useState(false);
   const [draft, setDraft] = useState<DraftPin | null>(null);
-  const [activeRect, setActiveRect] = useState<ActiveRect | null>(null);
-  const [form, setForm] = useState<ProspectFormState>({
-    lokasi: "",
-    luas: "",
-    hargaM2: "",
-    roi: "",
-    aksesJalan: "",
-  });
-  const [saving, setSaving] = useState(false);
+  const [drawn, setDrawn] = useState<DrawnPoly | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const draftMarkerRef = useRef<L.Marker | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<FormState>({ lokasi: "", luas: "", hargaM2: "", roi: "", aksesJalan: "" });
 
-  const placedProspects = (prospects ?? []).filter((p) => p.lat != null && p.lng != null);
-  const unplacedCount = (prospects ?? []).filter((p) => p.lat == null).length;
+  const placedCount = (prospects ?? []).filter((p) => p.lat != null || p.polygonCoords).length;
+  const unplacedCount = (prospects ?? []).length - placedCount;
 
-  const handleMapClick = useCallback(
-    async (lat: number, lng: number) => {
-      setDraft({ lat, lng, lokasi: "", kelurahan: "", kecamatan: "", kabupaten: "", loading: true });
-      const geo = await reverseGeocode(lat, lng);
-      setDraft({ lat, lng, ...geo, loading: false });
-      setForm((f) => ({ ...f, lokasi: geo.lokasi }));
-    },
-    []
-  );
+  const handleMapClick = useCallback(async (lat: number, lng: number) => {
+    setDraft({ lat, lng, lokasi: "", kelurahan: "", kecamatan: "", kabupaten: "", loading: true });
+    const geo = await reverseGeocode(lat, lng);
+    setDraft({ lat, lng, ...geo, loading: false });
+    setForm((f) => ({ ...f, lokasi: geo.lokasi }));
+  }, []);
 
-  const handleSaveDraft = async () => {
-    if (!draft || !form.lokasi || !form.luas || !form.hargaM2) return;
+  const handleDrawCreated = useCallback((poly: DrawnPoly) => {
+    setDrawn(poly);
+    setForm((f) => ({ ...f, lokasi: poly.lokasi || poly.kecamatan || "", luas: Math.round(poly.area).toString() }));
+  }, []);
+
+  const cancelAll = useCallback(() => {
+    setAddMode(false);
+    setDrawMode(false);
+    setDraft(null);
+    setDrawn(null);
+    setForm({ lokasi: "", luas: "", hargaM2: "", roi: "", aksesJalan: "" });
+  }, []);
+
+  const handleSave = async (source: "pin" | "poly") => {
     setSaving(true);
     try {
-      const body = {
+      const base = {
+        status: "prospek_baru" as const,
         lokasi: form.lokasi,
         luas: parseFloat(form.luas),
         hargaM2: parseFloat(form.hargaM2),
-        status: "prospek_baru" as const,
         roi: parseFloat(form.roi) || 0,
         aksesJalan: parseFloat(form.aksesJalan) || undefined,
-        lat: draft.lat,
-        lng: draft.lng,
-        kelurahan: draft.kelurahan,
-        kecamatan: draft.kecamatan,
-        kabupaten: draft.kabupaten,
       };
-      const resp = await fetch("/api/land-prospects", {
+      const extra = source === "pin" && draft
+        ? { lat: draft.lat, lng: draft.lng, kelurahan: draft.kelurahan, kecamatan: draft.kecamatan, kabupaten: draft.kabupaten }
+        : drawn
+        ? { lat: drawn.center[0], lng: drawn.center[1], kelurahan: drawn.kelurahan, kecamatan: drawn.kecamatan, kabupaten: drawn.kabupaten, polygonCoords: drawn.geoStr }
+        : {};
+      const r = await fetch("/api/land-prospects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...base, ...extra }),
       });
-      if (resp.ok) {
-        setDraft(null);
-        setAddMode(false);
-        setForm({ lokasi: "", luas: "", hargaM2: "", roi: "", aksesJalan: "" });
-        refetch();
-      }
+      if (r.ok) { cancelAll(); refetch(); }
     } finally {
       setSaving(false);
     }
   };
 
-  const handleMarkerClick = (p: LandProspect) => {
-    setSelectedId(p.id);
-    if (p.lat != null && p.lng != null && p.luas) {
-      const bounds = calcActualBounds(p.lat, p.lng, p.luas);
-      const sideM = Math.sqrt(p.luas);
-      setActiveRect({ bounds, luas: p.luas, sideM });
-    } else {
-      setActiveRect(null);
-    }
-  };
+  const tile = TILE_LAYERS[layer];
+  const isActive = addMode || drawMode || draft || drawn;
 
-  const handleSavePosition = async (id: number, lat: number, lng: number) => {
-    const geo = await reverseGeocode(lat, lng);
-    await updateMutation.mutateAsync({
-      id,
-      data: { lat, lng, kelurahan: geo.kelurahan, kecamatan: geo.kecamatan, kabupaten: geo.kabupaten },
-    });
-    refetch();
-  };
+  const selectedProspect = selectedId ? (prospects ?? []).find((p) => p.id === selectedId) : null;
+  const selectedPolyCoords = selectedProspect ? parseCoords(selectedProspect.polygonCoords) : null;
+  const selectedArea = selectedPolyCoords ? calcArea(selectedPolyCoords) : selectedProspect?.luas ?? 0;
 
   return (
     <div className="flex flex-col h-full gap-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <MapPin className="size-3.5" />
-          <span>{placedProspects.length} lahan dipetakan</span>
-          {unplacedCount > 0 && (
-            <span className="text-amber-600 font-medium">· {unplacedCount} belum dipetakan</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {addMode && (
-            <span className="text-xs text-violet-600 font-medium animate-pulse">
-              Klik di peta untuk menandai lokasi lahan
-            </span>
-          )}
-          <button
-            onClick={() => {
-              setAddMode((m) => !m);
-              setDraft(null);
-            }}
-            className={cn(
-              "flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors",
-              addMode
-                ? "bg-violet-600 text-white border-violet-600"
-                : "bg-card text-foreground border-border hover:bg-muted"
-            )}
-          >
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
             <MapPin className="size-3.5" />
-            {addMode ? "Batal" : "Tambah Lokasi Baru"}
-          </button>
+            <span>{placedCount} dipetakan</span>
+          </div>
+          {unplacedCount > 0 && <span className="text-amber-600 font-medium">{unplacedCount} belum dipetakan</span>}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-lg border bg-muted p-0.5 text-[11px] font-medium">
+            {(["osm", "satellite", "topo"] as LayerKey[]).map((k) => (
+              <button
+                key={k}
+                onClick={() => setLayer(k)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md transition-colors",
+                  layer === k ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {k === "osm" ? "Peta" : k === "satellite" ? "🛰 Satelit" : "⛰ Topo"}
+              </button>
+            ))}
+          </div>
+          {layer === "satellite" && (
+            <button
+              onClick={() => setShowLabel((v) => !v)}
+              className={cn(
+                "text-[11px] px-2 py-1 rounded-lg border transition-colors",
+                showLabel ? "bg-blue-600 text-white border-blue-600" : "bg-card text-muted-foreground border-border"
+              )}
+            >
+              Label
+            </button>
+          )}
+
+          {isActive ? (
+            <button onClick={cancelAll} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-card text-muted-foreground hover:text-foreground">
+              <X className="size-3.5" /> Batal
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => { setAddMode(true); setDrawMode(false); }}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-card hover:bg-muted"
+              >
+                <MapPin className="size-3.5" /> Tandai Titik
+              </button>
+              <button
+                onClick={() => { setDrawMode(true); setAddMode(false); setDraft(null); }}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 border border-violet-600"
+              >
+                <PenLine className="size-3.5" /> Gambar Lahan
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {drawMode && (
+        <div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-2 text-xs text-violet-700 flex items-center gap-2">
+          <PenLine className="size-3.5 shrink-0" />
+          <span>Klik peta untuk menggambar titik sudut batas lahan. <strong>Double-klik</strong> di titik terakhir untuk menutup dan menghitung luas otomatis.</span>
+        </div>
+      )}
+      {addMode && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700 flex items-center gap-2">
+          <MapPin className="size-3.5 shrink-0" />
+          <span>Klik di peta untuk menandai lokasi lahan dengan pentul. Alamat desa/kecamatan terisi otomatis.</span>
+        </div>
+      )}
 
       <div className="flex gap-3 flex-1 min-h-0">
         <div
           className={cn(
             "flex-1 rounded-xl overflow-hidden border relative",
-            addMode && "ring-2 ring-violet-400 ring-offset-1"
+            drawMode && "ring-2 ring-violet-400",
+            addMode && "ring-2 ring-blue-400"
           )}
-          style={{ minHeight: 480 }}
+          style={{ minHeight: 460 }}
         >
-          {addMode && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-violet-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg pointer-events-none">
-              Klik peta untuk menandai lokasi lahan
-            </div>
-          )}
           <MapContainer
             center={SULSEL_CENTER}
             zoom={8}
             style={{ height: "100%", width: "100%" }}
             scrollWheelZoom
-            className={addMode ? "cursor-crosshair" : ""}
           >
-            <FitSulsel />
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <MapClickHandler addMode={addMode} onMapClick={handleMapClick} />
+            <TileLayer url={tile.url} attribution={tile.attribution} maxZoom={19} />
+            {layer === "satellite" && showLabel && (
+              <TileLayer url={TILE_LAYERS.satLabel.url} attribution={TILE_LAYERS.satLabel.attribution} maxZoom={19} opacity={0.85} />
+            )}
 
-            {placedProspects.map((p) => (
-              <Marker
+            <GeomanControl drawMode={drawMode} onCreated={handleDrawCreated} onDisable={() => setDrawMode(false)} />
+            <ClickHandler active={addMode && !drawMode} onClickMap={handleMapClick} />
+
+            {(prospects ?? []).map((p) => (
+              <ProspectMarker
                 key={p.id}
-                position={[p.lat!, p.lng!]}
-                icon={createPinIcon(
-                  RISK_COLORS[p.riskLevel ?? "default"] ?? RISK_COLORS.default,
-                  selectedId === p.id
-                )}
-                eventHandlers={{ click: () => handleMarkerClick(p) }}
-              >
-                <Popup
-                  onOpen={() => handleMarkerClick(p)}
-                  onClose={() => { setActiveRect(null); setSelectedId(null); }}
-                  maxWidth={280}
-                >
-                  <div style={{ fontFamily: "inherit", minWidth: 240 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{p.lokasi}</div>
-                    {(p.kelurahan || p.kecamatan || p.kabupaten) && (
-                      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
-                        {[p.kelurahan, p.kecamatan, p.kabupaten].filter(Boolean).join(", ")}
-                      </div>
-                    )}
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
-                      {[
-                        { label: "Luas", value: formatLuas(p.luas) },
-                        { label: "Harga/m²", value: formatRupiah(p.hargaM2) },
-                        { label: "ROI", value: `${p.roi}%`, highlight: p.roi >= 25 },
-                        { label: "Margin", value: `${p.margin}%`, highlight: p.margin >= 20 },
-                        { label: "Akses Jalan", value: p.aksesJalan ? `${p.aksesJalan} m` : "-" },
-                        { label: "Status", value: STATUS_LABELS[p.status] ?? p.status },
-                      ].map(({ label, value, highlight }) => (
-                        <div key={label} style={{ background: "#f9fafb", borderRadius: 6, padding: "4px 8px", border: "1px solid #e5e7eb" }}>
-                          <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 1 }}>{label}</div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: highlight ? "#16a34a" : "#111827" }}>{value}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {p.luas && (
-                      <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-                        <div style={{ fontSize: 10, color: "#3b82f6", fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                          <span>📐</span> Ukuran Lahan Sebenarnya
-                        </div>
-                        <div style={{ fontSize: 12, color: "#1e40af" }}>
-                          Luas: <strong>{formatLuas(p.luas)}</strong>
-                        </div>
-                        <div style={{ fontSize: 11, color: "#3b82f6", marginTop: 2 }}>
-                          Setara persegi {Math.round(Math.sqrt(p.luas))} × {Math.round(Math.sqrt(p.luas))} m
-                        </div>
-                        <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
-                          Kotak biru di peta = ukuran asli lahan
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <span style={{
-                        background: (RISK_COLORS[p.riskLevel ?? "default"] ?? "#6b7280") + "20",
-                        color: RISK_COLORS[p.riskLevel ?? "default"] ?? "#6b7280",
-                        border: `1px solid ${(RISK_COLORS[p.riskLevel ?? "default"] ?? "#6b7280")}44`,
-                        padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600
-                      }}>
-                        {p.riskLevel === "green" ? "Risiko Rendah" : p.riskLevel === "yellow" ? "Risiko Sedang" : p.riskLevel === "red" ? "Risiko Tinggi" : "Belum Dinilai"}
-                      </span>
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
+                p={p}
+                selected={selectedId === p.id}
+                onSelect={() => setSelectedId(p.id)}
+                onDeselect={() => setSelectedId(null)}
+              />
             ))}
 
-            {activeRect && (
-              <Rectangle
-                bounds={activeRect.bounds}
-                pathOptions={{
-                  color: "#3b82f6",
-                  fillColor: "#3b82f6",
-                  fillOpacity: 0.15,
-                  weight: 2,
-                  dashArray: "6 4",
-                }}
+            {drawn && (
+              <Polygon
+                positions={drawn.coords}
+                pathOptions={{ color: "#7c3aed", fillColor: "#7c3aed", fillOpacity: 0.18, weight: 2.5, dashArray: "7 4" }}
               />
             )}
 
-            {draft && (
-              <Marker
-                position={[draft.lat, draft.lng]}
-                icon={createDraftIcon()}
-                ref={draftMarkerRef}
-              >
-                <Popup>
+            {draft && !drawMode && (
+              <Marker position={[draft.lat, draft.lng]} icon={createDraftIcon()}>
+                <Popup maxWidth={270} minWidth={240}>
                   {draft.loading ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
                       <Loader2 className="size-4 animate-spin" />
                       <span style={{ fontSize: 12 }}>Mencari alamat...</span>
                     </div>
                   ) : (
-                    <div style={{ fontFamily: "inherit", minWidth: 240 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>📍 Tambah Prospek Lahan</div>
-                      {draft.kelurahan && (
-                        <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
-                          {[draft.kelurahan, draft.kecamatan, draft.kabupaten].filter(Boolean).join(", ")}
-                        </div>
-                      )}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <div>
-                          <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Nama Lokasi *</div>
-                          <input
-                            style={{ width: "100%", fontSize: 12, padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, outline: "none" }}
-                            value={form.lokasi}
-                            onChange={(e) => setForm((f) => ({ ...f, lokasi: e.target.value }))}
-                            placeholder="Contoh: Desa Bonto, Gowa"
-                          />
-                        </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                          <div>
-                            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Luas (m²) *</div>
-                            <input
-                              style={{ width: "100%", fontSize: 12, padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, outline: "none" }}
-                              value={form.luas}
-                              onChange={(e) => setForm((f) => ({ ...f, luas: e.target.value }))}
-                              type="number"
-                              placeholder="Contoh: 5000"
-                            />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Harga/m² (Rp) *</div>
-                            <input
-                              style={{ width: "100%", fontSize: 12, padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, outline: "none" }}
-                              value={form.hargaM2}
-                              onChange={(e) => setForm((f) => ({ ...f, hargaM2: e.target.value }))}
-                              type="number"
-                              placeholder="Contoh: 250000"
-                            />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>ROI (%)</div>
-                            <input
-                              style={{ width: "100%", fontSize: 12, padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, outline: "none" }}
-                              value={form.roi}
-                              onChange={(e) => setForm((f) => ({ ...f, roi: e.target.value }))}
-                              type="number"
-                              placeholder=">25%"
-                            />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Akses Jalan (m)</div>
-                            <input
-                              style={{ width: "100%", fontSize: 12, padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, outline: "none" }}
-                              value={form.aksesJalan}
-                              onChange={(e) => setForm((f) => ({ ...f, aksesJalan: e.target.value }))}
-                              type="number"
-                              placeholder="Min 5m"
-                            />
-                          </div>
-                        </div>
-                        {form.luas && (
-                          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "6px 8px", fontSize: 11, color: "#1e40af" }}>
-                            📐 {parseFloat(form.luas) > 0 ? `${formatLuas(parseFloat(form.luas))} ≈ persegi ${Math.round(Math.sqrt(parseFloat(form.luas)))} × ${Math.round(Math.sqrt(parseFloat(form.luas)))} m` : "Masukkan luas..."}
-                          </div>
-                        )}
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button
-                            onClick={handleSaveDraft}
-                            disabled={saving || !form.lokasi || !form.luas || !form.hargaM2}
-                            style={{
-                              flex: 1, padding: "6px 0", borderRadius: 6, fontSize: 12, fontWeight: 600,
-                              background: "#16a34a", color: "white", border: "none", cursor: "pointer",
-                              opacity: (!form.lokasi || !form.luas || !form.hargaM2) ? 0.5 : 1
-                            }}
-                          >
-                            {saving ? "Menyimpan..." : "Simpan"}
-                          </button>
-                          <button
-                            onClick={() => setDraft(null)}
-                            style={{
-                              padding: "6px 12px", borderRadius: 6, fontSize: 12,
-                              background: "#f3f4f6", color: "#374151", border: "1px solid #d1d5db", cursor: "pointer"
-                            }}
-                          >
-                            Batal
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <ProspectForm
+                      title="📍 Tambah Prospek Baru"
+                      subLabel={[draft.kelurahan, draft.kecamatan, draft.kabupaten].filter(Boolean).join(", ")}
+                      form={form} setForm={setForm}
+                      onSave={() => handleSave("pin")}
+                      onCancel={() => setDraft(null)}
+                      saving={saving}
+                    />
                   )}
                 </Popup>
               </Marker>
@@ -488,44 +460,65 @@ export default function SulselAcquisitionMap() {
           </MapContainer>
         </div>
 
-        {activeRect && (
-          <div className="w-56 shrink-0 bg-card border rounded-xl p-4 flex flex-col gap-3 self-start">
+        {drawn && (
+          <div className="w-60 shrink-0 bg-card border rounded-xl p-4 flex flex-col gap-3 self-start">
+            <div className="flex items-center gap-2">
+              <PenLine className="size-4 text-violet-500" />
+              <span className="text-xs font-semibold flex-1">Lahan Tergambar</span>
+              <button onClick={cancelAll} className="text-muted-foreground hover:text-foreground">
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+            <div className="bg-violet-50 border border-violet-200 rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-violet-700">{formatLuas(drawn.area)}</div>
+              <div className="text-[11px] text-violet-500 mt-1">luas terhitung otomatis</div>
+            </div>
+            {drawn.kecamatan && (
+              <div className="text-[11px] text-muted-foreground">
+                📍 {[drawn.kelurahan, drawn.kecamatan, drawn.kabupaten].filter(Boolean).join(", ")}
+              </div>
+            )}
+            <ProspectForm
+              form={form} setForm={setForm}
+              onSave={() => handleSave("poly")}
+              onCancel={cancelAll}
+              saving={saving}
+              compact
+            />
+          </div>
+        )}
+
+        {selectedProspect && !drawn && (
+          <div className="w-52 shrink-0 bg-card border rounded-xl p-4 flex flex-col gap-3 self-start">
             <div className="flex items-center gap-2">
               <SquareDashed className="size-4 text-blue-500" />
-              <span className="text-xs font-semibold">Ukuran Asli Lahan</span>
+              <span className="text-xs font-semibold truncate flex-1">{selectedProspect.lokasi.split(",")[0]}</span>
+              <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="size-3.5" />
+              </button>
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-blue-700">{formatLuas(activeRect.luas)}</div>
-              <div className="text-xs text-blue-500 mt-1">
-                ≈ {Math.round(activeRect.sideM)} × {Math.round(activeRect.sideM)} m
+              <div className="text-xl font-bold text-blue-700">{formatLuas(selectedArea)}</div>
+              <div className="text-[11px] text-blue-500 mt-1">
+                {selectedPolyCoords ? `${selectedPolyCoords.length} titik polygon` : `≈ ${Math.round(Math.sqrt(selectedProspect.luas))}×${Math.round(Math.sqrt(selectedProspect.luas))} m`}
               </div>
             </div>
-            <div className="text-[11px] text-muted-foreground leading-relaxed">
-              <div className="flex items-start gap-1.5 mb-1.5">
-                <Info className="size-3 shrink-0 mt-0.5 text-blue-400" />
-                Kotak biru di peta menunjukkan ukuran sebenarnya lahan di lapangan.
-              </div>
-              <div className="mt-2 space-y-1">
-                <div className="flex justify-between">
-                  <span>Lahan:</span>
-                  <span className="font-medium">{formatLuas(activeRect.luas)}</span>
+            <div className="space-y-1.5 text-[11px]">
+              {[
+                { l: "ROI", v: `${selectedProspect.roi}%`, color: selectedProspect.roi >= 25 ? "text-emerald-600" : "text-amber-600" },
+                { l: "Harga/m²", v: formatRp(selectedProspect.hargaM2) },
+                { l: "Status", v: STATUS_LABELS[selectedProspect.status] ?? selectedProspect.status },
+              ].map(({ l, v, color }) => (
+                <div key={l} className="flex justify-between">
+                  <span className="text-muted-foreground">{l}</span>
+                  <span className={cn("font-medium", color)}>{v}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Sisi persegi:</span>
-                  <span className="font-medium">{Math.round(activeRect.sideM)} m</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Lapangan bola:</span>
-                  <span className="font-medium">~7.140 m²</span>
-                </div>
-                <div className="flex justify-between border-t pt-1 mt-1">
-                  <span>Perbandingan:</span>
-                  <span className="font-medium text-blue-600">
-                    {activeRect.luas >= 7140
-                      ? `${(activeRect.luas / 7140).toFixed(1)}× lapangan`
-                      : `${((activeRect.luas / 7140) * 100).toFixed(0)}% lapangan`}
-                  </span>
-                </div>
+              ))}
+              <div className="flex justify-between border-t pt-1.5">
+                <span className="text-muted-foreground">vs lapangan bola</span>
+                <span className="font-medium text-blue-600">
+                  {selectedArea >= 7140 ? `${(selectedArea / 7140).toFixed(1)}×` : `${((selectedArea / 7140) * 100).toFixed(0)}%`}
+                </span>
               </div>
             </div>
           </div>
@@ -533,18 +526,68 @@ export default function SulselAcquisitionMap() {
       </div>
 
       <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
-        <span className="font-medium">Keterangan pentul:</span>
+        <span className="font-medium">Keterangan:</span>
         {[
-          { color: RISK_COLORS.green, label: "Risiko Rendah (ROI ≥25%)" },
-          { color: RISK_COLORS.yellow, label: "Risiko Sedang" },
-          { color: RISK_COLORS.red, label: "Risiko Tinggi" },
-        ].map((item) => (
-          <div key={item.label} className="flex items-center gap-1.5">
-            <span className="size-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-            <span>{item.label}</span>
+          { c: RISK_COLORS.green, l: "Risiko Rendah (ROI ≥25%)" },
+          { c: RISK_COLORS.yellow, l: "Risiko Sedang" },
+          { c: RISK_COLORS.red, l: "Risiko Tinggi" },
+        ].map((i) => (
+          <div key={i.l} className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: i.c }} />
+            {i.l}
           </div>
         ))}
-        <span className="ml-auto">Klik pentul → lihat kotak ukuran asli lahan</span>
+        <span className="ml-auto">⛰ Topo = kontur + nama desa/kecamatan · 🛰 Satelit = foto udara</span>
+      </div>
+    </div>
+  );
+}
+
+interface FormState { lokasi: string; luas: string; hargaM2: string; roi: string; aksesJalan: string; }
+
+function ProspectForm({ title, subLabel, form, setForm, onSave, onCancel, saving, compact }: {
+  title?: string; subLabel?: string;
+  form: FormState; setForm: (fn: (f: FormState) => FormState) => void;
+  onSave: () => void; onCancel: () => void;
+  saving: boolean; compact?: boolean;
+}) {
+  const s: React.CSSProperties = { width: "100%", fontSize: 12, padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, outline: "none", boxSizing: "border-box" };
+  const valid = form.lokasi && form.luas && form.hargaM2;
+  return (
+    <div style={{ fontFamily: "inherit" }}>
+      {title && <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{title}</div>}
+      {subLabel && <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>{subLabel}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div>
+          <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Nama Lokasi *</div>
+          <input style={s} value={form.lokasi} onChange={e => setForm(f => ({ ...f, lokasi: e.target.value }))} placeholder="Desa / Kecamatan" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {[
+            { label: "Luas (m²) *", key: "luas" as const, placeholder: "m²" },
+            { label: "Harga/m² (Rp) *", key: "hargaM2" as const, placeholder: "250000" },
+            { label: "ROI (%)", key: "roi" as const, placeholder: ">25%" },
+            { label: "Akses Jalan (m)", key: "aksesJalan" as const, placeholder: "min 5m" },
+          ].map(({ label, key, placeholder }) => (
+            <div key={key}>
+              <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>{label}</div>
+              <input style={s} value={form[key]} type="number" placeholder={placeholder} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        {form.luas && parseFloat(form.luas) > 0 && (
+          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "5px 8px", fontSize: 11, color: "#1e40af" }}>
+            📐 {formatLuas(parseFloat(form.luas))} · ≈ {Math.round(Math.sqrt(parseFloat(form.luas)))} × {Math.round(Math.sqrt(parseFloat(form.luas)))} m
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={onSave} disabled={saving || !valid} style={{ flex: 1, padding: "6px 0", borderRadius: 6, fontSize: 12, fontWeight: 600, background: "#16a34a", color: "white", border: "none", cursor: "pointer", opacity: !valid ? 0.5 : 1 }}>
+            {saving ? "Menyimpan..." : "Simpan"}
+          </button>
+          <button onClick={onCancel} style={{ padding: "6px 10px", borderRadius: 6, fontSize: 12, background: "#f3f4f6", color: "#374151", border: "1px solid #d1d5db", cursor: "pointer" }}>
+            Batal
+          </button>
+        </div>
       </div>
     </div>
   );
