@@ -13,7 +13,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
-import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home } from "lucide-react";
+import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RISK_COLORS: Record<string, string> = {
@@ -298,10 +298,58 @@ function HouseCapacityCard({ areaSqm }: { areaSqm: number }) {
   );
 }
 
+// Komponen pengendali fly-to di dalam MapContainer
+function MapFlyHandler({ target }: { target: [number, number, number] | null }) {
+  const map = useMap();
+  const prevTarget = useRef<[number, number, number] | null>(null);
+  useEffect(() => {
+    if (target && target !== prevTarget.current) {
+      prevTarget.current = target;
+      map.flyTo([target[0], target[1]], target[2], { duration: 1.4 });
+    }
+  }, [target, map]);
+  return null;
+}
+
+async function geocodeNominatim(kab: string, kec: string, kel: string): Promise<{ lat: number; lng: number } | null> {
+  const parts = [kel, kec, kab, "Sulawesi Selatan", "Indonesia"].filter(Boolean);
+  const q = parts.join(", ");
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=id&bounded=1&viewbox=118.0,-1.0,123.5,-7.5`,
+      { headers: { "Accept-Language": "id" } }
+    );
+    const data = await res.json();
+    if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch {}
+  return null;
+}
+
 export default function SulselAcquisitionMap() {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
+  const [navKab, setNavKab] = useState("");
+  const [navKec, setNavKec] = useState("");
+  const [navKel, setNavKel] = useState("");
+  const [navLoading, setNavLoading] = useState(false);
+  const [navError, setNavError] = useState(false);
+  const [flyTarget, setFlyTarget] = useState<[number, number, number] | null>(null);
+
+  const handleNavSearch = useCallback(async () => {
+    if (!navKab && !navKec && !navKel) return;
+    setNavLoading(true);
+    setNavError(false);
+    const result = await geocodeNominatim(navKab, navKec, navKel);
+    setNavLoading(false);
+    if (result) {
+      const zoom = navKel ? 14 : navKec ? 12 : 10;
+      setFlyTarget([result.lat, result.lng, zoom]);
+    } else {
+      setNavError(true);
+      setTimeout(() => setNavError(false), 3000);
+    }
+  }, [navKab, navKec, navKel]);
   const [addMode, setAddMode] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
   const [draft, setDraft] = useState<DraftPin | null>(null);
@@ -369,7 +417,42 @@ export default function SulselAcquisitionMap() {
 
   return (
     <div className="flex flex-col h-full gap-3">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* Baris navigasi lokasi */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <input
+          type="text"
+          value={navKab}
+          onChange={(e) => setNavKab(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
+          placeholder="Kota / Kabupaten"
+          className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-36"
+        />
+        <input
+          type="text"
+          value={navKec}
+          onChange={(e) => setNavKec(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
+          placeholder="Kecamatan"
+          className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-32"
+        />
+        <input
+          type="text"
+          value={navKel}
+          onChange={(e) => setNavKel(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
+          placeholder="Desa / Kelurahan"
+          className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-36"
+        />
+        <button
+          onClick={handleNavSearch}
+          disabled={navLoading || (!navKab && !navKec && !navKel)}
+          className="h-7 flex items-center gap-1.5 text-xs font-medium px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {navLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
+          Pergi
+        </button>
+        {navError && <span className="text-xs text-red-500">Lokasi tidak ditemukan</span>}
+        <div className="flex-1" />
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <MapPin className="size-3.5" />
@@ -377,7 +460,10 @@ export default function SulselAcquisitionMap() {
           </div>
           {unplacedCount > 0 && <span className="text-amber-600 font-medium">{unplacedCount} belum dipetakan</span>}
         </div>
+      </div>
 
+      {/* Baris layer + aksi */}
+      <div className="flex items-center justify-end flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border bg-muted p-0.5 text-[11px] font-medium">
             {(["satellite", "topo"] as LayerKey[]).map((k) => (
@@ -465,6 +551,7 @@ export default function SulselAcquisitionMap() {
               <TileLayer url={TILE_LAYERS.satLabel.url} attribution={TILE_LAYERS.satLabel.attribution} maxZoom={19} opacity={0.85} />
             )}
 
+            <MapFlyHandler target={flyTarget} />
             <GeomanControl drawMode={drawMode} onCreated={handleDrawCreated} onDisable={() => setDrawMode(false)} />
             <ClickHandler active={addMode && !drawMode} onClickMap={handleMapClick} />
 
