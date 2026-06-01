@@ -1,49 +1,71 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Settings2, Users, Bell, Palette } from "lucide-react";
 
 export default function Settings() {
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage application settings and user roles</p>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+          Settings
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Kelola pengaturan aplikasi dan role pengguna
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>User Management</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            User management is currently in development. You will be able to add users, assign roles, and manage permissions from this panel.
-          </p>
-          <Button disabled>Add New User</Button>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>System Preferences</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h4 className="font-medium text-sm">Theme Preference</h4>
-                <p className="text-xs text-muted-foreground">Currently follows system settings</p>
+      <div className="space-y-3">
+        {[
+          {
+            icon: Users,
+            title: "User Management",
+            desc: "Tambah pengguna, assign role, dan kelola hak akses dari panel ini.",
+            action: "Tambah User",
+          },
+          {
+            icon: Palette,
+            title: "Preferensi Tampilan",
+            desc: "Menggunakan dark mode. Warna accent dan tata letak dapat dikustomisasi.",
+            action: "Konfigurasi",
+          },
+          {
+            icon: Bell,
+            title: "Notifikasi & Alert",
+            desc: "Atur email dan dashboard alert untuk risiko proyek dan stok material.",
+            action: "Konfigurasi",
+          },
+          {
+            icon: Settings2,
+            title: "Sistem",
+            desc: "Pengaturan API, integrasi pihak ketiga, dan konfigurasi environment.",
+            action: "Konfigurasi",
+          },
+        ].map(({ icon: Icon, title, desc, action }) => (
+          <div
+            key={title}
+            className="bg-card text-card-foreground rounded-xl border p-4 flex items-center justify-between gap-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-muted/50 dark:bg-neutral-800/50 border mt-0.5">
+                <Icon className="size-4 text-muted-foreground" />
               </div>
-              <Button variant="outline" size="sm" disabled>Configure</Button>
-            </div>
-            <div className="flex justify-between items-center">
               <div>
-                <h4 className="font-medium text-sm">Notification Settings</h4>
-                <p className="text-xs text-muted-foreground">Manage email and dashboard alerts</p>
+                <div className="font-medium text-sm">{title}</div>
+                <div className="text-xs text-muted-foreground mt-0.5 max-w-md">
+                  {desc}
+                </div>
               </div>
-              <Button variant="outline" size="sm" disabled>Configure</Button>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              className="h-7 shrink-0 bg-muted/50 border-border/50"
+            >
+              {action}
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,1 @@
+- [Square UI dashboard-4 design](square-ui-design.md) — oklch palette, dark by default, rounded content card layout, stats card nested box pattern.
