@@ -13,7 +13,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
-import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Search } from "lucide-react";
+import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Search, Mountain, Droplets } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RISK_COLORS: Record<string, string> = {
@@ -109,6 +109,113 @@ function calcHouseCapacity(areaSqm: number) {
   const usable = areaSqm * (1 - PUBLIC_FACTOR);
   const units = Math.floor(usable / HOUSE_SIZE_M2);
   return { usable, units };
+}
+
+// ── Terrain analysis helpers ──────────────────────────────────────────────────
+
+function pointInPoly(lat: number, lng: number, poly: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i], [yj, xj] = poly[j];
+    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)
+      inside = !inside;
+  }
+  return inside;
+}
+
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
+  const dp = (lat2 - lat1) * Math.PI / 180, dl = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+interface TerrainResult {
+  elevMin: number; elevMax: number; elevAvg: number;
+  slopeAvgPct: number; slopeMaxPct: number;
+  waterwayName: string; waterwayType: string; waterwayDistM: number | null;
+  pointCount: number;
+}
+
+async function analyzeTerrainForPolygon(
+  coords: [number, number][],
+  center: [number, number]
+): Promise<TerrainResult | null> {
+  const lats = coords.map(c => c[0]), lngs = coords.map(c => c[1]);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+
+  // 5×5 sample grid, filter to points inside polygon
+  const GRID = 5;
+  const pts: [number, number][] = [];
+  for (let i = 0; i < GRID; i++) {
+    for (let j = 0; j < GRID; j++) {
+      const lat = minLat + (maxLat - minLat) * (i + 0.5) / GRID;
+      const lng = minLng + (maxLng - minLng) * (j + 0.5) / GRID;
+      if (pointInPoly(lat, lng, coords)) pts.push([lat, lng]);
+    }
+  }
+  if (pointInPoly(center[0], center[1], coords)) pts.push(center);
+  if (pts.length < 2) return null;
+
+  const locStr = pts.map(p => `${p[0].toFixed(6)},${p[1].toFixed(6)}`).join("|");
+  const buf = 0.02;
+
+  const [elevRes, waterwayRes] = await Promise.allSettled([
+    fetch(`https://api.opentopodata.org/v1/srtm30m?locations=${locStr}`).then(r => r.json()),
+    fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `data=[out:json][timeout:15];(way["waterway"~"river|stream|canal|drain"](${(minLat - buf).toFixed(5)},${(minLng - buf).toFixed(5)},${(maxLat + buf).toFixed(5)},${(maxLng + buf).toFixed(5)}););out center;`,
+    }).then(r => r.json()),
+  ]);
+
+  // Elevation
+  type ElevPt = { lat: number; lng: number; elev: number };
+  let elevPts: ElevPt[] = [];
+  if (elevRes.status === "fulfilled" && Array.isArray(elevRes.value?.results)) {
+    elevPts = (elevRes.value.results as { elevation: number | null }[])
+      .map((r, i) => ({ lat: pts[i][0], lng: pts[i][1], elev: r.elevation ?? null }))
+      .filter((p): p is ElevPt => p.elev !== null);
+  }
+  if (elevPts.length < 2) return null;
+
+  const elevs = elevPts.map(p => p.elev);
+  const elevMin = Math.min(...elevs), elevMax = Math.max(...elevs);
+  const elevAvg = elevs.reduce((a, b) => a + b, 0) / elevs.length;
+
+  // Slope between all pairs
+  const slopes: number[] = [];
+  for (let i = 0; i < elevPts.length; i++) {
+    for (let j = i + 1; j < elevPts.length; j++) {
+      const d = haversineM(elevPts[i].lat, elevPts[i].lng, elevPts[j].lat, elevPts[j].lng);
+      if (d > 5) slopes.push(Math.abs(elevPts[i].elev - elevPts[j].elev) / d * 100);
+    }
+  }
+  const slopeAvgPct = slopes.length ? slopes.reduce((a, b) => a + b) / slopes.length : 0;
+  const slopeMaxPct = slopes.length ? Math.max(...slopes) : 0;
+
+  // Nearest waterway
+  let waterwayName = "", waterwayType = "", waterwayDistM: number | null = null;
+  if (waterwayRes.status === "fulfilled" && Array.isArray(waterwayRes.value?.elements)) {
+    let minD = Infinity;
+    for (const el of waterwayRes.value.elements as { center?: { lat: number; lon: number }; lat?: number; lon?: number; tags?: { name?: string; waterway?: string } }[]) {
+      const wlat = el.center?.lat ?? el.lat;
+      const wlng = el.center?.lon ?? el.lon;
+      if (wlat != null && wlng != null) {
+        const d = haversineM(center[0], center[1], wlat, wlng);
+        if (d < minD) {
+          minD = d;
+          waterwayName = el.tags?.name ?? "";
+          waterwayType = el.tags?.waterway ?? "sungai";
+          waterwayDistM = d;
+        }
+      }
+    }
+  }
+
+  return { elevMin, elevMax, elevAvg, slopeAvgPct, slopeMaxPct, waterwayName, waterwayType, waterwayDistM, pointCount: elevPts.length };
 }
 
 function centroid(coords: [number, number][]): [number, number] {
@@ -268,6 +375,90 @@ function ProspectMarker({ p, selected, onSelect, onDeselect }: {
   );
 }
 
+function TerrainAnalysisCard({ result, loading }: { result: TerrainResult | null; loading: boolean }) {
+  if (loading) return (
+    <div className="border border-slate-200 bg-slate-50 rounded-lg p-3 flex items-center gap-2">
+      <Loader2 className="size-3.5 animate-spin text-slate-400 shrink-0" />
+      <span className="text-[11px] text-muted-foreground">Menganalisis kontur & sungai terdekat...</span>
+    </div>
+  );
+  if (!result) return null;
+
+  const avg = result.slopeAvgPct;
+  const slopeLabel = avg < 2 ? "Datar" : avg < 5 ? "Landai" : avg < 15 ? "Miring" : avg < 25 ? "Curam" : "Sangat Curam";
+  const slopeColor = avg < 5 ? "text-emerald-700" : avg < 15 ? "text-amber-700" : "text-red-700";
+  const slopeBg   = avg < 5 ? "bg-emerald-50 border-emerald-200" : avg < 15 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
+
+  const d = result.waterwayDistM;
+  const floodLabel = d == null ? "Data N/A" : d < 100 ? "Rawan Banjir" : d < 300 ? "Berisiko" : d < 500 ? "Waspada" : "Aman";
+  const floodColor = d == null ? "text-muted-foreground" : d < 100 ? "text-red-700" : d < 300 ? "text-orange-700" : d < 500 ? "text-amber-700" : "text-emerald-700";
+  const floodBg   = d == null ? "bg-muted border-border" : d < 100 ? "bg-red-50 border-red-200" : d < 300 ? "bg-orange-50 border-orange-200" : d < 500 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200";
+
+  return (
+    <div className="border border-sky-200 bg-sky-50/60 rounded-lg p-3 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <Mountain className="size-3.5 text-sky-600 shrink-0" />
+        <span className="text-[11px] font-semibold text-sky-700">Analisis Kontur & Risiko</span>
+        <span className="text-[9px] text-muted-foreground ml-auto">{result.pointCount} titik sampel</span>
+      </div>
+
+      {/* Elevasi */}
+      <div className="grid grid-cols-3 gap-1 text-center">
+        {[
+          { l: "Min", v: `${result.elevMin.toFixed(0)} m` },
+          { l: "Rata-rata", v: `${result.elevAvg.toFixed(0)} m` },
+          { l: "Maks", v: `${result.elevMax.toFixed(0)} m` },
+        ].map(({ l, v }) => (
+          <div key={l} className="bg-white/80 rounded px-1 py-1.5 border border-sky-100">
+            <div className="text-[9px] text-muted-foreground leading-none mb-0.5">{l}</div>
+            <div className="text-[11px] font-semibold">{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Kemiringan */}
+      <div className={cn("border rounded-lg px-2.5 py-2 space-y-0.5", slopeBg)}>
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] text-muted-foreground font-medium">Kemiringan</span>
+          <span className={cn("text-[10px] font-bold", slopeColor)}>{slopeLabel}</span>
+        </div>
+        <div className={cn("text-sm font-bold", slopeColor)}>
+          {result.slopeAvgPct.toFixed(1)}%
+          <span className="text-[10px] font-normal text-muted-foreground ml-1">rata-rata</span>
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          Maks {result.slopeMaxPct.toFixed(1)}% · Beda ketinggian {(result.elevMax - result.elevMin).toFixed(0)} m
+        </div>
+      </div>
+
+      {/* Sungai terdekat */}
+      <div className={cn("border rounded-lg px-2.5 py-2 space-y-0.5", floodBg)}>
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-1">
+            <Droplets className="size-3 text-sky-500 shrink-0" />
+            <span className="text-[10px] text-muted-foreground font-medium">Sungai/Saluran Terdekat</span>
+          </div>
+          <span className={cn("text-[10px] font-bold", floodColor)}>{floodLabel}</span>
+        </div>
+        {d != null ? (
+          <>
+            <div className={cn("text-sm font-bold", floodColor)}>
+              {d >= 1000 ? `${(d / 1000).toFixed(2)} km` : `${Math.round(d)} m`}
+            </div>
+            {result.waterwayName && (
+              <div className="text-[10px] text-muted-foreground truncate capitalize">
+                {result.waterwayType} · {result.waterwayName}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-[11px] text-muted-foreground">Tidak ada data sungai ditemukan</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function HouseCapacityCard({ areaSqm }: { areaSqm: number }) {
   const { usable, units } = calcHouseCapacity(areaSqm);
   return (
@@ -357,6 +548,8 @@ export default function SulselAcquisitionMap() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>({ lokasi: "", luas: "", hargaM2: "", roi: "", aksesJalan: "" });
+  const [terrainResult, setTerrainResult] = useState<TerrainResult | null>(null);
+  const [terrainLoading, setTerrainLoading] = useState(false);
 
   const placedCount = (prospects ?? []).filter((p) => p.lat != null || p.polygonCoords).length;
   const unplacedCount = (prospects ?? []).length - placedCount;
@@ -371,6 +564,12 @@ export default function SulselAcquisitionMap() {
   const handleDrawCreated = useCallback((poly: DrawnPoly) => {
     setDrawn(poly);
     setForm((f) => ({ ...f, lokasi: poly.lokasi || poly.kecamatan || "", luas: Math.round(poly.area).toString() }));
+    setTerrainResult(null);
+    setTerrainLoading(true);
+    analyzeTerrainForPolygon(poly.coords, poly.center)
+      .then((r) => setTerrainResult(r))
+      .catch(() => {})
+      .finally(() => setTerrainLoading(false));
   }, []);
 
   const cancelAll = useCallback(() => {
@@ -379,6 +578,8 @@ export default function SulselAcquisitionMap() {
     setDraft(null);
     setDrawn(null);
     setForm({ lokasi: "", luas: "", hargaM2: "", roi: "", aksesJalan: "" });
+    setTerrainResult(null);
+    setTerrainLoading(false);
   }, []);
 
   const handleSave = async (source: "pin" | "poly") => {
@@ -597,7 +798,7 @@ export default function SulselAcquisitionMap() {
         </div>
 
         {drawn && (
-          <div className="w-60 shrink-0 bg-card border rounded-xl p-4 flex flex-col gap-3 self-start">
+          <div className="w-64 shrink-0 bg-card border rounded-xl p-4 flex flex-col gap-3 self-start max-h-[calc(100vh-200px)] overflow-y-auto">
             <div className="flex items-center gap-2">
               <PenLine className="size-4 text-violet-500" />
               <span className="text-xs font-semibold flex-1">Lahan Tergambar</span>
@@ -609,12 +810,13 @@ export default function SulselAcquisitionMap() {
               <div className="text-2xl font-bold text-violet-700">{formatLuas(drawn.area)}</div>
               <div className="text-[11px] text-violet-500 mt-1">luas terhitung otomatis</div>
             </div>
-            <HouseCapacityCard areaSqm={drawn.area} />
             {drawn.kecamatan && (
               <div className="text-[11px] text-muted-foreground">
-                📍 {[drawn.kelurahan, drawn.kecamatan, drawn.kabupaten].filter(Boolean).join(", ")}
+                {[drawn.kelurahan, drawn.kecamatan, drawn.kabupaten].filter(Boolean).join(", ")}
               </div>
             )}
+            <HouseCapacityCard areaSqm={drawn.area} />
+            <TerrainAnalysisCard result={terrainResult} loading={terrainLoading} />
             <ProspectForm
               form={form} setForm={setForm}
               onSave={() => handleSave("poly")}
