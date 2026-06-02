@@ -172,11 +172,11 @@ function DesaLayer({ visible }: { visible: boolean }) {
 // ─── Admin Drill Layer ────────────────────────────────────────────────────────
 
 const ADMIN_PALETTE = [
-  "#1d4ed8","#7c3aed","#b45309","#065f46","#9f1239",
-  "#0369a1","#6d28d9","#78350f","#047857","#be185d",
-  "#1e40af","#4c1d95","#92400e","#064e3b","#9d174d",
-  "#2563eb","#5b21b6","#a16207","#065f46","#831843",
-  "#0284c7","#7e22ce","#ca8a04","#15803d","#be123c",
+  "#ef4444","#f97316","#eab308","#22c55e","#06b6d4",
+  "#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f43f5e",
+  "#84cc16","#0ea5e9","#a855f7","#fb923c","#10b981",
+  "#6366f1","#d946ef","#f59e0b","#2dd4bf","#60a5fa",
+  "#e879f9","#a78bfa","#34d399","#fb7185","#fbbf24",
 ];
 
 function adminHashColor(name: string): string {
@@ -231,9 +231,9 @@ function AdminDrillLayer({ visible, drill, onDrill }: {
       if (drill.level >= 2 && drill.kec) features = features.filter(f => (f.properties as any)?.sub_district === drill.kec);
 
       const gk = drill.level === 0 ? "district" : drill.level === 1 ? "sub_district" : "village";
-      const foBase = drill.level === 0 ? 0.22 : drill.level === 1 ? 0.28 : 0.35;
-      const foHover = foBase + 0.2;
-      const wBase = drill.level === 0 ? 1.5 : drill.level === 1 ? 1.1 : 0.7;
+      const foBase = drill.level === 0 ? 0.50 : drill.level === 1 ? 0.48 : 0.45;
+      const foHover = Math.min(foBase + 0.20, 0.78);
+      const wBase = drill.level === 0 ? 1.0 : drill.level === 1 ? 0.8 : 0.5;
 
       const groups: Record<string, GeoJSON.Feature[]> = {};
       for (const f of features) {
@@ -244,8 +244,10 @@ function AdminDrillLayer({ visible, drill, onDrill }: {
       const geo = L.geoJSON({ type: "FeatureCollection", features } as GeoJSON.FeatureCollection, {
         style(feature) {
           const key = (feature?.properties as any)?.[gk] ?? "";
-          const color = drill.level === 2 ? "#3b82f6" : adminHashColor(key);
-          return { color: "rgba(255,255,255,0.65)", weight: wBase, opacity: 1, fillColor: color, fillOpacity: foBase };
+          const color = drill.level === 2 ? "#60a5fa" : adminHashColor(key);
+          // Stroke uses same hue as fill so intra-group boundaries blend in,
+          // making each kabupaten look like one solid block
+          return { color, weight: wBase, opacity: 0.7, fillColor: color, fillOpacity: foBase };
         },
         onEachFeature(feature, lyr) {
           const p = feature.properties as any;
@@ -254,14 +256,14 @@ function AdminDrillLayer({ visible, drill, onDrill }: {
           lyr.on("mouseover", () => {
             geo.eachLayer(gl => {
               if ((gl as any).feature?.properties?.[gk] === key)
-                (gl as L.Path).setStyle({ fillOpacity: foHover, weight: wBase + 1 });
+                (gl as L.Path).setStyle({ fillOpacity: foHover });
             });
             if (drill.level < 2) map.getContainer().style.cursor = "pointer";
           });
           lyr.on("mouseout", () => {
             geo.eachLayer(gl => {
               if ((gl as any).feature?.properties?.[gk] === key)
-                (gl as L.Path).setStyle({ fillOpacity: foBase, weight: wBase });
+                (gl as L.Path).setStyle({ fillOpacity: foBase });
             });
             map.getContainer().style.cursor = "";
           });
