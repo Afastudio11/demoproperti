@@ -534,7 +534,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                       Harga Jual Target/Unit (Rp)
                       <span className="text-[9px] text-muted-foreground ml-1 font-normal">opsional</span>
                     </label>
-                    <input type="text" inputMode="numeric" placeholder={form.targetTipeRumah === "subsidi" ? "166.000.000" : form.targetTipeRumah === "komersial_kecil" ? "385.000.000" : "650.000.000"}
+                    <input type="text" inputMode="numeric" placeholder={form.targetTipeRumah === "subsidi" ? "200.000.000" : form.targetTipeRumah === "komersial_kecil" ? "385.000.000" : "650.000.000"}
                       value={formatRpInput(form.hargaJualPerUnit)}
                       onChange={e => setForm(f => ({ ...f, hargaJualPerUnit: parseRpInput(e.target.value) }))}
                       className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
