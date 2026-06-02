@@ -1,3 +1,4 @@
 - [Square UI dashboard-4 design](square-ui-design.md) — oklch palette, dark by default, rounded content card layout, stats card nested box pattern.
 - [sulsel_desa GeoJSON coordinate normalization](sulsel-geojson-normalization.md) — 95 features have extra nesting level in Polygon coordinates; must be normalized before passing to Leaflet.
 - [React Leaflet HMR effect issue](react-leaflet-hmr.md) — Leaflet layers inside MapContainer: use conditional mount ({cond && <Layer />}) not visible prop, so HMR resets effect properly.
+- [SLIS Calculation Engine separation](slis-calc-engine.md) — AI must not generate financial numbers; Calculation Engine computes all metrics, AI writes narrative only. Key pattern for all future AI analysis features.
