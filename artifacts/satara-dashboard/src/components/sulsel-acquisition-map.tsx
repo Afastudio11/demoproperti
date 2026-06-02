@@ -58,98 +58,30 @@ type LayerKey = "satellite" | "topo";
 
 // ─── Desa Border Layer ────────────────────────────────────────────────────────
 
-let desaGeoJsonCache: GeoJSON.FeatureCollection | null = null;
-let desaLoadPromise: Promise<GeoJSON.FeatureCollection | null> | null = null;
+// GeoJSON cache – keyed on URL so a different URL always re-fetches
+const _desaCache: { url: string; data: GeoJSON.FeatureCollection } | null = null as
+  | { url: string; data: GeoJSON.FeatureCollection }
+  | null;
+// Use a wrapper object so we can mutate it (module const reference stays stable)
+const _desaCacheRef = { current: _desaCache };
 
-async function loadDesaGeoJson(): Promise<GeoJSON.FeatureCollection | null> {
-  if (desaGeoJsonCache) return desaGeoJsonCache;
-  if (desaLoadPromise) return desaLoadPromise;
-  desaLoadPromise = (async () => {
-    try {
-      const res = await fetch("/sulsel_desa.geojson");
-      if (!res.ok) return null;
-      desaGeoJsonCache = await res.json() as GeoJSON.FeatureCollection;
-      return desaGeoJsonCache;
-    } catch {
-      return null;
-    }
-  })();
-  return desaLoadPromise;
+const GEOJSON_URL = "/sulsel_desa.geojson";
+
+async function fetchDesaGeoJson(signal: AbortSignal): Promise<GeoJSON.FeatureCollection | null> {
+  if (_desaCacheRef.current?.url === GEOJSON_URL) return _desaCacheRef.current.data;
+  try {
+    const res = await fetch(GEOJSON_URL, { signal });
+    if (!res.ok) return null;
+    const data = await res.json() as GeoJSON.FeatureCollection;
+    _desaCacheRef.current = { url: GEOJSON_URL, data };
+    return data;
+  } catch {
+    return null;
+  }
 }
 
-const LABEL_MIN_ZOOM = 9;
-
-function DesaLayer({ visible }: { visible: boolean }) {
-  const map = useMap();
-  const layerRef = useRef<L.GeoJSON | null>(null);
-  const tooltipPaneRef = useRef<HTMLElement | null>(null);
-
-  // Toggle label visibility on zoom without recreating the entire layer
-  useEffect(() => {
-    const onZoom = () => {
-      if (!layerRef.current) return;
-      const z = map.getZoom();
-      const pane = tooltipPaneRef.current ?? map.getPane("tooltipPane");
-      if (pane) {
-        (pane as HTMLElement).style.display = z >= LABEL_MIN_ZOOM ? "" : "none";
-      }
-    };
-    map.on("zoomend", onZoom);
-    return () => { map.off("zoomend", onZoom); };
-  }, [map]);
-
-  // Create/destroy layer only when visible changes — NOT on zoom changes
-  useEffect(() => {
-    if (!visible) {
-      if (layerRef.current) { layerRef.current.remove(); layerRef.current = null; }
-      // restore tooltip pane visibility
-      const pane = map.getPane("tooltipPane");
-      if (pane) (pane as HTMLElement).style.display = "";
-      return;
-    }
-    let cancelled = false;
-    loadDesaGeoJson().then((geojson) => {
-      if (cancelled || !geojson) return;
-      if (layerRef.current) { layerRef.current.remove(); layerRef.current = null; }
-      const layer = L.geoJSON(geojson, {
-        style: {
-          color: "#3b82f6",
-          weight: 0.8,
-          opacity: 0.65,
-          fillColor: "#3b82f6",
-          fillOpacity: 0.04,
-        },
-        onEachFeature(feature, lyr) {
-          const p = feature.properties as { village?: string; sub_district?: string; district?: string };
-          const label = [p.village, p.sub_district].filter(Boolean).join(", ");
-          if (label) {
-            lyr.bindTooltip(label, {
-              permanent: true,
-              className: "desa-tooltip",
-              direction: "center",
-            });
-          }
-          lyr.on("mouseover", function () {
-            (lyr as L.Path).setStyle({ fillOpacity: 0.18, weight: 1.5 });
-          });
-          lyr.on("mouseout", function () {
-            (lyr as L.Path).setStyle({ fillOpacity: 0.04, weight: 0.8 });
-          });
-        },
-      });
-      layer.addTo(map);
-      layerRef.current = layer;
-
-      // Apply initial zoom-based visibility for tooltips
-      const pane = map.getPane("tooltipPane");
-      tooltipPaneRef.current = pane as HTMLElement ?? null;
-      if (pane) {
-        (pane as HTMLElement).style.display = map.getZoom() >= LABEL_MIN_ZOOM ? "" : "none";
-      }
-    });
-    return () => { cancelled = true; };
-  }, [visible, map]);
-
+// DesaLayer kept as no-op (Label Desa button removed)
+function DesaLayer({ visible: _visible }: { visible: boolean }) {
   return null;
 }
 
@@ -192,28 +124,31 @@ function groupCentroid(features: GeoJSON.Feature[]): [number, number] | null {
   return n > 0 ? [lat / n, lng / n] : null;
 }
 
-function AdminDrillLayer({ visible, drill, onDrill }: {
-  visible: boolean;
+function AdminDrillLayer({ drill, onDrill, onLoadingChange }: {
   drill: DrillState;
   onDrill: (next: DrillState) => void;
+  onLoadingChange: (loading: boolean) => void;
 }) {
   const map = useMap();
   const geoRef = useRef<L.GeoJSON | null>(null);
   const lblRef = useRef<L.LayerGroup | null>(null);
-  // stable ref so click closures always call the latest onDrill
   const onDrillRef = useRef(onDrill);
+  const onLoadingRef = useRef(onLoadingChange);
   useEffect(() => { onDrillRef.current = onDrill; }, [onDrill]);
+  useEffect(() => { onLoadingRef.current = onLoadingChange; }, [onLoadingChange]);
 
   useEffect(() => {
     geoRef.current?.remove(); geoRef.current = null;
     lblRef.current?.remove(); lblRef.current = null;
-    if (!visible) return;
 
     const drillSnapshot = { ...drill };
-    let cancelled = false;
+    const abortCtrl = new AbortController();
+    onLoadingRef.current(true);
 
-    loadDesaGeoJson().then(geojson => {
-      if (cancelled || !geojson) return;
+    fetchDesaGeoJson(abortCtrl.signal).then(geojson => {
+      if (abortCtrl.signal.aborted) return;
+      onLoadingRef.current(false);
+      if (!geojson) return;
 
       let features = geojson.features;
       if (drillSnapshot.level >= 1 && drillSnapshot.kab)
@@ -309,8 +244,8 @@ function AdminDrillLayer({ visible, drill, onDrill }: {
       }
       lblRef.current = lblGroup;
     });
-    return () => { cancelled = true; };
-  }, [visible, drill.level, drill.kab, drill.kec, map]);
+    return () => { abortCtrl.abort(); };
+  }, [drill.level, drill.kab, drill.kec, map]);
 
   useEffect(() => () => {
     geoRef.current?.remove(); lblRef.current?.remove();
@@ -1065,8 +1000,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
                 opacity={0.9}
               />
             )}
-            <DesaLayer visible={showLabel} />
-            <AdminDrillLayer visible={showAdmin} drill={adminDrill} onDrill={setAdminDrill} />
+            {showAdmin && <AdminDrillLayer drill={adminDrill} onDrill={setAdminDrill} />}
 
             <MapFlyHandler target={flyTarget} />
             <GeomanControl drawMode={drawMode} onCreated={handleDrawCreated} onDisable={() => setDrawMode(false)} />
