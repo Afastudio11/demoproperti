@@ -3,12 +3,13 @@ import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import {
   Plus, CheckCircle2, Map, LayoutList, X,
-  FileText, ClipboardList, ArrowRight, Lock,
+  FileText, ClipboardList, ArrowRight, BrainCircuit,
   Sparkles, Loader2, ThumbsUp, AlertTriangle, ThumbsDown, RefreshCw,
   Building2, Radio, Search as SearchIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
+import SLIS from "@/pages/slis";
 import { cn } from "@/lib/utils";
 
 // ─── AI Types ─────────────────────────────────────────────────────────────────
@@ -279,9 +280,7 @@ function ProspectDetailPanel({
     setAiError(null);
     setAiResult(null);
     try {
-      const competitors = (prospect.lat != null && prospect.lng != null)
-        ? await fetchNearbyCompetitors(prospect.lat, prospect.lng, 3)
-        : [];
+      const competitors = competitorList.map(c => c.name);
 
       const res = await fetch("/api/ai/analyze-land", {
         method: "POST",
@@ -457,7 +456,7 @@ function ProspectDetailPanel({
                         ? <CheckCircle2 className="size-2.5 text-white" strokeWidth={3} />
                         : status === "active"
                         ? <div className="size-1 rounded-full bg-white" />
-                        : <Lock className="size-2 text-muted-foreground/40" />
+                        : <div className="size-1 rounded-full bg-muted-foreground/30" />
                       }
                     </div>
                     <div className="min-w-0 flex-1">
@@ -473,15 +472,13 @@ function ProspectDetailPanel({
                   <div className="p-2 space-y-1 flex-1">
                     {jStage.checklist.map((item) => {
                       const done = checked.includes(item.key);
-                      const canToggle = status === "active";
                       return (
                         <div
                           key={item.key}
-                          onClick={() => canToggle && onToggleItem(prospect.id, item.key)}
+                          onClick={() => onToggleItem(prospect.id, item.key)}
                           className={cn(
-                            "flex items-start gap-1.5 text-[10px] rounded px-1 py-0.5 transition-colors",
-                            canToggle ? "cursor-pointer hover:bg-white/60" : "cursor-default",
-                            done ? "text-emerald-700" : isPending ? "text-muted-foreground/40" : "text-foreground/80"
+                            "flex items-start gap-1.5 text-[10px] rounded px-1 py-0.5 transition-colors cursor-pointer hover:bg-white/60",
+                            done ? "text-emerald-700" : isPending ? "text-muted-foreground/50" : "text-foreground/80"
                           )}
                         >
                           <div className={cn(
@@ -497,24 +494,22 @@ function ProspectDetailPanel({
                   </div>
 
                   {/* Footer progress */}
-                  {!isPending && (
-                    <div className={cn("px-2 pb-2 pt-1 border-t", style.border.replace("border-", "border-t-"))}>
+                  {jStage.checklist.length > 0 && (
+                    <div className={cn("px-2 pb-2 pt-1 border-t", isPending ? "border-border/30" : style.border.replace("border-", "border-t-"))}>
                       <CheckProgress checked={stageCheckedCount} total={jStage.checklist.length} />
-                      {status === "active" && (
-                        <button
-                          className="w-full mt-1.5 text-[9px] text-muted-foreground hover:text-foreground py-0.5 border rounded hover:bg-white/60 transition-colors"
-                          onClick={() => {
-                            const allKeys = jStage.checklist.map((c) => c.key);
-                            const allDone = allKeys.every((k) => checked.includes(k));
-                            allKeys.forEach((k) => {
-                              if (allDone ? checked.includes(k) : !checked.includes(k))
-                                onToggleItem(prospect.id, k);
-                            });
-                          }}
-                        >
-                          {jStage.checklist.every((c) => checked.includes(c.key)) ? "Batal semua" : "Tandai semua"}
-                        </button>
-                      )}
+                      <button
+                        className="w-full mt-1.5 text-[9px] text-muted-foreground hover:text-foreground py-0.5 border rounded hover:bg-white/60 transition-colors"
+                        onClick={() => {
+                          const allKeys = jStage.checklist.map((c) => c.key);
+                          const allDone = allKeys.every((k) => checked.includes(k));
+                          allKeys.forEach((k) => {
+                            if (allDone ? checked.includes(k) : !checked.includes(k))
+                              onToggleItem(prospect.id, k);
+                          });
+                        }}
+                      >
+                        {jStage.checklist.every((c) => checked.includes(c.key)) ? "Batal semua" : "Tandai semua"}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -610,7 +605,7 @@ function ProspectDetailPanel({
         {aiLoading && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-3 py-2.5">
             <Loader2 className="size-3.5 animate-spin shrink-0 text-violet-500" />
-            <span>AI sedang menganalisis data lahan, kontur, kompetitor, dan kalkulasi finansial...</span>
+            <span>AI sedang menganalisis semua data: jobdesk, lahan, kontur, dan kompetitor yang sudah dicari...</span>
           </div>
         )}
 
@@ -720,7 +715,7 @@ function ProspectDetailPanel({
 
         {!aiResult && !aiLoading && !aiError && (
           <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-            Isi bentuk lahan & status legal di atas, lalu klik Analisis AI untuk mendapatkan kalkulasi finansial lengkap sesuai SLIS.
+            Isi jobdesk checklist, bentuk lahan, status legal, dan cari data kompetitor di bawah. Setelah semua terisi, klik Analisis dengan AI — AI hanya generate 1x menggunakan semua data yang sudah ada.
           </div>
         )}
       </div>
@@ -803,7 +798,7 @@ type TerrainData = { elevMin?: number; elevMax?: number; elevAvg?: number; slope
 
 export default function Akuisisi() {
   const { data: prospects, refetch } = useListLandProspects({});
-  const [tab, setTab] = useState<"peta" | "pipeline">("peta");
+  const [tab, setTab] = useState<"peta" | "pipeline" | "slis">("peta");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [checklists, setChecklists] = useState<Record<number, string[]>>(loadChecklist);
   const [advancing, setAdvancing] = useState(false);
@@ -838,8 +833,9 @@ export default function Akuisisi() {
   }
 
   const TABS = [
-    { key: "peta",     label: "Peta Sulsel", icon: Map },
-    { key: "pipeline", label: "Pipeline",     icon: LayoutList, badge: prospects?.length },
+    { key: "peta",     label: "Peta Sulsel",     icon: Map },
+    { key: "pipeline", label: "Pipeline",          icon: LayoutList, badge: prospects?.length },
+    { key: "slis",     label: "SLIS Intelligence", icon: BrainCircuit },
   ] as const;
 
   return (
@@ -1009,6 +1005,10 @@ export default function Akuisisi() {
             />
           )}
         </div>
+      )}
+
+      {tab === "slis" && (
+        <SLIS />
       )}
 
     </div>

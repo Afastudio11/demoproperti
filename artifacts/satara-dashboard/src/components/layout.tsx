@@ -29,7 +29,6 @@ import {
   ChevronsUpDown,
   Bell,
   Search,
-  BrainCircuit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -43,7 +42,6 @@ import {
 
 const navItems = [
   { name: "Executive Overview", path: "/", icon: LayoutDashboard },
-  { name: "SLIS Intelligence", path: "/slis", icon: BrainCircuit },
   { name: "Daftar Proyek", path: "/projects", icon: Building2 },
   { name: "Akuisisi Lahan", path: "/akuisisi", icon: MapPin },
   { name: "Perencanaan", path: "/perencanaan", icon: Calculator },
