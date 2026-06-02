@@ -876,6 +876,15 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
             scrollWheelZoom
           >
             <TileLayer url={tile.url} attribution={tile.attribution} maxZoom={20} maxNativeZoom={18} />
+            {layer === "satellite" && (
+              <TileLayer
+                url={TILE_LAYERS.satLabel.url}
+                attribution={TILE_LAYERS.satLabel.attribution}
+                maxZoom={20}
+                maxNativeZoom={18}
+                opacity={0.9}
+              />
+            )}
             <DesaLayer visible={showLabel} />
 
             <MapFlyHandler target={flyTarget} />
