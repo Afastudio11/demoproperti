@@ -138,22 +138,16 @@ function CheckProgress({ checked, total }: { checked: number; total: number }) {
   );
 }
 
-// ─── Prospect Detail Panel ────────────────────────────────────────────────────
+// ─── Prospect Detail Panel (full-width, below map) ───────────────────────────
 
-const STAGE_COLORS: Record<string, { done: string; active: string; pending: string }> = {
-  survey:              { done: "border-blue-300 bg-blue-50",    active: "border-blue-400 bg-blue-50",    pending: "border-border bg-muted/30" },
-  analisis_kompetitor: { done: "border-violet-300 bg-violet-50", active: "border-violet-400 bg-violet-50", pending: "border-border bg-muted/30" },
-  negosiasi:           { done: "border-amber-300 bg-amber-50",  active: "border-amber-400 bg-amber-50",  pending: "border-border bg-muted/30" },
-  legal_checking:      { done: "border-orange-300 bg-orange-50", active: "border-orange-400 bg-orange-50", pending: "border-border bg-muted/30" },
-  pks_mou:             { done: "border-emerald-300 bg-emerald-50", active: "border-emerald-400 bg-emerald-50", pending: "border-border bg-muted/30" },
-};
+const TUJUAN_ITEMS = ["Market", "Legal", "Akses", "Profit", "Cashflow"];
 
-const STAGE_HEADER_COLORS: Record<string, { done: string; active: string; pending: string }> = {
-  survey:              { done: "text-blue-700",    active: "text-blue-700",    pending: "text-muted-foreground" },
-  analisis_kompetitor: { done: "text-violet-700",  active: "text-violet-700",  pending: "text-muted-foreground" },
-  negosiasi:           { done: "text-amber-700",   active: "text-amber-700",   pending: "text-muted-foreground" },
-  legal_checking:      { done: "text-orange-700",  active: "text-orange-700",  pending: "text-muted-foreground" },
-  pks_mou:             { done: "text-emerald-700", active: "text-emerald-700", pending: "text-muted-foreground" },
+const STAGE_STYLE: Record<string, { border: string; bg: string; header: string; dot: string; badge: string }> = {
+  survey:              { border: "border-blue-200",   bg: "bg-blue-50",   header: "text-blue-700",   dot: "bg-blue-500",   badge: "bg-blue-100 text-blue-700" },
+  analisis_kompetitor: { border: "border-violet-200", bg: "bg-violet-50", header: "text-violet-700", dot: "bg-violet-500", badge: "bg-violet-100 text-violet-700" },
+  negosiasi:           { border: "border-amber-200",  bg: "bg-amber-50",  header: "text-amber-700",  dot: "bg-amber-500",  badge: "bg-amber-100 text-amber-700" },
+  legal_checking:      { border: "border-orange-200", bg: "bg-orange-50", header: "text-orange-700", dot: "bg-orange-500", badge: "bg-orange-100 text-orange-700" },
+  pks_mou:             { border: "border-emerald-200",bg: "bg-emerald-50",header: "text-emerald-700",dot: "bg-emerald-500",badge: "bg-emerald-100 text-emerald-700" },
 };
 
 function ProspectDetailPanel({
@@ -171,8 +165,6 @@ function ProspectDetailPanel({
   onAdvanceStage: (id: number, nextStage: string) => void;
   advancing: boolean;
 }) {
-  const [expandedStages, setExpandedStages] = useState<string[]>([prospect.status]);
-
   const stage = STAGES.find((s) => s.key === prospect.status);
   const checked = checklists[prospect.id] ?? [];
   const currentStageIdx = STAGE_ORDER.indexOf(prospect.status);
@@ -180,183 +172,251 @@ function ProspectDetailPanel({
     ? STAGE_ORDER[currentStageIdx + 1] : null;
   const nextStageLabel = STAGES.find((s) => s.key === nextStage)?.label;
 
-  const jobdeskStages = JOBDESK_STAGES;
-
-  function toggleExpand(key: string) {
-    setExpandedStages((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
-  }
-
-  // Total progress across all stages up to current
-  const totalItems = jobdeskStages.reduce((sum, s) => {
-    const sIdx = STAGE_ORDER.indexOf(s.key);
-    return sIdx <= currentStageIdx ? sum + s.checklist.length : sum;
+  const totalItems = JOBDESK_STAGES.reduce((sum, s) => {
+    return STAGE_ORDER.indexOf(s.key) <= currentStageIdx ? sum + s.checklist.length : sum;
   }, 0);
-  const totalChecked = jobdeskStages.reduce((sum, s) => {
-    const sIdx = STAGE_ORDER.indexOf(s.key);
-    if (sIdx > currentStageIdx) return sum;
+  const totalChecked = JOBDESK_STAGES.reduce((sum, s) => {
+    if (STAGE_ORDER.indexOf(s.key) > currentStageIdx) return sum;
     return sum + s.checklist.filter((c) => checked.includes(c.key)).length;
   }, 0);
 
   return (
-    <div className="w-72 shrink-0 bg-card border rounded-xl flex flex-col self-start max-h-[calc(100vh-220px)] overflow-y-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2 p-3 border-b sticky top-0 bg-card z-10">
-        <div className="min-w-0">
-          <div className="font-semibold text-sm leading-snug line-clamp-2">{prospect.lokasi}</div>
+    <div className="bg-card border rounded-xl overflow-hidden">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm leading-snug">{prospect.lokasi}</div>
           {(prospect.kelurahan || prospect.kecamatan) && (
-            <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+            <div className="text-[11px] text-muted-foreground mt-0.5">
               {[prospect.kelurahan, prospect.kecamatan, prospect.kabupaten].filter(Boolean).join(", ")}
             </div>
           )}
         </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5">
-          <X className="size-4" />
-        </button>
-      </div>
-
-      <div className="p-3 space-y-3">
-        {/* Data ringkas */}
-        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+            STAGE_STYLE[prospect.status]?.badge ?? "bg-muted text-muted-foreground border-border"
+          )}>
+            {stage?.label ?? prospect.status}
+          </span>
+          {/* Stats */}
           {[
-            { l: "Luas",     v: formatLuas(prospect.luas) },
+            { l: "Luas", v: formatLuas(prospect.luas) },
             { l: "Harga/m²", v: `Rp${prospect.hargaM2.toLocaleString("id-ID")}` },
-            { l: "ROI",      v: `${prospect.roi}%`, hi: prospect.roi >= 25 },
-            { l: "Status",   v: stage?.label ?? prospect.status },
+            { l: "ROI", v: `${prospect.roi}%`, hi: prospect.roi >= 25 },
           ].map(({ l, v, hi }) => (
-            <div key={l} className="bg-muted rounded-md px-2 py-1.5">
-              <div className="text-muted-foreground">{l}</div>
-              <div className={cn("font-semibold", hi && "text-emerald-600")}>{v}</div>
+            <div key={l} className="bg-background border rounded-md px-2.5 py-1 text-center">
+              <div className="text-[9px] text-muted-foreground leading-none mb-0.5">{l}</div>
+              <div className={cn("text-[11px] font-semibold", hi && "text-emerald-600")}>{v}</div>
             </div>
           ))}
+          {/* Progress */}
+          {totalItems > 0 && (
+            <div className="bg-background border rounded-md px-2.5 py-1 text-center min-w-[56px]">
+              <div className="text-[9px] text-muted-foreground leading-none mb-0.5">Progress</div>
+              <div className="text-[11px] font-semibold">{Math.round((totalChecked / totalItems) * 100)}%</div>
+            </div>
+          )}
+          {nextStage && nextStage !== "ditolak" && (
+            <button
+              disabled={advancing}
+              onClick={() => onAdvanceStage(prospect.id, nextStage)}
+              className="flex items-center gap-1.5 text-[11px] font-semibold py-1.5 px-3 rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50 shrink-0"
+            >
+              <ArrowRight className="size-3.5" />
+              Naikan ke {nextStageLabel}
+            </button>
+          )}
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground ml-1">
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Body: 3-column layout ── */}
+      <div className="grid grid-cols-[200px_1fr_auto] divide-x">
+
+        {/* Col 1: TUJUAN + INDIKATOR + OUTPUT */}
+        <div className="p-3 space-y-3">
+          {/* TUJUAN */}
+          <div>
+            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">TUJUAN</div>
+            <div className="space-y-1">
+              {TUJUAN_ITEMS.map((t) => (
+                <div key={t} className="flex items-center gap-2 text-[11px]">
+                  <div className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                  <span>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* INDIKATOR KEBERHASILAN */}
+          <div>
+            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">INDIKATOR</div>
+            <div className="space-y-1">
+              {KPI_TARGETS.map((k) => {
+                const pass =
+                  (k.label === "ROI Proyek" && prospect.roi >= 25) ||
+                  (k.label === "Margin" && prospect.roi >= 20) ||
+                  false;
+                return (
+                  <div key={k.label} className="flex justify-between items-center text-[10px] py-0.5 border-b border-border/40 last:border-0">
+                    <span className="text-muted-foreground">{k.label}</span>
+                    <span className={cn("font-semibold", pass ? "text-emerald-600" : "text-foreground")}>{k.target}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* OUTPUT */}
+          <div>
+            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">OUTPUT</div>
+            <div className="space-y-1">
+              {OUTPUT_ITEMS.map(({ key, label, icon: Icon }) => {
+                const done = checked.includes(key);
+                return (
+                  <div key={key} className={cn("flex items-center gap-2 text-[11px] px-1.5 py-1 rounded-md", done ? "text-emerald-700" : "text-muted-foreground")}>
+                    <Icon className={cn("size-3 shrink-0", done ? "text-emerald-500" : "text-muted-foreground/50")} />
+                    <span className={cn(done && "line-through")}>{label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        {/* Overall progress */}
-        {totalItems > 0 && (
-          <div>
-            <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-              <span className="font-semibold tracking-wider">TOTAL PROGRESS JOBDESK</span>
-              <span>{totalChecked}/{totalItems}</span>
-            </div>
-            <CheckProgress checked={totalChecked} total={totalItems} />
-          </div>
-        )}
+        {/* Col 2: JOBDESK 5 stages horizontal */}
+        <div className="p-3">
+          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-3">JOBDESK</div>
+          <div className="grid grid-cols-5 gap-2">
+            {JOBDESK_STAGES.map((jStage) => {
+              const sIdx = STAGE_ORDER.indexOf(jStage.key);
+              const status: "done" | "active" | "pending" =
+                sIdx < currentStageIdx ? "done" :
+                sIdx === currentStageIdx ? "active" : "pending";
+              const isPending = status === "pending";
+              const style = STAGE_STYLE[jStage.key];
+              const stageCheckedCount = jStage.checklist.filter((c) => checked.includes(c.key)).length;
 
-        {/* Advance stage button */}
-        {nextStage && nextStage !== "ditolak" && (
-          <button
-            disabled={advancing}
-            onClick={() => onAdvanceStage(prospect.id, nextStage)}
-            className="w-full flex items-center justify-center gap-1.5 text-xs font-medium py-2 rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
-          >
-            <ArrowRight className="size-3.5" />
-            Naikan ke {nextStageLabel}
-          </button>
-        )}
-
-        {/* Per-stage jobdesk */}
-        <div className="space-y-2">
-          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider pt-1 border-t">
-            JOBDESK LAHAN
-          </div>
-          {jobdeskStages.map((jStage) => {
-            const sIdx = STAGE_ORDER.indexOf(jStage.key);
-            const status: "done" | "active" | "pending" =
-              sIdx < currentStageIdx ? "done" :
-              sIdx === currentStageIdx ? "active" : "pending";
-            const isPending = status === "pending";
-            const stageChecked = jStage.checklist.filter((c) => checked.includes(c.key));
-            const isExpanded = expandedStages.includes(jStage.key) && !isPending;
-            const colors = STAGE_COLORS[jStage.key];
-            const headerColor = STAGE_HEADER_COLORS[jStage.key];
-
-            return (
-              <div
-                key={jStage.key}
-                className={cn("border rounded-lg overflow-hidden transition-all",
-                  colors?.[status] ?? "border-border bg-muted/30"
-                )}
-              >
-                <button
-                  disabled={isPending}
-                  onClick={() => !isPending && toggleExpand(jStage.key)}
-                  className="w-full flex items-center gap-2 px-2.5 py-2 text-left"
-                >
-                  <div className={cn("size-4 rounded-full flex items-center justify-center shrink-0",
-                    status === "done" ? "bg-emerald-500" :
-                    status === "active" ? "bg-foreground" : "bg-muted-foreground/20"
-                  )}>
-                    {status === "done"
-                      ? <CheckCircle2 className="size-3 text-white" strokeWidth={3} />
-                      : status === "active"
-                      ? <div className="size-1.5 rounded-full bg-background" />
-                      : <Lock className="size-2.5 text-muted-foreground/50" />
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={cn("text-[11px] font-semibold leading-tight", headerColor?.[status])}>
-                      {jStage.label}
-                    </div>
-                    {!isPending && (
-                      <div className="text-[10px] text-muted-foreground">
-                        {stageChecked.length}/{jStage.checklist.length} selesai
-                      </div>
-                    )}
-                  </div>
-                  {!isPending && (
-                    isExpanded
-                      ? <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
-                      : <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />
+              return (
+                <div
+                  key={jStage.key}
+                  className={cn(
+                    "border rounded-lg flex flex-col",
+                    status === "done"   ? cn(style.border, style.bg) :
+                    status === "active" ? cn(style.border, "bg-background ring-1", style.border.replace("border-", "ring-")) :
+                    "border-border/50 bg-muted/20"
                   )}
-                </button>
+                >
+                  {/* Stage header */}
+                  <div className={cn("px-2.5 py-2 border-b flex items-center gap-1.5",
+                    status !== "pending" ? cn(style.border, style.bg) : "border-border/30"
+                  )}>
+                    <div className={cn("size-3.5 rounded-full flex items-center justify-center shrink-0",
+                      status === "done"    ? "bg-emerald-500" :
+                      status === "active"  ? style.dot : "bg-muted-foreground/20"
+                    )}>
+                      {status === "done"
+                        ? <CheckCircle2 className="size-2.5 text-white" strokeWidth={3} />
+                        : status === "active"
+                        ? <div className="size-1 rounded-full bg-white" />
+                        : <Lock className="size-2 text-muted-foreground/40" />
+                      }
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className={cn("text-[10px] font-bold leading-tight truncate",
+                        isPending ? "text-muted-foreground/50" : style.header
+                      )}>
+                        {jStage.no}. {jStage.label}
+                      </div>
+                    </div>
+                  </div>
 
-                {isExpanded && (
-                  <div className="px-2.5 pb-2.5 space-y-1">
+                  {/* Checklist items */}
+                  <div className="p-2 space-y-1 flex-1">
                     {jStage.checklist.map((item) => {
                       const done = checked.includes(item.key);
                       const canToggle = status === "active";
                       return (
-                        <label
+                        <div
                           key={item.key}
+                          onClick={() => canToggle && onToggleItem(prospect.id, item.key)}
                           className={cn(
-                            "flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] transition-colors",
-                            canToggle ? "cursor-pointer" : "cursor-default",
-                            done ? "bg-emerald-100/60 text-emerald-800" : canToggle ? "hover:bg-white/60" : "opacity-60"
+                            "flex items-start gap-1.5 text-[10px] rounded px-1 py-0.5 transition-colors",
+                            canToggle ? "cursor-pointer hover:bg-white/60" : "cursor-default",
+                            done ? "text-emerald-700" : isPending ? "text-muted-foreground/40" : "text-foreground/80"
                           )}
                         >
                           <div className={cn(
-                            "size-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                            "size-3 rounded-sm border flex items-center justify-center shrink-0 mt-[1px] transition-colors",
                             done ? "bg-emerald-500 border-emerald-500" : "border-border bg-background"
-                          )}
-                            onClick={() => canToggle && onToggleItem(prospect.id, item.key)}
-                          >
-                            {done && <CheckCircle2 className="size-3 text-white" strokeWidth={3} />}
+                          )}>
+                            {done && <CheckCircle2 className="size-2 text-white" strokeWidth={3} />}
                           </div>
-                          <span className={cn(done && "line-through text-emerald-600")}>{item.label}</span>
-                        </label>
+                          <span className={cn("leading-tight", done && "line-through")}>{item.label}</span>
+                        </div>
                       );
                     })}
-                    {status === "active" && (
-                      <button
-                        className="w-full mt-1 text-[10px] text-muted-foreground hover:text-foreground py-1 border rounded-md hover:bg-white/60 transition-colors"
-                        onClick={() => {
-                          const allKeys = jStage.checklist.map((c) => c.key);
-                          const allDone = allKeys.every((k) => checked.includes(k));
-                          allKeys.forEach((k) => {
-                            if (allDone ? checked.includes(k) : !checked.includes(k))
-                              onToggleItem(prospect.id, k);
-                          });
-                        }}
-                      >
-                        {jStage.checklist.every((c) => checked.includes(c.key)) ? "Batal semua" : "Tandai semua selesai"}
-                      </button>
-                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+
+                  {/* Footer progress */}
+                  {!isPending && (
+                    <div className={cn("px-2 pb-2 pt-1 border-t", style.border.replace("border-", "border-t-"))}>
+                      <CheckProgress checked={stageCheckedCount} total={jStage.checklist.length} />
+                      {status === "active" && (
+                        <button
+                          className="w-full mt-1.5 text-[9px] text-muted-foreground hover:text-foreground py-0.5 border rounded hover:bg-white/60 transition-colors"
+                          onClick={() => {
+                            const allKeys = jStage.checklist.map((c) => c.key);
+                            const allDone = allKeys.every((k) => checked.includes(k));
+                            allKeys.forEach((k) => {
+                              if (allDone ? checked.includes(k) : !checked.includes(k))
+                                onToggleItem(prospect.id, k);
+                            });
+                          }}
+                        >
+                          {jStage.checklist.every((c) => checked.includes(c.key)) ? "Batal semua" : "Tandai semua"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Col 3: Akses Jalan info */}
+        <div className="p-3 w-40">
+          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">AKSES JALAN</div>
+          <div className={cn("border rounded-lg p-3 text-center",
+            (prospect.aksesJalan ?? 0) >= 5
+              ? "border-emerald-200 bg-emerald-50"
+              : (prospect.aksesJalan ?? 0) > 0
+              ? "border-amber-200 bg-amber-50"
+              : "border-border bg-muted/30"
+          )}>
+            {(prospect.aksesJalan ?? 0) > 0 ? (
+              <>
+                <div className={cn("text-xl font-bold",
+                  (prospect.aksesJalan ?? 0) >= 5 ? "text-emerald-700" : "text-amber-700"
+                )}>
+                  {prospect.aksesJalan} m
+                </div>
+                <div className={cn("text-[10px] mt-0.5",
+                  (prospect.aksesJalan ?? 0) >= 5 ? "text-emerald-600" : "text-amber-600"
+                )}>
+                  {(prospect.aksesJalan ?? 0) >= 5 ? "Memenuhi syarat" : "Kurang dari 5 m"}
+                </div>
+              </>
+            ) : (
+              <div className="text-[11px] text-muted-foreground">Belum diisi</div>
+            )}
+          </div>
+          <div className="mt-2 text-[9px] text-muted-foreground">
+            Standar minimum: 5 meter
+          </div>
         </div>
       </div>
     </div>
@@ -465,14 +525,26 @@ export default function Akuisisi() {
       </div>
 
       {tab === "peta" && (
-        <div className="flex-1 min-h-0">
-          <SulselAcquisitionMap />
+        <div className="flex flex-col gap-3">
+          <div className="min-h-0" style={{ height: "480px" }}>
+            <SulselAcquisitionMap onSelectProspect={(id) => setSelectedId(id)} />
+          </div>
+          {selectedProspect && (
+            <ProspectDetailPanel
+              prospect={selectedProspect}
+              checklists={checklists}
+              onClose={() => setSelectedId(null)}
+              onToggleItem={toggleChecklistItem}
+              onAdvanceStage={advanceStage}
+              advancing={advancing}
+            />
+          )}
         </div>
       )}
 
       {tab === "pipeline" && (
-        <div className="flex flex-1 gap-3 min-h-0 overflow-hidden">
-          <div className="flex-1 flex gap-3 overflow-x-auto pb-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-3 overflow-x-auto pb-1" style={{ minHeight: 280 }}>
             {STAGES.map((stage) => {
               const cards = (prospects ?? []).filter((p) => p.status === stage.key);
               const stageChecklist = STAGE_CHECKLISTS[stage.key] ?? [];
@@ -494,7 +566,7 @@ export default function Akuisisi() {
                   </div>
 
                   <div className="flex-1 p-2 space-y-2 overflow-y-auto">
-                    {cards.map((prospect) => {
+                    {cards.map((prospect: LandProspect) => {
                       const checklist = STAGE_CHECKLISTS[prospect.status] ?? [];
                       const checkedItems = (checklists[prospect.id] ?? []).filter(
                         (k) => checklist.some((c) => c.key === k)

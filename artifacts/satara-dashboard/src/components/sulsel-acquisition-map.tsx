@@ -516,7 +516,7 @@ async function geocodeNominatim(kab: string, kec: string, kel: string): Promise<
   return null;
 }
 
-export default function SulselAcquisitionMap() {
+export default function SulselAcquisitionMap({ onSelectProspect }: { onSelectProspect?: (id: number | null) => void } = {}) {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
@@ -761,8 +761,8 @@ export default function SulselAcquisitionMap() {
                 key={p.id}
                 p={p}
                 selected={selectedId === p.id}
-                onSelect={() => setSelectedId(p.id)}
-                onDeselect={() => setSelectedId(null)}
+                onSelect={() => { setSelectedId(p.id); onSelectProspect?.(p.id); }}
+                onDeselect={() => { setSelectedId(null); onSelectProspect?.(null); }}
               />
             ))}
 
@@ -832,7 +832,7 @@ export default function SulselAcquisitionMap() {
             <div className="flex items-center gap-2">
               <SquareDashed className="size-4 text-blue-500" />
               <span className="text-xs font-semibold truncate flex-1">{selectedProspect.lokasi.split(",")[0]}</span>
-              <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => { setSelectedId(null); onSelectProspect?.(null); }} className="text-muted-foreground hover:text-foreground">
                 <X className="size-3.5" />
               </button>
             </div>
