@@ -1188,9 +1188,7 @@ function ProspectForm({ title, subLabel, form, setForm, onSave, onCancel, saving
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
           {[
             { label: "Luas (m²) *", key: "luas" as const, placeholder: "m²" },
-            { label: "Harga/m² (Rp) *", key: "hargaM2" as const, placeholder: "250000" },
-            { label: "ROI (%)", key: "roi" as const, placeholder: ">25%" },
-            { label: "Akses Jalan (m)", key: "aksesJalan" as const, placeholder: "min 5m" },
+            { label: "Harga/m² (Rp) *", key: "hargaM2" as const, placeholder: "250.000" },
           ].map(({ label, key, placeholder }) => (
             <div key={key}>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>{label}</div>
