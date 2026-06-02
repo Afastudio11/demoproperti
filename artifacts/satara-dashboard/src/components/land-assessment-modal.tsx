@@ -167,6 +167,25 @@ function formatRp(v: number) {
   return `Rp ${v.toLocaleString("id-ID")}`;
 }
 
+function formatRpInput(raw: string): string {
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  return parseInt(digits, 10).toLocaleString("id-ID");
+}
+
+function parseRpInput(formatted: string): string {
+  return formatted.replace(/\./g, "").replace(/\D/g, "");
+}
+
+function cleanAiText(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/#{1,6}\s+/g, "")
+    .trim();
+}
+
 function riskColor(level: string) {
   return level === "Rendah" ? "text-emerald-600 bg-emerald-50 border-emerald-200"
        : level === "Sedang" ? "text-amber-600 bg-amber-50 border-amber-200"
@@ -480,9 +499,9 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                     <label className="text-[11px] font-medium block mb-1.5">
                       Harga Tanah (Rp/m²) <span className="text-red-500">*</span>
                     </label>
-                    <input type="number" placeholder="contoh: 1500000"
-                      value={form.hargaTanahM2}
-                      onChange={e => setForm(f => ({ ...f, hargaTanahM2: e.target.value }))}
+                    <input type="text" inputMode="numeric" placeholder="contoh: 1.500.000"
+                      value={formatRpInput(form.hargaTanahM2)}
+                      onChange={e => setForm(f => ({ ...f, hargaTanahM2: parseRpInput(e.target.value) }))}
                       className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
                     />
                     {form.hargaTanahM2 && !isNaN(parseFloat(form.hargaTanahM2)) && (
@@ -515,9 +534,9 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                       Harga Jual Target/Unit (Rp)
                       <span className="text-[9px] text-muted-foreground ml-1 font-normal">opsional</span>
                     </label>
-                    <input type="number" placeholder={form.targetTipeRumah === "subsidi" ? "166000000" : form.targetTipeRumah === "komersial_kecil" ? "385000000" : "650000000"}
-                      value={form.hargaJualPerUnit}
-                      onChange={e => setForm(f => ({ ...f, hargaJualPerUnit: e.target.value }))}
+                    <input type="text" inputMode="numeric" placeholder={form.targetTipeRumah === "subsidi" ? "166.000.000" : form.targetTipeRumah === "komersial_kecil" ? "385.000.000" : "650.000.000"}
+                      value={formatRpInput(form.hargaJualPerUnit)}
+                      onChange={e => setForm(f => ({ ...f, hargaJualPerUnit: parseRpInput(e.target.value) }))}
                       className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
                     />
                     {!form.hargaJualPerUnit && <p className="text-[9px] text-amber-600 mt-0.5">Gunakan asumsi default jika kosong</p>}
@@ -527,9 +546,9 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                       Biaya Bangun/Unit (Rp)
                       <span className="text-[9px] text-muted-foreground ml-1 font-normal">opsional</span>
                     </label>
-                    <input type="number" placeholder={form.targetTipeRumah === "subsidi" ? "95000000" : form.targetTipeRumah === "komersial_kecil" ? "175000000" : "300000000"}
-                      value={form.biayaBangunPerUnit}
-                      onChange={e => setForm(f => ({ ...f, biayaBangunPerUnit: e.target.value }))}
+                    <input type="text" inputMode="numeric" placeholder={form.targetTipeRumah === "subsidi" ? "95.000.000" : form.targetTipeRumah === "komersial_kecil" ? "175.000.000" : "300.000.000"}
+                      value={formatRpInput(form.biayaBangunPerUnit)}
+                      onChange={e => setForm(f => ({ ...f, biayaBangunPerUnit: parseRpInput(e.target.value) }))}
                       className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
                     />
                     {!form.biayaBangunPerUnit && <p className="text-[9px] text-amber-600 mt-0.5">Gunakan asumsi default jika kosong</p>}
@@ -569,9 +588,9 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                 {/* Harga rumah sekitar */}
                 <div>
                   <label className="text-[11px] font-medium block mb-1.5">Harga Rumah Existing di Sekitar (Rp)</label>
-                  <input type="number" placeholder="contoh: 350000000"
-                    value={form.hargaRumahSekitar}
-                    onChange={e => setForm(f => ({ ...f, hargaRumahSekitar: e.target.value }))}
+                  <input type="text" inputMode="numeric" placeholder="contoh: 350.000.000"
+                    value={formatRpInput(form.hargaRumahSekitar)}
+                    onChange={e => setForm(f => ({ ...f, hargaRumahSekitar: parseRpInput(e.target.value) }))}
                     className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
                   />
                   {form.hargaRumahSekitar && !isNaN(parseFloat(form.hargaRumahSekitar)) && (
@@ -838,7 +857,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                           <Sparkles className="size-3.5 text-violet-500 shrink-0" />
                           <SectionLabel>Ringkasan Eksekutif (AI)</SectionLabel>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{ai.ringkasanEksekutif}</div>
+                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.ringkasanEksekutif)}</div>
                       </div>
                     )}
 
@@ -850,7 +869,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                           {ai.nextActions.map((a, i) => (
                             <li key={i} className="flex items-start gap-2 text-[11px]">
                               <span className="size-4 rounded-full bg-background/20 flex items-center justify-center shrink-0 text-[9px] font-bold mt-0.5">{i + 1}</span>
-                              {a}
+                              {cleanAiText(a)}
                             </li>
                           ))}
                         </ol>
@@ -1044,7 +1063,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                           <Sparkles className="size-3.5 text-violet-500 shrink-0" />
                           <SectionLabel>Analisis Lokasi (AI)</SectionLabel>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{ai.analisisLokasi}</div>
+                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.analisisLokasi)}</div>
                       </div>
                     )}
 
@@ -1055,7 +1074,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                           <Building2 className="size-3.5 text-muted-foreground shrink-0" />
                           <SectionLabel>Analisis Fisik Lahan (AI)</SectionLabel>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{ai.analisisFisikLahan}</div>
+                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.analisisFisikLahan)}</div>
                       </div>
                     )}
                   </>
@@ -1094,10 +1113,10 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                                 {r.level}
                               </span>
                             </div>
-                            <p className="text-[11px] text-muted-foreground">{r.deskripsi}</p>
+                            <p className="text-[11px] text-muted-foreground">{cleanAiText(r.deskripsi)}</p>
                             <div className="flex items-start gap-1.5 bg-muted/40 rounded-lg px-2 py-1.5">
                               <Shield className="size-3 shrink-0 mt-0.5 text-muted-foreground" />
-                              <p className="text-[11px]"><span className="font-medium">Mitigasi: </span>{r.mitigasi}</p>
+                              <p className="text-[11px]"><span className="font-medium">Mitigasi: </span>{cleanAiText(r.mitigasi)}</p>
                             </div>
                           </div>
                         ))}
@@ -1121,7 +1140,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                           }
                           <SectionLabel>Rekomendasi Keputusan (AI)</SectionLabel>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{ai.rekomendasiNarasi}</div>
+                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.rekomendasiNarasi)}</div>
                       </div>
                     )}
                   </>
@@ -1169,7 +1188,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                           <Shield className="size-3.5 text-muted-foreground" />
                           <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Draft Nota Kesepahaman (MOU)</span>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap font-mono">{ai.draftMou}</div>
+                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap font-mono">{cleanAiText(ai.draftMou)}</div>
                       </div>
                     )}
                   </>
