@@ -86,8 +86,8 @@ async function fetchCompetitorDetails(lat: number, lng: number, radiusKm = 3): P
       results.push({ name, type: el.tags?.landuse ? "Kawasan Residensial" : el.tags?.place ? "Permukiman" : "Perumahan", distanceKm });
     }
     return results.sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99)).slice(0, 20);
-  } catch {
-    return [];
+  } catch (e) {
+    throw new Error("Gagal menghubungi OpenStreetMap: " + (e instanceof Error ? e.message : "network error"));
   }
 }
 
@@ -196,6 +196,21 @@ function saveChecklist(s: Record<number, string[]>) {
   localStorage.setItem(CHECKLIST_KEY, JSON.stringify(s));
 }
 
+function loadAiResult(id: number): AiResult | null {
+  try { return JSON.parse(localStorage.getItem(`satara_ai_${id}`) ?? "null"); } catch { return null; }
+}
+function saveAiResult(id: number, r: AiResult | null) {
+  if (r) localStorage.setItem(`satara_ai_${id}`, JSON.stringify(r));
+  else localStorage.removeItem(`satara_ai_${id}`);
+}
+
+function loadCompetitors(id: number): CompetitorEntry[] {
+  try { return JSON.parse(localStorage.getItem(`satara_comp_${id}`) ?? "[]"); } catch { return []; }
+}
+function saveCompetitors(id: number, list: CompetitorEntry[]) {
+  localStorage.setItem(`satara_comp_${id}`, JSON.stringify(list));
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatLuas(n: number) {
@@ -249,14 +264,16 @@ function ProspectDetailPanel({
   onAdvanceStage: (id: number, nextStage: string) => void;
   advancing: boolean;
 }) {
-  const [aiResult, setAiResult] = useState<AiResult | null>(null);
+  const [aiResult, setAiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [bentukLahan, setBentukLahan] = useState("");
   const [statusLegal, setStatusLegal] = useState("");
-  const [competitorList, setCompetitorList] = useState<CompetitorEntry[]>([]);
+  const [competitorList, setCompetitorList] = useState<CompetitorEntry[]>(() => loadCompetitors(prospect.id));
   const [competitorRadius, setCompetitorRadius] = useState(3);
   const [competitorLoading, setCompetitorLoading] = useState(false);
+  const [competitorError, setCompetitorError] = useState<string | null>(null);
+  const [competitorHasSearched, setCompetitorHasSearched] = useState(() => loadCompetitors(prospect.id).length > 0);
 
   const stage = STAGES.find((s) => s.key === prospect.status);
   const checked = checklists[prospect.id] ?? [];
@@ -296,9 +313,15 @@ function ProspectDetailPanel({
   async function fetchCompetitors() {
     if (prospect.lat == null || prospect.lng == null) return;
     setCompetitorLoading(true);
+    setCompetitorError(null);
+    setCompetitorHasSearched(false);
     try {
       const data = await fetchCompetitorDetails(prospect.lat, prospect.lng, competitorRadius);
       setCompetitorList(data);
+      saveCompetitors(prospect.id, data);
+      setCompetitorHasSearched(true);
+    } catch (e) {
+      setCompetitorError(e instanceof Error ? e.message : "Gagal mengambil data dari OpenStreetMap");
     } finally {
       setCompetitorLoading(false);
     }
@@ -337,6 +360,7 @@ function ProspectDetailPanel({
       }
       const data: AiResult = await res.json();
       setAiResult(data);
+      saveAiResult(prospect.id, data);
     } catch (e) {
       setAiError(e instanceof Error ? e.message : "Terjadi kesalahan");
     } finally {
@@ -791,6 +815,13 @@ function ProspectDetailPanel({
             </div>
           )}
 
+          {competitorError && !competitorLoading && (
+            <div className="flex items-center gap-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <AlertTriangle className="size-3 shrink-0" />
+              <span>{competitorError}</span>
+            </div>
+          )}
+
           {competitorList.length > 0 && !competitorLoading && (
             <div className="space-y-1.5">
               <div className="text-[10px] text-muted-foreground mb-2">
@@ -818,9 +849,15 @@ function ProspectDetailPanel({
             </div>
           )}
 
-          {competitorList.length === 0 && !competitorLoading && (
+          {competitorList.length === 0 && !competitorLoading && !competitorError && !competitorHasSearched && (
             <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
               Klik Cari untuk mendeteksi perumahan kompetitor dalam radius yang dipilih
+            </div>
+          )}
+
+          {competitorList.length === 0 && !competitorLoading && !competitorError && competitorHasSearched && (
+            <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
+              Tidak ditemukan perumahan kompetitor dalam radius {competitorRadius} km. Coba perbesar radius atau verifikasi koordinat lahan sudah benar.
             </div>
           )}
         </div>
