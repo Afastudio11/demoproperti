@@ -899,17 +899,6 @@ export default function Akuisisi() {
               }}
             />
           </div>
-          {selectedProspect && (
-            <ProspectDetailPanel
-              prospect={selectedProspect}
-              checklists={checklists}
-              terrainData={terrainData}
-              onClose={() => { setSelectedId(null); setTerrainData(null); }}
-              onToggleItem={toggleChecklistItem}
-              onAdvanceStage={advanceStage}
-              advancing={advancing}
-            />
-          )}
         </div>
       )}
 
@@ -1018,6 +1007,23 @@ export default function Akuisisi() {
 
       {tab === "slis" && (
         <SLIS />
+      )}
+
+      {selectedProspect && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[5000]" onClick={() => { setSelectedId(null); setTerrainData(null); }} />
+          <div className="fixed inset-y-0 right-0 z-[5001] w-[960px] max-w-full overflow-y-auto shadow-2xl border-l bg-background">
+            <ProspectDetailPanel
+              prospect={selectedProspect}
+              checklists={checklists}
+              terrainData={terrainData}
+              onClose={() => { setSelectedId(null); setTerrainData(null); }}
+              onToggleItem={toggleChecklistItem}
+              onAdvanceStage={advanceStage}
+              advancing={advancing}
+            />
+          </div>
+        </>
       )}
 
       {assessmentPolygon && (
