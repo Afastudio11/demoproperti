@@ -208,7 +208,7 @@ function CheckProgress({ checked, total }: { checked: number; total: number }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{checked}/{total}</span>
+      <span className="text-[10px] text-foreground/70 whitespace-nowrap">{checked}/{total}</span>
     </div>
   );
 }
@@ -425,7 +425,7 @@ function ProspectDetailPanel({
 
         {/* Col 2: JOBDESK 5 stages horizontal */}
         <div className="p-3">
-          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-3">JOBDESK</div>
+          <div className="text-[10px] font-semibold text-foreground tracking-wider mb-3">JOBDESK</div>
           <div className="grid grid-cols-5 gap-2">
             {JOBDESK_STAGES.map((jStage) => {
               const sIdx = STAGE_ORDER.indexOf(jStage.key);
@@ -443,27 +443,27 @@ function ProspectDetailPanel({
                     "border rounded-lg flex flex-col",
                     status === "done"   ? cn(style.border, style.bg) :
                     status === "active" ? cn(style.border, "bg-background ring-1", style.border.replace("border-", "ring-")) :
-                    "border-border/50 bg-muted/20"
+                    "border-foreground/25 bg-background"
                   )}
                 >
                   {/* Stage header */}
                   <div className={cn("px-2.5 py-2 border-b flex items-center gap-1.5",
-                    status !== "pending" ? cn(style.border, style.bg) : "border-border/30"
+                    status !== "pending" ? cn(style.border, style.bg) : "border-foreground/20"
                   )}>
                     <div className={cn("size-3.5 rounded-full flex items-center justify-center shrink-0",
                       status === "done"    ? "bg-emerald-500" :
-                      status === "active"  ? style.dot : "bg-muted-foreground/20"
+                      status === "active"  ? style.dot : "bg-foreground/30"
                     )}>
                       {status === "done"
                         ? <CheckCircle2 className="size-2.5 text-white" strokeWidth={3} />
                         : status === "active"
                         ? <div className="size-1 rounded-full bg-white" />
-                        : <div className="size-1 rounded-full bg-muted-foreground/30" />
+                        : <div className="size-1 rounded-full bg-background" />
                       }
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className={cn("text-[10px] font-bold leading-tight truncate",
-                        isPending ? "text-muted-foreground/50" : style.header
+                        isPending ? "text-foreground/60" : style.header
                       )}>
                         {jStage.no}. {jStage.label}
                       </div>
@@ -480,12 +480,12 @@ function ProspectDetailPanel({
                           onClick={() => onToggleItem(prospect.id, item.key)}
                           className={cn(
                             "flex items-start gap-1.5 text-[10px] rounded px-1 py-0.5 transition-colors cursor-pointer hover:bg-white/60",
-                            done ? "text-emerald-700" : isPending ? "text-muted-foreground/50" : "text-foreground/80"
+                            done ? "text-emerald-700" : isPending ? "text-foreground/65" : "text-foreground/90"
                           )}
                         >
                           <div className={cn(
                             "size-3 rounded-sm border flex items-center justify-center shrink-0 mt-[1px] transition-colors",
-                            done ? "bg-emerald-500 border-emerald-500" : "border-border bg-background"
+                            done ? "bg-emerald-500 border-emerald-500" : "border-foreground/35 bg-background"
                           )}>
                             {done && <CheckCircle2 className="size-2 text-white" strokeWidth={3} />}
                           </div>
@@ -497,10 +497,10 @@ function ProspectDetailPanel({
 
                   {/* Footer progress */}
                   {jStage.checklist.length > 0 && (
-                    <div className={cn("px-2 pb-2 pt-1 border-t", isPending ? "border-border/30" : style.border.replace("border-", "border-t-"))}>
+                    <div className={cn("px-2 pb-2 pt-1 border-t", isPending ? "border-foreground/20" : style.border.replace("border-", "border-t-"))}>
                       <CheckProgress checked={stageCheckedCount} total={jStage.checklist.length} />
                       <button
-                        className="w-full mt-1.5 text-[9px] text-muted-foreground hover:text-foreground py-0.5 border rounded hover:bg-white/60 transition-colors"
+                        className="w-full mt-1.5 text-[9px] text-foreground/70 hover:text-foreground py-0.5 border border-foreground/25 rounded hover:bg-muted/40 transition-colors"
                         onClick={() => {
                           const allKeys = jStage.checklist.map((c) => c.key);
                           const allDone = allKeys.every((k) => checked.includes(k));
@@ -522,7 +522,7 @@ function ProspectDetailPanel({
 
         {/* Col 3: Akses Jalan info */}
         <div className="p-3 w-40">
-          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">AKSES JALAN</div>
+          <div className="text-[10px] font-semibold text-foreground tracking-wider mb-2">AKSES JALAN</div>
           <div className={cn("border rounded-lg p-3 text-center",
             (prospect.aksesJalan ?? 0) >= 5
               ? "border-emerald-200 bg-emerald-50"
@@ -544,10 +544,10 @@ function ProspectDetailPanel({
                 </div>
               </>
             ) : (
-              <div className="text-[11px] text-muted-foreground">Belum diisi</div>
+              <div className="text-[11px] text-foreground/70">Belum diisi</div>
             )}
           </div>
-          <div className="mt-2 text-[9px] text-muted-foreground">
+          <div className="mt-2 text-[9px] text-foreground/60">
             Standar minimum: 5 meter
           </div>
         </div>
