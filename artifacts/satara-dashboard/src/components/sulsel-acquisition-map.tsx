@@ -516,7 +516,7 @@ async function geocodeNominatim(kab: string, kec: string, kel: string): Promise<
   return null;
 }
 
-export default function SulselAcquisitionMap({ onSelectProspect }: { onSelectProspect?: (id: number | null) => void } = {}) {
+export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void } = {}) {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
@@ -567,7 +567,7 @@ export default function SulselAcquisitionMap({ onSelectProspect }: { onSelectPro
     setTerrainResult(null);
     setTerrainLoading(true);
     analyzeTerrainForPolygon(poly.coords, poly.center)
-      .then((r) => setTerrainResult(r))
+      .then((r) => { setTerrainResult(r); onTerrainData?.(r); })
       .catch(() => {})
       .finally(() => setTerrainLoading(false));
   }, []);
