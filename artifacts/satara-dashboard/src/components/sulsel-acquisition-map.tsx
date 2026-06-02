@@ -67,12 +67,38 @@ const _desaCacheRef = { current: _desaCache };
 
 const GEOJSON_URL = "/sulsel_desa.geojson";
 
+function normalizeDesaGeoJson(data: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
+  // Some features have an extra nesting level: coordinates = [ [ring] ] instead of [ ring ]
+  // where ring = [[lng,lat],...]. Detect by checking if coordinates[0][0][0] is also an array.
+  const features = data.features.map(f => {
+    if (!f.geometry || f.geometry.type !== "Polygon") return f;
+    const coords = f.geometry.coordinates as number[][][][];
+    // If coords[0][0][0] is an array, we have extra nesting → unwrap one level
+    if (
+      Array.isArray(coords[0]) &&
+      Array.isArray(coords[0][0]) &&
+      Array.isArray(coords[0][0][0])
+    ) {
+      return {
+        ...f,
+        geometry: {
+          ...f.geometry,
+          coordinates: coords[0] as unknown as GeoJSON.Position[][],
+        },
+      };
+    }
+    return f;
+  });
+  return { ...data, features } as GeoJSON.FeatureCollection;
+}
+
 async function fetchDesaGeoJson(signal: AbortSignal): Promise<GeoJSON.FeatureCollection | null> {
   if (_desaCacheRef.current?.url === GEOJSON_URL) return _desaCacheRef.current.data;
   try {
     const res = await fetch(GEOJSON_URL, { signal });
     if (!res.ok) return null;
-    const data = await res.json() as GeoJSON.FeatureCollection;
+    const raw = await res.json() as GeoJSON.FeatureCollection;
+    const data = normalizeDesaGeoJson(raw);
     _desaCacheRef.current = { url: GEOJSON_URL, data };
     return data;
   } catch {
@@ -729,6 +755,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [adminDrill, setAdminDrill] = useState<DrillState>({ level: 0, kab: null, kec: null });
   const [navKab, setNavKab] = useState("");
   const [navKec, setNavKec] = useState("");
@@ -909,7 +936,10 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
               showAdmin ? "bg-violet-600 text-white border-violet-600" : "bg-card text-muted-foreground border-border"
             )}
           >
-            <Layers className="size-3" /> Batas Wilayah
+            {adminLoading
+              ? <span className="size-3 animate-spin border border-current border-t-transparent rounded-full inline-block" />
+              : <Layers className="size-3" />
+            } Batas Wilayah
           </button>
           {showAdmin && adminDrill.kab && (
             <div className="flex items-center gap-1 text-[11px] bg-muted/60 border rounded-lg px-2 py-1">
@@ -1000,7 +1030,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
                 opacity={0.9}
               />
             )}
-            {showAdmin && <AdminDrillLayer drill={adminDrill} onDrill={setAdminDrill} />}
+            {showAdmin && <AdminDrillLayer drill={adminDrill} onDrill={setAdminDrill} onLoadingChange={setAdminLoading} />}
 
             <MapFlyHandler target={flyTarget} />
             <GeomanControl drawMode={drawMode} onCreated={handleDrawCreated} onDisable={() => setDrawMode(false)} />

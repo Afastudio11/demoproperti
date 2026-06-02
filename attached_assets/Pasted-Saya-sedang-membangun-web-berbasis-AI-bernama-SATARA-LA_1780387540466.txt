@@ -1,0 +1,353 @@
+Saya sedang membangun web berbasis AI bernama SATARA LAND INTELLIGENCE SYSTEM / SLIS.
+
+Di dalam sistem ini sudah ada menu "Akuisisi Lahan". Saya ingin kamu membantu memperbaiki dan mengembangkan AI Analysis pada menu tersebut agar hasil analisisnya jauh lebih dalam, realistis, terstruktur, dan bisa membantu perusahaan developer properti mengambil keputusan apakah sebuah tanah layak dibeli atau tidak.
+
+Konteks utama sistem:
+SLIS adalah AI-Based Property Development Intelligence Platform untuk membantu Satara Development menganalisis potensi wilayah dan lahan di Sulawesi Selatan. Tujuan akhirnya adalah menjawab pertanyaan:
+
+"Jika Satara memiliki modal Rp10 miliar hari ini, lahan mana yang harus dibeli agar menghasilkan keuntungan terbesar dengan risiko terendah?"
+
+Fokus utama sekarang:
+Perbaiki AI pada menu Akuisisi Lahan / Land Parcel Analyzer.
+
+Alur user:
+1. User membuka menu Akuisisi Lahan.
+2. User memilih atau menggambar area lahan di peta.
+3. Sistem otomatis menghitung luas lahan dari polygon/pemetaan user.
+4. Sistem membaca lokasi lahan: kabupaten, kecamatan, desa, koordinat.
+5. Sistem menghitung/memperkirakan:
+   - luas tanah
+   - jumlah rumah/unit potensial
+   - luas fasum
+   - luas jalan
+   - efektivitas kavling
+   - potensi revenue
+   - estimasi HPP
+   - estimasi profit
+   - ROI
+   - IRR jika memungkinkan
+   - NPV jika memungkinkan
+   - payback period
+   - tingkat risiko
+   - skor kelayakan 0–100
+   - kategori rekomendasi akuisisi
+
+Saya ingin AI tidak hanya memberi jawaban umum. AI harus bertindak seperti konsultan pembebasan lahan, analis properti, analis GIS, dan investment analyst untuk developer perumahan subsidi/komersial.
+
+Input yang harus didukung oleh sistem:
+- Nama lahan / kode lahan
+- Lokasi otomatis dari peta
+- Koordinat polygon
+- Luas tanah otomatis dari polygon dalam m² dan hektar
+- Harga total tanah
+- Harga tanah per m²
+- Lebar jalan depan lahan
+- Akses jalan
+- Bentuk lahan:
+  - kotak
+  - persegi panjang
+  - L
+  - segitiga
+  - tidak beraturan
+- Kontur:
+  - datar
+  - landai
+  - curam
+- Status legal:
+  - SHM
+  - AJB
+  - Girik
+  - belum jelas
+- Kondisi sekitar:
+  - dekat jalan utama
+  - dekat pasar
+  - dekat sekolah
+  - dekat rumah sakit
+  - dekat kantor pemerintahan
+  - dekat kawasan industri
+  - dekat permukiman
+- Jumlah rumah/bangunan di area sekitar berdasarkan analisis peta jika memungkinkan
+- Kompetitor perumahan dalam radius 1 km, 3 km, 5 km, dan 10 km jika data tersedia
+- Harga jual rumah sekitar jika tersedia
+- Target tipe rumah:
+  - subsidi
+  - komersial kecil
+  - komersial menengah
+- Harga jual per unit
+- Estimasi biaya bangun per unit
+- Estimasi biaya infrastruktur
+- Estimasi biaya legal, pajak, perizinan, dan cadangan risiko
+
+Tolong buat AI Analysis Engine dengan struktur hasil seperti ini:
+
+1. Ringkasan Eksekutif
+Berikan kesimpulan cepat:
+- Apakah lahan ini layak dibeli?
+- Skor kelayakan 0–100
+- Kategori:
+  - Sangat Direkomendasikan: skor 85–100
+  - Direkomendasikan: skor 70–84
+  - Perlu Review: skor 55–69
+  - Tidak Direkomendasikan: skor di bawah 55
+- Alasan utama dalam 3–5 poin
+
+2. Analisis Lokasi
+AI harus menganalisis:
+- kabupaten
+- kecamatan
+- desa
+- akses utama
+- kedekatan dengan pusat aktivitas
+- potensi pertumbuhan wilayah
+- kepadatan permukiman sekitar
+- daya tarik lokasi untuk pembeli rumah
+- risiko lokasi
+
+3. Analisis Fisik Lahan
+AI harus menganalisis:
+- luas lahan
+- bentuk lahan
+- kontur
+- akses jalan
+- estimasi efisiensi lahan
+- apakah bentuk lahan mudah dikavling atau tidak
+- potensi hambatan teknis
+- estimasi kebutuhan cut and fill jika kontur tidak datar
+
+4. Perhitungan Potensi Unit
+Gunakan asumsi yang bisa diedit:
+- luas kavling rata-rata subsidi: 72 m²
+- luas kavling rata-rata komersial kecil: 84–96 m²
+- luas jalan dan drainase: 20–25% dari luas lahan
+- fasum/fasos: 10–15% dari luas lahan
+- area tidak efektif karena bentuk/kontur: 5–15%
+
+Rumus dasar:
+Luas efektif kavling = luas tanah - luas jalan - luas fasum - area tidak efektif
+Potensi unit = luas efektif kavling / luas kavling rata-rata
+
+Output:
+- luas total
+- estimasi luas jalan
+- estimasi luas fasum
+- estimasi area tidak efektif
+- luas efektif kavling
+- estimasi jumlah unit minimum
+- estimasi jumlah unit realistis
+- estimasi jumlah unit maksimum
+
+5. Analisis Finansial
+Hitung:
+- harga tanah total
+- harga tanah per m²
+- biaya akuisisi
+- biaya legal dan pajak
+- biaya infrastruktur
+- biaya pembangunan rumah
+- total project cost
+- revenue
+- gross profit
+- net profit
+- ROI
+- payback period
+- harga maksimum akuisisi yang masih layak
+
+Gunakan rumus:
+Revenue = jumlah unit x harga jual per unit
+Total HPP = harga tanah + biaya bangun + biaya infrastruktur + biaya legal + contingency
+Profit = Revenue - Total HPP
+ROI = Profit / Total HPP x 100
+Harga maksimum akuisisi = batas harga tanah agar ROI tetap sesuai target minimal
+
+Target minimal:
+- ROI minimal layak: 25%
+- ROI bagus: 35%
+- ROI sangat bagus: di atas 45%
+
+6. Analisis Risiko
+Buat risk scoring untuk:
+- risiko legal
+- risiko akses jalan
+- risiko kontur
+- risiko harga tanah terlalu tinggi
+- risiko permintaan pasar lemah
+- risiko kompetitor
+- risiko infrastruktur belum tersedia
+- risiko perizinan
+- risiko pembebasan lahan lanjutan
+
+Kategori risiko:
+- Low
+- Medium
+- High
+
+Berikan juga mitigasi risiko untuk setiap risiko utama.
+
+7. Scoring Kelayakan Lahan
+Gunakan bobot berikut:
+- Lokasi dan akses: 20%
+- Harga tanah: 20%
+- Potensi unit: 15%
+- Potensi profit/ROI: 20%
+- Legalitas: 10%
+- Kompetitor dan pasar: 10%
+- Risiko teknis lahan: 5%
+
+Total skor harus 0–100.
+
+AI harus menjelaskan kenapa skor diberikan, bukan hanya angka.
+
+8. Rekomendasi Keputusan
+Output akhir harus jelas:
+- BELI
+- BELI DENGAN NEGOSIASI
+- HOLD / REVIEW ULANG
+- JANGAN BELI
+
+Jika rekomendasi adalah "Beli dengan negosiasi", AI harus memberikan:
+- harga saat ini
+- harga maksimum layak
+- harga target negosiasi
+- alasan negosiasi
+
+9. Output JSON
+Selain tampilan teks untuk user, sistem juga harus menghasilkan output JSON agar bisa disimpan ke database.
+
+Format JSON wajib:
+
+{
+  "land_name": "",
+  "location": {
+    "province": "",
+    "regency": "",
+    "district": "",
+    "village": "",
+    "coordinates": []
+  },
+  "land_area": {
+    "sqm": 0,
+    "hectare": 0
+  },
+  "acquisition": {
+    "total_price": 0,
+    "price_per_sqm": 0,
+    "max_recommended_price_per_sqm": 0,
+    "negotiation_target_price_per_sqm": 0
+  },
+  "site_analysis": {
+    "road_width": 0,
+    "land_shape": "",
+    "contour": "",
+    "legal_status": "",
+    "access_quality": "",
+    "land_efficiency_percentage": 0
+  },
+  "unit_potential": {
+    "fasum_area": 0,
+    "road_area": 0,
+    "ineffective_area": 0,
+    "effective_sellable_area": 0,
+    "min_units": 0,
+    "realistic_units": 0,
+    "max_units": 0
+  },
+  "financial_projection": {
+    "estimated_revenue": 0,
+    "estimated_total_cost": 0,
+    "estimated_profit": 0,
+    "roi_percentage": 0,
+    "payback_period_months": 0
+  },
+  "risk_analysis": {
+    "overall_risk": "",
+    "legal_risk": "",
+    "market_risk": "",
+    "technical_risk": "",
+    "access_risk": "",
+    "competitor_risk": "",
+    "risk_notes": []
+  },
+  "scoring": {
+    "location_score": 0,
+    "price_score": 0,
+    "unit_potential_score": 0,
+    "financial_score": 0,
+    "legal_score": 0,
+    "market_score": 0,
+    "technical_score": 0,
+    "final_score": 0,
+    "category": ""
+  },
+  "recommendation": {
+    "decision": "",
+    "summary": "",
+    "key_reasons": [],
+    "next_actions": []
+  }
+}
+
+10. Tampilan UI
+Tolong perbaiki tampilan hasil analisis AI agar tidak hanya berbentuk paragraf panjang.
+
+Buat hasil analisis menjadi dashboard card:
+- Card skor lahan
+- Card kategori rekomendasi
+- Card estimasi unit
+- Card ROI
+- Card profit
+- Card risiko
+- Card harga maksimum akuisisi
+- Section detail analisis lokasi
+- Section detail analisis fisik lahan
+- Section detail finansial
+- Section risiko dan mitigasi
+- Section rekomendasi final
+
+Gunakan bahasa Indonesia yang profesional, jelas, dan mudah dipahami oleh tim akuisisi lahan.
+
+11. Data Handling
+Jika data tidak tersedia, AI jangan mengarang angka secara sembarangan.
+AI harus:
+- menggunakan asumsi default yang ditampilkan secara jelas
+- memberi label "estimasi"
+- memberi catatan "perlu validasi lapangan"
+- memberi rekomendasi data tambahan yang harus dikumpulkan
+
+Contoh:
+"Data harga kompetitor belum tersedia, sehingga analisis kompetitor menggunakan asumsi kepadatan perumahan sekitar dan perlu divalidasi oleh tim survey."
+
+12. Validasi Input
+Jika input penting kosong, sistem harus tetap bisa membuat analisis awal, tetapi memberi warning.
+
+Input penting:
+- luas tanah
+- harga tanah
+- status legal
+- akses jalan
+- kontur
+- harga jual rumah target
+- biaya bangun per unit
+
+Jika tidak ada, gunakan default assumption dan tampilkan di bagian "Asumsi Analisis".
+
+13. Tujuan Output AI
+AI harus menghasilkan hasil yang bisa langsung digunakan oleh:
+- tim akuisisi lahan
+- direktur pengembangan
+- CEO
+- tim legal
+- tim finance
+- tim survey
+
+Jangan buat AI menjawab terlalu umum. Buat analisisnya seperti dokumen feasibility study mini untuk keputusan pembelian tanah.
+
+Tolong implementasikan ini ke dalam kode existing Replit saya:
+- cek struktur project
+- temukan menu Akuisisi Lahan
+- temukan fungsi AI analysis saat ini
+- refactor prompt AI analysis
+- buat calculation engine agar angka penting dihitung oleh sistem, bukan hanya dikarang AI
+- pisahkan hasil calculation deterministic dan narasi AI
+- simpan hasil analisis ke database jika sudah ada database
+- tampilkan hasil ke UI dengan card yang rapi
+- pastikan output bisa berjalan tanpa error
