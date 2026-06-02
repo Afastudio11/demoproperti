@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
-  X, Sparkles, Loader2, FileText,
+  X, Brain, Loader2, FileText,
   BarChart3, Scale, Building2, ScrollText, AlertTriangle,
   TrendingUp, MapPin, Layers, Shield, ChevronRight,
   CheckCircle2, XCircle, Info, Calculator, Target,
@@ -432,11 +432,11 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div className="size-5 rounded bg-foreground flex items-center justify-center shrink-0">
-                <Sparkles className="size-3 text-background" />
+                <Brain className="size-3 text-background" />
               </div>
               <h2 className="font-semibold text-sm">Penilaian Lahan</h2>
-              <span className="text-[9px] bg-violet-100 text-violet-700 border border-violet-200 rounded-full px-1.5 py-0.5 font-medium">SLIS AI</span>
-              <span className="text-[9px] bg-sky-100 text-sky-700 border border-sky-200 rounded-full px-1.5 py-0.5 font-medium flex items-center gap-0.5">
+              <span className="text-[9px] bg-muted text-foreground border border-border rounded-full px-1.5 py-0.5 font-medium">SLIS AI</span>
+              <span className="text-[9px] bg-muted text-foreground border border-border rounded-full px-1.5 py-0.5 font-medium flex items-center gap-0.5">
                 <Calculator className="size-2.5" /> Calc Engine
               </span>
             </div>
@@ -742,8 +742,8 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
         {/* ── LOADING PHASE ── */}
         {phase === "loading" && (
           <div className="flex-1 flex flex-col items-center justify-center gap-5 px-8 text-center">
-            <div className="size-16 rounded-full bg-violet-50 border border-violet-200 flex items-center justify-center">
-              <Sparkles className="size-7 text-violet-500 animate-pulse" />
+            <div className="size-16 rounded-full bg-muted border border-border flex items-center justify-center">
+              <Brain className="size-7 text-foreground animate-pulse" />
             </div>
             <div>
               <h3 className="font-semibold text-base">SLIS sedang menganalisis lahan...</h3>
@@ -854,7 +854,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                     {ai.ringkasanEksekutif && (
                       <div className="bg-muted/20 rounded-xl p-3">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Sparkles className="size-3.5 text-violet-500 shrink-0" />
+                          <Brain className="size-3.5 text-foreground shrink-0" />
                           <SectionLabel>Ringkasan Eksekutif (AI)</SectionLabel>
                         </div>
                         <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.ringkasanEksekutif)}</div>
@@ -894,7 +894,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                       {[
                         { label: `Kavling Efektif (${(la.pctEfektif * 100).toFixed(0)}%)`, value: la.luasEfektif, color: "bg-emerald-500" },
                         { label: `Jalan Internal (${(la.pctJalan * 100).toFixed(0)}%)`,    value: la.luasJalan, color: "bg-blue-500" },
-                        { label: `Fasum & RTH (${(la.pctFasum * 100).toFixed(0)}%)`,       value: la.luasFasum, color: "bg-purple-500" },
+                        { label: `Fasum & RTH (${(la.pctFasum * 100).toFixed(0)}%)`,       value: la.luasFasum, color: "bg-slate-500" },
                         { label: `Area Tidak Efektif (${(la.pctTidakEfektif * 100).toFixed(0)}%)`, value: la.luasTidakEfektif, color: "bg-amber-500" },
                       ].map(({ label, value, color }) => (
                         <div key={label} className="space-y-0.5 mb-2">
@@ -1060,7 +1060,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                     {ai.analisisLokasi && (
                       <div className="bg-muted/20 rounded-xl p-3">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Sparkles className="size-3.5 text-violet-500 shrink-0" />
+                          <Brain className="size-3.5 text-foreground shrink-0" />
                           <SectionLabel>Analisis Lokasi (AI)</SectionLabel>
                         </div>
                         <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.analisisLokasi)}</div>
@@ -1205,7 +1205,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
             <>
               <Button variant="outline" size="sm" onClick={onClose} className="text-[12px]">Batal</Button>
               <Button size="sm" onClick={handleSubmit} className="text-[12px] gap-1.5">
-                <Sparkles className="size-3.5" />
+                <Brain className="size-3.5" />
                 Analisis dengan SLIS AI
               </Button>
             </>

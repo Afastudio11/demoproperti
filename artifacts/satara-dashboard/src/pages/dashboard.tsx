@@ -225,11 +225,11 @@ export default function Dashboard() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <BrainCircuit className="size-5 text-violet-600" />
+            <BrainCircuit className="size-5 text-foreground" />
             <h2 className="text-base font-semibold">CEO Land Intelligence — Modul 7</h2>
           </div>
           <Link href="/slis">
-            <button className="flex items-center gap-1 text-[11px] text-violet-600 hover:text-violet-700 font-medium transition-colors">
+            <button className="flex items-center gap-1 text-[11px] text-foreground hover:text-foreground/70 font-medium transition-colors">
               Lihat SLIS Intelligence <span className="ml-0.5">→</span>
             </button>
           </Link>
@@ -241,7 +241,7 @@ export default function Dashboard() {
             { label: "Total Lahan Tersurvey", value: totalSurvey, icon: Search, color: "text-blue-600", bg: "bg-blue-50 border-blue-200" },
             { label: "Total Lahan Prospek", value: totalProspek, icon: Target, color: "text-amber-600", bg: "bg-amber-50 border-amber-200" },
             { label: "Total Lahan Akuisisi", value: totalAkuisisi, icon: MapPin, color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200" },
-            { label: "Total Prospek Aktif", value: totalProspects, icon: BarChart3, color: "text-violet-600", bg: "bg-violet-50 border-violet-200" },
+            { label: "Total Prospek Aktif", value: totalProspects, icon: BarChart3, color: "text-foreground", bg: "bg-muted/30 border-border" },
           ].map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className={cn("rounded-xl border p-3", bg)}>
               <div className="flex items-center justify-between mb-1">
@@ -294,7 +294,7 @@ export default function Dashboard() {
                         key === "pks_mou" ? "bg-emerald-500" :
                         key === "legal_checking" ? "bg-orange-500" :
                         key === "negosiasi" ? "bg-amber-400" :
-                        key === "analisis_kompetitor" ? "bg-violet-500" :
+                        key === "analisis_kompetitor" ? "bg-slate-500" :
                         key === "survey" ? "bg-blue-500" : "bg-slate-400"
                       )}
                       style={{ width: count > 0 ? `${Math.max((count / maxCount) * 100, 8)}%` : "0%" }}

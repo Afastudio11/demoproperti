@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 const KPR_STATUS: Record<string, string> = {
   pengajuan: "bg-amber-50 text-amber-700 border-amber-200",
   verifikasi_berkas: "bg-blue-50 text-blue-700 border-blue-200",
-  appraisal: "bg-violet-50 text-violet-700 border-violet-200",
+  appraisal: "bg-muted text-foreground border-border",
   sp3k: "bg-cyan-50 text-cyan-700 border-cyan-200",
   akad_kredit: "bg-emerald-50 text-emerald-700 border-emerald-200",
   realisasi: "bg-lime-50 text-lime-700 border-lime-200",

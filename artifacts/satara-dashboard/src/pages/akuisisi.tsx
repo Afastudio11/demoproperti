@@ -4,7 +4,7 @@ import type { LandProspect } from "@workspace/api-client-react";
 import {
   Plus, CheckCircle2, Map, LayoutList, X,
   FileText, ClipboardList, ArrowRight, BrainCircuit,
-  Sparkles, Loader2, ThumbsUp, AlertTriangle, ThumbsDown, RefreshCw,
+  Brain, Loader2, ThumbsUp, AlertTriangle, ThumbsDown, RefreshCw,
   Building2, Radio, Search as SearchIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -89,7 +89,7 @@ async function fetchCompetitorDetails(lat: number, lng: number, radiusKm = 3): P
 const STAGES: { key: string; label: string; color: string }[] = [
   { key: "prospek_baru",        label: "Prospek Baru",        color: "text-slate-500" },
   { key: "survey",              label: "Survey Lokasi",        color: "text-blue-600" },
-  { key: "analisis_kompetitor", label: "Analisis Kompetitor",  color: "text-violet-600" },
+  { key: "analisis_kompetitor", label: "Analisis Kompetitor",  color: "text-foreground" },
   { key: "negosiasi",           label: "Negosiasi Lahan",      color: "text-amber-600" },
   { key: "legal_checking",      label: "Legal Checking",       color: "text-orange-600" },
   { key: "pks_mou",             label: "PKS / MoU",            color: "text-emerald-600" },
@@ -154,7 +154,7 @@ const JOBDESK_STAGES = [
     checklist: STAGE_CHECKLISTS.survey },
   { key: "analisis_kompetitor", no: 2, label: "Analisis Kompetitor",
     desc: "Riset pasar properti di sekitar lokasi",
-    color: "border-violet-200 bg-violet-50", headerColor: "text-violet-700 bg-violet-100",
+    color: "border-border bg-muted/30", headerColor: "text-foreground bg-muted",
     checklist: STAGE_CHECKLISTS.analisis_kompetitor },
   { key: "negosiasi",           no: 3, label: "Negosiasi Lahan",
     desc: "Proses tawar-menawar & kesepakatan harga",
@@ -219,7 +219,7 @@ const TUJUAN_ITEMS = ["Market", "Legal", "Akses", "Profit", "Cashflow"];
 
 const STAGE_STYLE: Record<string, { border: string; bg: string; header: string; dot: string; badge: string }> = {
   survey:              { border: "border-blue-200",   bg: "bg-blue-50",   header: "text-blue-700",   dot: "bg-blue-500",   badge: "bg-blue-100 text-blue-700" },
-  analisis_kompetitor: { border: "border-violet-200", bg: "bg-violet-50", header: "text-violet-700", dot: "bg-violet-500", badge: "bg-violet-100 text-violet-700" },
+  analisis_kompetitor: { border: "border-border", bg: "bg-muted/20", header: "text-foreground", dot: "bg-slate-500", badge: "bg-muted text-foreground" },
   negosiasi:           { border: "border-amber-200",  bg: "bg-amber-50",  header: "text-amber-700",  dot: "bg-amber-500",  badge: "bg-amber-100 text-amber-700" },
   legal_checking:      { border: "border-orange-200", bg: "bg-orange-50", header: "text-orange-700", dot: "bg-orange-500", badge: "bg-orange-100 text-orange-700" },
   pks_mou:             { border: "border-emerald-200",bg: "bg-emerald-50",header: "text-emerald-700",dot: "bg-emerald-500",badge: "bg-emerald-100 text-emerald-700" },
@@ -587,26 +587,26 @@ function ProspectDetailPanel({
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="size-3.5 text-violet-500" />
-            <span className="text-[11px] font-semibold text-violet-700">Analisis AI Kelayakan (Modul 4)</span>
+            <Brain className="size-3.5 text-foreground" />
+            <span className="text-[11px] font-semibold">Analisis AI Kelayakan (Modul 4)</span>
           </div>
           <button
             onClick={runAiAnalysis}
             disabled={aiLoading}
-            className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition-colors disabled:opacity-60"
+            className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg bg-foreground hover:bg-foreground/90 text-background transition-colors disabled:opacity-60"
           >
             {aiLoading
               ? <><Loader2 className="size-3 animate-spin" /> Menganalisis...</>
               : aiResult
               ? <><RefreshCw className="size-3" /> Analisis Ulang</>
-              : <><Sparkles className="size-3" /> Analisis dengan AI</>
+              : <><Brain className="size-3" /> Analisis dengan AI</>
             }
           </button>
         </div>
 
         {aiLoading && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-3 py-2.5">
-            <Loader2 className="size-3.5 animate-spin shrink-0 text-violet-500" />
+            <Loader2 className="size-3.5 animate-spin shrink-0 text-muted-foreground" />
             <span>AI sedang menganalisis semua data: jobdesk, lahan, kontur, dan kompetitor yang sudah dicari...</span>
           </div>
         )}
@@ -653,10 +653,10 @@ function ProspectDetailPanel({
                   <div className="grid grid-cols-4 gap-1.5">
                     {[
                       { label: "Potensi Unit", value: aiResult.potensiUnit != null ? `${aiResult.potensiUnit} unit` : null, color: "text-blue-700" },
-                      { label: "Harga Maks", value: aiResult.hargaMaksAkuisisi != null ? `Rp${(aiResult.hargaMaksAkuisisi/1000).toFixed(0)}rb/m²` : null, color: "text-violet-700" },
+                      { label: "Harga Maks", value: aiResult.hargaMaksAkuisisi != null ? `Rp${(aiResult.hargaMaksAkuisisi/1000).toFixed(0)}rb/m²` : null, color: "text-foreground" },
                       { label: "ROI Estimasi", value: aiResult.roiEstimasi != null ? `${aiResult.roiEstimasi}%` : null, color: aiResult.roiEstimasi != null && aiResult.roiEstimasi >= 25 ? "text-emerald-700" : "text-amber-700" },
                       { label: "Payback", value: aiResult.paybackBulan != null ? `${aiResult.paybackBulan} bln` : null, color: "text-slate-700" },
-                      { label: "IRR", value: aiResult.irr != null ? `${aiResult.irr}%` : null, color: "text-purple-700" },
+                      { label: "IRR", value: aiResult.irr != null ? `${aiResult.irr}%` : null, color: "text-foreground" },
                       { label: "Luas Fasum", value: aiResult.luasFasum != null ? `${aiResult.luasFasum?.toLocaleString("id-ID")} m²` : null, color: "text-cyan-700" },
                       { label: "Luas Jalan", value: aiResult.luasJalan != null ? `${aiResult.luasJalan?.toLocaleString("id-ID")} m²` : null, color: "text-sky-700" },
                       { label: "Efektivitas", value: aiResult.efektivitasKavling != null ? `${aiResult.efektivitasKavling}%` : null, color: "text-teal-700" },
@@ -673,7 +673,7 @@ function ProspectDetailPanel({
                       {[
                         { label: "Potensi Revenue", value: aiResult.potensiRevenue, color: "text-emerald-700" },
                         { label: "Estimasi HPP", value: aiResult.estimasiHPP, color: "text-orange-700" },
-                        { label: "Estimasi Profit", value: aiResult.estimasiProfit, color: "text-violet-700" },
+                        { label: "Estimasi Profit", value: aiResult.estimasiProfit, color: "text-foreground" },
                       ].filter(m => m.value != null).map(({ label, value, color }) => (
                         <div key={label} className="bg-muted/40 border rounded-md px-2 py-1.5">
                           <div className="text-[9px] text-muted-foreground mb-0.5">{label}</div>
@@ -687,7 +687,7 @@ function ProspectDetailPanel({
                   <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">RINGKASAN</div>
                   <p className="text-[11px] leading-relaxed">{aiResult.ringkasan}</p>
                   <div className="text-[10px] font-semibold text-muted-foreground tracking-wider pt-0.5">REKOMENDASI</div>
-                  <p className="text-[11px] leading-relaxed text-violet-700">{aiResult.rekomendasi}</p>
+                  <p className="text-[11px] leading-relaxed">{aiResult.rekomendasi}</p>
                 </div>
               </div>
 

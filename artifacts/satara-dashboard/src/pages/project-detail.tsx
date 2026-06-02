@@ -14,7 +14,7 @@ const RISK_STYLE: Record<string, string> = {
 const FASE_COLORS: Record<string, string> = {
   LAND: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
   PLAN: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  LEGAL: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  LEGAL: "bg-muted text-muted-foreground border-border",
   SELL: "bg-amber-500/20 text-amber-300 border-amber-500/30",
   BUILD: "bg-orange-500/20 text-orange-300 border-orange-500/30",
   AKAD: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",

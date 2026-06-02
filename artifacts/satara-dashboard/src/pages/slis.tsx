@@ -8,7 +8,7 @@ import {
 } from "@/data/slis-scoring";
 import { useListLandProspects } from "@workspace/api-client-react";
 import {
-  ChevronRight, ChevronLeft, Sparkles, Loader2, AlertTriangle, BarChart3,
+  ChevronRight, ChevronLeft, Brain, Loader2, AlertTriangle, BarChart3,
   TrendingUp, MapPin, Target, Building2, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -316,7 +316,7 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
     }
   }
 
-  const YEAR_COLORS = ["bg-emerald-600", "bg-blue-600", "bg-violet-600", "bg-amber-600", "bg-orange-600"];
+  const YEAR_COLORS = ["bg-emerald-600", "bg-blue-600", "bg-slate-600", "bg-amber-600", "bg-orange-600"];
 
   return (
     <div className="space-y-4">
@@ -330,11 +330,11 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
         <button
           onClick={generate}
           disabled={loading}
-          className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition-colors disabled:opacity-60"
+          className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-2 rounded-lg bg-foreground hover:bg-foreground/90 text-background transition-colors disabled:opacity-60"
         >
           {loading ? <><Loader2 className="size-3.5 animate-spin" /> Generating...</>
             : result ? <><RefreshCw className="size-3.5" /> Regenerate</>
-            : <><Sparkles className="size-3.5" /> Generate Roadmap</>}
+            : <><Brain className="size-3.5" /> Generate Roadmap</>}
         </button>
       </div>
 
@@ -347,7 +347,7 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
 
       {loading && (
         <div className="flex items-center justify-center gap-2 py-12 text-[11px] text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-violet-500" />
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
           AI sedang menganalisis data 24 kabupaten + pipeline prospek...
         </div>
       )}
@@ -355,9 +355,9 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
       {result && !loading && (
         <div className="space-y-4">
           {/* Ringkasan strategi */}
-          <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
-            <div className="text-[10px] font-semibold text-violet-700 tracking-wider mb-1.5">STRATEGI EKSPANSI</div>
-            <p className="text-[11px] leading-relaxed text-violet-900">{result.ringkasan_strategi}</p>
+          <div className="bg-muted/30 border border-border rounded-lg p-3">
+            <div className="text-[10px] font-semibold text-foreground tracking-wider mb-1.5">STRATEGI EKSPANSI</div>
+            <p className="text-[11px] leading-relaxed">{result.ringkasan_strategi}</p>
           </div>
 
           {/* Roadmap timeline */}

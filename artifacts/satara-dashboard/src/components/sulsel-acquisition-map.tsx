@@ -933,7 +933,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
             }}
             className={cn(
               "flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition-colors",
-              showAdmin ? "bg-violet-600 text-white border-violet-600" : "bg-card text-muted-foreground border-border"
+              showAdmin ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border"
             )}
           >
             {adminLoading
@@ -979,7 +979,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
               </button>
               <button
                 onClick={() => { setDrawMode(true); setAddMode(false); setDraft(null); }}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 border border-violet-600"
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:bg-foreground/90 border border-foreground"
               >
                 <PenLine className="size-3.5" /> Gambar Lahan
               </button>
@@ -989,7 +989,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
       </div>
 
       {drawMode && (
-        <div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-2 text-xs text-violet-700 flex items-center gap-2">
+        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 text-xs text-foreground flex items-center gap-2">
           <PenLine className="size-3.5 shrink-0" />
           <span>Klik peta untuk menggambar titik sudut batas lahan. <strong>Double-klik</strong> di titik terakhir untuk menutup dan menghitung luas otomatis.</span>
         </div>
@@ -1005,7 +1005,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
         <div
           className={cn(
             "flex-1 rounded-xl overflow-hidden border relative",
-            drawMode && "ring-2 ring-violet-400",
+            drawMode && "ring-2 ring-foreground/40",
             addMode && "ring-2 ring-blue-400"
           )}
           style={{ minHeight: 600 }}
@@ -1080,15 +1080,15 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
         {drawn && (
           <div className="w-64 shrink-0 bg-card border rounded-xl p-4 flex flex-col gap-3 self-start max-h-[calc(100vh-200px)] overflow-y-auto">
             <div className="flex items-center gap-2">
-              <PenLine className="size-4 text-violet-500" />
+              <PenLine className="size-4 text-foreground" />
               <span className="text-xs font-semibold flex-1">Lahan Tergambar</span>
               <button onClick={cancelAll} className="text-muted-foreground hover:text-foreground">
                 <Trash2 className="size-3.5" />
               </button>
             </div>
-            <div className="bg-violet-50 border border-violet-200 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-violet-700">{formatLuas(drawn.area)}</div>
-              <div className="text-[11px] text-violet-500 mt-1">luas terhitung otomatis</div>
+            <div className="bg-muted/30 border border-border rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-foreground">{formatLuas(drawn.area)}</div>
+              <div className="text-[11px] text-muted-foreground mt-1">luas terhitung otomatis</div>
             </div>
             {drawn.kecamatan && (
               <div className="text-[11px] text-muted-foreground">
