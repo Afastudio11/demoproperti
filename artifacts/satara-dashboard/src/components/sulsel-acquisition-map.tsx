@@ -93,28 +93,40 @@ async function loadDesaGeoJson(): Promise<GeoJSON.FeatureCollection | null> {
   return desaLoadPromise;
 }
 
+const LABEL_MIN_ZOOM = 9;
+
 function DesaLayer({ visible }: { visible: boolean }) {
   const map = useMap();
   const layerRef = useRef<L.GeoJSON | null>(null);
-  const zoomRef = useRef(map.getZoom());
-  const [zoom, setZoom] = useState(map.getZoom());
+  const tooltipPaneRef = useRef<HTMLElement | null>(null);
 
+  // Toggle label visibility on zoom without recreating the entire layer
   useEffect(() => {
-    const onZoom = () => { zoomRef.current = map.getZoom(); setZoom(map.getZoom()); };
+    const onZoom = () => {
+      if (!layerRef.current) return;
+      const z = map.getZoom();
+      const pane = tooltipPaneRef.current ?? map.getPane("tooltipPane");
+      if (pane) {
+        (pane as HTMLElement).style.display = z >= LABEL_MIN_ZOOM ? "" : "none";
+      }
+    };
     map.on("zoomend", onZoom);
     return () => { map.off("zoomend", onZoom); };
   }, [map]);
 
+  // Create/destroy layer only when visible changes — NOT on zoom changes
   useEffect(() => {
     if (!visible) {
       if (layerRef.current) { layerRef.current.remove(); layerRef.current = null; }
+      // restore tooltip pane visibility
+      const pane = map.getPane("tooltipPane");
+      if (pane) (pane as HTMLElement).style.display = "";
       return;
     }
     let cancelled = false;
     loadDesaGeoJson().then((geojson) => {
       if (cancelled || !geojson) return;
       if (layerRef.current) { layerRef.current.remove(); layerRef.current = null; }
-      const showPermanent = zoomRef.current >= 10;
       const layer = L.geoJSON(geojson, {
         style: {
           color: "#3b82f6",
@@ -128,8 +140,7 @@ function DesaLayer({ visible }: { visible: boolean }) {
           const label = [p.village, p.sub_district].filter(Boolean).join(", ");
           if (label) {
             lyr.bindTooltip(label, {
-              permanent: showPermanent,
-              sticky: !showPermanent,
+              permanent: true,
               className: "desa-tooltip",
               direction: "center",
             });
@@ -144,9 +155,16 @@ function DesaLayer({ visible }: { visible: boolean }) {
       });
       layer.addTo(map);
       layerRef.current = layer;
+
+      // Apply initial zoom-based visibility for tooltips
+      const pane = map.getPane("tooltipPane");
+      tooltipPaneRef.current = pane as HTMLElement ?? null;
+      if (pane) {
+        (pane as HTMLElement).style.display = map.getZoom() >= LABEL_MIN_ZOOM ? "" : "none";
+      }
     });
     return () => { cancelled = true; };
-  }, [visible, map, zoom]);
+  }, [visible, map]);
 
   return null;
 }
