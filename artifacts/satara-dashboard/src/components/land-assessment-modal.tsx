@@ -118,7 +118,7 @@ const UTILITAS_OPTIONS = [
 ];
 
 const TIPE_RUMAH_OPTIONS = [
-  { value: "subsidi",           label: "Subsidi (FLPP)",   sub: "Harga ≤ Rp 166 Jt, kavling 72m²" },
+  { value: "subsidi",           label: "Subsidi (FLPP)",   sub: "Harga ≤ Rp 200 Jt, kavling 72m²" },
   { value: "komersial_kecil",   label: "Komersial Kecil",  sub: "Rp 300-500 Jt, kavling 90m²"      },
   { value: "komersial_menengah",label: "Komersial Menengah",sub: "Rp 500 Jt+, kavling 120m²"        },
 ];
