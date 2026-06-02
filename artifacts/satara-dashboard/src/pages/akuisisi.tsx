@@ -5,6 +5,7 @@ import {
   Plus, CheckCircle2, Map, LayoutList, X,
   FileText, ClipboardList, ArrowRight, Lock,
   Sparkles, Loader2, ThumbsUp, AlertTriangle, ThumbsDown, RefreshCw,
+  Building2, Radio, Search as SearchIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
@@ -12,8 +13,11 @@ import { cn } from "@/lib/utils";
 
 // ─── AI Types ─────────────────────────────────────────────────────────────────
 
+type AiVerdict = "Sangat Direkomendasikan" | "Direkomendasikan" | "Perlu Review" | "Tidak Direkomendasikan";
+
 interface AiResult {
-  verdict: "LAYAK" | "PERLU KAJIAN" | "TIDAK LAYAK";
+  verdict: AiVerdict;
+  kategori?: AiVerdict;
   score: number;
   ringkasan: string;
   kelebihan: string[];
@@ -23,22 +27,55 @@ interface AiResult {
   hargaMaksAkuisisi?: number;
   roiEstimasi?: number;
   paybackBulan?: number;
+  potensiRevenue?: number;
+  estimasiHPP?: number;
+  estimasiProfit?: number;
+  irr?: number;
+  npv?: number;
+  efektivitasKavling?: number;
+  luasFasum?: number;
+  luasJalan?: number;
+  tingkatRisiko?: "Rendah" | "Sedang" | "Tinggi";
+}
+
+interface CompetitorEntry {
+  name: string;
+  type: string;
+  distanceKm?: number;
 }
 
 async function fetchNearbyCompetitors(lat: number, lng: number, radiusKm = 3): Promise<string[]> {
-  const buf = radiusKm / 111;
+  const details = await fetchCompetitorDetails(lat, lng, radiusKm);
+  return details.map(d => d.name);
+}
+
+async function fetchCompetitorDetails(lat: number, lng: number, radiusKm = 3): Promise<CompetitorEntry[]> {
+  const R = radiusKm * 1000;
   try {
     const res = await fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `data=[out:json][timeout:20];(node["name"~"Perumahan|Griya|Bukit|Residence|Regency|Villa|Cluster|Perum|Taman|Garden|Park|Housing",i](${(lat - buf).toFixed(5)},${(lng - buf).toFixed(5)},${(lat + buf).toFixed(5)},${(lng + buf).toFixed(5)});way["landuse"="residential"]["name"](${(lat - buf).toFixed(5)},${(lng - buf).toFixed(5)},${(lat + buf).toFixed(5)},${(lng + buf).toFixed(5)}););out center;`,
+      body: `data=[out:json][timeout:25];(node["name"~"Perumahan|Griya|Bukit|Residence|Regency|Villa|Cluster|Perum|Taman|Garden|Park|Housing",i](around:${R},${lat},${lng});way["landuse"="residential"]["name"](around:${R},${lat},${lng});way["place"~"neighbourhood|suburb"]["name"](around:${R},${lat},${lng}););out center tags;`,
     });
     const data = await res.json();
-    const names = new Set<string>();
-    for (const el of (data.elements ?? []) as { tags?: { name?: string } }[]) {
-      if (el.tags?.name) names.add(el.tags.name);
+    const seen = new Set<string>();
+    const results: CompetitorEntry[] = [];
+    for (const el of (data.elements ?? []) as { type: string; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: { name?: string; landuse?: string; place?: string } }[]) {
+      const name = el.tags?.name;
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      const elLat = el.lat ?? el.center?.lat;
+      const elLon = el.lon ?? el.center?.lon;
+      let distanceKm: number | undefined;
+      if (elLat && elLon) {
+        const dLat = (elLat - lat) * (Math.PI / 180);
+        const dLon = (elLon - lng) * (Math.PI / 180);
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat * Math.PI/180) * Math.cos(elLat * Math.PI/180) * Math.sin(dLon/2)**2;
+        distanceKm = parseFloat((6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2));
+      }
+      results.push({ name, type: el.tags?.landuse ? "Kawasan Residensial" : el.tags?.place ? "Permukiman" : "Perumahan", distanceKm });
     }
-    return [...names].slice(0, 15);
+    return results.sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99)).slice(0, 20);
   } catch {
     return [];
   }
@@ -205,6 +242,11 @@ function ProspectDetailPanel({
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [bentukLahan, setBentukLahan] = useState("");
+  const [statusLegal, setStatusLegal] = useState("");
+  const [competitorList, setCompetitorList] = useState<CompetitorEntry[]>([]);
+  const [competitorRadius, setCompetitorRadius] = useState(3);
+  const [competitorLoading, setCompetitorLoading] = useState(false);
 
   const stage = STAGES.find((s) => s.key === prospect.status);
   const checked = checklists[prospect.id] ?? [];
@@ -220,6 +262,17 @@ function ProspectDetailPanel({
     if (STAGE_ORDER.indexOf(s.key) > currentStageIdx) return sum;
     return sum + s.checklist.filter((c) => checked.includes(c.key)).length;
   }, 0);
+
+  async function fetchCompetitors() {
+    if (prospect.lat == null || prospect.lng == null) return;
+    setCompetitorLoading(true);
+    try {
+      const data = await fetchCompetitorDetails(prospect.lat, prospect.lng, competitorRadius);
+      setCompetitorList(data);
+    } finally {
+      setCompetitorLoading(false);
+    }
+  }
 
   async function runAiAnalysis() {
     setAiLoading(true);
@@ -242,6 +295,8 @@ function ProspectDetailPanel({
           hargaM2: prospect.hargaM2,
           roi: prospect.roi,
           aksesJalan: prospect.aksesJalan,
+          bentukLahan: bentukLahan || undefined,
+          statusLegal: statusLegal || undefined,
           currentStage: STAGES.find((s) => s.key === prospect.status)?.label,
           checkedItems: checked.length,
           competitors,
@@ -501,12 +556,42 @@ function ProspectDetailPanel({
         </div>
       </div>
 
-      {/* ── AI Analysis Section ── */}
-      <div className="border-t px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
+      {/* ── Modul 4: Input tambahan + AI Analysis ── */}
+      <div className="border-t px-4 py-3 space-y-3">
+        {/* Input fields: Bentuk Lahan + Status Legal */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-1.5">BENTUK LAHAN</div>
+            <div className="flex gap-1 flex-wrap">
+              {["Kotak", "Persegi Panjang", "L", "Segitiga"].map(b => (
+                <button key={b} onClick={() => setBentukLahan(bentukLahan === b ? "" : b)}
+                  className={cn("text-[10px] px-2 py-1 rounded border transition-colors",
+                    bentukLahan === b ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
+                  )}>{b}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-1.5">STATUS LEGAL</div>
+            <div className="flex gap-1">
+              {["SHM", "AJB", "Girik"].map(s => (
+                <button key={s} onClick={() => setStatusLegal(statusLegal === s ? "" : s)}
+                  className={cn("text-[10px] px-2.5 py-1 rounded border transition-colors",
+                    statusLegal === s
+                      ? s === "SHM" ? "bg-emerald-600 text-white border-emerald-600"
+                        : s === "AJB" ? "bg-amber-500 text-white border-amber-500"
+                        : "bg-orange-500 text-white border-orange-500"
+                      : "bg-background border-border hover:bg-muted"
+                  )}>{s}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Sparkles className="size-3.5 text-violet-500" />
-            <span className="text-[11px] font-semibold text-violet-700">Analisis AI Kelayakan</span>
+            <span className="text-[11px] font-semibold text-violet-700">Analisis AI Kelayakan (Modul 4)</span>
           </div>
           <button
             onClick={runAiAnalysis}
@@ -525,7 +610,7 @@ function ProspectDetailPanel({
         {aiLoading && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-3 py-2.5">
             <Loader2 className="size-3.5 animate-spin shrink-0 text-violet-500" />
-            <span>AI sedang menganalisis data lahan, kontur, dan potensi risiko...</span>
+            <span>AI sedang menganalisis data lahan, kontur, kompetitor, dan kalkulasi finansial...</span>
           </div>
         )}
 
@@ -536,74 +621,82 @@ function ProspectDetailPanel({
           </div>
         )}
 
-        {aiResult && !aiLoading && (
-          <div className="space-y-3">
-            {/* Row 1: Verdict + Metrics */}
-            <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
-              {/* Verdict box */}
-              <div className={cn("flex flex-col items-center justify-center rounded-xl px-4 py-3 border text-center min-w-[110px]",
-                aiResult.verdict === "LAYAK"         ? "bg-emerald-50 border-emerald-200" :
-                aiResult.verdict === "PERLU KAJIAN"  ? "bg-amber-50 border-amber-200" :
-                                                       "bg-red-50 border-red-200"
-              )}>
-                {aiResult.verdict === "LAYAK"
-                  ? <ThumbsUp className="size-5 text-emerald-600 mb-1" />
-                  : aiResult.verdict === "PERLU KAJIAN"
-                  ? <AlertTriangle className="size-5 text-amber-600 mb-1" />
-                  : <ThumbsDown className="size-5 text-red-600 mb-1" />
-                }
-                <div className={cn("text-xs font-bold",
-                  aiResult.verdict === "LAYAK" ? "text-emerald-700" :
-                  aiResult.verdict === "PERLU KAJIAN" ? "text-amber-700" : "text-red-700"
-                )}>
-                  {aiResult.verdict}
+        {aiResult && !aiLoading && (() => {
+          const v = aiResult.verdict;
+          const isSangat = v === "Sangat Direkomendasikan";
+          const isDirek = v === "Direkomendasikan";
+          const isPerlu = v === "Perlu Review";
+          const isLayak = isSangat || isDirek;
+          const borderCls = isSangat ? "bg-emerald-50 border-emerald-200" : isDirek ? "bg-teal-50 border-teal-200" : isPerlu ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
+          const textCls = isSangat ? "text-emerald-700" : isDirek ? "text-teal-700" : isPerlu ? "text-amber-700" : "text-red-700";
+          const barCls = isSangat ? "bg-emerald-500" : isDirek ? "bg-teal-500" : isPerlu ? "bg-amber-400" : "bg-red-500";
+          return (
+            <div className="space-y-3">
+              <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
+                <div className={cn("flex flex-col items-center justify-center rounded-xl px-4 py-3 border text-center min-w-[130px]", borderCls)}>
+                  {isSangat ? <ThumbsUp className={cn("size-5 mb-1", textCls)} /> : isPerlu ? <AlertTriangle className={cn("size-5 mb-1", textCls)} /> : !isLayak ? <ThumbsDown className={cn("size-5 mb-1", textCls)} /> : <CheckCircle2 className={cn("size-5 mb-1", textCls)} />}
+                  <div className={cn("text-[10px] font-bold leading-tight text-center", textCls)}>{v}</div>
+                  <div className={cn("text-2xl font-black mt-1 leading-none", textCls)}>{aiResult.score}</div>
+                  <div className="text-[9px] text-muted-foreground">/ 100</div>
+                  <div className="w-full mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className={cn("h-full rounded-full transition-all", barCls)} style={{ width: `${aiResult.score}%` }} />
+                  </div>
+                  {aiResult.tingkatRisiko && (
+                    <div className={cn("mt-1.5 text-[9px] font-semibold px-2 py-0.5 rounded-full",
+                      aiResult.tingkatRisiko === "Rendah" ? "bg-emerald-100 text-emerald-700" :
+                      aiResult.tingkatRisiko === "Sedang" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                    )}>
+                      Risiko: {aiResult.tingkatRisiko}
+                    </div>
+                  )}
                 </div>
-                <div className={cn("text-2xl font-black mt-1 leading-none",
-                  aiResult.verdict === "LAYAK" ? "text-emerald-600" :
-                  aiResult.verdict === "PERLU KAJIAN" ? "text-amber-600" : "text-red-600"
-                )}>
-                  {aiResult.score}
-                </div>
-                <div className="text-[9px] text-muted-foreground">/ 100</div>
-                <div className="w-full mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className={cn("h-full rounded-full transition-all",
-                    aiResult.verdict === "LAYAK" ? "bg-emerald-500" :
-                    aiResult.verdict === "PERLU KAJIAN" ? "bg-amber-400" : "bg-red-500"
-                  )} style={{ width: `${aiResult.score}%` }} />
-                </div>
-              </div>
 
-              {/* Right side: metrics + ringkasan */}
-              <div className="space-y-2">
-                {/* Key metrics row */}
-                {(aiResult.potensiUnit != null || aiResult.hargaMaksAkuisisi != null || aiResult.roiEstimasi != null || aiResult.paybackBulan != null) && (
-                  <div className="grid grid-cols-4 gap-2">
+                <div className="space-y-2">
+                  {/* Primary metrics */}
+                  <div className="grid grid-cols-4 gap-1.5">
                     {[
                       { label: "Potensi Unit", value: aiResult.potensiUnit != null ? `${aiResult.potensiUnit} unit` : null, color: "text-blue-700" },
-                      { label: "Harga Maks", value: aiResult.hargaMaksAkuisisi != null ? `Rp${aiResult.hargaMaksAkuisisi.toLocaleString("id-ID")}/m²` : null, color: "text-violet-700" },
+                      { label: "Harga Maks", value: aiResult.hargaMaksAkuisisi != null ? `Rp${(aiResult.hargaMaksAkuisisi/1000).toFixed(0)}rb/m²` : null, color: "text-violet-700" },
                       { label: "ROI Estimasi", value: aiResult.roiEstimasi != null ? `${aiResult.roiEstimasi}%` : null, color: aiResult.roiEstimasi != null && aiResult.roiEstimasi >= 25 ? "text-emerald-700" : "text-amber-700" },
                       { label: "Payback", value: aiResult.paybackBulan != null ? `${aiResult.paybackBulan} bln` : null, color: "text-slate-700" },
-                    ].filter(m => m.value != null).map(({ label, value, color }) => (
-                      <div key={label} className="bg-muted/40 border rounded-lg px-2.5 py-2 text-center">
-                        <div className="text-[9px] text-muted-foreground mb-0.5">{label}</div>
-                        <div className={cn("text-[11px] font-bold", color)}>{value}</div>
+                      { label: "IRR", value: aiResult.irr != null ? `${aiResult.irr}%` : null, color: "text-purple-700" },
+                      { label: "Luas Fasum", value: aiResult.luasFasum != null ? `${aiResult.luasFasum?.toLocaleString("id-ID")} m²` : null, color: "text-cyan-700" },
+                      { label: "Luas Jalan", value: aiResult.luasJalan != null ? `${aiResult.luasJalan?.toLocaleString("id-ID")} m²` : null, color: "text-sky-700" },
+                      { label: "Efektivitas", value: aiResult.efektivitasKavling != null ? `${aiResult.efektivitasKavling}%` : null, color: "text-teal-700" },
+                    ].filter(m => m.value != null).slice(0, 8).map(({ label, value, color }) => (
+                      <div key={label} className="bg-muted/40 border rounded-md px-2 py-1.5 text-center">
+                        <div className="text-[9px] text-muted-foreground mb-0.5 leading-tight">{label}</div>
+                        <div className={cn("text-[10px] font-bold", color)}>{value}</div>
                       </div>
                     ))}
                   </div>
-                )}
-                <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">RINGKASAN</div>
-                <p className="text-[11px] leading-relaxed">{aiResult.ringkasan}</p>
-                <div className="text-[10px] font-semibold text-muted-foreground tracking-wider pt-1">REKOMENDASI</div>
-                <p className="text-[11px] leading-relaxed text-violet-700">{aiResult.rekomendasi}</p>
+                  {/* Financial summary */}
+                  {(aiResult.potensiRevenue || aiResult.estimasiProfit) && (
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { label: "Potensi Revenue", value: aiResult.potensiRevenue, color: "text-emerald-700" },
+                        { label: "Estimasi HPP", value: aiResult.estimasiHPP, color: "text-orange-700" },
+                        { label: "Estimasi Profit", value: aiResult.estimasiProfit, color: "text-violet-700" },
+                      ].filter(m => m.value != null).map(({ label, value, color }) => (
+                        <div key={label} className="bg-muted/40 border rounded-md px-2 py-1.5">
+                          <div className="text-[9px] text-muted-foreground mb-0.5">{label}</div>
+                          <div className={cn("text-[10px] font-bold", color)}>
+                            Rp{((value ?? 0) / 1_000_000_000).toFixed(1)} M
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">RINGKASAN</div>
+                  <p className="text-[11px] leading-relaxed">{aiResult.ringkasan}</p>
+                  <div className="text-[10px] font-semibold text-muted-foreground tracking-wider pt-0.5">REKOMENDASI</div>
+                  <p className="text-[11px] leading-relaxed text-violet-700">{aiResult.rekomendasi}</p>
+                </div>
               </div>
-            </div>
 
-            {/* Row 2: Kelebihan + Risiko */}
-            <div className="grid grid-cols-2 gap-3 border-t pt-3">
-              {/* Kelebihan */}
-              <div className="space-y-2">
-                <div className="text-[10px] font-semibold text-emerald-700 tracking-wider">KELEBIHAN</div>
-                <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-3 border-t pt-3">
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-semibold text-emerald-700 tracking-wider">KELEBIHAN</div>
                   {aiResult.kelebihan.map((k, i) => (
                     <div key={i} className="flex items-start gap-1.5 text-[11px]">
                       <CheckCircle2 className="size-3 text-emerald-500 shrink-0 mt-0.5" />
@@ -611,12 +704,8 @@ function ProspectDetailPanel({
                     </div>
                   ))}
                 </div>
-              </div>
-
-              {/* Risiko */}
-              <div className="space-y-2">
-                <div className="text-[10px] font-semibold text-red-600 tracking-wider">RISIKO</div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-semibold text-red-600 tracking-wider">RISIKO</div>
                   {aiResult.risiko.map((r, i) => (
                     <div key={i} className="flex items-start gap-1.5 text-[11px]">
                       <AlertTriangle className="size-3 text-amber-500 shrink-0 mt-0.5" />
@@ -626,15 +715,84 @@ function ProspectDetailPanel({
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {!aiResult && !aiLoading && !aiError && (
           <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-            Klik tombol di atas untuk mendapatkan analisis kelayakan lahan dari AI berdasarkan data lahan, kontur, dan indikator keberhasilan perusahaan.
+            Isi bentuk lahan & status legal di atas, lalu klik Analisis AI untuk mendapatkan kalkulasi finansial lengkap sesuai SLIS.
           </div>
         )}
       </div>
+
+      {/* ── Modul 5: Competitor Intelligence ── */}
+      {(prospect.lat != null && prospect.lng != null) && (
+        <div className="border-t px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <Building2 className="size-3.5 text-blue-500" />
+              <span className="text-[11px] font-semibold text-blue-700">Kompetitor Intelligence (Modul 5)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground">Radius:</span>
+              {[1, 3, 5, 10].map(r => (
+                <button key={r} onClick={() => setCompetitorRadius(r)}
+                  className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
+                    competitorRadius === r ? "bg-blue-600 text-white border-blue-600" : "bg-background border-border hover:bg-muted"
+                  )}>{r} km</button>
+              ))}
+              <button
+                onClick={fetchCompetitors}
+                disabled={competitorLoading}
+                className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-60 ml-1"
+              >
+                {competitorLoading ? <Loader2 className="size-2.5 animate-spin" /> : <SearchIcon className="size-2.5" />}
+                {competitorLoading ? "Mencari..." : "Cari"}
+              </button>
+            </div>
+          </div>
+
+          {competitorLoading && (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-3 py-2.5">
+              <Loader2 className="size-3 animate-spin text-blue-500" />
+              Mengambil data perumahan dari OpenStreetMap radius {competitorRadius} km...
+            </div>
+          )}
+
+          {competitorList.length > 0 && !competitorLoading && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] text-muted-foreground mb-2">
+                Ditemukan <strong>{competitorList.length}</strong> perumahan/developer dalam radius {competitorRadius} km (sumber: OpenStreetMap)
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {competitorList.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-muted/30 border rounded-md px-2.5 py-2">
+                    <div className="size-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 text-[9px] font-bold">{i + 1}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-medium truncate">{c.name}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[9px] text-muted-foreground">{c.type}</span>
+                        {c.distanceKm != null && (
+                          <span className="text-[9px] font-medium text-blue-600">±{c.distanceKm} km</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[9px] text-muted-foreground mt-1.5 italic">
+                * Data detail (developer, harga, jumlah unit, progres) memerlukan verifikasi lapangan
+              </div>
+            </div>
+          )}
+
+          {competitorList.length === 0 && !competitorLoading && (
+            <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
+              Klik Cari untuk mendeteksi perumahan kompetitor dalam radius yang dipilih
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

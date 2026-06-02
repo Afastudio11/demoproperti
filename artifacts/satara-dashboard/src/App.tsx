@@ -14,6 +14,7 @@ import Administrasi from "@/pages/administrasi";
 import Produksi from "@/pages/produksi";
 import SerahTerima from "@/pages/serah-terima";
 import Settings from "@/pages/settings";
+import SLIS from "@/pages/slis";
 import Layout from "@/components/layout";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/projects" component={Projects} />
         <Route path="/projects/:id" component={ProjectDetail} />
+        <Route path="/slis" component={SLIS} />
         <Route path="/akuisisi" component={Akuisisi} />
         <Route path="/perencanaan" component={Perencanaan} />
         <Route path="/legal" component={Legal} />

@@ -13,6 +13,7 @@ import qcRouter from "./qc";
 import materialsRouter from "./materials";
 import handoversRouter from "./handovers";
 import aiAnalyzeRouter from "./ai-analyze";
+import aiRoadmapRouter from "./ai-roadmap";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(qcRouter);
 router.use(materialsRouter);
 router.use(handoversRouter);
 router.use(aiAnalyzeRouter);
+router.use(aiRoadmapRouter);
 
 export default router;
