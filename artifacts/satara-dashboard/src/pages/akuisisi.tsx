@@ -678,24 +678,9 @@ export default function Akuisisi() {
         </div>
       </div>
 
-      <div className="bg-card border rounded-xl p-3">
-        <div className="flex items-center gap-2 mb-2.5">
-          <CheckCircle2 className="size-3.5 text-emerald-600" />
-          <span className="text-xs font-semibold text-muted-foreground tracking-wider">INDIKATOR KEBERHASILAN</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {KPI_TARGETS.map((k) => (
-            <div key={k.label} className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 py-1">
-              <span className="text-xs text-muted-foreground">{k.label}:</span>
-              <span className="text-xs font-semibold text-foreground">{k.target}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {tab === "peta" && (
         <div className="flex flex-col gap-3">
-          <div className="min-h-0" style={{ height: "480px" }}>
+          <div className="min-h-0" style={{ height: "640px" }}>
             <SulselAcquisitionMap
               onSelectProspect={(id) => { setSelectedId(id); if (!id) setTerrainData(null); }}
               onTerrainData={(d) => setTerrainData(d as TerrainData)}

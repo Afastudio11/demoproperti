@@ -735,7 +735,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData }
             drawMode && "ring-2 ring-violet-400",
             addMode && "ring-2 ring-blue-400"
           )}
-          style={{ minHeight: 460 }}
+          style={{ minHeight: 600 }}
         >
           <MapContainer
             center={SULSEL_CENTER}
@@ -827,34 +827,37 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData }
           </div>
         )}
 
-        {selectedProspect && !drawn && (
-          <div className="w-52 shrink-0 bg-card border rounded-xl p-4 flex flex-col gap-3 self-start">
-            <div className="flex items-center gap-2">
-              <SquareDashed className="size-4 text-blue-500" />
-              <span className="text-xs font-semibold truncate flex-1">{selectedProspect.lokasi.split(",")[0]}</span>
-              <button onClick={() => { setSelectedId(null); onSelectProspect?.(null); }} className="text-muted-foreground hover:text-foreground">
-                <X className="size-3.5" />
-              </button>
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+      </div>
+
+      {selectedProspect && !drawn && (
+        <div className="bg-card border rounded-xl p-4 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <SquareDashed className="size-4 text-blue-500" />
+            <span className="text-xs font-semibold truncate flex-1">{selectedProspect.lokasi.split(",")[0]}</span>
+            <button onClick={() => { setSelectedId(null); onSelectProspect?.(null); }} className="text-muted-foreground hover:text-foreground">
+              <X className="size-3.5" />
+            </button>
+          </div>
+          <div className="flex gap-4 flex-wrap">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center min-w-36">
               <div className="text-xl font-bold text-blue-700">{formatLuas(selectedArea)}</div>
               <div className="text-[11px] text-blue-500 mt-1">
                 {selectedPolyCoords ? `${selectedPolyCoords.length} titik polygon` : `≈ ${Math.round(Math.sqrt(selectedProspect.luas))}×${Math.round(Math.sqrt(selectedProspect.luas))} m`}
               </div>
             </div>
             <HouseCapacityCard areaSqm={selectedArea} />
-            <div className="space-y-1.5 text-[11px]">
+            <div className="flex flex-col gap-1.5 text-[11px] justify-center min-w-40">
               {[
                 { l: "ROI", v: `${selectedProspect.roi}%`, color: selectedProspect.roi >= 25 ? "text-emerald-600" : "text-amber-600" },
                 { l: "Harga/m²", v: formatRp(selectedProspect.hargaM2) },
                 { l: "Status", v: STATUS_LABELS[selectedProspect.status] ?? selectedProspect.status },
               ].map(({ l, v, color }) => (
-                <div key={l} className="flex justify-between">
+                <div key={l} className="flex justify-between gap-6">
                   <span className="text-muted-foreground">{l}</span>
                   <span className={cn("font-medium", color)}>{v}</span>
                 </div>
               ))}
-              <div className="flex justify-between border-t pt-1.5">
+              <div className="flex justify-between gap-6 border-t pt-1.5">
                 <span className="text-muted-foreground">vs lapangan bola</span>
                 <span className="font-medium text-blue-600">
                   {selectedArea >= 7140 ? `${(selectedArea / 7140).toFixed(1)}×` : `${((selectedArea / 7140) * 100).toFixed(0)}%`}
@@ -862,8 +865,8 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData }
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
         <span className="font-medium">Keterangan:</span>
