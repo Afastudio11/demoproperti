@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
+import type { PolygonReadyData } from "@/components/sulsel-acquisition-map";
+import LandAssessmentModal from "@/components/land-assessment-modal";
 import SLIS from "@/pages/slis";
 import { cn } from "@/lib/utils";
 
@@ -803,6 +805,8 @@ export default function Akuisisi() {
   const [checklists, setChecklists] = useState<Record<number, string[]>>(loadChecklist);
   const [advancing, setAdvancing] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainData>(null);
+  const [terrainLoading, setTerrainLoading] = useState(false);
+  const [assessmentPolygon, setAssessmentPolygon] = useState<PolygonReadyData | null>(null);
 
   const selectedProspect = selectedId ? (prospects ?? []).find((p) => p.id === selectedId) : null;
 
@@ -887,7 +891,12 @@ export default function Akuisisi() {
           <div className="min-h-0" style={{ height: "640px" }}>
             <SulselAcquisitionMap
               onSelectProspect={(id) => { setSelectedId(id); if (!id) setTerrainData(null); }}
-              onTerrainData={(d) => setTerrainData(d as TerrainData)}
+              onTerrainData={(d) => { setTerrainData(d as TerrainData); setTerrainLoading(false); }}
+              onPolygonReady={(poly) => {
+                setAssessmentPolygon(poly);
+                setTerrainData(null);
+                setTerrainLoading(true);
+              }}
             />
           </div>
           {selectedProspect && (
@@ -1009,6 +1018,19 @@ export default function Akuisisi() {
 
       {tab === "slis" && (
         <SLIS />
+      )}
+
+      {assessmentPolygon && (
+        <LandAssessmentModal
+          polygon={assessmentPolygon}
+          terrainData={terrainData}
+          terrainLoading={terrainLoading}
+          onClose={() => {
+            setAssessmentPolygon(null);
+            setTerrainData(null);
+            setTerrainLoading(false);
+          }}
+        />
       )}
 
     </div>

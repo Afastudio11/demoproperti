@@ -611,7 +611,16 @@ async function geocodeNominatim(kab: string, kec: string, kel: string): Promise<
   return null;
 }
 
-export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void } = {}) {
+export interface PolygonReadyData {
+  luas: number;
+  center: [number, number];
+  lokasi: string;
+  kelurahan: string;
+  kecamatan: string;
+  kabupaten: string;
+}
+
+export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void } = {}) {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
@@ -661,6 +670,14 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData }
     setForm((f) => ({ ...f, lokasi: poly.lokasi || poly.kecamatan || "", luas: Math.round(poly.area).toString() }));
     setTerrainResult(null);
     setTerrainLoading(true);
+    onPolygonReady?.({
+      luas: poly.area,
+      center: poly.center,
+      lokasi: poly.lokasi,
+      kelurahan: poly.kelurahan,
+      kecamatan: poly.kecamatan,
+      kabupaten: poly.kabupaten,
+    });
     analyzeTerrainForPolygon(poly.coords, poly.center)
       .then((r) => { setTerrainResult(r); onTerrainData?.(r); })
       .catch(() => {})

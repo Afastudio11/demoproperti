@@ -14,6 +14,7 @@ import materialsRouter from "./materials";
 import handoversRouter from "./handovers";
 import aiAnalyzeRouter from "./ai-analyze";
 import aiRoadmapRouter from "./ai-roadmap";
+import aiLandAssessmentRouter from "./ai-land-assessment";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(materialsRouter);
 router.use(handoversRouter);
 router.use(aiAnalyzeRouter);
 router.use(aiRoadmapRouter);
+router.use(aiLandAssessmentRouter);
 
 export default router;
