@@ -121,3 +121,19 @@
     @apply bg-background text-foreground;
   }
 }
+
+.desa-tooltip {
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 7px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.desa-tooltip::before {
+  display: none;
+}

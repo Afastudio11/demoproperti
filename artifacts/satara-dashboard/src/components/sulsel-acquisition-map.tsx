@@ -56,6 +56,90 @@ const TILE_LAYERS = {
 
 type LayerKey = "satellite" | "topo";
 
+// ─── Desa Border Layer ────────────────────────────────────────────────────────
+
+let desaGeoJsonCache: GeoJSON.FeatureCollection | null = null;
+let desaLoadPromise: Promise<GeoJSON.FeatureCollection | null> | null = null;
+
+async function loadDesaGeoJson(): Promise<GeoJSON.FeatureCollection | null> {
+  if (desaGeoJsonCache) return desaGeoJsonCache;
+  if (desaLoadPromise) return desaLoadPromise;
+  desaLoadPromise = (async () => {
+    try {
+      const res = await fetch("/sulsel_desa.geojson.gz");
+      if (!res.ok || !res.body) return null;
+      const ds = new DecompressionStream("gzip");
+      const decompressed = res.body.pipeThrough(ds);
+      const reader = decompressed.getReader();
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+      const text = new TextDecoder().decode(
+        chunks.reduce((acc, c) => {
+          const merged = new Uint8Array(acc.length + c.length);
+          merged.set(acc); merged.set(c, acc.length);
+          return merged;
+        }, new Uint8Array(0))
+      );
+      desaGeoJsonCache = JSON.parse(text) as GeoJSON.FeatureCollection;
+      return desaGeoJsonCache;
+    } catch {
+      return null;
+    }
+  })();
+  return desaLoadPromise;
+}
+
+function DesaLayer({ visible }: { visible: boolean }) {
+  const map = useMap();
+  const layerRef = useRef<L.GeoJSON | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      if (layerRef.current) { layerRef.current.remove(); layerRef.current = null; }
+      return;
+    }
+    let cancelled = false;
+    loadDesaGeoJson().then((geojson) => {
+      if (cancelled || !geojson) return;
+      if (layerRef.current) { layerRef.current.remove(); layerRef.current = null; }
+      const layer = L.geoJSON(geojson, {
+        style: {
+          color: "#3b82f6",
+          weight: 0.8,
+          opacity: 0.65,
+          fillColor: "#3b82f6",
+          fillOpacity: 0.04,
+        },
+        onEachFeature(feature, lyr) {
+          const p = feature.properties as { village?: string; sub_district?: string; district?: string };
+          const label = [p.village, p.sub_district].filter(Boolean).join(", ");
+          lyr.bindTooltip(label, {
+            permanent: false,
+            sticky: true,
+            className: "desa-tooltip",
+            direction: "center",
+          });
+          lyr.on("mouseover", function () {
+            (lyr as L.Path).setStyle({ fillOpacity: 0.18, weight: 1.5 });
+          });
+          lyr.on("mouseout", function () {
+            (lyr as L.Path).setStyle({ fillOpacity: 0.04, weight: 0.8 });
+          });
+        },
+      });
+      layer.addTo(map);
+      layerRef.current = layer;
+    });
+    return () => { cancelled = true; };
+  }, [visible, map]);
+
+  return null;
+}
+
 // Batas wilayah Sulawesi Selatan
 const SULSEL_BOUNDS: L.LatLngBoundsExpression = [
   [-7.5, 118.0],  // SW
@@ -748,9 +832,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData }
             scrollWheelZoom
           >
             <TileLayer url={tile.url} attribution={tile.attribution} maxZoom={20} maxNativeZoom={18} />
-            {layer === "satellite" && showLabel && (
-              <TileLayer url={TILE_LAYERS.satLabel.url} attribution={TILE_LAYERS.satLabel.attribution} maxZoom={20} maxNativeZoom={18} opacity={0.85} />
-            )}
+            <DesaLayer visible={showLabel} />
 
             <MapFlyHandler target={flyTarget} />
             <GeomanControl drawMode={drawMode} onCreated={handleDrawCreated} onDisable={() => setDrawMode(false)} />
