@@ -13,7 +13,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
-import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Search, Mountain, Droplets } from "lucide-react";
+import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Search, Mountain, Droplets, ChevronRight, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RISK_COLORS: Record<string, string> = {
@@ -165,6 +165,144 @@ function DesaLayer({ visible }: { visible: boolean }) {
     });
     return () => { cancelled = true; };
   }, [visible, map]);
+
+  return null;
+}
+
+// ─── Admin Drill Layer ────────────────────────────────────────────────────────
+
+const ADMIN_PALETTE = [
+  "#1d4ed8","#7c3aed","#b45309","#065f46","#9f1239",
+  "#0369a1","#6d28d9","#78350f","#047857","#be185d",
+  "#1e40af","#4c1d95","#92400e","#064e3b","#9d174d",
+  "#2563eb","#5b21b6","#a16207","#065f46","#831843",
+  "#0284c7","#7e22ce","#ca8a04","#15803d","#be123c",
+];
+
+function adminHashColor(name: string): string {
+  let h = 5381;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) + h) ^ name.charCodeAt(i);
+  return ADMIN_PALETTE[Math.abs(h) % ADMIN_PALETTE.length];
+}
+
+type DrillLevel = 0 | 1 | 2;
+interface DrillState { level: DrillLevel; kab: string | null; kec: string | null; }
+
+function geomCoords(geometry: GeoJSON.Geometry): number[][] {
+  const pts: number[][] = [];
+  function walk(coords: unknown): void {
+    if (!Array.isArray(coords)) return;
+    if (coords.length >= 2 && typeof coords[0] === "number") { pts.push(coords as number[]); return; }
+    (coords as unknown[]).forEach(c => walk(c));
+  }
+  walk((geometry as any).coordinates);
+  return pts;
+}
+
+function groupCentroid(features: GeoJSON.Feature[]): [number, number] | null {
+  let lat = 0, lng = 0, n = 0;
+  for (const f of features) {
+    if (!f.geometry) continue;
+    for (const c of geomCoords(f.geometry)) { lat += c[1]; lng += c[0]; n++; }
+  }
+  return n > 0 ? [lat / n, lng / n] : null;
+}
+
+function AdminDrillLayer({ visible, drill, onDrill }: {
+  visible: boolean;
+  drill: DrillState;
+  onDrill: (next: DrillState) => void;
+}) {
+  const map = useMap();
+  const geoRef = useRef<L.GeoJSON | null>(null);
+  const lblRef = useRef<L.LayerGroup | null>(null);
+
+  useEffect(() => {
+    geoRef.current?.remove(); geoRef.current = null;
+    lblRef.current?.remove(); lblRef.current = null;
+    if (!visible) return;
+
+    let cancelled = false;
+    loadDesaGeoJson().then(geojson => {
+      if (cancelled || !geojson) return;
+
+      let features = geojson.features;
+      if (drill.level >= 1 && drill.kab) features = features.filter(f => (f.properties as any)?.district === drill.kab);
+      if (drill.level >= 2 && drill.kec) features = features.filter(f => (f.properties as any)?.sub_district === drill.kec);
+
+      const gk = drill.level === 0 ? "district" : drill.level === 1 ? "sub_district" : "village";
+      const foBase = drill.level === 0 ? 0.22 : drill.level === 1 ? 0.28 : 0.35;
+      const foHover = foBase + 0.2;
+      const wBase = drill.level === 0 ? 1.5 : drill.level === 1 ? 1.1 : 0.7;
+
+      const groups: Record<string, GeoJSON.Feature[]> = {};
+      for (const f of features) {
+        const k = (f.properties as any)?.[gk] ?? "";
+        if (k) { if (!groups[k]) groups[k] = []; groups[k].push(f); }
+      }
+
+      const geo = L.geoJSON({ type: "FeatureCollection", features } as GeoJSON.FeatureCollection, {
+        style(feature) {
+          const key = (feature?.properties as any)?.[gk] ?? "";
+          const color = drill.level === 2 ? "#3b82f6" : adminHashColor(key);
+          return { color: "rgba(255,255,255,0.65)", weight: wBase, opacity: 1, fillColor: color, fillOpacity: foBase };
+        },
+        onEachFeature(feature, lyr) {
+          const p = feature.properties as any;
+          const key = p?.[gk] ?? "";
+
+          lyr.on("mouseover", () => {
+            geo.eachLayer(gl => {
+              if ((gl as any).feature?.properties?.[gk] === key)
+                (gl as L.Path).setStyle({ fillOpacity: foHover, weight: wBase + 1 });
+            });
+            if (drill.level < 2) map.getContainer().style.cursor = "pointer";
+          });
+          lyr.on("mouseout", () => {
+            geo.eachLayer(gl => {
+              if ((gl as any).feature?.properties?.[gk] === key)
+                (gl as L.Path).setStyle({ fillOpacity: foBase, weight: wBase });
+            });
+            map.getContainer().style.cursor = "";
+          });
+          lyr.on("click", (e) => {
+            L.DomEvent.stopPropagation(e as L.LeafletMouseEvent);
+            if (drill.level === 2) return;
+            const bounds = L.latLngBounds([]);
+            geo.eachLayer(gl => {
+              if ((gl as any).feature?.properties?.[gk] === key) {
+                const b = (gl as any).getBounds?.() as L.LatLngBounds | undefined;
+                if (b?.isValid()) bounds.extend(b);
+              }
+            });
+            if (bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28], maxZoom: drill.level === 0 ? 11 : 13 });
+            if (drill.level === 0) onDrill({ level: 1, kab: p?.district ?? key, kec: null });
+            else if (drill.level === 1) onDrill({ level: 2, kab: drill.kab, kec: p?.sub_district ?? key });
+          });
+        },
+      });
+      geo.addTo(map);
+      geoRef.current = geo;
+
+      const lblGroup = L.layerGroup().addTo(map);
+      for (const [name, feats] of Object.entries(groups)) {
+        const c = groupCentroid(feats);
+        if (!c) continue;
+        const icon = L.divIcon({
+          html: `<div class="adl-wrap"><span class="adl adl-${drill.level === 0 ? "kab" : drill.level === 1 ? "kec" : "desa"}">${name}</span></div>`,
+          className: "", iconSize: [0, 0], iconAnchor: [0, 0],
+        });
+        L.marker(c, { icon, interactive: false }).addTo(lblGroup);
+      }
+      lblRef.current = lblGroup;
+    });
+    return () => { cancelled = true; };
+  }, [visible, drill.level, drill.kab, drill.kec, map]);
+
+  useEffect(() => () => {
+    geoRef.current?.remove(); lblRef.current?.remove();
+    map.getContainer().style.cursor = "";
+  }, [map]);
 
   return null;
 }
@@ -642,6 +780,8 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminDrill, setAdminDrill] = useState<DrillState>({ level: 0, kab: null, kec: null });
   const [navKab, setNavKab] = useState("");
   const [navKec, setNavKec] = useState("");
   const [navKel, setNavKel] = useState("");
@@ -819,6 +959,46 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
           >
             Label Desa
           </button>
+          <button
+            onClick={() => {
+              const next = !showAdmin;
+              setShowAdmin(next);
+              if (!next) setAdminDrill({ level: 0, kab: null, kec: null });
+            }}
+            className={cn(
+              "flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition-colors",
+              showAdmin ? "bg-violet-600 text-white border-violet-600" : "bg-card text-muted-foreground border-border"
+            )}
+          >
+            <Layers className="size-3" /> Batas Wilayah
+          </button>
+          {showAdmin && (
+            <div className="flex items-center gap-1 text-[11px] bg-muted/60 border rounded-lg px-2 py-1">
+              <button
+                onClick={() => setAdminDrill({ level: 0, kab: null, kec: null })}
+                className={cn("font-medium", adminDrill.level === 0 ? "text-foreground" : "text-blue-500 hover:underline")}
+              >
+                Sulawesi Selatan
+              </button>
+              {adminDrill.kab && (
+                <>
+                  <ChevronRight className="size-3 text-muted-foreground shrink-0" />
+                  <button
+                    onClick={() => setAdminDrill({ level: 1, kab: adminDrill.kab, kec: null })}
+                    className={cn("font-medium truncate max-w-[120px]", adminDrill.level === 1 ? "text-foreground" : "text-blue-500 hover:underline")}
+                  >
+                    {adminDrill.kab}
+                  </button>
+                </>
+              )}
+              {adminDrill.kec && (
+                <>
+                  <ChevronRight className="size-3 text-muted-foreground shrink-0" />
+                  <span className="font-medium text-foreground truncate max-w-[120px]">{adminDrill.kec}</span>
+                </>
+              )}
+            </div>
+          )}
 
           {isActive ? (
             <button onClick={cancelAll} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-card text-muted-foreground hover:text-foreground">
@@ -886,6 +1066,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
               />
             )}
             <DesaLayer visible={showLabel} />
+            <AdminDrillLayer visible={showAdmin} drill={adminDrill} onDrill={setAdminDrill} />
 
             <MapFlyHandler target={flyTarget} />
             <GeomanControl drawMode={drawMode} onCreated={handleDrawCreated} onDisable={() => setDrawMode(false)} />
