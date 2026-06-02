@@ -216,37 +216,64 @@ function AdminDrillLayer({ visible, drill, onDrill }: {
   const map = useMap();
   const geoRef = useRef<L.GeoJSON | null>(null);
   const lblRef = useRef<L.LayerGroup | null>(null);
+  // stable ref so click closures always call the latest onDrill
+  const onDrillRef = useRef(onDrill);
+  useEffect(() => { onDrillRef.current = onDrill; }, [onDrill]);
 
   useEffect(() => {
     geoRef.current?.remove(); geoRef.current = null;
     lblRef.current?.remove(); lblRef.current = null;
     if (!visible) return;
 
+    const drillSnapshot = { ...drill };
     let cancelled = false;
+
     loadDesaGeoJson().then(geojson => {
       if (cancelled || !geojson) return;
 
       let features = geojson.features;
-      if (drill.level >= 1 && drill.kab) features = features.filter(f => (f.properties as any)?.district === drill.kab);
-      if (drill.level >= 2 && drill.kec) features = features.filter(f => (f.properties as any)?.sub_district === drill.kec);
+      if (drillSnapshot.level >= 1 && drillSnapshot.kab)
+        features = features.filter(f => (f.properties as any)?.district === drillSnapshot.kab);
+      if (drillSnapshot.level >= 2 && drillSnapshot.kec)
+        features = features.filter(f => (f.properties as any)?.sub_district === drillSnapshot.kec);
 
-      const gk = drill.level === 0 ? "district" : drill.level === 1 ? "sub_district" : "village";
-      const foBase = drill.level === 0 ? 0.50 : drill.level === 1 ? 0.48 : 0.45;
+      const gk = drillSnapshot.level === 0 ? "district" : drillSnapshot.level === 1 ? "sub_district" : "village";
+      const foBase = drillSnapshot.level === 0 ? 0.50 : drillSnapshot.level === 1 ? 0.48 : 0.45;
       const foHover = Math.min(foBase + 0.20, 0.78);
-      const wBase = drill.level === 0 ? 1.0 : drill.level === 1 ? 0.8 : 0.5;
+      const wBase = drillSnapshot.level === 0 ? 1.0 : drillSnapshot.level === 1 ? 0.8 : 0.5;
 
+      // Pre-compute groups and their bounds in one pass (avoids O(n²) on click)
       const groups: Record<string, GeoJSON.Feature[]> = {};
+      const groupBounds: Record<string, L.LatLngBounds> = {};
+
       for (const f of features) {
         const k = (f.properties as any)?.[gk] ?? "";
-        if (k) { if (!groups[k]) groups[k] = []; groups[k].push(f); }
+        if (!k) continue;
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(f);
+      }
+
+      // Compute per-group bounds from geomCoords (fast, no Leaflet layer creation)
+      for (const [name, feats] of Object.entries(groups)) {
+        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        for (const f of feats) {
+          if (!f.geometry) continue;
+          for (const c of geomCoords(f.geometry)) {
+            if (c[1] < minLat) minLat = c[1];
+            if (c[1] > maxLat) maxLat = c[1];
+            if (c[0] < minLng) minLng = c[0];
+            if (c[0] > maxLng) maxLng = c[0];
+          }
+        }
+        if (isFinite(minLat)) {
+          groupBounds[name] = L.latLngBounds([minLat, minLng], [maxLat, maxLng]);
+        }
       }
 
       const geo = L.geoJSON({ type: "FeatureCollection", features } as GeoJSON.FeatureCollection, {
         style(feature) {
           const key = (feature?.properties as any)?.[gk] ?? "";
-          const color = drill.level === 2 ? "#60a5fa" : adminHashColor(key);
-          // Stroke uses same hue as fill so intra-group boundaries blend in,
-          // making each kabupaten look like one solid block
+          const color = drillSnapshot.level === 2 ? "#60a5fa" : adminHashColor(key);
           return { color, weight: wBase, opacity: 0.7, fillColor: color, fillOpacity: foBase };
         },
         onEachFeature(feature, lyr) {
@@ -258,7 +285,7 @@ function AdminDrillLayer({ visible, drill, onDrill }: {
               if ((gl as any).feature?.properties?.[gk] === key)
                 (gl as L.Path).setStyle({ fillOpacity: foHover });
             });
-            if (drill.level < 2) map.getContainer().style.cursor = "pointer";
+            if (drillSnapshot.level < 2) map.getContainer().style.cursor = "pointer";
           });
           lyr.on("mouseout", () => {
             geo.eachLayer(gl => {
@@ -268,18 +295,18 @@ function AdminDrillLayer({ visible, drill, onDrill }: {
             map.getContainer().style.cursor = "";
           });
           lyr.on("click", (e) => {
-            L.DomEvent.stopPropagation(e as L.LeafletMouseEvent);
-            if (drill.level === 2) return;
-            const bounds = L.latLngBounds([]);
-            geo.eachLayer(gl => {
-              if ((gl as any).feature?.properties?.[gk] === key) {
-                const b = (gl as any).getBounds?.() as L.LatLngBounds | undefined;
-                if (b?.isValid()) bounds.extend(b);
-              }
-            });
-            if (bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28], maxZoom: drill.level === 0 ? 11 : 13 });
-            if (drill.level === 0) onDrill({ level: 1, kab: p?.district ?? key, kec: null });
-            else if (drill.level === 1) onDrill({ level: 2, kab: drill.kab, kec: p?.sub_district ?? key });
+            const domEvent = (e as unknown as { originalEvent?: Event }).originalEvent;
+            if (domEvent) L.DomEvent.stopPropagation(domEvent);
+            if (drillSnapshot.level === 2) return;
+            const b = groupBounds[key];
+            if (b?.isValid()) {
+              map.fitBounds(b, { padding: [28, 28], maxZoom: drillSnapshot.level === 0 ? 11 : 13 });
+            }
+            if (drillSnapshot.level === 0) {
+              onDrillRef.current({ level: 1, kab: p?.district ?? key, kec: null });
+            } else if (drillSnapshot.level === 1) {
+              onDrillRef.current({ level: 2, kab: drillSnapshot.kab, kec: p?.sub_district ?? key });
+            }
           });
         },
       });
@@ -291,7 +318,7 @@ function AdminDrillLayer({ visible, drill, onDrill }: {
         const c = groupCentroid(feats);
         if (!c) continue;
         const icon = L.divIcon({
-          html: `<div class="adl-wrap"><span class="adl adl-${drill.level === 0 ? "kab" : drill.level === 1 ? "kec" : "desa"}">${name}</span></div>`,
+          html: `<div class="adl-wrap"><span class="adl adl-${drillSnapshot.level === 0 ? "kab" : drillSnapshot.level === 1 ? "kec" : "desa"}">${name}</span></div>`,
           className: "", iconSize: [0, 0], iconAnchor: [0, 0],
         });
         L.marker(c, { icon, interactive: false }).addTo(lblGroup);
@@ -953,15 +980,6 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
             ))}
           </div>
           <button
-            onClick={() => setShowLabel((v) => !v)}
-            className={cn(
-              "text-[11px] px-2 py-1 rounded-lg border transition-colors",
-              showLabel ? "bg-blue-600 text-white border-blue-600" : "bg-card text-muted-foreground border-border"
-            )}
-          >
-            Label Desa
-          </button>
-          <button
             onClick={() => {
               const next = !showAdmin;
               setShowAdmin(next);
@@ -974,25 +992,21 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
           >
             <Layers className="size-3" /> Batas Wilayah
           </button>
-          {showAdmin && (
+          {showAdmin && adminDrill.kab && (
             <div className="flex items-center gap-1 text-[11px] bg-muted/60 border rounded-lg px-2 py-1">
               <button
                 onClick={() => setAdminDrill({ level: 0, kab: null, kec: null })}
-                className={cn("font-medium", adminDrill.level === 0 ? "text-foreground" : "text-blue-500 hover:underline")}
+                className="font-medium text-blue-500 hover:underline"
               >
-                Sulawesi Selatan
+                Semua Kab.
               </button>
-              {adminDrill.kab && (
-                <>
-                  <ChevronRight className="size-3 text-muted-foreground shrink-0" />
-                  <button
-                    onClick={() => setAdminDrill({ level: 1, kab: adminDrill.kab, kec: null })}
-                    className={cn("font-medium truncate max-w-[120px]", adminDrill.level === 1 ? "text-foreground" : "text-blue-500 hover:underline")}
-                  >
-                    {adminDrill.kab}
-                  </button>
-                </>
-              )}
+              <ChevronRight className="size-3 text-muted-foreground shrink-0" />
+              <button
+                onClick={() => setAdminDrill({ level: 1, kab: adminDrill.kab, kec: null })}
+                className={cn("font-medium truncate max-w-[120px]", adminDrill.level === 1 ? "text-foreground" : "text-blue-500 hover:underline")}
+              >
+                {adminDrill.kab}
+              </button>
               {adminDrill.kec && (
                 <>
                   <ChevronRight className="size-3 text-muted-foreground shrink-0" />
