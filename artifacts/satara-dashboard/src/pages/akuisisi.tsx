@@ -5,7 +5,7 @@ import {
   Plus, CheckCircle2, Map, LayoutList, X,
   FileText, ClipboardList, ArrowRight, BrainCircuit,
   Brain, Loader2, ThumbsUp, AlertTriangle, ThumbsDown, RefreshCw,
-  Building2, Radio, Search as SearchIcon,
+  Building2, Radio, Search as SearchIcon, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
@@ -13,6 +13,13 @@ import type { PolygonReadyData } from "@/components/sulsel-acquisition-map";
 import LandAssessmentModal from "@/components/land-assessment-modal";
 import SLIS from "@/pages/slis";
 import { cn } from "@/lib/utils";
+import {
+  generateProposalAkuisisi,
+  generateSiteAnalysis,
+  generateLegalChecking,
+  generateEstimasiHPP,
+  generatePKSMoU,
+} from "@/lib/pdf-generator";
 
 // ─── AI Types ─────────────────────────────────────────────────────────────────
 
@@ -266,6 +273,26 @@ function ProspectDetailPanel({
     return sum + s.checklist.filter((c) => checked.includes(c.key)).length;
   }, 0);
 
+  function buildPayload() {
+    return {
+      prospect,
+      checkedItems: checked,
+      aiResult: aiResult ?? null,
+      terrain: terrainData ?? null,
+      competitors: competitorList,
+      bentukLahan,
+      statusLegal,
+    };
+  }
+
+  const OUTPUT_GENERATORS: Record<string, (p: ReturnType<typeof buildPayload>) => void> = {
+    proposal_akuisisi:  generateProposalAkuisisi,
+    site_analysis:      generateSiteAnalysis,
+    legal_checking_doc: generateLegalChecking,
+    estimasi_hpp:       generateEstimasiHPP,
+    pks_mou_doc:        generatePKSMoU,
+  };
+
   async function fetchCompetitors() {
     if (prospect.lat == null || prospect.lng == null) return;
     setCompetitorLoading(true);
@@ -411,11 +438,19 @@ function ProspectDetailPanel({
             <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">OUTPUT</div>
             <div className="space-y-1">
               {OUTPUT_ITEMS.map(({ key, label, icon: Icon }) => {
-                const done = checked.includes(key);
+                const generator = OUTPUT_GENERATORS[key];
                 return (
-                  <div key={key} className={cn("flex items-center gap-2 text-[11px] px-1.5 py-1 rounded-md", done ? "text-emerald-700" : "text-muted-foreground")}>
-                    <Icon className={cn("size-3 shrink-0", done ? "text-emerald-500" : "text-muted-foreground/50")} />
-                    <span className={cn(done && "line-through")}>{label}</span>
+                  <div key={key} className="flex items-center gap-1.5 text-[11px] px-1 py-0.5 rounded-md group">
+                    <Icon className="size-3 shrink-0 text-foreground/50" />
+                    <span className="flex-1 leading-tight">{label}</span>
+                    <button
+                      onClick={() => generator?.(buildPayload())}
+                      title={`Download ${label}`}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded border border-foreground/25 hover:bg-foreground hover:text-background hover:border-foreground transition-colors shrink-0"
+                    >
+                      <Download className="size-2.5" />
+                      PDF
+                    </button>
                   </div>
                 );
               })}
