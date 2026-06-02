@@ -96,6 +96,14 @@ async function loadDesaGeoJson(): Promise<GeoJSON.FeatureCollection | null> {
 function DesaLayer({ visible }: { visible: boolean }) {
   const map = useMap();
   const layerRef = useRef<L.GeoJSON | null>(null);
+  const zoomRef = useRef(map.getZoom());
+  const [zoom, setZoom] = useState(map.getZoom());
+
+  useEffect(() => {
+    const onZoom = () => { zoomRef.current = map.getZoom(); setZoom(map.getZoom()); };
+    map.on("zoomend", onZoom);
+    return () => { map.off("zoomend", onZoom); };
+  }, [map]);
 
   useEffect(() => {
     if (!visible) {
@@ -106,6 +114,7 @@ function DesaLayer({ visible }: { visible: boolean }) {
     loadDesaGeoJson().then((geojson) => {
       if (cancelled || !geojson) return;
       if (layerRef.current) { layerRef.current.remove(); layerRef.current = null; }
+      const showPermanent = zoomRef.current >= 10;
       const layer = L.geoJSON(geojson, {
         style: {
           color: "#3b82f6",
@@ -117,12 +126,14 @@ function DesaLayer({ visible }: { visible: boolean }) {
         onEachFeature(feature, lyr) {
           const p = feature.properties as { village?: string; sub_district?: string; district?: string };
           const label = [p.village, p.sub_district].filter(Boolean).join(", ");
-          lyr.bindTooltip(label, {
-            permanent: false,
-            sticky: true,
-            className: "desa-tooltip",
-            direction: "center",
-          });
+          if (label) {
+            lyr.bindTooltip(label, {
+              permanent: showPermanent,
+              sticky: !showPermanent,
+              className: "desa-tooltip",
+              direction: "center",
+            });
+          }
           lyr.on("mouseover", function () {
             (lyr as L.Path).setStyle({ fillOpacity: 0.18, weight: 1.5 });
           });
@@ -135,7 +146,7 @@ function DesaLayer({ visible }: { visible: boolean }) {
       layerRef.current = layer;
     });
     return () => { cancelled = true; };
-  }, [visible, map]);
+  }, [visible, map, zoom]);
 
   return null;
 }
@@ -764,17 +775,15 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData }
               </button>
             ))}
           </div>
-          {layer === "satellite" && (
-            <button
-              onClick={() => setShowLabel((v) => !v)}
-              className={cn(
-                "text-[11px] px-2 py-1 rounded-lg border transition-colors",
-                showLabel ? "bg-blue-600 text-white border-blue-600" : "bg-card text-muted-foreground border-border"
-              )}
-            >
-              Label
-            </button>
-          )}
+          <button
+            onClick={() => setShowLabel((v) => !v)}
+            className={cn(
+              "text-[11px] px-2 py-1 rounded-lg border transition-colors",
+              showLabel ? "bg-blue-600 text-white border-blue-600" : "bg-card text-muted-foreground border-border"
+            )}
+          >
+            Label Desa
+          </button>
 
           {isActive ? (
             <button onClick={cancelAll} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-card text-muted-foreground hover:text-foreground">

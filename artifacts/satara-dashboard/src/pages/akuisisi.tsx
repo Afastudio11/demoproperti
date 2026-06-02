@@ -19,6 +19,29 @@ interface AiResult {
   kelebihan: string[];
   risiko: string[];
   rekomendasi: string;
+  potensiUnit?: number;
+  hargaMaksAkuisisi?: number;
+  roiEstimasi?: number;
+  paybackBulan?: number;
+}
+
+async function fetchNearbyCompetitors(lat: number, lng: number, radiusKm = 3): Promise<string[]> {
+  const buf = radiusKm / 111;
+  try {
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `data=[out:json][timeout:20];(node["name"~"Perumahan|Griya|Bukit|Residence|Regency|Villa|Cluster|Perum|Taman|Garden|Park|Housing",i](${(lat - buf).toFixed(5)},${(lng - buf).toFixed(5)},${(lat + buf).toFixed(5)},${(lng + buf).toFixed(5)});way["landuse"="residential"]["name"](${(lat - buf).toFixed(5)},${(lng - buf).toFixed(5)},${(lat + buf).toFixed(5)},${(lng + buf).toFixed(5)}););out center;`,
+    });
+    const data = await res.json();
+    const names = new Set<string>();
+    for (const el of (data.elements ?? []) as { tags?: { name?: string } }[]) {
+      if (el.tags?.name) names.add(el.tags.name);
+    }
+    return [...names].slice(0, 15);
+  } catch {
+    return [];
+  }
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -203,6 +226,10 @@ function ProspectDetailPanel({
     setAiError(null);
     setAiResult(null);
     try {
+      const competitors = (prospect.lat != null && prospect.lng != null)
+        ? await fetchNearbyCompetitors(prospect.lat, prospect.lng, 3)
+        : [];
+
       const res = await fetch("/api/ai/analyze-land", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -217,6 +244,7 @@ function ProspectDetailPanel({
           aksesJalan: prospect.aksesJalan,
           currentStage: STAGES.find((s) => s.key === prospect.status)?.label,
           checkedItems: checked.length,
+          competitors,
           ...(terrainData ?? {}),
         }),
       });
@@ -509,71 +537,93 @@ function ProspectDetailPanel({
         )}
 
         {aiResult && !aiLoading && (
-          <div className="grid grid-cols-[auto_1fr_1fr_1fr] gap-3 items-start">
-            {/* Verdict */}
-            <div className={cn("flex flex-col items-center justify-center rounded-xl px-4 py-3 border text-center min-w-[110px]",
-              aiResult.verdict === "LAYAK"         ? "bg-emerald-50 border-emerald-200" :
-              aiResult.verdict === "PERLU KAJIAN"  ? "bg-amber-50 border-amber-200" :
-                                                     "bg-red-50 border-red-200"
-            )}>
-              {aiResult.verdict === "LAYAK"
-                ? <ThumbsUp className="size-5 text-emerald-600 mb-1" />
-                : aiResult.verdict === "PERLU KAJIAN"
-                ? <AlertTriangle className="size-5 text-amber-600 mb-1" />
-                : <ThumbsDown className="size-5 text-red-600 mb-1" />
-              }
-              <div className={cn("text-xs font-bold",
-                aiResult.verdict === "LAYAK" ? "text-emerald-700" :
-                aiResult.verdict === "PERLU KAJIAN" ? "text-amber-700" : "text-red-700"
+          <div className="space-y-3">
+            {/* Row 1: Verdict + Metrics */}
+            <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
+              {/* Verdict box */}
+              <div className={cn("flex flex-col items-center justify-center rounded-xl px-4 py-3 border text-center min-w-[110px]",
+                aiResult.verdict === "LAYAK"         ? "bg-emerald-50 border-emerald-200" :
+                aiResult.verdict === "PERLU KAJIAN"  ? "bg-amber-50 border-amber-200" :
+                                                       "bg-red-50 border-red-200"
               )}>
-                {aiResult.verdict}
+                {aiResult.verdict === "LAYAK"
+                  ? <ThumbsUp className="size-5 text-emerald-600 mb-1" />
+                  : aiResult.verdict === "PERLU KAJIAN"
+                  ? <AlertTriangle className="size-5 text-amber-600 mb-1" />
+                  : <ThumbsDown className="size-5 text-red-600 mb-1" />
+                }
+                <div className={cn("text-xs font-bold",
+                  aiResult.verdict === "LAYAK" ? "text-emerald-700" :
+                  aiResult.verdict === "PERLU KAJIAN" ? "text-amber-700" : "text-red-700"
+                )}>
+                  {aiResult.verdict}
+                </div>
+                <div className={cn("text-2xl font-black mt-1 leading-none",
+                  aiResult.verdict === "LAYAK" ? "text-emerald-600" :
+                  aiResult.verdict === "PERLU KAJIAN" ? "text-amber-600" : "text-red-600"
+                )}>
+                  {aiResult.score}
+                </div>
+                <div className="text-[9px] text-muted-foreground">/ 100</div>
+                <div className="w-full mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all",
+                    aiResult.verdict === "LAYAK" ? "bg-emerald-500" :
+                    aiResult.verdict === "PERLU KAJIAN" ? "bg-amber-400" : "bg-red-500"
+                  )} style={{ width: `${aiResult.score}%` }} />
+                </div>
               </div>
-              <div className={cn("text-2xl font-black mt-1 leading-none",
-                aiResult.verdict === "LAYAK" ? "text-emerald-600" :
-                aiResult.verdict === "PERLU KAJIAN" ? "text-amber-600" : "text-red-600"
-              )}>
-                {aiResult.score}
-              </div>
-              <div className="text-[9px] text-muted-foreground">/ 100</div>
-              <div className="w-full mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
-                <div className={cn("h-full rounded-full transition-all",
-                  aiResult.verdict === "LAYAK" ? "bg-emerald-500" :
-                  aiResult.verdict === "PERLU KAJIAN" ? "bg-amber-400" : "bg-red-500"
-                )} style={{ width: `${aiResult.score}%` }} />
-              </div>
-            </div>
 
-            {/* Ringkasan + Rekomendasi */}
-            <div className="space-y-2">
-              <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">RINGKASAN</div>
-              <p className="text-[11px] leading-relaxed">{aiResult.ringkasan}</p>
-              <div className="text-[10px] font-semibold text-muted-foreground tracking-wider pt-1">REKOMENDASI</div>
-              <p className="text-[11px] leading-relaxed text-violet-700">{aiResult.rekomendasi}</p>
-            </div>
-
-            {/* Kelebihan */}
-            <div className="space-y-2">
-              <div className="text-[10px] font-semibold text-emerald-700 tracking-wider">KELEBIHAN</div>
-              <div className="space-y-1">
-                {aiResult.kelebihan.map((k, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-[11px]">
-                    <CheckCircle2 className="size-3 text-emerald-500 shrink-0 mt-0.5" />
-                    <span>{k}</span>
+              {/* Right side: metrics + ringkasan */}
+              <div className="space-y-2">
+                {/* Key metrics row */}
+                {(aiResult.potensiUnit != null || aiResult.hargaMaksAkuisisi != null || aiResult.roiEstimasi != null || aiResult.paybackBulan != null) && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { label: "Potensi Unit", value: aiResult.potensiUnit != null ? `${aiResult.potensiUnit} unit` : null, color: "text-blue-700" },
+                      { label: "Harga Maks", value: aiResult.hargaMaksAkuisisi != null ? `Rp${aiResult.hargaMaksAkuisisi.toLocaleString("id-ID")}/m²` : null, color: "text-violet-700" },
+                      { label: "ROI Estimasi", value: aiResult.roiEstimasi != null ? `${aiResult.roiEstimasi}%` : null, color: aiResult.roiEstimasi != null && aiResult.roiEstimasi >= 25 ? "text-emerald-700" : "text-amber-700" },
+                      { label: "Payback", value: aiResult.paybackBulan != null ? `${aiResult.paybackBulan} bln` : null, color: "text-slate-700" },
+                    ].filter(m => m.value != null).map(({ label, value, color }) => (
+                      <div key={label} className="bg-muted/40 border rounded-lg px-2.5 py-2 text-center">
+                        <div className="text-[9px] text-muted-foreground mb-0.5">{label}</div>
+                        <div className={cn("text-[11px] font-bold", color)}>{value}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+                <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">RINGKASAN</div>
+                <p className="text-[11px] leading-relaxed">{aiResult.ringkasan}</p>
+                <div className="text-[10px] font-semibold text-muted-foreground tracking-wider pt-1">REKOMENDASI</div>
+                <p className="text-[11px] leading-relaxed text-violet-700">{aiResult.rekomendasi}</p>
               </div>
             </div>
 
-            {/* Risiko */}
-            <div className="space-y-2">
-              <div className="text-[10px] font-semibold text-red-600 tracking-wider">RISIKO</div>
-              <div className="space-y-1">
-                {aiResult.risiko.map((r, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-[11px]">
-                    <AlertTriangle className="size-3 text-amber-500 shrink-0 mt-0.5" />
-                    <span>{r}</span>
-                  </div>
-                ))}
+            {/* Row 2: Kelebihan + Risiko */}
+            <div className="grid grid-cols-2 gap-3 border-t pt-3">
+              {/* Kelebihan */}
+              <div className="space-y-2">
+                <div className="text-[10px] font-semibold text-emerald-700 tracking-wider">KELEBIHAN</div>
+                <div className="space-y-1">
+                  {aiResult.kelebihan.map((k, i) => (
+                    <div key={i} className="flex items-start gap-1.5 text-[11px]">
+                      <CheckCircle2 className="size-3 text-emerald-500 shrink-0 mt-0.5" />
+                      <span>{k}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Risiko */}
+              <div className="space-y-2">
+                <div className="text-[10px] font-semibold text-red-600 tracking-wider">RISIKO</div>
+                <div className="space-y-1">
+                  {aiResult.risiko.map((r, i) => (
+                    <div key={i} className="flex items-start gap-1.5 text-[11px]">
+                      <AlertTriangle className="size-3 text-amber-500 shrink-0 mt-0.5" />
+                      <span>{r}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
