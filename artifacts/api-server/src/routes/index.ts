@@ -15,6 +15,7 @@ import handoversRouter from "./handovers";
 import aiAnalyzeRouter from "./ai-analyze";
 import aiRoadmapRouter from "./ai-roadmap";
 import aiLandAssessmentRouter from "./ai-land-assessment";
+import aiSlisChatRouter from "./ai-slis-chat";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(handoversRouter);
 router.use(aiAnalyzeRouter);
 router.use(aiRoadmapRouter);
 router.use(aiLandAssessmentRouter);
+router.use(aiSlisChatRouter);
 
 export default router;

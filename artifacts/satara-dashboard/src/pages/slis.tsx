@@ -7,10 +7,11 @@ import {
 import { useListLandProspects } from "@workspace/api-client-react";
 import {
   ChevronRight, ChevronLeft, Brain, Loader2, AlertTriangle, BarChart3,
-  TrendingUp, MapPin, Target, RefreshCw,
+  TrendingUp, MapPin, Target, RefreshCw, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SLISCompetitorMap } from "@/components/slis-competitor-map";
+import { SlisAiChat } from "@/components/slis-ai-chat";
 
 // ─── Scoring helpers ─────────────────────────────────────────────────────────
 
@@ -542,7 +543,7 @@ type Panel = "list" | "kab" | "kec" | "desa";
 
 export default function SLIS() {
   const { data: prospects } = useListLandProspects({});
-  const [activeTab, setActiveTab] = useState<"heatmap" | "ranking" | "roadmap">("heatmap");
+  const [activeTab, setActiveTab] = useState<"heatmap" | "ranking" | "roadmap" | "tanya-ai">("heatmap");
   const [panel, setPanel] = useState<Panel>("list");
   const [selectedKab, setSelectedKab] = useState<KabupatenScore | null>(null);
   const [selectedKec, setSelectedKec] = useState<KecamatanScore | null>(null);
@@ -580,6 +581,7 @@ export default function SLIS() {
     { key: "heatmap" as const, label: "Heatmap Sulsel", icon: MapPin },
     { key: "ranking" as const, label: "Ranking", icon: BarChart3 },
     { key: "roadmap" as const, label: "Roadmap AI", icon: TrendingUp },
+    { key: "tanya-ai" as const, label: "Tanya AI", icon: MessageSquare },
   ];
 
   const GRADE_FILTERS: { key: Grade | "all"; label: string; color: string }[] = [
@@ -783,6 +785,13 @@ export default function SLIS() {
             roi: p.roi,
             status: p.status,
           }))} />
+        </div>
+      )}
+
+      {/* ── TANYA AI TAB ── */}
+      {activeTab === "tanya-ai" && (
+        <div className="bg-card border rounded-xl overflow-hidden flex-1">
+          <SlisAiChat />
         </div>
       )}
     </div>
