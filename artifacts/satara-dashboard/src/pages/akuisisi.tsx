@@ -2,14 +2,13 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import {
-  Plus, CheckCircle2, Map, LayoutList, X,
+  CheckCircle2, Map, X,
   FileText, ClipboardList, ArrowRight, BrainCircuit,
   Loader2,
   Building2, Radio, Download, Database, BarChart3,
 } from "lucide-react";
 import KompetitorPage from "./kompetitor";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
-import { Button } from "@/components/ui/button";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
 import type { PolygonReadyData } from "@/components/sulsel-acquisition-map";
 import LandAssessmentModal from "@/components/land-assessment-modal";
@@ -1682,7 +1681,7 @@ type TerrainData = { elevMin?: number; elevMax?: number; elevAvg?: number; slope
 
 export default function Akuisisi() {
   const { data: prospects, refetch } = useListLandProspects({});
-  const [tab, setTab] = useState<"peta" | "pipeline" | "slis" | "kompetitor">("peta");
+  const [tab, setTab] = useState<"peta" | "slis" | "kompetitor">("peta");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [checklists, setChecklists] = useState<Record<number, string[]>>(loadChecklist);
   const [checklistValues, setChecklistValues] = useState<Record<number, Record<string, string>>>(loadChecklistValues);
@@ -1786,7 +1785,6 @@ export default function Akuisisi() {
 
   const TABS = [
     { key: "peta",        label: "Peta Sulsel", icon: Map },
-    { key: "pipeline",    label: "Pipeline",    icon: LayoutList, badge: prospects?.length },
     { key: "kompetitor",  label: "Kompetitor",  icon: BarChart3 },
     { key: "slis",        label: "SLIS",        icon: BrainCircuit },
   ] as const;
@@ -1820,15 +1818,6 @@ export default function Akuisisi() {
               </button>
             ); })}
           </div>
-          {tab === "pipeline" && (
-            <Button
-              size="sm"
-              className="h-8 gap-1.5 bg-foreground hover:bg-foreground/90 text-background border border-border/50"
-            >
-              <Plus className="size-4" />
-              <span className="hidden sm:inline">Prospek Baru</span>
-            </Button>
-          )}
         </div>
       </div>
 
@@ -1849,112 +1838,6 @@ export default function Akuisisi() {
         </div>
       )}
 
-      {tab === "pipeline" && (
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-3 overflow-x-auto pb-1" style={{ minHeight: 280 }}>
-            {STAGES.map((stage) => {
-              const cards = (prospects ?? []).filter((p) => p.status === stage.key);
-              const stageChecklist = STAGE_CHECKLISTS[stage.key] ?? [];
-              return (
-                <div
-                  key={stage.key}
-                  className="w-64 flex-shrink-0 flex flex-col bg-card rounded-xl border"
-                >
-                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/50">
-                    <h3 className={cn("text-xs font-semibold", stage.color)}>{stage.label}</h3>
-                    <div className="flex items-center gap-1.5">
-                      {stageChecklist.length > 0 && (
-                        <span className="text-[10px] text-muted-foreground">{stageChecklist.length} poin</span>
-                      )}
-                      <span className="flex items-center justify-center size-5 rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
-                        {cards.length}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 p-2 space-y-2 overflow-y-auto">
-                    {cards.map((prospect: LandProspect) => {
-                      const checklist = STAGE_CHECKLISTS[prospect.status] ?? [];
-                      const checkedItems = (checklists[prospect.id] ?? []).filter(
-                        (k) => checklist.some((c) => c.key === k)
-                      );
-                      const isSelected = selectedId === prospect.id;
-                      return (
-                        <div
-                          key={prospect.id}
-                          onClick={() => setSelectedId(isSelected ? null : prospect.id)}
-                          className={cn(
-                            "bg-background rounded-lg border border-border/50 p-3 cursor-pointer transition-colors",
-                            isSelected
-                              ? "border-foreground/30 ring-1 ring-foreground/10"
-                              : "hover:border-foreground/20"
-                          )}
-                        >
-                          <div className="font-medium text-xs mb-0.5 line-clamp-1">
-                            {prospect.lokasi}
-                          </div>
-                          {(prospect.kelurahan || prospect.kecamatan) && (
-                            <div className="text-[10px] text-muted-foreground mb-1.5 line-clamp-1">
-                              {[prospect.kelurahan, prospect.kecamatan].filter(Boolean).join(", ")}
-                            </div>
-                          )}
-                          <div className="text-[11px] text-muted-foreground mb-2">
-                            {formatLuas(prospect.luas)} &bull; Rp{prospect.hargaM2.toLocaleString("id-ID")}/m²
-                          </div>
-                          {checklist.length > 0 && (
-                            <div className="mb-2">
-                              <CheckProgress checked={checkedItems.length} total={checklist.length} />
-                            </div>
-                          )}
-                          <div className="flex justify-between items-center">
-                            <span className={cn(
-                              "text-[11px] font-semibold",
-                              prospect.roi >= 25 ? "text-emerald-600" : "text-amber-600"
-                            )}>
-                              ROI {prospect.roi}%
-                            </span>
-                            <div className="flex items-center gap-1">
-                              {prospect.lat != null && (
-                                <span className="text-[10px] text-blue-500">📍</span>
-                              )}
-                              <span className={cn(
-                                "size-2 rounded-full",
-                                prospect.riskLevel === "red" ? "bg-red-500"
-                                  : prospect.riskLevel === "yellow" ? "bg-amber-400"
-                                  : "bg-emerald-500"
-                              )} />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {!cards.length && (
-                      <div className="text-center py-6 text-[11px] text-muted-foreground">
-                        Tidak ada item
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {selectedProspect && (
-            <ProspectDetailPanel
-              prospect={selectedProspect}
-              allProspects={prospects ?? []}
-              checklists={checklists}
-              checklistValues={checklistValues}
-              onClose={() => setSelectedId(null)}
-              onToggleItem={toggleChecklistItem}
-              onSetChecklistValue={setChecklistValue}
-              onAdvanceStage={advanceStage}
-              advancing={advancing}
-              onRefetch={() => refetch()}
-            />
-          )}
-        </div>
-      )}
 
       {tab === "kompetitor" && (
         <KompetitorPage />
