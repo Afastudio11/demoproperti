@@ -14,6 +14,7 @@ import Administrasi from "@/pages/administrasi";
 import Produksi from "@/pages/produksi";
 import SerahTerima from "@/pages/serah-terima";
 import Settings from "@/pages/settings";
+import KompetitorPage from "@/pages/kompetitor";
 import Layout from "@/components/layout";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/administrasi" component={Administrasi} />
         <Route path="/produksi" component={Produksi} />
         <Route path="/serah-terima" component={SerahTerima} />
+        <Route path="/kompetitor" component={KompetitorPage} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
