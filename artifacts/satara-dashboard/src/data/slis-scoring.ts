@@ -1,3 +1,5 @@
+import { DAFTAR_PERUMAHAN_SULSEL } from "./perumahan-sulsel";
+
 export type Grade = "sangat_potensial" | "potensial" | "sedang" | "tidak_direkomendasikan";
 
 export interface DesaScore {
@@ -60,6 +62,75 @@ export interface KabupatenScore {
   hargaTanahScore: number;
   kecamatan: KecamatanScore[];
 }
+
+// ─── Real competitor counts dari data perumahan resmi ────────────────────────
+
+function _normKab(s: string): string {
+  return s.toUpperCase().replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "").trim();
+}
+
+// Build count maps at module load (runs once)
+const _realKabMap = new Map<string, number>();
+const _realKecMap = new Map<string, number>(); // "KAB/KEC"
+const _realDesaMap = new Map<string, number>(); // "KAB/KEC/DESA"
+
+for (const p of DAFTAR_PERUMAHAN_SULSEL) {
+  const kab = _normKab(p.kabupaten);
+  _realKabMap.set(kab, (_realKabMap.get(kab) ?? 0) + 1);
+  const kec = p.kecamatan.toUpperCase().trim();
+  const kecKey = kab + "/" + kec;
+  _realKecMap.set(kecKey, (_realKecMap.get(kecKey) ?? 0) + 1);
+  if (p.kelurahan) {
+    const desaKey = kecKey + "/" + p.kelurahan.toUpperCase().trim();
+    _realDesaMap.set(desaKey, (_realDesaMap.get(desaKey) ?? 0) + 1);
+  }
+}
+
+// Alias: nama SLIS yang berbeda dari nama di dataset
+const _KAB_ALIAS: Record<string, string> = { "PAREPARE": "PARE PARE" };
+
+function _realKabCount(slisName: string): number {
+  const norm = _normKab(slisName);
+  return _realKabMap.get(_KAB_ALIAS[norm] ?? norm) ?? 0;
+}
+function _realKecCount(slisKab: string, slisKec: string): number {
+  const kab = _KAB_ALIAS[_normKab(slisKab)] ?? _normKab(slisKab);
+  return _realKecMap.get(kab + "/" + slisKec.toUpperCase().trim()) ?? 0;
+}
+function _realDesaCount(slisKab: string, slisKec: string, slisDesaName: string): number {
+  const kab = _KAB_ALIAS[_normKab(slisKab)] ?? _normKab(slisKab);
+  const kec = slisKec.toUpperCase().trim();
+  return _realDesaMap.get(kab + "/" + kec + "/" + slisDesaName.toUpperCase().trim()) ?? 0;
+}
+
+// Lebih sedikit kompetitor = skor lebih tinggi (peluang ekspansi lebih besar)
+function _kabKompScore(count: number): number {
+  if (count === 0)   return 90;
+  if (count <= 10)   return 95;
+  if (count <= 30)   return 88;
+  if (count <= 80)   return 78;
+  if (count <= 150)  return 65;
+  if (count <= 300)  return 52;
+  return 42;
+}
+function _kecKompScore(count: number): number {
+  if (count === 0)   return 88;
+  if (count <= 3)    return 95;
+  if (count <= 8)    return 88;
+  if (count <= 20)   return 78;
+  if (count <= 40)   return 65;
+  return 55;
+}
+function _desaKompScore(count: number): number {
+  if (count === 0)   return 88;
+  if (count <= 1)    return 95;
+  if (count <= 3)    return 85;
+  if (count <= 8)    return 72;
+  if (count <= 16)   return 58;
+  return 45;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function grade(score: number): Grade {
   if (score >= 80) return "sangat_potensial";
