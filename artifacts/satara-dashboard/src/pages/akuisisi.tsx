@@ -54,6 +54,8 @@ interface CompetitorEntry {
   type: string;
   pengembang?: string;
   kecamatan?: string;
+  kabupaten?: string;
+  kelurahan?: string;
   totalUnit?: number;
 }
 
@@ -84,9 +86,32 @@ function getCompetitorsFromData(
       type: p.jenis,
       pengembang: p.pengembang,
       kecamatan: p.kecamatan,
+      kabupaten: p.kabupaten,
+      kelurahan: p.kelurahan,
       totalUnit: (p.totalUnit || 0) + (p.unitKomersil || 0),
     }));
 }
+
+function getDistanceTier(
+  prospectKec: string | null | undefined,
+  prospectKab: string | null | undefined,
+  compKec: string | undefined,
+  compKab: string | undefined
+): 1 | 2 | 3 {
+  const pk = (prospectKec ?? "").toUpperCase().trim();
+  const pb = normalizeKab(prospectKab ?? "");
+  const ck = (compKec ?? "").toUpperCase().trim();
+  const cb = normalizeKab(compKab ?? "");
+  if (pk && ck && pk === ck) return 1;
+  if (pb && cb && pb === cb) return 2;
+  return 3;
+}
+
+const DISTANCE_TIER_LABELS: Record<number, { label: string; cls: string }> = {
+  1: { label: "Kec. Sama",  cls: "bg-red-100 text-red-700 border-red-200" },
+  2: { label: "Kab. Sama",  cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  3: { label: "Beda Kab.",  cls: "bg-slate-100 text-slate-500 border-slate-200" },
+};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -174,6 +199,16 @@ const JOBDESK_STAGES = [
     checklist: STAGE_CHECKLISTS.pks_mou },
 ];
 
+// Items checklist yang memerlukan input nilai aktual
+const CHECKLIST_INPUT_TYPES: Record<string, { type: "rp" | "text" | "pct"; placeholder: string }> = {
+  harga_rumah_sekitar: { type: "rp",   placeholder: "harga, cth: 450.000.000" },
+  tipe_rumah_sekitar:  { type: "text", placeholder: "cth: 36/72 subsidi" },
+  kecepatan_penjualan: { type: "text", placeholder: "cth: 3-6 bulan" },
+  occupancy_rate:      { type: "pct",  placeholder: "% hunian, cth: 85" },
+  harga_tanah_m2:      { type: "rp",   placeholder: "harga/m², cth: 280.000" },
+  sistem_pembayaran:   { type: "text", placeholder: "cth: cash bertahap 12 bln" },
+};
+
 const OUTPUT_ITEMS = [
   { key: "proposal_akuisisi", label: "Proposal Akuisisi",  icon: FileText },
   { key: "site_analysis",     label: "Site Analysis",       icon: Map },
@@ -199,6 +234,22 @@ function loadAiResult(id: number): AiResult | null {
 function saveAiResult(id: number, r: AiResult | null) {
   if (r) localStorage.setItem(`satara_ai_${id}`, JSON.stringify(r));
   else localStorage.removeItem(`satara_ai_${id}`);
+}
+
+const CHECKLIST_VALS_KEY = "satara_checklist_vals";
+function loadChecklistValues(): Record<number, Record<string, string>> {
+  try { return JSON.parse(localStorage.getItem(CHECKLIST_VALS_KEY) ?? "{}"); } catch { return {}; }
+}
+function saveChecklistValues(s: Record<number, Record<string, string>>) {
+  localStorage.setItem(CHECKLIST_VALS_KEY, JSON.stringify(s));
+}
+
+function loadFullAiResult(id: number): Record<string, unknown> | null {
+  try { return JSON.parse(localStorage.getItem(`satara_full_ai_${id}`) ?? "null"); } catch { return null; }
+}
+function saveFullAiResult(id: number, r: Record<string, unknown> | null) {
+  if (r) localStorage.setItem(`satara_full_ai_${id}`, JSON.stringify(r));
+  else localStorage.removeItem(`satara_full_ai_${id}`);
 }
 
 
@@ -261,23 +312,29 @@ const STAGE_STYLE: Record<string, { border: string; bg: string; header: string; 
 function ProspectDetailPanel({
   prospect,
   checklists,
+  checklistValues,
   terrainData,
   onClose,
   onToggleItem,
+  onSetChecklistValue,
   onAdvanceStage,
   advancing,
   onRefetch,
 }: {
   prospect: LandProspect;
   checklists: Record<number, string[]>;
+  checklistValues: Record<number, Record<string, string>>;
   terrainData?: { elevMin?: number; elevMax?: number; elevAvg?: number; slopeAvgPct?: number; slopeMaxPct?: number; waterwayType?: string; waterwayName?: string; waterwayDistM?: number | null } | null;
   onClose: () => void;
   onToggleItem: (id: number, item: string) => void;
+  onSetChecklistValue: (id: number, key: string, value: string) => void;
   onAdvanceStage: (id: number, nextStage: string) => void;
   advancing: boolean;
   onRefetch: () => void;
 }) {
-  const [aiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
+  const [aiResult, setAiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
+  const [fullAiResult, setFullAiResult] = useState<Record<string, unknown> | null>(() => loadFullAiResult(prospect.id));
+  const [aiLoading, setAiLoading] = useState(false);
 
   const [survey, setSurvey] = useState<SurveyData>(() => loadSurvey(prospect.id));
   const [aksesJalanDraft, setAksesJalanDraft] = useState<number | null>(prospect.aksesJalan ?? null);
@@ -332,6 +389,74 @@ function ProspectDetailPanel({
     if (STAGE_ORDER.indexOf(s.key) > currentStageIdx) return sum;
     return sum + s.checklist.filter((c) => checked.includes(c.key)).length;
   }, 0);
+  const allChecklistsDone = totalItems > 0 && totalChecked === totalItems;
+
+  async function runAiAnalysis() {
+    setAiLoading(true);
+    try {
+      const vals = checklistValues[prospect.id] ?? {};
+      const hargaRumahStr = (vals.harga_rumah_sekitar ?? "").replace(/\./g, "").replace(/\D/g, "");
+      const body = {
+        lokasi: prospect.lokasi,
+        kelurahan: prospect.kelurahan,
+        kecamatan: prospect.kecamatan,
+        kabupaten: prospect.kabupaten,
+        luas: prospect.luas,
+        hargaTanahM2: prospect.hargaM2 ?? 0,
+        aksesJalan: aksesJalanDraft ?? prospect.aksesJalan ?? 0,
+        targetTipeRumah: "subsidi",
+        hargaRumahSekitar: hargaRumahStr ? parseInt(hargaRumahStr, 10) : 0,
+        statusKepemilikan: survey.statusLegal || "Belum diketahui",
+        bentukLahan: survey.bentukLahan || "kotak",
+        kondisiLingkungan: "aman",
+        potensiPertumbuhan: "sedang",
+        utilitas: survey.utilitas,
+        fasilitasUmum: [],
+        catatan: [
+          catatanDraft,
+          vals.tipe_rumah_sekitar ? `Tipe rumah sekitar: ${vals.tipe_rumah_sekitar}` : "",
+          vals.kecepatan_penjualan ? `Kecepatan penjualan: ${vals.kecepatan_penjualan}` : "",
+          vals.occupancy_rate ? `Occupancy rate: ${vals.occupancy_rate}%` : "",
+          vals.sistem_pembayaran ? `Sistem pembayaran: ${vals.sistem_pembayaran}` : "",
+          vals.harga_tanah_m2 ? `Harga tanah/m² input: Rp${vals.harga_tanah_m2}` : "",
+        ].filter(Boolean).join(". "),
+        ...(terrainData ?? {}),
+      };
+      const res = await fetch("/api/ai/land-assessment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json() as Record<string, unknown>;
+      saveFullAiResult(prospect.id, data);
+      setFullAiResult(data);
+      const calc = data.calc as Record<string, unknown> | undefined;
+      const ai = data.ai as Record<string, unknown> | undefined;
+      const calcFin = calc?.financials as Record<string, unknown> | undefined;
+      const calcUnit = calc?.unitPotential as Record<string, unknown> | undefined;
+      const calcRisk = calc?.risks as Record<string, unknown> | undefined;
+      const analisisRisiko = (ai?.analisisRisiko as { deskripsi: string }[] | undefined) ?? [];
+      const aiR: AiResult = {
+        verdict: (data.kategori as AiVerdict) ?? "Perlu Review",
+        kategori: (data.kategori as AiVerdict) ?? "Perlu Review",
+        score: (data.skor as number) ?? 0,
+        ringkasan: (ai?.ringkasanEksekutif as string) ?? "",
+        kelebihan: (ai?.nextActions as string[]) ?? [],
+        risiko: analisisRisiko.map((r) => r.deskripsi),
+        rekomendasi: (ai?.rekomendasiNarasi as string) ?? "",
+        roiEstimasi: calcFin?.roi as number | undefined,
+        potensiUnit: calcUnit?.unitRealistis as number | undefined,
+        tingkatRisiko: calcRisk?.overallRisk as "Rendah" | "Sedang" | "Tinggi" | undefined,
+      };
+      saveAiResult(prospect.id, aiR);
+      setAiResult(aiR);
+    } catch (err) {
+      console.error("AI analysis failed:", err);
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   function buildPayload() {
     return {
@@ -508,31 +633,55 @@ function ProspectDetailPanel({
                   </div>
 
                   {/* Checklist items */}
-                  <div className="p-2 space-y-1 flex-1">
+                  <div className="p-2 space-y-1.5 flex-1">
                     {jStage.checklist.map((item) => {
                       const done = checked.includes(item.key);
+                      const inputDef = CHECKLIST_INPUT_TYPES[item.key];
+                      const currentVal = (checklistValues[prospect.id] ?? {})[item.key] ?? "";
                       return (
-                        <div
-                          key={item.key}
-                          onClick={() => onToggleItem(prospect.id, item.key)}
-                          className={cn(
-                            "flex items-start gap-1.5 text-[10px] rounded px-1 py-0.5 transition-colors cursor-pointer group",
-                            status === "pending"
-                              ? "text-foreground/40 cursor-default"
-                              : done
-                              ? "text-emerald-600 hover:bg-muted/40"
-                              : "text-foreground/80 hover:bg-muted/40"
+                        <div key={item.key} className="space-y-0.5">
+                          <div
+                            onClick={() => status !== "pending" && onToggleItem(prospect.id, item.key)}
+                            className={cn(
+                              "flex items-start gap-1.5 text-[10px] rounded px-1 py-0.5 transition-colors",
+                              status === "pending" ? "text-foreground/40 cursor-default" : "cursor-pointer hover:bg-muted/40",
+                              done ? "text-emerald-600" : "text-foreground/80"
+                            )}
+                          >
+                            {done ? (
+                              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-[0.5px]" strokeWidth={2.5} />
+                            ) : (
+                              <div className={cn(
+                                "size-3.5 rounded-full border shrink-0 mt-[0.5px]",
+                                status === "pending" ? "border-foreground/20" : "border-foreground/40"
+                              )} />
+                            )}
+                            <span className={cn("leading-tight flex-1", done && !inputDef && "line-through decoration-emerald-500/60")}>{item.label}</span>
+                            {inputDef && currentVal && done && (
+                              <span className="text-[8px] font-medium text-foreground/50 shrink-0 ml-1">
+                                {inputDef.type === "rp" ? "v" : inputDef.type === "pct" ? currentVal + "%" : currentVal.slice(0, 8)}
+                              </span>
+                            )}
+                          </div>
+                          {inputDef && status !== "pending" && (
+                            <div className="flex items-center gap-0.5 ml-5">
+                              {inputDef.type === "rp" && <span className="text-[9px] text-muted-foreground shrink-0">Rp</span>}
+                              <input
+                                type={inputDef.type === "pct" ? "number" : "text"}
+                                inputMode={inputDef.type !== "text" ? "numeric" : "text"}
+                                value={currentVal}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  onSetChecklistValue(prospect.id, item.key, v);
+                                  if (v && !done) onToggleItem(prospect.id, item.key);
+                                }}
+                                placeholder={inputDef.placeholder}
+                                className="flex-1 text-[9px] px-1.5 py-0.5 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 min-w-0"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              {inputDef.type === "pct" && <span className="text-[9px] text-muted-foreground shrink-0">%</span>}
+                            </div>
                           )}
-                        >
-                          {done ? (
-                            <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-[0.5px]" strokeWidth={2.5} />
-                          ) : (
-                            <div className={cn(
-                              "size-3.5 rounded-full border shrink-0 mt-[0.5px]",
-                              status === "pending" ? "border-foreground/20" : "border-foreground/40"
-                            )} />
-                          )}
-                          <span className={cn("leading-tight", done && "line-through decoration-emerald-500/60")}>{item.label}</span>
                         </div>
                       );
                     })}
@@ -776,42 +925,155 @@ function ProspectDetailPanel({
             </div>
           </div>
 
-          {competitorList.length > 0 ? (
-            <div className="space-y-1.5">
-              <div className="text-[10px] text-muted-foreground mb-2">
-                <strong>{competitorList.length}</strong> perumahan terdaftar di{" "}
-                {competitorScope === "kecamatan" ? `Kec. ${prospect.kecamatan}` : prospect.kabupaten}
-                {competitorList.length > 40 && (
-                  <span className="ml-1 text-amber-600 font-medium">(menampilkan 40 pertama)</span>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-0.5">
-                {competitorList.slice(0, 40).map((c, i) => (
-                  <div key={i} className="flex items-start gap-2 bg-muted/30 border rounded-md px-2.5 py-2">
-                    <div className="size-5 rounded-full bg-muted border flex items-center justify-center shrink-0 text-[9px] font-bold text-foreground/60 mt-0.5">{i + 1}</div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-medium leading-tight">{c.name}</div>
-                      <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{c.pengembang}</div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[9px] text-foreground/50">{c.kecamatan}</span>
-                        {(c.totalUnit ?? 0) > 0 && (
-                          <span className="text-[9px] font-medium text-foreground/70">{c.totalUnit} unit</span>
-                        )}
+          {(() => {
+            const sorted = [...competitorList].sort((a, b) =>
+              getDistanceTier(prospect.kecamatan, prospect.kabupaten, a.kecamatan, a.kabupaten) -
+              getDistanceTier(prospect.kecamatan, prospect.kabupaten, b.kecamatan, b.kabupaten)
+            );
+            return sorted.length > 0 ? (
+              <div className="space-y-1.5">
+                <div className="text-[10px] text-muted-foreground mb-2 flex items-center gap-2 flex-wrap">
+                  <span><strong>{sorted.length}</strong> perumahan di{" "}{competitorScope === "kecamatan" ? `Kec. ${prospect.kecamatan}` : prospect.kabupaten}</span>
+                  {sorted.length > 40 && <span className="text-amber-600 font-medium">(40 pertama)</span>}
+                  <span className="text-foreground/40">— terdekat ke terjauh</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-0.5">
+                  {sorted.slice(0, 40).map((c, i) => {
+                    const tier = getDistanceTier(prospect.kecamatan, prospect.kabupaten, c.kecamatan, c.kabupaten);
+                    const { label: tierLabel, cls: tierCls } = DISTANCE_TIER_LABELS[tier];
+                    return (
+                      <div key={i} className="flex items-start gap-2 bg-muted/30 border rounded-md px-2.5 py-2">
+                        <div className="size-5 rounded-full bg-muted border flex items-center justify-center shrink-0 text-[9px] font-bold text-foreground/60 mt-0.5">{i + 1}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-medium leading-tight">{c.name}</div>
+                          <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{c.pengembang}</div>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className={cn("text-[8px] font-medium px-1.5 py-0.5 rounded-full border", tierCls)}>{tierLabel}</span>
+                            {(c.totalUnit ?? 0) > 0 && (
+                              <span className="text-[9px] font-medium text-foreground/70">{c.totalUnit} unit</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-              {competitorScope === "kecamatan" && !prospect.kecamatan
-                ? "Isi kecamatan di data prospek untuk filter per kecamatan"
-                : `Tidak ada perumahan terdaftar di ${competitorScope === "kecamatan" ? `Kec. ${prospect.kecamatan}` : prospect.kabupaten}`}
-            </div>
-          )}
+            ) : (
+              <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
+                {competitorScope === "kecamatan" && !prospect.kecamatan
+                  ? "Isi kecamatan di data prospek untuk filter per kecamatan"
+                  : `Tidak ada perumahan terdaftar di ${competitorScope === "kecamatan" ? `Kec. ${prospect.kecamatan}` : prospect.kabupaten}`}
+              </div>
+            );
+          })()}
         </div>
       )}
+
+      {/* ── Analisis AI (SLIS) ── */}
+      <div className="border-t px-4 py-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <BrainCircuit className="size-3.5 text-foreground/70" />
+            <span className="text-[11px] font-semibold">Analisis AI (SLIS)</span>
+            {aiResult && <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted border text-muted-foreground">tersimpan</span>}
+          </div>
+          {allChecklistsDone && (
+            <button
+              onClick={runAiAnalysis}
+              disabled={aiLoading}
+              className={cn(
+                "flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-lg border transition-colors",
+                aiLoading ? "opacity-60 cursor-not-allowed bg-muted border-border"
+                : aiResult ? "bg-background border-border hover:bg-muted"
+                : "bg-foreground text-background border-foreground hover:bg-foreground/90"
+              )}
+            >
+              {aiLoading ? <Loader2 className="size-3.5 animate-spin" /> : <BrainCircuit className="size-3.5" />}
+              {aiLoading ? "Menganalisis..." : aiResult ? "Analisis Ulang" : "Mulai Analisis AI"}
+            </button>
+          )}
+        </div>
+
+        {!allChecklistsDone && !aiResult && (
+          <div className="bg-muted/30 border border-border rounded-lg px-3 py-2.5 text-center">
+            <div className="text-[11px] text-muted-foreground">
+              Lengkapi semua checklist ({totalChecked}/{totalItems}) untuk mengaktifkan Analisis AI
+            </div>
+            <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden mx-8">
+              <div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${totalItems > 0 ? (totalChecked / totalItems) * 100 : 0}%` }} />
+            </div>
+          </div>
+        )}
+
+        {aiResult && (
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-3 bg-muted/30 border rounded-xl p-3">
+              <div className="relative shrink-0">
+                {(() => {
+                  const r = 28; const c = 2 * Math.PI * r;
+                  const color = aiResult.score >= 85 ? "#10b981" : aiResult.score >= 70 ? "#3b82f6" : aiResult.score >= 55 ? "#f59e0b" : "#ef4444";
+                  return (
+                    <svg width="70" height="70" viewBox="0 0 70 70">
+                      <circle cx="35" cy="35" r={r} fill="none" stroke="currentColor" strokeOpacity={0.1} strokeWidth="6" />
+                      <circle cx="35" cy="35" r={r} fill="none" stroke={color} strokeWidth="6"
+                        strokeDasharray={`${(aiResult.score / 100) * c} ${c}`}
+                        strokeLinecap="round" transform="rotate(-90 35 35)" />
+                      <text x="35" y="38" textAnchor="middle" fontSize="16" fontWeight="700" fill={color}>{aiResult.score}</text>
+                    </svg>
+                  );
+                })()}
+              </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                <span className={cn("inline-flex text-[11px] font-semibold rounded-full px-2 py-0.5 border",
+                  aiResult.score >= 85 ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : aiResult.score >= 70 ? "bg-blue-50 text-blue-800 border-blue-200"
+                  : aiResult.score >= 55 ? "bg-amber-50 text-amber-800 border-amber-200"
+                  : "bg-red-50 text-red-800 border-red-200"
+                )}>{aiResult.kategori ?? aiResult.verdict}</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {aiResult.tingkatRisiko && (
+                    <span className={cn("text-[10px] font-medium rounded px-1.5 py-0.5",
+                      aiResult.tingkatRisiko === "Rendah" ? "bg-emerald-100 text-emerald-700"
+                      : aiResult.tingkatRisiko === "Sedang" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                    )}>Risiko: {aiResult.tingkatRisiko}</span>
+                  )}
+                  {aiResult.roiEstimasi != null && <span className="text-[10px] bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">ROI {aiResult.roiEstimasi.toFixed(1)}%</span>}
+                  {aiResult.potensiUnit != null && <span className="text-[10px] bg-slate-100 text-slate-700 rounded px-1.5 py-0.5">{aiResult.potensiUnit} unit est.</span>}
+                </div>
+              </div>
+            </div>
+
+            {aiResult.ringkasan && (
+              <div className="bg-muted/30 border rounded-lg px-3 py-2">
+                <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-1">Ringkasan</div>
+                <p className="text-[11px] text-foreground/80 leading-relaxed">{aiResult.ringkasan}</p>
+              </div>
+            )}
+
+            {(aiResult.kelebihan.length > 0 || aiResult.risiko.length > 0) && (
+              <div className="grid grid-cols-2 gap-2">
+                {aiResult.kelebihan.length > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-2">
+                    <div className="text-[10px] font-semibold text-emerald-700 mb-1.5">Langkah Selanjutnya</div>
+                    {aiResult.kelebihan.slice(0, 3).map((k, i) => (
+                      <div key={i} className="flex gap-1 text-[10px] text-emerald-700 mb-0.5"><span className="shrink-0">-</span><span className="leading-tight">{k}</span></div>
+                    ))}
+                  </div>
+                )}
+                {aiResult.risiko.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
+                    <div className="text-[10px] font-semibold text-red-700 mb-1.5">Risiko Utama</div>
+                    {aiResult.risiko.slice(0, 3).map((r, i) => (
+                      <div key={i} className="flex gap-1 text-[10px] text-red-700 mb-0.5"><span className="shrink-0">-</span><span className="leading-tight">{r}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -825,6 +1087,7 @@ export default function Akuisisi() {
   const [tab, setTab] = useState<"peta" | "pipeline" | "slis">("peta");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [checklists, setChecklists] = useState<Record<number, string[]>>(loadChecklist);
+  const [checklistValues, setChecklistValues] = useState<Record<number, Record<string, string>>>(loadChecklistValues);
   const [advancing, setAdvancing] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainData>(null);
   const [terrainLoading, setTerrainLoading] = useState(false);
@@ -842,6 +1105,14 @@ export default function Akuisisi() {
       const updated = { ...prev, [prospectId]: next };
       saveChecklist(updated);
       return updated;
+    });
+  }
+
+  function setChecklistValue(prospectId: number, key: string, value: string) {
+    setChecklistValues((prev) => {
+      const next = { ...prev, [prospectId]: { ...(prev[prospectId] ?? {}), [key]: value } };
+      saveChecklistValues(next);
+      return next;
     });
   }
 
@@ -1020,8 +1291,10 @@ export default function Akuisisi() {
             <ProspectDetailPanel
               prospect={selectedProspect}
               checklists={checklists}
+              checklistValues={checklistValues}
               onClose={() => setSelectedId(null)}
               onToggleItem={toggleChecklistItem}
+              onSetChecklistValue={setChecklistValue}
               onAdvanceStage={advanceStage}
               advancing={advancing}
               onRefetch={() => refetch()}
@@ -1041,9 +1314,11 @@ export default function Akuisisi() {
             <ProspectDetailPanel
               prospect={selectedProspect}
               checklists={checklists}
+              checklistValues={checklistValues}
               terrainData={terrainData}
               onClose={() => { setSelectedId(null); setTerrainData(null); }}
               onToggleItem={toggleChecklistItem}
+              onSetChecklistValue={setChecklistValue}
               onAdvanceStage={advanceStage}
               advancing={advancing}
               onRefetch={() => refetch()}

@@ -340,7 +340,47 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange }: {
           lyr.on("click", (e) => {
             const domEvent = (e as unknown as { originalEvent?: Event }).originalEvent;
             if (domEvent) L.DomEvent.stopPropagation(domEvent);
-            if (drillSnapshot.level === 2) return;
+
+            if (drillSnapshot.level === 2) {
+              // Tampilkan daftar perumahan di desa/kelurahan ini
+              const normStr = (s: string) => s.toUpperCase().replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "").trim();
+              const kabNorm = normStr(drillSnapshot.kab ?? "");
+              const kecNorm = (drillSnapshot.kec ?? "").toUpperCase().trim();
+              const desaNorm = key.toUpperCase().trim();
+              const perumahanDesa = DAFTAR_PERUMAHAN_SULSEL.filter(pr => {
+                const kabMatch = normStr(pr.kabupaten) === kabNorm;
+                const kecMatch = pr.kecamatan.toUpperCase().trim() === kecNorm;
+                const kelMatch = pr.kelurahan.toUpperCase().trim() === desaNorm;
+                return kabMatch && kecMatch && kelMatch;
+              });
+              const ll = (e as any).latlng as L.LatLng;
+              const html = perumahanDesa.length === 0
+                ? `<div style="font-family:sans-serif;font-size:11px;min-width:180px;padding:2px">
+                    <div style="font-weight:700;font-size:12px;margin-bottom:4px">${key}</div>
+                    <div style="color:#6b7280;font-size:10px">Belum ada perumahan terdaftar di desa/kelurahan ini</div>
+                  </div>`
+                : `<div style="font-family:sans-serif;font-size:11px;min-width:240px;max-height:340px;overflow-y:auto;padding:2px">
+                    <div style="font-weight:700;font-size:12px;margin-bottom:2px">${key}</div>
+                    <div style="color:#6b7280;font-size:10px;margin-bottom:8px">${perumahanDesa.length} perumahan terdaftar</div>
+                    ${perumahanDesa.map((pr, i) => `
+                      <div style="border:1px solid #e5e7eb;border-radius:6px;padding:6px 8px;margin-bottom:4px;background:#fafafa">
+                        <div style="font-weight:600;font-size:11px;color:#111827">${i + 1}. ${pr.nama}</div>
+                        <div style="color:#6b7280;font-size:10px;margin-top:1px">${pr.pengembang}</div>
+                        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:3px">
+                          <span style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:1px 6px;font-size:9px;color:#374151">${pr.jenis}</span>
+                          ${pr.totalUnit > 0 ? `<span style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:4px;padding:1px 6px;font-size:9px;color:#065f46">${pr.totalUnit} unit</span>` : ""}
+                          <span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:1px 6px;font-size:9px;color:#1d4ed8">${pr.asosiasi}</span>
+                        </div>
+                      </div>
+                    `).join("")}
+                  </div>`;
+              L.popup({ maxWidth: 320, autoPanPadding: [20, 40] })
+                .setLatLng(ll)
+                .setContent(html)
+                .openOn(map);
+              return;
+            }
+
             const b = groupBounds[key];
             if (b?.isValid()) {
               map.fitBounds(b, { padding: [28, 28], maxZoom: drillSnapshot.level === 0 ? 11 : 13 });
@@ -487,11 +527,12 @@ async function analyzeTerrainForPolygon(
   if (pointInPoly(center[0], center[1], coords)) pts.push(center);
   if (pts.length < 2) return null;
 
-  const locStr = pts.map(p => `${p[0].toFixed(6)},${p[1].toFixed(6)}`).join("|");
+  const latsStr = pts.map(p => p[0].toFixed(6)).join(",");
+  const lngsStr = pts.map(p => p[1].toFixed(6)).join(",");
   const buf = 0.02;
 
   const [elevRes, waterwayRes] = await Promise.allSettled([
-    fetch(`https://api.opentopodata.org/v1/srtm30m?locations=${locStr}`).then(r => r.json()),
+    fetch(`https://api.open-meteo.com/v1/elevation?latitude=${latsStr}&longitude=${lngsStr}`).then(r => r.json()),
     fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -502,9 +543,9 @@ async function analyzeTerrainForPolygon(
   // Elevation
   type ElevPt = { lat: number; lng: number; elev: number };
   let elevPts: ElevPt[] = [];
-  if (elevRes.status === "fulfilled" && Array.isArray(elevRes.value?.results)) {
-    elevPts = (elevRes.value.results as { elevation: number | null }[])
-      .map((r, i) => ({ lat: pts[i][0], lng: pts[i][1], elev: r.elevation ?? null }))
+  if (elevRes.status === "fulfilled" && Array.isArray(elevRes.value?.elevation)) {
+    elevPts = (elevRes.value.elevation as (number | null)[])
+      .map((elev, i) => ({ lat: pts[i][0], lng: pts[i][1], elev: elev ?? null }))
       .filter((p): p is ElevPt => p.elev !== null);
   }
   if (elevPts.length < 2) return null;
@@ -687,7 +728,7 @@ function ProspectMarker({ p, selected, onSelect, onDeselect }: {
           pathOptions={{ color, fillColor: color, fillOpacity: selected ? 0.35 : 0.18, weight: selected ? 3 : 2 }}
           eventHandlers={{ click: onSelect }}
         >
-          <Popup onClose={onDeselect} maxWidth={280}>{popupContent}</Popup>
+          <Popup eventHandlers={{ remove: onDeselect }} maxWidth={280}>{popupContent}</Popup>
         </Polygon>
       )}
       {p.lat != null && p.lng != null && (
@@ -696,7 +737,7 @@ function ProspectMarker({ p, selected, onSelect, onDeselect }: {
           icon={createPinIcon(color, selected)}
           eventHandlers={{ click: onSelect }}
         >
-          <Popup onOpen={onSelect} onClose={onDeselect} maxWidth={280}>{popupContent}</Popup>
+          <Popup eventHandlers={{ add: onSelect, remove: onDeselect }} maxWidth={280}>{popupContent}</Popup>
         </Marker>
       )}
     </>
@@ -1050,7 +1091,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
             {adminLoading
               ? <span className="size-3 animate-spin border border-current border-t-transparent rounded-full inline-block" />
               : <Layers className="size-3" />
-            } Batas Wilayah
+            } Analisis Wilayah
           </button>
           {showAdmin && adminDrill.kab && (
             <div className="flex items-center gap-1 text-[11px] bg-muted/60 border rounded-lg px-2 py-1">
