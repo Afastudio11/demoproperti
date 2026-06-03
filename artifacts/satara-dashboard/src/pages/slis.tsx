@@ -676,11 +676,11 @@ export default function SLIS() {
       {/* Page header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <span className="inline-flex items-center justify-center size-7 rounded-md bg-foreground text-background text-xs font-black">S</span>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+            SLIS — Scoring Engine
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Kabupaten · Kecamatan · Desa Scoring Engine — Sulawesi Selatan
+            Kabupaten · Kecamatan · Desa — Sulawesi Selatan
           </p>
         </div>
         <div className="flex rounded-lg border bg-muted p-0.5 text-xs font-medium">
