@@ -436,6 +436,47 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
             };
             localStorage.setItem(`satara_survey_${pid}`, JSON.stringify(surveyData));
 
+            // ── Auto-fill checklist values dari data form modal ──
+            const tipeRumahLabel: Record<string, string> = {
+              subsidi: "subsidi",
+              komersial_kecil: "komersial",
+              komersial_menengah: "menengah",
+            };
+            const newChecklistVals: Record<string, string> = {};
+            if (form.hargaTanahM2)     newChecklistVals.harga_tanah_m2      = form.hargaTanahM2;
+            if (form.hargaRumahSekitar) newChecklistVals.harga_rumah_sekitar  = form.hargaRumahSekitar;
+            if (form.targetTipeRumah)   newChecklistVals.tipe_rumah_sekitar   = tipeRumahLabel[form.targetTipeRumah] ?? form.targetTipeRumah;
+            if (form.aksesJalan)        newChecklistVals.sistem_pembayaran    = "";
+
+            const autoChecked: string[] = [];
+            if (parseFloat(form.aksesJalan) >= 5)                                     autoChecked.push("akses_jalan_5m");
+            if (form.fasilitasUmum.length > 0)                                        autoChecked.push("dekat_fasilitas");
+            if (["aman","sangat_aman"].includes(form.kondisiLingkungan))               autoChecked.push("lingkungan_aman");
+            if (["tinggi","sangat_tinggi"].includes(form.potensiPertumbuhan))          autoChecked.push("potensi_pertumbuhan");
+            if (form.utilitas.length > 0)                                             autoChecked.push("utilitas_tersedia");
+            if (form.hargaRumahSekitar)                                               autoChecked.push("harga_rumah_sekitar");
+            if (form.targetTipeRumah)                                                 autoChecked.push("tipe_rumah_sekitar");
+            if (form.hargaTanahM2)                                                    autoChecked.push("harga_tanah_m2");
+            if (form.statusKepemilikan.includes("SHM") || form.statusKepemilikan.includes("HGB")) {
+              autoChecked.push("shm_alas_hak");
+            }
+            if (parseFloat(form.aksesJalan) >= 5)                                     autoChecked.push("akses_jalan_legal");
+
+            const existingVals = (() => { try { return JSON.parse(localStorage.getItem("satara_checklist_vals") ?? "{}"); } catch { return {}; } })() as Record<string, unknown>;
+            existingVals[pid] = newChecklistVals;
+            localStorage.setItem("satara_checklist_vals", JSON.stringify(existingVals));
+
+            const existingChecked = (() => { try { return JSON.parse(localStorage.getItem("satara_acq_checklist") ?? "{}"); } catch { return {}; } })() as Record<string, unknown>;
+            existingChecked[pid] = autoChecked;
+            localStorage.setItem("satara_acq_checklist", JSON.stringify(existingChecked));
+
+            // Sync ke DB
+            fetch(`/api/land-prospects/${pid}/acquisition`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ checklistItems: autoChecked, checklistValues: newChecklistVals }),
+            }).catch(() => {});
+
             // ── Map & save AI analysis result ──
             if (result) {
               const decisionMap: Record<string, string> = {
