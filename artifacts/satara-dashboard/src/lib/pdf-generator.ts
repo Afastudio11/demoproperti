@@ -194,21 +194,27 @@ export function generateProposalAkuisisi(payload: DocPayload) {
 
   // Identitas lahan
   y = sectionTitle(doc, "01  Identitas Lahan", y);
-  const halfW = (W - 28) / 2;
-  const rows1 = [
-    ["Nama Lokasi", prospect.lokasi, "Kabupaten", prospect.kabupaten ?? "—"],
-    ["Kecamatan",   prospect.kecamatan ?? "—", "Kelurahan", prospect.kelurahan ?? "—"],
-    ["Luas Lahan",  `${fmt(prospect.luas)} m²`, "Harga / m²", `Rp ${fmt(prospect.hargaM2)}`],
-    ["Total Harga", fmtRp(prospect.luas * prospect.hargaM2), "Status Pipeline", prospect.status.replace(/_/g, " ").toUpperCase()],
-    ["Bentuk Lahan", bentukLahan || "—", "Status Legal", statusLegal || "—"],
-  ];
-  rows1.forEach(([l1, v1, l2, v2]) => {
-    kv(doc, l1, v1, 14, y, halfW / 2.2);
-    kv(doc, l2, v2, 14 + halfW, y, halfW / 2.2);
-    y += 6;
+  autoTable(doc, {
+    startY: y,
+    margin: { left: 14, right: 14 },
+    body: [
+      ["Nama Lokasi",  prospect.lokasi,                                "Kabupaten",       prospect.kabupaten ?? "—"],
+      ["Kecamatan",    prospect.kecamatan ?? "—",                      "Kelurahan",       prospect.kelurahan ?? "—"],
+      ["Luas Lahan",   `${fmt(prospect.luas)} m²`,                     "Harga / m²",      `Rp ${fmt(prospect.hargaM2)}`],
+      ["Total Harga",  fmtRp(prospect.luas * prospect.hargaM2),        "Status Pipeline", prospect.status.replace(/_/g, " ").toUpperCase()],
+      ["Bentuk Lahan", bentukLahan || "—",                             "Status Legal",    statusLegal || "—"],
+    ],
+    styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
+    columnStyles: {
+      0: { cellWidth: 28, textColor: GRAY, fontStyle: "normal" },
+      1: { cellWidth: 63, fontStyle: "bold" },
+      2: { cellWidth: 28, textColor: GRAY, fontStyle: "normal" },
+      3: { fontStyle: "bold" },
+    },
+    tableLineColor: LGRAY,
+    tableLineWidth: 0.1,
   });
-
-  y += 4;
+  y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
   // Financial snapshot
   y = sectionTitle(doc, "02  Proyeksi Finansial", y);
@@ -291,17 +297,18 @@ export function generateProposalAkuisisi(payload: DocPayload) {
     });
     y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
-    // Rekomendasi
+    // Rekomendasi — set font DULU sebelum hitung splitTextToSize agar rect height akurat
     y = sectionTitle(doc, "04  Rekomendasi", y);
-    doc.setFillColor(...BGLIGHT);
-    doc.setDrawColor(...GOLD);
-    doc.roundedRect(14, y, W - 28, 2 + doc.splitTextToSize(aiResult.rekomendasi, W - 36).length * 4.5 + 4, 2, 2, "FD");
     doc.setFont("helvetica", "italic");
     doc.setFontSize(8.5);
+    const rekLines = doc.splitTextToSize(aiResult.rekomendasi, W - 42);
+    const rekH = rekLines.length * 4.8 + 10;
+    doc.setFillColor(...BGLIGHT);
+    doc.setDrawColor(...GOLD);
+    doc.roundedRect(14, y, W - 28, rekH, 2, 2, "FD");
     doc.setTextColor(...BLACK);
-    const rekLines = doc.splitTextToSize(aiResult.rekomendasi, W - 36);
     doc.text(rekLines, 18, y + 5);
-    y += rekLines.length * 4.5 + 10;
+    y += rekH + 4;
   } else {
     y = sectionTitle(doc, "03  Analisis AI", y);
     doc.setFont("helvetica", "italic");
