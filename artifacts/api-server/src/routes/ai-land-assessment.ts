@@ -574,6 +574,7 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
       ],
       temperature: 0.15,
       max_tokens: 8192,
+      response_format: { type: "json_object" },
     });
 
     const content = completion.choices[0]?.message?.content ?? "";

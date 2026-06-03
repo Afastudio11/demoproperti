@@ -98,6 +98,7 @@ Semua analisis harus SPESIFIK dan BERBASIS DATA scoring yang diberikan, bukan ge
       ],
       temperature: 0.15,
       max_tokens: 6000,
+      response_format: { type: "json_object" },
     });
 
     const content = completion.choices[0]?.message?.content ?? "";

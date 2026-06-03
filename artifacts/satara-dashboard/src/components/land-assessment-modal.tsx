@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
 import {
   X, Brain, Loader2, FileText,
@@ -370,6 +370,38 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
     kabupaten: polygon.kabupaten,
     kelurahan: polygon.kelurahan,
   });
+
+  // Auto-geocode kecamatan/kabupaten jika kosong tapi koordinat tersedia
+  useEffect(() => {
+    const needsGeocode = (!polygon.kecamatan || !polygon.kabupaten) && polygon.center[0] && polygon.center[1];
+    if (!needsGeocode) return;
+
+    const [lat, lng] = polygon.center;
+
+    function stripKec(s: string) { return s.replace(/^(kecamatan|kec\.?)\s+/i, "").trim(); }
+    function stripKab(s: string) { return s.replace(/^(kabupaten|kota|kab\.?)\s+/i, "").trim(); }
+
+    Promise.all([
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=13&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
+    ])
+      .then(([r13, r10]) => Promise.all([r13.json(), r10.json()]))
+      .then(([a13, a10]) => {
+        const kelurahan = a13.address?.village || a13.address?.hamlet || a13.address?.suburb || a13.address?.neighbourhood || "";
+        const kecRaw = a13.address?.city_district || a13.address?.district || "";
+        const kecamatan = stripKec(kecRaw);
+        const kabRaw = a10.address?.county || a10.address?.city || a10.address?.state_district || "";
+        const kabupaten = stripKab(kabRaw);
+        setForm(f => ({
+          ...f,
+          kelurahan: f.kelurahan || kelurahan,
+          kecamatan: f.kecamatan || kecamatan,
+          kabupaten: f.kabupaten || kabupaten,
+        }));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Helper: normalisasi nama kabupaten untuk matching
   function normKab(s: string) {

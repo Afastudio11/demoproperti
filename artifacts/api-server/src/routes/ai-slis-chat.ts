@@ -142,6 +142,7 @@ CATATAN: "visualisasi" bisa null jika benar-benar tidak ada data yang cocok untu
       ],
       temperature: 0.15,
       max_tokens: 4096,
+      response_format: { type: "json_object" },
     });
 
     const content = completion.choices[0]?.message?.content ?? "";

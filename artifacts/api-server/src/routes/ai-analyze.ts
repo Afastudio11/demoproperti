@@ -308,6 +308,7 @@ Output HARUS berupa JSON valid saja (tanpa markdown, tanpa teks di luar JSON):
       ],
       temperature: 0.15,
       max_tokens: 4096,
+      response_format: { type: "json_object" },
     });
 
     const content = completion.choices[0]?.message?.content ?? "";
