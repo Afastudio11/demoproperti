@@ -1275,15 +1275,35 @@ function ProspectDetailPanel({
                   <div className="space-y-2">
                     {/* Level summary */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="border rounded-lg px-2.5 py-2 bg-background">
+                      <div className={cn("border rounded-lg px-2.5 py-2",
+                        kecLen === 0 && ak?.kompetitorKecamatan ? "bg-amber-50 border-amber-200" : "bg-background"
+                      )}>
                         <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Kompetitor di Kecamatan</div>
-                        <div className="text-[15px] font-bold mt-0.5">{kecLen}</div>
+                        <div className="flex items-end gap-1.5 mt-0.5">
+                          <span className="text-[15px] font-bold">{kecLen}</span>
+                          {kecLen === 0 && ak?.kompetitorKecamatan && (
+                            <span className="text-[9px] text-amber-600 font-medium mb-0.5">+AI</span>
+                          )}
+                        </div>
                         <div className="text-[9px] text-muted-foreground">{prospect.kecamatan ?? "—"}</div>
+                        {kecLen === 0 && ak?.kompetitorKecamatan && (
+                          <div className="text-[8px] text-amber-600 mt-0.5">tidak ada di database lokal; AI temukan lebih</div>
+                        )}
                       </div>
-                      <div className="border rounded-lg px-2.5 py-2 bg-background">
+                      <div className={cn("border rounded-lg px-2.5 py-2",
+                        kabLen === 0 && ak?.kompetitorKabupaten ? "bg-amber-50 border-amber-200" : "bg-background"
+                      )}>
                         <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Kompetitor di Kabupaten</div>
-                        <div className="text-[15px] font-bold mt-0.5">{kabLen}</div>
+                        <div className="flex items-end gap-1.5 mt-0.5">
+                          <span className="text-[15px] font-bold">{kabLen}</span>
+                          {kabLen === 0 && ak?.kompetitorKabupaten && (
+                            <span className="text-[9px] text-amber-600 font-medium mb-0.5">+AI</span>
+                          )}
+                        </div>
                         <div className="text-[9px] text-muted-foreground">{prospect.kabupaten ?? "—"}</div>
+                        {kabLen === 0 && ak?.kompetitorKabupaten && (
+                          <div className="text-[8px] text-amber-600 mt-0.5">tidak ada di database lokal; AI temukan lebih</div>
+                        )}
                       </div>
                     </div>
                     {ak?.tingkatPersaingan && (
