@@ -1060,6 +1060,12 @@ export default function Akuisisi() {
             setTerrainData(null);
             setTerrainLoading(false);
           }}
+          onSaved={() => {
+            setAssessmentPolygon(null);
+            setTerrainData(null);
+            setTerrainLoading(false);
+            refetch();
+          }}
         />
       )}
 

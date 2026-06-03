@@ -851,6 +851,7 @@ export interface PolygonReadyData {
   kelurahan: string;
   kecamatan: string;
   kabupaten: string;
+  geoStr?: string;
 }
 
 export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void } = {}) {
@@ -913,6 +914,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
       kelurahan: poly.kelurahan,
       kecamatan: poly.kecamatan,
       kabupaten: poly.kabupaten,
+      geoStr: poly.geoStr,
     });
     analyzeTerrainForPolygon(poly.coords, poly.center)
       .then((r) => { setTerrainResult(r); onTerrainData?.(r); })
@@ -1224,13 +1226,6 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
             )}
             <HouseCapacityCard areaSqm={drawn.area} />
             <TerrainAnalysisCard result={terrainResult} loading={terrainLoading} />
-            <ProspectForm
-              form={form} setForm={setForm}
-              onSave={() => handleSave("poly")}
-              onCancel={cancelAll}
-              saving={saving}
-              compact
-            />
           </div>
         )}
 

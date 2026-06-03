@@ -17,6 +17,7 @@ export interface AssessmentPolygon {
   kelurahan: string;
   kecamatan: string;
   kabupaten: string;
+  geoStr?: string;
 }
 
 interface TerrainData {
@@ -103,6 +104,7 @@ interface Props {
   terrainData: TerrainData | null;
   terrainLoading?: boolean;
   onClose: () => void;
+  onSaved?: () => void;
 }
 
 // ─── Konstanta ────────────────────────────────────────────────────────────────
@@ -335,8 +337,9 @@ function ScoreGauge({ skor, kategori, decision }: { skor: number; kategori: stri
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function LandAssessmentModal({ polygon, terrainData, terrainLoading, onClose }: Props) {
+export default function LandAssessmentModal({ polygon, terrainData, terrainLoading, onClose, onSaved }: Props) {
   const [phase, setPhase] = useState<"form" | "loading" | "result">("form");
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     hargaTanahM2: "",
     aksesJalan: "",
@@ -363,6 +366,36 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
       ...f,
       [field]: f[field].includes(value) ? f[field].filter(x => x !== value) : [...f[field], value],
     }));
+  }
+
+  async function handleSaveTopipeline() {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/land-prospects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "prospek_baru",
+          lokasi: polygon.lokasi || polygon.kecamatan || polygon.kabupaten,
+          luas: polygon.luas,
+          hargaM2: parseFloat(form.hargaTanahM2) || 0,
+          roi: result?.calc.financials.roi || 0,
+          aksesJalan: parseFloat(form.aksesJalan) || undefined,
+          lat: polygon.center[0],
+          lng: polygon.center[1],
+          kelurahan: polygon.kelurahan,
+          kecamatan: polygon.kecamatan,
+          kabupaten: polygon.kabupaten,
+          polygonCoords: polygon.geoStr,
+        }),
+      });
+      if (r.ok) {
+        onSaved?.();
+        onClose();
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSubmit() {
@@ -1208,7 +1241,12 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
               <Button variant="outline" size="sm" onClick={() => { setPhase("form"); setResult(null); }} className="text-[12px]">
                 Edit &amp; Generate Ulang
               </Button>
-              <Button size="sm" variant="outline" onClick={onClose} className="text-[12px]">Selesai</Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={onClose} className="text-[12px]">Tutup</Button>
+                <Button size="sm" onClick={handleSaveTopipeline} disabled={saving} className="text-[12px]">
+                  {saving ? "Menyimpan..." : "Simpan ke Pipeline"}
+                </Button>
+              </div>
             </>
           )}
         </div>
