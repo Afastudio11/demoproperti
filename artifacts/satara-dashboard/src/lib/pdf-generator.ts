@@ -52,6 +52,11 @@ export interface CompetitorEntry {
   name: string;
   type: string;
   distanceKm?: number;
+  pengembang?: string;
+  kecamatan?: string;
+  kabupaten?: string;
+  kelurahan?: string;
+  totalUnit?: number;
 }
 
 export interface DocPayload {
@@ -584,10 +589,71 @@ export function generateSiteAnalysis(payload: DocPayload) {
       y += 6;
     }
 
+    // Analisis Kompetitor AI
+    const aiKomp = aiNarr?.analisisKompetitor as Record<string, string> | undefined;
+    if (aiKomp) {
+      ensureSpace(40);
+      y = sectionTitle(doc, "06  Analisis Kompetitor — Rekomendasi AI", y);
+
+      const tingkat = aiKomp.tingkatPersaingan ?? "—";
+      doc.setFillColor(...BGLIGHT);
+      doc.roundedRect(14, y, W - 28, 10, 2, 2, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...GRAY);
+      doc.text("Tingkat Persaingan:", 18, y + 6.5);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(tingkat === "Tinggi" ? 180 : tingkat === "Sedang" ? 120 : 30,
+                       tingkat === "Tinggi" ? 30 : tingkat === "Sedang" ? 90 : 120,
+                       30);
+      doc.text(tingkat, 62, y + 6.5);
+      y += 14;
+
+      const kompSections: { title: string; key: string }[] = [
+        { title: `Kompetitor di Kecamatan`, key: "kompetitorKecamatan" },
+        { title: `Kompetitor di Kabupaten`, key: "kompetitorKabupaten" },
+        { title: "Posisi Harga vs Kompetitor", key: "posisiHarga" },
+        { title: "Rekomendasi Segmen & Diferensiasi", key: "rekomendasiSegmen" },
+      ];
+
+      for (const { title, key } of kompSections) {
+        const text = aiKomp[key];
+        if (!text) continue;
+        const lines = doc.splitTextToSize(text, W - 32);
+        ensureSpace(12 + lines.length * 4.2);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...NAVY);
+        doc.text(title.toUpperCase(), 14, y);
+        y += 4.5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...BLACK);
+        const H = doc.internal.pageSize.getHeight();
+        let lineIdx = 0;
+        while (lineIdx < lines.length) {
+          const remaining = Math.floor((H - 16 - y) / 4.2);
+          const chunk = lines.slice(lineIdx, lineIdx + Math.max(1, remaining));
+          doc.text(chunk, 18, y);
+          y += chunk.length * 4.2;
+          lineIdx += chunk.length;
+          if (lineIdx < lines.length) {
+            doc.addPage();
+            drawHeader(doc, "SITE ANALYSIS", `Analisis Lokasi — ${prospect.lokasi}`);
+            y = 42;
+          }
+        }
+        y += 4;
+      }
+    }
+
     // Risiko detail table (dari fullAiResult) atau fallback ke simple list
+    const risikoSectionNum = aiKomp ? "07" : "06";
+    const rekSectionNum2 = aiKomp ? "08" : "07";
     if (aiRisikos && aiRisikos.length > 0) {
       ensureSpace(30);
-      y = sectionTitle(doc, "06  Analisis Risiko Detail", y);
+      y = sectionTitle(doc, `${risikoSectionNum}  Analisis Risiko Detail`, y);
       autoTable(doc, {
         startY: y,
         margin: { left: 14, right: 14 },
@@ -613,7 +679,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
       y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
     } else if (ar.kelebihan.length > 0 || ar.risiko.length > 0) {
       ensureSpace(20);
-      y = sectionTitle(doc, "06  Kelebihan & Risiko", y);
+      y = sectionTitle(doc, `${risikoSectionNum}  Kelebihan & Risiko`, y);
       autoTable(doc, {
         startY: y,
         margin: { left: 14, right: 14 },
@@ -635,8 +701,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
     if (rek) {
       const rekLines = doc.splitTextToSize(rek, W - 36);
       ensureSpace(14 + rekLines.length * 4.2);
-      const rekSectionNum = (aiRisikos && aiRisikos.length > 0) || ar.kelebihan.length > 0 ? "07" : "06";
-      y = sectionTitle(doc, `${rekSectionNum}  Rekomendasi Strategis`, y);
+      y = sectionTitle(doc, `${rekSectionNum2}  Rekomendasi Strategis`, y);
       doc.setFillColor(...BGLIGHT);
       doc.setDrawColor(...GOLD);
       doc.roundedRect(14, y, W - 28, 4 + rekLines.length * 4.5 + 4, 2, 2, "FD");

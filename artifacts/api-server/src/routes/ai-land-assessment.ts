@@ -262,6 +262,7 @@ router.post("/ai/land-assessment", async (req, res) => {
     waterwayType, waterwayName, waterwayDistM,
     portfolioComparables,
     competitors,
+    competitorsKecamatan,
     checkedItems,
     checklistValues,
   } = req.body;
@@ -300,6 +301,7 @@ router.post("/ai/land-assessment", async (req, res) => {
   // ── Competitor & Checklist data dari frontend ─────────────────────────────
   interface CompItem { name: string; type: string; pengembang?: string; kecamatan?: string; kabupaten?: string; kelurahan?: string; totalUnit?: number; }
   const compList: CompItem[] = Array.isArray(competitors) ? competitors : [];
+  const compListKec: CompItem[] = Array.isArray(competitorsKecamatan) ? competitorsKecamatan : [];
   const ciList: string[] = Array.isArray(checkedItems) ? checkedItems : [];
   const cVals = (checklistValues && typeof checklistValues === "object") ? checklistValues as Record<string, string> : {};
   const ci = (key: string) => ciList.includes(key);
@@ -411,7 +413,11 @@ Pengumpulan Data Teknis:
 - Peil banjir             : ${ci("peil_banjir") ? "SUDAH" : "BELUM"}
 
 ════════════════════════════════════════
-DATA KOMPETITOR PROPERTI (${compList.length} teridentifikasi di area)
+DATA KOMPETITOR PROPERTI — TINGKAT KECAMATAN (${compListKec.length} di Kec. ${kecamatan ?? "—"})
+════════════════════════════════════════
+${compListKec.length > 0 ? compListKec.slice(0, 15).map((c, i) => `${i + 1}. ${c.name} (${c.type}) — ${[c.kelurahan, c.kecamatan].filter(Boolean).join(", ")}${c.pengembang ? ` — Developer: ${c.pengembang}` : ""}${c.totalUnit ? ` — ${c.totalUnit} unit` : ""}`).join("\n") : `Tidak ada data kompetitor di database untuk Kec. ${kecamatan ?? "—"}. Ini bisa berarti peluang first-mover ATAU demand rendah — analisis harus mempertimbangkan kedua kemungkinan ini.`}
+
+DATA KOMPETITOR PROPERTI — TINGKAT KABUPATEN (${compList.length} di ${kabupaten ?? "kabupaten ini"})
 ════════════════════════════════════════
 ${compList.length > 0 ? compList.slice(0, 20).map((c, i) => `${i + 1}. ${c.name} (${c.type}) — ${[c.kelurahan, c.kecamatan, c.kabupaten].filter(Boolean).join(", ")}${c.pengembang ? ` — Developer: ${c.pengembang}` : ""}${c.totalUnit ? ` — ${c.totalUnit} unit` : ""}`).join("\n") : `Tidak ada data kompetitor di database lokal untuk ${kabupaten ?? "area ini"}.`}
 
@@ -494,11 +500,25 @@ Kinerja portofolio (${withROI.length} lahan sudah dianalisis AI):
 - Pipeline stages            : ${stageDistStr}` : `PROSPEK PERTAMA di ${kabupaten ?? "kabupaten ini"} — belum ada data portofolio internal. Gunakan benchmark pasar eksternal sebagai referensi.`}
 
 ════════════════════════════════════════
+INSTRUKSI WAJIB ANALISIS KOMPETITOR:
+Kamu WAJIB mengisi analisisKompetitor dengan menyebutkan nama-nama kompetitor spesifik dari daftar di atas.
+- Jika ada kompetitor di kecamatan ${kecamatan ?? "yang sama"}: sebutkan nama, pengembang, dan tipe produk mereka secara spesifik.
+- Jika TIDAK ada kompetitor di kecamatan tersebut: jelaskan apakah ini peluang first-mover atau tanda demand rendah, dan bandingkan dengan kompetitor kabupaten terdekat.
+- JANGAN isi dengan kalimat generik. Selalu referensikan data aktual dari daftar di atas.
+════════════════════════════════════════
+
 TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
 {
   "ringkasanEksekutif": "<3-4 paragraf (300-400 kata). Jelaskan mengapa lahan ini mendapat skor ${sc.total} dan kategori '${sc.category}'. Sebutkan kekuatan utama dan kelemahan utama berdasarkan data di atas. Kontekskan dengan strategi developer perumahan di ${kabupaten ?? "Sulawesi Selatan"}.>",
   "analisisLokasi": "<2-3 paragraf (200-300 kata). Analisis ${[kelurahan, kecamatan, kabupaten].filter(Boolean).join(", ") || "lokasi ini"}: aksesibilitas, fasilitas terdekat, kondisi sekitar, potensi pertumbuhan, daya tarik bagi pembeli rumah.>",
   "analisisFisikLahan": "<2-3 paragraf (200-300 kata). Analisis bentuk lahan (${bentukLahan}), kontur (${konturLabel}), implikasi teknis, potensi hambatan, rekomendasi tata letak kavling dan posisi fasum.>",
+  "analisisKompetitor": {
+    "tingkatPersaingan": "<Tinggi/Sedang/Rendah — berdasarkan jumlah kompetitor di kecamatan dan kabupaten>",
+    "kompetitorKecamatan": "<WAJIB 2-3 paragraf. Sebutkan nama-nama spesifik kompetitor di Kec. ${kecamatan ?? "—"} dari daftar di atas. Jika tidak ada: jelaskan implikasi pasar apakah peluang first-mover atau gap demand. Bandingkan dengan kecamatan terdekat yang ada kompetitornya.>",
+    "kompetitorKabupaten": "<WAJIB 2 paragraf. Sebutkan 3-5 kompetitor terkuat di ${kabupaten ?? "kabupaten ini"} dari daftar, beserta developer, tipe produk, dan skala proyek. Jelaskan lanskap persaingan di level kabupaten.>",
+    "posisiHarga": "<1-2 paragraf. Bandingkan target harga jual ${rp(fin.hargaJualFinal)} dengan harga pasar kompetitor di area (gunakan data harga rumah sekitar: ${hargaRumahNum > 0 ? "Rp " + hargaRumahNum.toLocaleString("id-ID") : "tidak tersedia"}). Rekomendasikan strategi harga konkret.>",
+    "rekomendasiSegmen": "<1 paragraf. Segmen pembeli yang paling tepat dan strategi diferensiasi produk vs kompetitor yang ada.>"
+  },
   "analisisRisiko": [
     { "risiko": "Risiko Hukum/Legal", "level": "${risks.legalRisk}", "deskripsi": "<1-2 kalimat menjelaskan kondisi legal dan implikasinya>", "mitigasi": "<langkah mitigasi konkret>" },
     { "risiko": "Risiko Akses Jalan", "level": "${risks.aksesRisk}", "deskripsi": "<kondisi akses dan dampaknya>", "mitigasi": "<tindakan konkret>" },
@@ -531,7 +551,7 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
       model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.25,
-      max_tokens: 4096,
+      max_tokens: 6000,
     });
 
     const content = completion.choices[0]?.message?.content ?? "";

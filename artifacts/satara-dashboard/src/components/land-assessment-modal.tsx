@@ -76,10 +76,19 @@ interface Calc {
   assumptions: string[];
 }
 
+interface AnalisisKompetitor {
+  tingkatPersaingan: string;
+  kompetitorKecamatan: string;
+  kompetitorKabupaten: string;
+  posisiHarga: string;
+  rekomendasiSegmen: string;
+}
+
 interface AiNarrative {
   ringkasanEksekutif: string;
   analisisLokasi: string;
   analisisFisikLahan: string;
+  analisisKompetitor?: AnalisisKompetitor;
   analisisRisiko: { risiko: string; level: string; deskripsi: string; mitigasi: string }[];
   rekomendasiNarasi: string;
   legalChecklist: { item: string; prioritas: string }[];

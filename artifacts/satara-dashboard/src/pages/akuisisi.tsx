@@ -338,7 +338,7 @@ function ProspectDetailPanel({
   const [aiResult, setAiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
   const [fullAiResult, setFullAiResult] = useState<Record<string, unknown> | null>(() => loadFullAiResult(prospect.id));
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "rekomendasi">("ringkasan");
+  const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "kompetitor" | "rekomendasi">("ringkasan");
 
   const [survey, setSurvey] = useState<SurveyData>(() => loadSurvey(prospect.id));
   const [aksesJalanDraft, setAksesJalanDraft] = useState<number | null>(prospect.aksesJalan ?? null);
@@ -477,6 +477,30 @@ function ProspectDetailPanel({
       const hargaTanahFromInput = vals.harga_tanah_m2
         ? parseInt((vals.harga_tanah_m2 as string).replace(/\./g, "").replace(/\D/g, ""), 10) : 0;
 
+      // Derivasi tipe rumah dari data survei kompetitor yang sudah diisi
+      const tipeRumahSekitar = (vals.tipe_rumah_sekitar as string ?? "").toLowerCase();
+      const derivedTipeRumah = tipeRumahSekitar.includes("menengah") || tipeRumahSekitar.includes("mewah") || tipeRumahSekitar.includes("cluster")
+        ? "komersial_menengah"
+        : tipeRumahSekitar.includes("komersial") || tipeRumahSekitar.includes("kecil") || tipeRumahSekitar.includes("300") || tipeRumahSekitar.includes("500")
+        ? "komersial_kecil"
+        : "subsidi";
+
+      // Derivasi kondisi lingkungan dari semua checklist survei
+      const lingkunganItems = ["lingkungan_aman", "dekat_fasilitas", "akses_jalan_5m", "utilitas_tersedia"];
+      const lingkunganDone = lingkunganItems.filter(k => checked.includes(k)).length;
+      const derivedKondisiLingkungan = lingkunganDone >= 4 ? "sangat_aman"
+        : lingkunganDone >= 3 ? "aman"
+        : lingkunganDone >= 2 ? "cukup_aman"
+        : "kurang_aman";
+
+      // Derivasi potensi pertumbuhan
+      const derivedPertumbuhan = checked.includes("potensi_pertumbuhan")
+        ? (checked.includes("dekat_fasilitas") && checked.includes("utilitas_tersedia") ? "sangat_tinggi" : "tinggi")
+        : (checked.includes("dekat_fasilitas") ? "sedang" : "rendah");
+
+      // Kompetitor kecamatan (lebih spesifik — untuk AI analisis pasar lokal)
+      const competitorListKecamatan = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kecamatan");
+
       const body = {
         lokasi: prospect.lokasi,
         kelurahan: prospect.kelurahan,
@@ -485,25 +509,28 @@ function ProspectDetailPanel({
         luas: prospect.luas,
         hargaTanahM2: hargaTanahFromInput || (prospect.hargaM2 ?? 0),
         aksesJalan: aksesJalanDraft ?? prospect.aksesJalan ?? 0,
-        targetTipeRumah: "subsidi",
+        targetTipeRumah: derivedTipeRumah,
         hargaRumahSekitar: hargaRumahStr ? parseInt(hargaRumahStr, 10) : 0,
         statusKepemilikan: survey.statusLegal || "Belum diketahui",
         bentukLahan: survey.bentukLahan || "kotak",
-        // Derived dari checklist yang sudah diisi user — bukan hardcoded
-        kondisiLingkungan: checked.includes("lingkungan_aman") ? "aman" : "kurang aman",
-        potensiPertumbuhan: checked.includes("potensi_pertumbuhan") ? "tinggi" : "sedang",
+        // Derived dari seluruh checklist yang sudah diisi user
+        kondisiLingkungan: derivedKondisiLingkungan,
+        potensiPertumbuhan: derivedPertumbuhan,
         utilitas: checked.includes("utilitas_tersedia")
           ? (survey.utilitas?.length ? survey.utilitas : ["PLN", "PDAM", "Air Bersih"])
           : (survey.utilitas ?? []),
         fasilitasUmum: [
           checked.includes("dekat_fasilitas") ? "Pasar/Fasilitas Umum" : null,
           checked.includes("akses_jalan_5m") ? "Akses Jalan Baik" : null,
+          checked.includes("utilitas_tersedia") ? "Utilitas Lengkap" : null,
+          checked.includes("lingkungan_aman") ? "Lingkungan Aman" : null,
         ].filter(Boolean),
         catatan: catatanDraft || "",
         // Semua data checklist — dikirim lengkap ke API
         checkedItems: checked,
         checklistValues: vals,
         competitors: competitorList,
+        competitorsKecamatan: competitorListKecamatan,
         portfolioComparables,
         ...(terrainData ?? {}),
       };
@@ -924,6 +951,7 @@ function ProspectDetailPanel({
             { key: "lokasi" as const, label: "Lokasi & Fisik" },
             { key: "risiko" as const, label: "Risiko" },
             { key: "finansial" as const, label: "Finansial" },
+            { key: "kompetitor" as const, label: "Kompetitor" },
             { key: "rekomendasi" as const, label: "Rekomendasi" },
           ];
           return (
@@ -1270,6 +1298,98 @@ function ProspectDetailPanel({
                 </div>
               )}
 
+              {/* Tab: Kompetitor */}
+              {aiTab === "kompetitor" && (() => {
+                const ak = ai?.analisisKompetitor as Record<string, string> | undefined;
+                const kecLen = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kecamatan").length;
+                const kabLen = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kabupaten").length;
+                return (
+                  <div className="space-y-2">
+                    {/* Level summary */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="border rounded-lg px-2.5 py-2 bg-background">
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Kompetitor di Kecamatan</div>
+                        <div className="text-[15px] font-bold mt-0.5">{kecLen}</div>
+                        <div className="text-[9px] text-muted-foreground">{prospect.kecamatan ?? "—"}</div>
+                      </div>
+                      <div className="border rounded-lg px-2.5 py-2 bg-background">
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Kompetitor di Kabupaten</div>
+                        <div className="text-[15px] font-bold mt-0.5">{kabLen}</div>
+                        <div className="text-[9px] text-muted-foreground">{prospect.kabupaten ?? "—"}</div>
+                      </div>
+                    </div>
+                    {ak?.tingkatPersaingan && (
+                      <div className={cn("border rounded-lg px-2.5 py-2 text-center",
+                        ak.tingkatPersaingan === "Tinggi" ? "bg-red-50 border-red-200" :
+                        ak.tingkatPersaingan === "Sedang" ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"
+                      )}>
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Tingkat Persaingan</div>
+                        <div className={cn("text-[13px] font-bold mt-0.5",
+                          ak.tingkatPersaingan === "Tinggi" ? "text-red-700" :
+                          ak.tingkatPersaingan === "Sedang" ? "text-amber-700" : "text-emerald-700"
+                        )}>{ak.tingkatPersaingan}</div>
+                      </div>
+                    )}
+                    {ak?.kompetitorKecamatan && (
+                      <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
+                        <div className="text-[10px] font-semibold text-red-700 uppercase tracking-wider mb-1.5">
+                          Kompetitor di Kec. {prospect.kecamatan ?? "—"}
+                        </div>
+                        <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{ak.kompetitorKecamatan}</p>
+                      </div>
+                    )}
+                    {ak?.kompetitorKabupaten && (
+                      <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5">
+                        <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">
+                          Lanskap Kompetitor di {prospect.kabupaten ?? "—"}
+                        </div>
+                        <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{ak.kompetitorKabupaten}</p>
+                      </div>
+                    )}
+                    {ak?.posisiHarga && (
+                      <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+                        <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Posisi Harga vs Kompetitor</div>
+                        <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{ak.posisiHarga}</p>
+                      </div>
+                    )}
+                    {ak?.rekomendasiSegmen && (
+                      <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
+                        <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-1.5">Rekomendasi Segmen & Diferensiasi</div>
+                        <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{ak.rekomendasiSegmen}</p>
+                      </div>
+                    )}
+                    {!ak && (
+                      <div className="bg-muted/30 border rounded-lg px-3 py-2.5 text-center">
+                        <p className="text-[11px] text-muted-foreground">Analisis kompetitor belum tersedia. Jalankan ulang Analisis AI untuk mendapatkan rekomendasi kompetitor.</p>
+                      </div>
+                    )}
+                    {/* Daftar kompetitor dari data */}
+                    {kabLen > 0 && (
+                      <div className="bg-muted/20 border rounded-lg px-3 py-2.5">
+                        <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-2">
+                          Data Kompetitor ({kabLen} di {prospect.kabupaten})
+                        </div>
+                        <div className="space-y-1">
+                          {getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kabupaten").slice(0, 10).map((c, i) => {
+                            const isKec = c.kecamatan?.toUpperCase() === (prospect.kecamatan ?? "").toUpperCase();
+                            return (
+                              <div key={i} className="flex items-center gap-2 text-[10px] py-0.5 border-b border-border/30 last:border-0">
+                                <span className={cn("shrink-0 px-1 py-0.5 rounded text-[8px] font-bold border",
+                                  isKec ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                                )}>{isKec ? "Kec." : "Kab."}</span>
+                                <span className="font-medium flex-1 truncate">{c.name}</span>
+                                <span className="text-muted-foreground shrink-0">{c.type}</span>
+                                {c.totalUnit ? <span className="text-muted-foreground shrink-0">{c.totalUnit} unit</span> : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Tab: Rekomendasi */}
               {aiTab === "rekomendasi" && (
                 <div className="space-y-2">
@@ -1560,7 +1680,7 @@ type TerrainData = { elevMin?: number; elevMax?: number; elevAvg?: number; slope
 
 export default function Akuisisi() {
   const { data: prospects, refetch } = useListLandProspects({});
-  const [tab, setTab] = useState<"peta" | "pipeline" | "slis">("peta");
+  const [tab, setTab] = useState<"peta" | "pipeline" | "slis" | "kompetitor">("peta");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [checklists, setChecklists] = useState<Record<number, string[]>>(loadChecklist);
   const [checklistValues, setChecklistValues] = useState<Record<number, Record<string, string>>>(loadChecklistValues);
