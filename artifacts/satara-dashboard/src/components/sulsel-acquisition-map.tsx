@@ -854,7 +854,7 @@ export interface PolygonReadyData {
   geoStr?: string;
 }
 
-export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean } = {}) {
+export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly, clearKey }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean; clearKey?: number } = {}) {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
@@ -932,14 +932,18 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
     setTerrainLoading(false);
   }, []);
 
+  useEffect(() => {
+    if (clearKey !== undefined && clearKey > 0) cancelAll();
+  }, [clearKey]);
+
   const handleSave = async (source: "pin" | "poly") => {
     setSaving(true);
     try {
       const base = {
         status: "prospek_baru" as const,
         lokasi: form.lokasi,
-        luas: parseFloat(form.luas),
-        hargaM2: parseFloat(form.hargaM2),
+        luas: parseFloat(form.luas) || 0,
+        hargaM2: parseFloat(form.hargaM2) || 0,
         roi: parseFloat(form.roi) || 0,
         aksesJalan: parseFloat(form.aksesJalan) || undefined,
       };
@@ -1188,21 +1192,45 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
 
             {draft && !drawMode && (
               <Marker position={[draft.lat, draft.lng]} icon={createDraftIcon()}>
-                <Popup maxWidth={270} minWidth={240}>
+                <Popup maxWidth={260} minWidth={220}>
                   {draft.loading ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
                       <Loader2 className="size-4 animate-spin" />
                       <span style={{ fontSize: 12 }}>Mencari alamat...</span>
                     </div>
                   ) : (
-                    <ProspectForm
-                      title="📍 Tambah Prospek Baru"
-                      subLabel={[draft.kelurahan, draft.kecamatan, draft.kabupaten].filter(Boolean).join(", ")}
-                      form={form} setForm={setForm}
-                      onSave={() => handleSave("pin")}
-                      onCancel={() => setDraft(null)}
-                      saving={saving}
-                    />
+                    <div style={{ fontFamily: "inherit" }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Tandai Prospek Lahan</div>
+                      {[draft.kelurahan, draft.kecamatan, draft.kabupaten].filter(Boolean).length > 0 && (
+                        <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
+                          {[draft.kelurahan, draft.kecamatan, draft.kabupaten].filter(Boolean).join(", ")}
+                        </div>
+                      )}
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Nama Lokasi</div>
+                        <input
+                          style={{ width: "100%", fontSize: 12, padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, outline: "none", boxSizing: "border-box" as const }}
+                          value={form.lokasi}
+                          onChange={e => setForm(f => ({ ...f, lokasi: e.target.value }))}
+                          placeholder="Nama lokasi lahan"
+                        />
+                      </div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          onClick={() => handleSave("pin")}
+                          disabled={saving || !form.lokasi}
+                          style={{ flex: 1, padding: "6px 0", borderRadius: 6, fontSize: 12, fontWeight: 600, background: "#16a34a", color: "white", border: "none", cursor: "pointer", opacity: !form.lokasi ? 0.5 : 1 }}
+                        >
+                          {saving ? "Menyimpan..." : "Simpan ke Pipeline"}
+                        </button>
+                        <button
+                          onClick={() => setDraft(null)}
+                          style={{ padding: "6px 10px", borderRadius: 6, fontSize: 12, background: "#f3f4f6", color: "#374151", border: "1px solid #d1d5db", cursor: "pointer" }}
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </Popup>
               </Marker>

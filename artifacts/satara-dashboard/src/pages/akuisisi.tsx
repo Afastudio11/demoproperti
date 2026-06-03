@@ -829,6 +829,7 @@ export default function Akuisisi() {
   const [terrainData, setTerrainData] = useState<TerrainData>(null);
   const [terrainLoading, setTerrainLoading] = useState(false);
   const [assessmentPolygon, setAssessmentPolygon] = useState<PolygonReadyData | null>(null);
+  const [mapClearKey, setMapClearKey] = useState(0);
 
   const selectedProspect = selectedId ? (prospects ?? []).find((p) => p.id === selectedId) : null;
 
@@ -919,6 +920,7 @@ export default function Akuisisi() {
                 setTerrainData(null);
                 setTerrainLoading(true);
               }}
+              clearKey={mapClearKey}
             />
           </div>
         </div>
@@ -1064,6 +1066,7 @@ export default function Akuisisi() {
             setAssessmentPolygon(null);
             setTerrainData(null);
             setTerrainLoading(false);
+            setMapClearKey(k => k + 1);
             refetch();
           }}
         />
