@@ -394,11 +394,39 @@ export function generateSiteAnalysis(payload: DocPayload) {
     });
     y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
   } else {
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...GRAY);
-    doc.text("Data topografi belum tersedia. Pastikan lahan memiliki koordinat yang valid.", 14, y + 5);
-    y += 14;
+    const aiFisik = (payload.fullAiResult?.ai as Record<string, unknown> | undefined)?.analisisFisikLahan as string | undefined;
+    if (aiFisik) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...GRAY);
+      doc.text("Data sensor topografi belum tersedia. Analisis fisik lahan berdasarkan AI:", 14, y + 4);
+      y += 10;
+      const lines = doc.splitTextToSize(aiFisik, W - 28);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...BLACK);
+      let lineIdx = 0;
+      const H = doc.internal.pageSize.getHeight();
+      while (lineIdx < lines.length) {
+        const remaining = Math.floor((H - 16 - y) / 4.2);
+        const chunk = lines.slice(lineIdx, lineIdx + Math.max(1, remaining));
+        doc.text(chunk, 14, y);
+        y += chunk.length * 4.2;
+        lineIdx += chunk.length;
+        if (lineIdx < lines.length) {
+          doc.addPage();
+          drawHeader(doc, "SITE ANALYSIS", `Analisis Lokasi — ${prospect.lokasi}`);
+          y = 42;
+        }
+      }
+      y += 8;
+    } else {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...GRAY);
+      doc.text("Data topografi belum tersedia. Pastikan lahan memiliki koordinat yang valid.", 14, y + 5);
+      y += 14;
+    }
   }
 
   // Competitor analysis
@@ -433,11 +461,60 @@ export function generateSiteAnalysis(payload: DocPayload) {
     doc.text(`${competitors.length} properti kompetitor teridentifikasi di ${prospect.kabupaten ?? "kabupaten ini"}. Sumber: Database Satara.`, 14, y);
     y += 8;
   } else {
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...GRAY);
-    doc.text("Tidak ada data kompetitor tersedia untuk area ini.", 14, y + 5);
-    y += 14;
+    // Fallback ke data AI jika DB lokal kosong
+    const aiKompFallback = (payload.fullAiResult?.ai as Record<string, unknown> | undefined)?.analisisKompetitor as Record<string, string> | undefined;
+    if (aiKompFallback && (aiKompFallback.kompetitorKecamatan || aiKompFallback.kompetitorKabupaten)) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...GRAY);
+      doc.text("Database lokal tidak memiliki data properti untuk area ini. Ringkasan analisis pasar berdasarkan AI:", 14, y + 4);
+      y += 10;
+
+      const fallbackSections: { title: string; key: string }[] = [
+        { title: "Kompetitor di Kecamatan", key: "kompetitorKecamatan" },
+        { title: "Kompetitor di Kabupaten", key: "kompetitorKabupaten" },
+      ];
+      for (const { title, key } of fallbackSections) {
+        const text = aiKompFallback[key];
+        if (!text) continue;
+        const lines = doc.splitTextToSize(text, W - 32);
+        const neededH = 10 + lines.length * 4.2;
+        if (y + neededH > doc.internal.pageSize.getHeight() - 16) {
+          doc.addPage();
+          drawHeader(doc, "SITE ANALYSIS", `Analisis Lokasi — ${prospect.lokasi}`);
+          y = 42;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...NAVY);
+        doc.text(title.toUpperCase(), 14, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...BLACK);
+        let lineIdx = 0;
+        const H = doc.internal.pageSize.getHeight();
+        while (lineIdx < lines.length) {
+          const remaining = Math.floor((H - 16 - y) / 4.2);
+          const chunk = lines.slice(lineIdx, lineIdx + Math.max(1, remaining));
+          doc.text(chunk, 14, y);
+          y += chunk.length * 4.2;
+          lineIdx += chunk.length;
+          if (lineIdx < lines.length) {
+            doc.addPage();
+            drawHeader(doc, "SITE ANALYSIS", `Analisis Lokasi — ${prospect.lokasi}`);
+            y = 42;
+          }
+        }
+        y += 6;
+      }
+    } else {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...GRAY);
+      doc.text("Tidak ada data kompetitor tersedia untuk area ini.", 14, y + 5);
+      y += 14;
+    }
   }
 
   // Checklist lengkap semua stage
