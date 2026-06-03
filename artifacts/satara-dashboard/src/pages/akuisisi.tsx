@@ -453,6 +453,7 @@ function ProspectDetailPanel({
       };
       saveAiResult(prospect.id, aiR);
       setAiResult(aiR);
+      setAiTab("finansial");
     } catch (err) {
       console.error("AI analysis failed:", err);
     } finally {
@@ -666,22 +667,25 @@ function ProspectDetailPanel({
                             )}
                           </div>
                           {inputDef && status !== "pending" && (
-                            <div className="flex items-center gap-0.5 ml-5">
-                              {inputDef.type === "rp" && <span className="text-[9px] text-muted-foreground shrink-0">Rp</span>}
-                              <input
-                                type={inputDef.type === "pct" ? "number" : "text"}
-                                inputMode={inputDef.type !== "text" ? "numeric" : "text"}
-                                value={currentVal}
-                                onChange={(e) => {
-                                  const v = e.target.value;
-                                  onSetChecklistValue(prospect.id, item.key, v);
-                                  if (v && !done) onToggleItem(prospect.id, item.key);
-                                }}
-                                placeholder={inputDef.placeholder}
-                                className="flex-1 text-[9px] px-1.5 py-0.5 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 min-w-0"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              {inputDef.type === "pct" && <span className="text-[9px] text-muted-foreground shrink-0">%</span>}
+                            <div className="ml-5 mt-1 mb-1" onClick={(e) => e.stopPropagation()}>
+                              <div className="text-[9px] text-muted-foreground mb-0.5 font-medium">Isi nilai:</div>
+                              <div className="flex items-center gap-1">
+                                {inputDef.type === "rp" && <span className="text-[10px] text-muted-foreground shrink-0 font-medium">Rp</span>}
+                                <input
+                                  type={inputDef.type === "pct" ? "number" : "text"}
+                                  inputMode={inputDef.type !== "text" ? "numeric" : "text"}
+                                  value={currentVal}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    onSetChecklistValue(prospect.id, item.key, v);
+                                    if (v && !done) onToggleItem(prospect.id, item.key);
+                                  }}
+                                  placeholder={inputDef.placeholder}
+                                  className="flex-1 text-xs px-2 py-1 border-2 border-amber-300 rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 min-w-0 font-medium placeholder:text-muted-foreground/50 placeholder:font-normal"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                {inputDef.type === "pct" && <span className="text-[10px] text-muted-foreground shrink-0 font-medium">%</span>}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -734,7 +738,7 @@ function ProspectDetailPanel({
             <span className="text-[11px] font-semibold">Analisis AI (SLIS)</span>
             {aiResult && <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted border text-muted-foreground">dari Penilaian Lahan</span>}
           </div>
-          {allChecklistsDone && (
+          {(allChecklistsDone || !!aiResult || (prospect.luas != null && prospect.hargaM2 != null)) && (
             <button
               onClick={runAiAnalysis}
               disabled={aiLoading}
@@ -867,8 +871,56 @@ function ProspectDetailPanel({
                       </div>
                     ))}
                   </div>
+              </div>
+            </div>
+
+            {/* ── Ringkasan Finansial langsung terlihat ── */}
+            {fin && (
+              <div className="bg-muted/40 border rounded-xl px-3 py-2.5 space-y-2">
+                <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">Proyeksi Finansial</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Total HPP", value: fmtRp(fin.totalHPP), highlight: false },
+                    { label: "Revenue", value: fmtRp(fin.revenue), highlight: false },
+                    { label: "Profit Bersih", value: fmtRp(fin.profit), highlight: true },
+                    { label: "HPP / Unit", value: fmtRp(fin.hppPerUnit), highlight: false },
+                  ].map(({ label, value, highlight }) => (
+                    <div key={label} className={cn("rounded-lg px-2.5 py-1.5 border",
+                      highlight ? "bg-emerald-50 border-emerald-200" : "bg-background border-border"
+                    )}>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</div>
+                      <div className={cn("text-[12px] font-bold mt-0.5 leading-tight",
+                        highlight ? "text-emerald-700" : "text-foreground"
+                      )}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { label: "ROI", value: `${fin.roi}%`, good: Number(fin.roi) >= 25 },
+                    { label: "Margin", value: `${fin.margin}%`, good: Number(fin.margin) >= 20 },
+                    { label: "Payback", value: `${fin.paybackBulan} bln`, good: Number(fin.paybackBulan) <= 30 },
+                  ].map(({ label, value, good }) => (
+                    <div key={label} className={cn("border rounded-lg px-2 py-1.5 text-center",
+                      good ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+                    )}>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</div>
+                      <div className={cn("text-[13px] font-bold mt-0.5",
+                        good ? "text-emerald-700" : "text-red-600"
+                      )}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between text-[10px] pt-0.5">
+                  <span className="text-muted-foreground">Harga maks akuisisi</span>
+                  <span className="font-semibold">Rp {Number(fin.maxHargaM2).toLocaleString("id-ID")}/m²</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-muted-foreground">Target negosiasi</span>
+                  <span className="font-semibold text-blue-600">Rp {Number(fin.negotTargetM2).toLocaleString("id-ID")}/m²</span>
                 </div>
               </div>
+            )}
 
               {/* AI Tabs */}
               <div className="flex rounded-lg border bg-muted/30 p-0.5 text-[10px] font-medium gap-0.5">
