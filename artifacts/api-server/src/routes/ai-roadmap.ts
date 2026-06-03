@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 
 const router: IRouter = Router();
 
@@ -10,9 +10,8 @@ router.post("/ai/expansion-roadmap", async (req, res) => {
     budget?: string;
   };
 
-  const openai = new OpenAI({
-    apiKey: process.env["OPENAI_API_KEY"],
-    baseURL: process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1",
+  const groq = new Groq({
+    apiKey: process.env["GROQ_API_KEY"],
   });
 
   const topKab = (kabupatenRanking ?? []).slice(0, 15).map(k =>
@@ -93,8 +92,8 @@ Roadmap harus mencakup 5 tahun (2026-2030), 1 kabupaten per tahun. Kabupaten pri
 Semua analisis harus SPESIFIK dan BERBASIS DATA scoring yang diberikan, bukan generik.`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
       max_tokens: 3500,

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 
 const router: IRouter = Router();
 
@@ -44,65 +44,19 @@ router.post("/ai/slis-chat", async (req, res) => {
     return;
   }
 
-  const apiKey = process.env["OPENAI_API_KEY"];
+  const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey) {
-    res.status(503).json({ error: "OPENAI_API_KEY belum dikonfigurasi. Tambahkan API key di Secrets Replit." });
+    res.status(503).json({ error: "GROQ_API_KEY belum dikonfigurasi. Tambahkan API key di Secrets Replit." });
     return;
   }
 
-  const openai = new OpenAI({
-    apiKey,
-    baseURL: process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1",
-  });
+  const groq = new Groq({ apiKey });
 
   // ── Fase 1: Web research (opsional, fallback graceful) ────────────────────
   let webData = "";
   const sources: { title: string; url: string }[] = [];
 
-  try {
-    const searchPrompt = `Cari informasi terbaru tentang: "${question}"
-Fokus wilayah: ${slisKab?.name ?? "Sulawesi Selatan"}
-Cari: pertumbuhan ekonomi, infrastruktur baru, pasar properti, FLPP, berita investasi, industri, populasi terbaru.`;
-
-    const responsesApi = (openai as unknown as Record<string, unknown>)["responses"] as
-      | { create: (p: unknown) => Promise<unknown> }
-      | undefined;
-
-    if (responsesApi?.create) {
-      const searchResp = await responsesApi.create({
-        model: "gpt-4o-mini",
-        tools: [{ type: "web_search_preview" }],
-        input: searchPrompt,
-      });
-
-      const resp = searchResp as Record<string, unknown>;
-      webData = (resp["output_text"] as string | undefined) ?? "";
-
-      const outputArr = (resp["output"] as unknown[]) ?? [];
-      for (const item of outputArr) {
-        const it = item as Record<string, unknown>;
-        if (it["type"] === "message") {
-          const contentArr = (it["content"] as unknown[]) ?? [];
-          for (const c of contentArr) {
-            const ct = c as Record<string, unknown>;
-            const annotations = (ct["annotations"] as unknown[]) ?? [];
-            for (const ann of annotations) {
-              const a = ann as Record<string, unknown>;
-              if (a["url"] && sources.length < 6) {
-                sources.push({
-                  title: (a["title"] as string | undefined) ?? String(a["url"]).replace(/^https?:\/\//, "").slice(0, 50),
-                  url: a["url"] as string,
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-  } catch {
-    // Web search tidak tersedia — lanjut tanpa data web
-    webData = "";
-  }
+  // Web search tidak tersedia di Groq — skip fase 1
 
   // ── Fase 2: Analisis terstruktur ─────────────────────────────────────────
   const slisKabText = slisKab
@@ -180,8 +134,8 @@ Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
 CATATAN: "visualisasi" bisa null jika benar-benar tidak ada data yang cocok untuk divisualisasikan.`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
       max_tokens: 2500,
