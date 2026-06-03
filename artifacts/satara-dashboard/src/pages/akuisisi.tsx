@@ -4,7 +4,7 @@ import type { LandProspect } from "@workspace/api-client-react";
 import {
   Plus, CheckCircle2, Map, LayoutList, X,
   FileText, ClipboardList, ArrowRight, BrainCircuit,
-  Loader2, ThumbsUp, AlertTriangle, ThumbsDown, RefreshCw,
+  Loader2, AlertTriangle,
   Building2, Radio, Search as SearchIcon, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -286,9 +286,8 @@ function ProspectDetailPanel({
   advancing: boolean;
   onRefetch: () => void;
 }) {
-  const [aiResult, setAiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
+
   const [survey, setSurvey] = useState<SurveyData>(() => loadSurvey(prospect.id));
   const [aksesJalanDraft, setAksesJalanDraft] = useState<number | null>(prospect.aksesJalan ?? null);
   const [catatanDraft, setCatatanDraft] = useState(prospect.catatan ?? "");
@@ -400,57 +399,6 @@ function ProspectDetailPanel({
       setCompetitorError(e instanceof Error ? e.message : "Gagal mengambil data dari OpenStreetMap");
     } finally {
       setCompetitorLoading(false);
-    }
-  }
-
-  async function runAiAnalysis() {
-    setAiLoading(true);
-    setAiError(null);
-    setAiResult(null);
-    try {
-      const competitors = competitorList.map(c => c.name);
-
-      const res = await fetch("/api/ai/analyze-land", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lokasi: prospect.lokasi,
-          kelurahan: prospect.kelurahan,
-          kecamatan: prospect.kecamatan,
-          kabupaten: prospect.kabupaten,
-          luas: prospect.luas,
-          hargaM2: prospect.hargaM2,
-          roi: prospect.roi,
-          aksesJalan: aksesJalanDraft ?? prospect.aksesJalan,
-          bentukLahan: survey.bentukLahan || undefined,
-          statusLegal: survey.statusLegal || undefined,
-          topografi: terrainData?.slopeAvgPct != null
-            ? (terrainData.slopeAvgPct < 2 ? "Datar" : terrainData.slopeAvgPct < 5 ? "Landai" : terrainData.slopeAvgPct < 15 ? "Berbukit" : "Curam")
-            : survey.topografi || undefined,
-          kondisiJalan: survey.kondisiJalan || undefined,
-          utilitas: survey.utilitas.length > 0 ? survey.utilitas.join(", ") : undefined,
-          peilBanjir: survey.peilBanjir || undefined,
-          namaPemilik: survey.namaPemilik || undefined,
-          catatanLapangan: catatanDraft || undefined,
-          currentStage: STAGES.find((s) => s.key === prospect.status)?.label,
-          checkedItems: checked.length,
-          competitors,
-          lat: prospect.lat ?? undefined,
-          lng: prospect.lng ?? undefined,
-          ...(terrainData ?? {}),
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? "Gagal menghubungi AI");
-      }
-      const data: AiResult = await res.json();
-      setAiResult(data);
-      saveAiResult(prospect.id, data);
-    } catch (e) {
-      setAiError(e instanceof Error ? e.message : "Terjadi kesalahan");
-    } finally {
-      setAiLoading(false);
     }
   }
 
@@ -848,144 +796,6 @@ function ProspectDetailPanel({
             className="w-full text-[11px] px-2.5 py-1.5 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 resize-none"
           />
         </div>
-      </div>
-
-      {/* ── Analisis AI ── */}
-      <div className="border-t px-4 py-3 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold">Analisis AI Kelayakan</span>
-          </div>
-          <button
-            onClick={runAiAnalysis}
-            disabled={aiLoading}
-            className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg bg-foreground hover:bg-foreground/90 text-background transition-colors disabled:opacity-60"
-          >
-            {aiLoading
-              ? <><Loader2 className="size-3 animate-spin" /> Menganalisis...</>
-              : aiResult
-              ? <><RefreshCw className="size-3" /> Analisis Ulang</>
-              : "Analisis dengan AI"
-            }
-          </button>
-        </div>
-
-        {aiLoading && (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-3 py-2.5">
-            <Loader2 className="size-3.5 animate-spin shrink-0 text-muted-foreground" />
-            <span>AI sedang menganalisis semua data: jobdesk, lahan, kontur, dan kompetitor yang sudah dicari...</span>
-          </div>
-        )}
-
-        {aiError && (
-          <div className="flex items-center gap-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            <AlertTriangle className="size-3.5 shrink-0" />
-            <span>{aiError}</span>
-          </div>
-        )}
-
-        {aiResult && !aiLoading && (() => {
-          const v = aiResult.verdict;
-          const isSangat = v === "Sangat Direkomendasikan";
-          const isDirek = v === "Direkomendasikan";
-          const isPerlu = v === "Perlu Review";
-          const isLayak = isSangat || isDirek;
-          const borderCls = isSangat ? "bg-emerald-50 border-emerald-200" : isDirek ? "bg-teal-50 border-teal-200" : isPerlu ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
-          const textCls = isSangat ? "text-emerald-700" : isDirek ? "text-teal-700" : isPerlu ? "text-amber-700" : "text-red-700";
-          const barCls = isSangat ? "bg-emerald-500" : isDirek ? "bg-teal-500" : isPerlu ? "bg-amber-400" : "bg-red-500";
-          return (
-            <div className="space-y-3">
-              <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
-                <div className={cn("flex flex-col items-center justify-center rounded-xl px-4 py-3 border text-center min-w-[130px]", borderCls)}>
-                  {isSangat ? <ThumbsUp className={cn("size-5 mb-1", textCls)} /> : isPerlu ? <AlertTriangle className={cn("size-5 mb-1", textCls)} /> : !isLayak ? <ThumbsDown className={cn("size-5 mb-1", textCls)} /> : <CheckCircle2 className={cn("size-5 mb-1", textCls)} />}
-                  <div className={cn("text-[10px] font-bold leading-tight text-center", textCls)}>{v}</div>
-                  <div className={cn("text-2xl font-black mt-1 leading-none", textCls)}>{aiResult.score}</div>
-                  <div className="text-[9px] text-muted-foreground">/ 100</div>
-                  <div className="w-full mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className={cn("h-full rounded-full transition-all", barCls)} style={{ width: `${aiResult.score}%` }} />
-                  </div>
-                  {aiResult.tingkatRisiko && (
-                    <div className={cn("mt-1.5 text-[9px] font-semibold px-2 py-0.5 rounded-full",
-                      aiResult.tingkatRisiko === "Rendah" ? "bg-emerald-100 text-emerald-700" :
-                      aiResult.tingkatRisiko === "Sedang" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
-                    )}>
-                      Risiko: {aiResult.tingkatRisiko}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  {/* Primary metrics */}
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {[
-                      { label: "Potensi Unit", value: aiResult.potensiUnit != null ? `${aiResult.potensiUnit} unit` : null, color: "text-blue-700" },
-                      { label: "Harga Maks", value: aiResult.hargaMaksAkuisisi != null ? `Rp${(aiResult.hargaMaksAkuisisi/1000).toFixed(0)}rb/m²` : null, color: "text-foreground" },
-                      { label: "ROI Estimasi", value: aiResult.roiEstimasi != null ? `${aiResult.roiEstimasi}%` : null, color: aiResult.roiEstimasi != null && aiResult.roiEstimasi >= 25 ? "text-emerald-700" : "text-amber-700" },
-                      { label: "Payback", value: aiResult.paybackBulan != null ? `${aiResult.paybackBulan} bln` : null, color: "text-slate-700" },
-                      { label: "IRR", value: aiResult.irr != null ? `${aiResult.irr}%` : null, color: "text-foreground" },
-                      { label: "Luas Fasum", value: aiResult.luasFasum != null ? `${aiResult.luasFasum?.toLocaleString("id-ID")} m²` : null, color: "text-cyan-700" },
-                      { label: "Luas Jalan", value: aiResult.luasJalan != null ? `${aiResult.luasJalan?.toLocaleString("id-ID")} m²` : null, color: "text-sky-700" },
-                      { label: "Efektivitas", value: aiResult.efektivitasKavling != null ? `${aiResult.efektivitasKavling}%` : null, color: "text-teal-700" },
-                    ].filter(m => m.value != null).slice(0, 8).map(({ label, value, color }) => (
-                      <div key={label} className="bg-muted/40 border rounded-md px-2 py-1.5 text-center">
-                        <div className="text-[9px] text-muted-foreground mb-0.5 leading-tight">{label}</div>
-                        <div className={cn("text-[10px] font-bold", color)}>{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Financial summary */}
-                  {(aiResult.potensiRevenue || aiResult.estimasiProfit) && (
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {[
-                        { label: "Potensi Revenue", value: aiResult.potensiRevenue, color: "text-emerald-700" },
-                        { label: "Estimasi HPP", value: aiResult.estimasiHPP, color: "text-orange-700" },
-                        { label: "Estimasi Profit", value: aiResult.estimasiProfit, color: "text-foreground" },
-                      ].filter(m => m.value != null).map(({ label, value, color }) => (
-                        <div key={label} className="bg-muted/40 border rounded-md px-2 py-1.5">
-                          <div className="text-[9px] text-muted-foreground mb-0.5">{label}</div>
-                          <div className={cn("text-[10px] font-bold", color)}>
-                            Rp{((value ?? 0) / 1_000_000_000).toFixed(1)} M
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">RINGKASAN</div>
-                  <p className="text-[11px] leading-relaxed">{aiResult.ringkasan}</p>
-                  <div className="text-[10px] font-semibold text-muted-foreground tracking-wider pt-0.5">REKOMENDASI</div>
-                  <p className="text-[11px] leading-relaxed">{aiResult.rekomendasi}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 border-t pt-3">
-                <div className="space-y-1.5">
-                  <div className="text-[10px] font-semibold text-emerald-700 tracking-wider">KELEBIHAN</div>
-                  {aiResult.kelebihan.map((k, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-[11px]">
-                      <CheckCircle2 className="size-3 text-emerald-500 shrink-0 mt-0.5" />
-                      <span>{k}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-1.5">
-                  <div className="text-[10px] font-semibold text-red-600 tracking-wider">RISIKO</div>
-                  {aiResult.risiko.map((r, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-[11px]">
-                      <AlertTriangle className="size-3 text-amber-500 shrink-0 mt-0.5" />
-                      <span>{r}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {!aiResult && !aiLoading && !aiError && (
-          <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-            Isi jobdesk checklist, bentuk lahan, status legal, dan cari data kompetitor di bawah. Setelah semua terisi, klik Analisis dengan AI — AI hanya generate 1x menggunakan semua data yang sudah ada.
-          </div>
-        )}
       </div>
 
       {/* ── Kompetitor ── */}
