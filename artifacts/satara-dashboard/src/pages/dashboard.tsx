@@ -5,7 +5,7 @@ import {
   useGetDashboardCashflow,
   useListLandProspects,
 } from "@workspace/api-client-react";
-import IndonesiaMap from "@/components/indonesia-map";
+import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
 import {
   AlertCircle,
   TrendingUp,
@@ -153,10 +153,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 bg-card text-card-foreground rounded-xl border overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border/50">
-            <h3 className="font-medium text-sm sm:text-base">Peta Proyek Nasional</h3>
+            <h3 className="font-medium text-sm sm:text-base">Peta Sulawesi Selatan</h3>
           </div>
-          <div className="p-4" style={{ height: 420 }}>
-            <IndonesiaMap />
+          <div className="px-3 pb-3 pt-2" style={{ height: 420 }}>
+            <SulselAcquisitionMap readOnly />
           </div>
         </div>
 

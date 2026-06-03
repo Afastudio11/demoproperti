@@ -854,7 +854,7 @@ export interface PolygonReadyData {
   geoStr?: string;
 }
 
-export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void } = {}) {
+export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean } = {}) {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
@@ -968,50 +968,52 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
 
   return (
     <div className="flex flex-col h-full gap-3">
-      {/* Baris navigasi lokasi */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <input
-          type="text"
-          value={navKab}
-          onChange={(e) => setNavKab(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
-          placeholder="Kota / Kabupaten"
-          className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-36"
-        />
-        <input
-          type="text"
-          value={navKec}
-          onChange={(e) => setNavKec(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
-          placeholder="Kecamatan"
-          className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-32"
-        />
-        <input
-          type="text"
-          value={navKel}
-          onChange={(e) => setNavKel(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
-          placeholder="Desa / Kelurahan"
-          className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-36"
-        />
-        <button
-          onClick={handleNavSearch}
-          disabled={navLoading || (!navKab && !navKec && !navKel)}
-          className="h-7 flex items-center gap-1.5 text-xs font-medium px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {navLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
-          Pergi
-        </button>
-        {navError && <span className="text-xs text-red-500">Lokasi tidak ditemukan</span>}
-        <div className="flex-1" />
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <MapPin className="size-3.5" />
-            <span>{placedCount} dipetakan</span>
+      {/* Baris navigasi lokasi — hanya di mode edit */}
+      {!readOnly && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            value={navKab}
+            onChange={(e) => setNavKab(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
+            placeholder="Kota / Kabupaten"
+            className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-36"
+          />
+          <input
+            type="text"
+            value={navKec}
+            onChange={(e) => setNavKec(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
+            placeholder="Kecamatan"
+            className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-32"
+          />
+          <input
+            type="text"
+            value={navKel}
+            onChange={(e) => setNavKel(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
+            placeholder="Desa / Kelurahan"
+            className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-36"
+          />
+          <button
+            onClick={handleNavSearch}
+            disabled={navLoading || (!navKab && !navKec && !navKel)}
+            className="h-7 flex items-center gap-1.5 text-xs font-medium px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {navLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
+            Pergi
+          </button>
+          {navError && <span className="text-xs text-red-500">Lokasi tidak ditemukan</span>}
+          <div className="flex-1" />
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <MapPin className="size-3.5" />
+              <span>{placedCount} dipetakan</span>
+            </div>
+            {unplacedCount > 0 && <span className="text-amber-600 font-medium">{unplacedCount} belum dipetakan</span>}
           </div>
-          {unplacedCount > 0 && <span className="text-amber-600 font-medium">{unplacedCount} belum dipetakan</span>}
         </div>
-      </div>
+      )}
 
       {/* Baris layer + aksi */}
       <div className="flex items-center justify-end flex-wrap gap-2">
@@ -1070,36 +1072,38 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
             </div>
           )}
 
-          {isActive ? (
-            <button onClick={cancelAll} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-card text-muted-foreground hover:text-foreground">
-              <X className="size-3.5" /> Batal
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => { setAddMode(true); setDrawMode(false); }}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-card hover:bg-muted"
-              >
-                <MapPin className="size-3.5" /> Tandai Titik
+          {!readOnly && (
+            isActive ? (
+              <button onClick={cancelAll} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-card text-muted-foreground hover:text-foreground">
+                <X className="size-3.5" /> Batal
               </button>
-              <button
-                onClick={() => { setDrawMode(true); setAddMode(false); setDraft(null); }}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:bg-foreground/90 border border-foreground"
-              >
-                <PenLine className="size-3.5" /> Gambar Lahan
-              </button>
-            </>
+            ) : (
+              <>
+                <button
+                  onClick={() => { setAddMode(true); setDrawMode(false); }}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border bg-card hover:bg-muted"
+                >
+                  <MapPin className="size-3.5" /> Tandai Titik
+                </button>
+                <button
+                  onClick={() => { setDrawMode(true); setAddMode(false); setDraft(null); }}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:bg-foreground/90 border border-foreground"
+                >
+                  <PenLine className="size-3.5" /> Gambar Lahan
+                </button>
+              </>
+            )
           )}
         </div>
       </div>
 
-      {drawMode && (
+      {!readOnly && drawMode && (
         <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 text-xs text-foreground flex items-center gap-2">
           <PenLine className="size-3.5 shrink-0" />
           <span>Klik peta untuk menggambar titik sudut batas lahan. <strong>Double-klik</strong> di titik terakhir untuk menutup dan menghitung luas otomatis.</span>
         </div>
       )}
-      {addMode && (
+      {!readOnly && addMode && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700 flex items-center gap-2">
           <MapPin className="size-3.5 shrink-0" />
           <span>Klik di peta untuk menandai lokasi lahan dengan pentul. Alamat desa/kecamatan terisi otomatis.</span>

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   KABUPATEN_DATA, getGradeColor, getGradeLabel, getGradeBg,
   KAB_WEIGHTS,
@@ -268,18 +268,41 @@ const SORTED_KAB = [...KABUPATEN_DATA].sort((a, b) => b.score - a.score);
 
 // ─── Roadmap AI Panel ─────────────────────────────────────────────────────
 
+interface RoadmapItem {
+  tahun: number; kabupaten: string; kecamatan_prioritas: string[];
+  alasan: string; target_unit: number; estimasi_investasi: string;
+  estimasi_revenue?: string; risiko_utama: string; mitigasi_risiko?: string; strategi_masuk?: string;
+}
+interface KabPrioritas {
+  rank: number; name: string; skor?: number; alasan: string;
+  kecamatan_terbaik?: string; harga_tanah_range?: string;
+  estimasi_unit_potensi?: number; timeline_masuk?: string;
+  alasan_singkat?: string;
+}
+interface MilestoneItem { periode: string; target: string; }
 interface RoadmapResult {
   ringkasan_strategi: string;
-  roadmap: { tahun: number; kabupaten: string; kecamatan_prioritas: string[]; alasan: string; target_unit: number; estimasi_investasi: string; risiko_utama: string }[];
-  kabupaten_prioritas: { rank: number; name: string; alasan_singkat: string }[];
-  rekomendasi_segera: string;
-  peringatan: string;
+  analisis_pasar?: string;
+  analisis_kompetitor?: string;
+  roadmap: RoadmapItem[];
+  kabupaten_prioritas: KabPrioritas[];
+  rekomendasi_segera: string | string[];
+  peringatan: string | string[];
+  strategi_finansial?: string;
+  milestone_kunci?: MilestoneItem[];
 }
+
+const SORTED_KAB_WITH_KEC = SORTED_KAB.map(k => ({
+  name: k.name, score: k.score, grade: getGradeLabel(k.grade),
+  hargaTanahRange: k.hargaTanahRange, kompetitorCount: k.kompetitorCount, potensiPasar: k.potensiPasar,
+  kecamatanTeratas: k.kecamatan?.slice(0, 3).map((kec: KecamatanScore) => kec.name) ?? [],
+}));
 
 function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: string | null; luas: number; hargaM2: number; roi: number; status: string }[] }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RoadmapResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const generated = useRef(false);
 
   async function generate() {
     setLoading(true);
@@ -289,10 +312,7 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          kabupatenRanking: SORTED_KAB.map(k => ({
-            name: k.name, score: k.score, grade: getGradeLabel(k.grade),
-            hargaTanahRange: k.hargaTanahRange, kompetitorCount: k.kompetitorCount, potensiPasar: k.potensiPasar,
-          })),
+          kabupatenRanking: SORTED_KAB_WITH_KEC,
           prospects: (prospects ?? []).map(p => ({
             lokasi: p.lokasi, kabupaten: p.kabupaten, luas: p.luas, hargaM2: p.hargaM2, roi: p.roi, status: p.status,
           })),
@@ -307,15 +327,22 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
     }
   }
 
+  useEffect(() => {
+    if (!generated.current) { generated.current = true; generate(); }
+  }, []);
+
   const YEAR_COLORS = ["bg-emerald-600", "bg-blue-600", "bg-slate-600", "bg-amber-600", "bg-orange-600"];
+  const toArr = (v: string | string[] | undefined) =>
+    !v ? [] : Array.isArray(v) ? v : [v];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-sm">Expansion Roadmap AI</h3>
+          <h3 className="font-semibold text-sm">Analisis Ekspansi Komprehensif — SLIS AI</h3>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            AI menentukan kabupaten, kecamatan, dan lahan prioritas ekspansi 5 tahun
+            Roadmap 5 tahun · Prioritas kabupaten · Strategi finansial · Milestone kunci
           </p>
         </div>
         <button
@@ -325,7 +352,7 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
         >
           {loading ? <><Loader2 className="size-3.5 animate-spin" /> Generating...</>
             : result ? <><RefreshCw className="size-3.5" /> Regenerate</>
-            : <><Brain className="size-3.5" /> Generate Roadmap</>}
+            : <><Brain className="size-3.5" /> Generate</>}
         </button>
       </div>
 
@@ -333,96 +360,176 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
         <div className="flex items-center gap-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
           <AlertTriangle className="size-3.5 shrink-0" />
           {error}
+          <button onClick={generate} className="ml-auto underline font-medium">Coba lagi</button>
         </div>
       )}
 
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-12 text-[11px] text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-muted-foreground" />
-          AI sedang menganalisis data 24 kabupaten + pipeline prospek...
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-[11px] text-muted-foreground">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          <div className="text-center">
+            <div className="font-medium">SLIS AI sedang menganalisis...</div>
+            <div className="mt-1 text-muted-foreground/70">Scoring 24 kabupaten · Pipeline prospek aktif · Kondisi pasar Sulsel</div>
+          </div>
         </div>
       )}
 
       {result && !loading && (
-        <div className="space-y-4">
-          {/* Ringkasan strategi */}
-          <div className="bg-muted/30 border border-border rounded-lg p-3">
-            <div className="text-[10px] font-semibold text-foreground tracking-wider mb-1.5">STRATEGI EKSPANSI</div>
-            <p className="text-[11px] leading-relaxed">{result.ringkasan_strategi}</p>
+        <div className="space-y-5">
+
+          {/* Ringkasan + Pasar + Kompetitor — 3 card sejajar */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-muted/30 border border-border rounded-lg p-3">
+              <div className="text-[10px] font-semibold text-foreground tracking-wider mb-1.5">STRATEGI EKSPANSI</div>
+              <p className="text-[11px] leading-relaxed">{result.ringkasan_strategi}</p>
+            </div>
+            {result.analisis_pasar && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="text-[10px] font-semibold text-blue-800 tracking-wider mb-1.5">ANALISIS PASAR</div>
+                <p className="text-[11px] leading-relaxed text-blue-900">{result.analisis_pasar}</p>
+              </div>
+            )}
+            {result.analisis_kompetitor && (
+              <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
+                <div className="text-[10px] font-semibold text-violet-800 tracking-wider mb-1.5">POSISI KOMPETITOR</div>
+                <p className="text-[11px] leading-relaxed text-violet-900">{result.analisis_kompetitor}</p>
+              </div>
+            )}
           </div>
 
-          {/* Roadmap timeline */}
+          {/* Roadmap 5 tahun */}
           <div>
-            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">ROADMAP 5 TAHUN</div>
+            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">ROADMAP EKSPANSI 5 TAHUN (2026–2030)</div>
             <div className="space-y-2">
               {result.roadmap.map((item, i) => (
                 <div key={item.tahun} className="flex gap-3 items-start">
-                  <div className={cn("text-[10px] font-black text-white px-2 py-1 rounded-md shrink-0 mt-0.5", YEAR_COLORS[i % 5])}>
+                  <div className={cn("text-[10px] font-black text-white px-2 py-1.5 rounded-lg shrink-0 mt-0.5 min-w-[42px] text-center", YEAR_COLORS[i % 5])}>
                     {item.tahun}
                   </div>
                   <div className="flex-1 bg-card border rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1.5 gap-2">
                       <div className="font-semibold text-[12px]">{item.kabupaten}</div>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{item.target_unit} unit</span>
+                      <div className="flex items-center gap-3 text-[10px] shrink-0">
+                        <span className="text-muted-foreground">{item.target_unit} unit</span>
                         <span className="font-semibold text-foreground">{item.estimasi_investasi}</span>
+                        {item.estimasi_revenue && (
+                          <span className="text-emerald-700 font-semibold">{item.estimasi_revenue}</span>
+                        )}
                       </div>
                     </div>
                     {item.kecamatan_prioritas?.length > 0 && (
-                      <div className="flex gap-1 mb-1.5">
+                      <div className="flex flex-wrap gap-1 mb-1.5">
                         {item.kecamatan_prioritas.map(k => (
                           <span key={k} className="text-[9px] px-1.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded">{k}</span>
                         ))}
                       </div>
                     )}
                     <p className="text-[10px] text-muted-foreground leading-relaxed">{item.alasan}</p>
-                    {item.risiko_utama && (
-                      <div className="flex items-center gap-1 mt-1.5 text-[10px] text-amber-700">
-                        <AlertTriangle className="size-2.5 shrink-0" />
-                        {item.risiko_utama}
-                      </div>
+                    {item.strategi_masuk && (
+                      <p className="text-[10px] text-foreground/70 mt-1 italic">{item.strategi_masuk}</p>
                     )}
+                    <div className="flex gap-3 mt-1.5">
+                      {item.risiko_utama && (
+                        <div className="flex items-center gap-1 text-[10px] text-amber-700">
+                          <AlertTriangle className="size-2.5 shrink-0" />{item.risiko_utama}
+                        </div>
+                      )}
+                      {item.mitigasi_risiko && (
+                        <div className="flex items-center gap-1 text-[10px] text-emerald-700">
+                          <Target className="size-2.5 shrink-0" />{item.mitigasi_risiko}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Kabupaten prioritas */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Kabupaten prioritas + Rekomendasi + Peringatan */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">PRIORITAS KABUPATEN</div>
-              <div className="space-y-1">
+              <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">PRIORITAS KABUPATEN (TOP 5)</div>
+              <div className="space-y-2">
                 {result.kabupaten_prioritas.map(k => (
-                  <div key={k.rank} className="flex items-start gap-2 text-[11px]">
-                    <span className="text-[10px] text-muted-foreground w-5 shrink-0">#{k.rank}</span>
-                    <div>
-                      <span className="font-medium">{k.name}</span>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{k.alasan_singkat}</p>
+                  <div key={k.rank} className="bg-card border rounded-lg p-2.5">
+                    <div className="flex items-start gap-2">
+                      <span className="text-[10px] text-muted-foreground font-bold shrink-0 w-5">#{k.rank}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-[11px]">{k.name}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {k.skor && <span className="text-[10px] font-black">{k.skor}</span>}
+                            {k.timeline_masuk && <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded">{k.timeline_masuk}</span>}
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">{k.alasan ?? k.alasan_singkat}</p>
+                        {(k.kecamatan_terbaik || k.harga_tanah_range || k.estimasi_unit_potensi) && (
+                          <div className="flex gap-2 mt-1 text-[9px] text-muted-foreground/70">
+                            {k.kecamatan_terbaik && <span>Kec: {k.kecamatan_terbaik}</span>}
+                            {k.harga_tanah_range && <span>· {k.harga_tanah_range}</span>}
+                            {k.estimasi_unit_potensi && <span>· ~{k.estimasi_unit_potensi} unit</span>}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="space-y-2">
+
+            <div className="space-y-3">
+              {/* Rekomendasi segera */}
               <div>
-                <div className="text-[10px] font-semibold text-emerald-700 tracking-wider mb-1">REKOMENDASI SEGERA</div>
-                <p className="text-[11px] leading-relaxed">{result.rekomendasi_segera}</p>
+                <div className="text-[10px] font-semibold text-emerald-700 tracking-wider mb-1.5">REKOMENDASI SEGERA</div>
+                <div className="space-y-1.5">
+                  {toArr(result.rekomendasi_segera).map((r, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[11px]">
+                      <span className="size-4 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                      <span className="leading-relaxed">{r}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Peringatan */}
               <div>
-                <div className="text-[10px] font-semibold text-amber-700 tracking-wider mb-1">PERINGATAN</div>
-                <p className="text-[11px] leading-relaxed text-amber-700">{result.peringatan}</p>
+                <div className="text-[10px] font-semibold text-amber-700 tracking-wider mb-1.5">PERINGATAN RISIKO</div>
+                <div className="space-y-1.5">
+                  {toArr(result.peringatan).map((p, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[11px] text-amber-800">
+                      <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-amber-500" />
+                      <span className="leading-relaxed">{p}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Strategi finansial */}
+              {result.strategi_finansial && (
+                <div className="bg-muted/40 border rounded-lg p-3">
+                  <div className="text-[10px] font-semibold text-foreground tracking-wider mb-1">STRATEGI FINANSIAL</div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">{result.strategi_finansial}</p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
 
-      {!result && !loading && !error && (
-        <div className="text-center py-12 text-[11px] text-muted-foreground">
-          <Target className="size-8 mx-auto mb-3 text-muted-foreground/30" />
-          <p>Klik <strong>Generate Roadmap</strong> untuk mendapatkan rekomendasi ekspansi berbasis AI</p>
-          <p className="mt-1">AI akan menganalisis scoring 24 kabupaten + pipeline prospek aktif</p>
+          {/* Milestone kunci */}
+          {result.milestone_kunci && result.milestone_kunci.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">MILESTONE KUNCI</div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {result.milestone_kunci.map((m, i) => (
+                  <div key={i} className="bg-card border rounded-lg p-2.5">
+                    <div className="text-[9px] font-bold text-muted-foreground mb-1">{m.periode}</div>
+                    <p className="text-[11px] font-medium leading-tight">{m.target}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       )}
     </div>
