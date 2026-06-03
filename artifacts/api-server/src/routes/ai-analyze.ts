@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import Groq from "groq-sdk";
+import OpenAI from "openai";
 
 const router: IRouter = Router();
 
@@ -138,13 +138,10 @@ router.post("/ai/analyze-land", async (req, res) => {
     lat, lng,
   } = req.body;
 
-  const apiKey = process.env["GROQ_API_KEY"];
-  if (!apiKey) {
-    res.status(500).json({ error: "GROQ_API_KEY tidak dikonfigurasi" });
-    return;
-  }
-
-  const groq = new Groq({ apiKey });
+  const openai = new OpenAI({
+    apiKey: process.env["OPENAI_API_KEY"],
+    baseURL: process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1",
+  });
 
   // Fetch POI and terrain in parallel if coordinates available
   const hasCoords = typeof lat === "number" && typeof lng === "number";
@@ -275,8 +272,8 @@ Berikan output JSON PERSIS (tanpa markdown, tanpa teks di luar JSON):
 }`;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5-mini",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.25,
       max_tokens: 1200,
