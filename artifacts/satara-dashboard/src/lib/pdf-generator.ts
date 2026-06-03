@@ -58,6 +58,7 @@ export interface DocPayload {
   prospect: LandProspect;
   checkedItems: string[];
   aiResult?: AiResult | null;
+  fullAiResult?: Record<string, unknown> | null;
   terrain?: TerrainData | null;
   competitors?: CompetitorEntry[];
   bentukLahan?: string;
@@ -452,6 +453,186 @@ export function generateSiteAnalysis(payload: DocPayload) {
     tableLineColor: LGRAY,
     tableLineWidth: 0.1,
   });
+
+  // ── 05  Analisis AI — Kelayakan Investasi ────────────────────────────────
+  const ar = payload.aiResult;
+  const far = payload.fullAiResult;
+  const calcFin = far?.calc ? ((far.calc as Record<string, unknown>).financials as Record<string, number> | undefined) : undefined;
+  const aiNarr = far?.ai as Record<string, unknown> | undefined;
+  const aiRisikos = aiNarr?.analisisRisiko as Array<{ risiko: string; level: string; deskripsi: string; mitigasi: string }> | undefined;
+  const farDecision = far?.decision as string | undefined;
+
+  // Helper: ensure enough space or add new page
+  function ensureSpace(neededMm: number) {
+    if (y + neededMm > doc.internal.pageSize.getHeight() - 16) {
+      doc.addPage();
+      drawHeader(doc, "SITE ANALYSIS", `Analisis Lokasi — ${prospect.lokasi}`);
+      y = 42;
+    }
+  }
+
+  if (ar) {
+    ensureSpace(50);
+    y = sectionTitle(doc, "05  Analisis AI — Kelayakan Investasi", y);
+
+    // Verdict box
+    const verdictColor = ar.score >= 75 ? GREEN : ar.score >= 55 ? AMBER : RED;
+    doc.setFillColor(...BGLIGHT);
+    doc.setDrawColor(...verdictColor);
+    doc.roundedRect(14, y, W - 28, 22, 2, 2, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(...verdictColor);
+    doc.text(`${ar.score}`, 28, y + 15);
+    doc.setFontSize(7);
+    doc.setTextColor(...GRAY);
+    doc.text("/100", 42, y + 15);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...verdictColor);
+    doc.text(ar.verdict, 56, y + 9);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    doc.text(`Tingkat Risiko: ${ar.tingkatRisiko ?? "—"}`, 56, y + 16);
+    if (farDecision) {
+      const decLabel = farDecision.replace(/_/g, " ");
+      doc.setFillColor(...verdictColor);
+      doc.roundedRect(W - 58, y + 5, 44, 12, 2, 2, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...WHITE);
+      doc.text(decLabel, W - 36, y + 13, { align: "center" });
+    }
+    y += 28;
+
+    // Financial metrics table
+    ensureSpace(30);
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 14, right: 14 },
+      head: [["Metrik Finansial", "Nilai", "Metrik Finansial", "Nilai"]],
+      body: [
+        ["Estimasi HPP",     fmtRp(calcFin?.hpp ?? ar.estimasiHPP),
+         "Potensi Revenue",  fmtRp(calcFin?.revenue ?? ar.potensiRevenue)],
+        ["Estimasi Profit",  fmtRp(calcFin?.profit ?? ar.estimasiProfit),
+         "ROI Estimasi",     calcFin?.roi != null ? `${(calcFin.roi as number).toFixed(1)}%` : ar.roiEstimasi ? `${ar.roiEstimasi}%` : "—"],
+        ["Margin",           calcFin?.margin != null ? `${(calcFin.margin as number).toFixed(1)}%` : "—",
+         "Payback Period",   calcFin?.paybackBulan != null ? `${calcFin.paybackBulan} bulan` : ar.paybackBulan ? `${ar.paybackBulan} bulan` : "—"],
+        ["Potensi Unit",     ar.potensiUnit ? `${ar.potensiUnit} unit` : "—",
+         "Harga Maks Akuisisi", fmtRp(ar.hargaMaksAkuisisi)],
+      ],
+      styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
+      headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold", fontSize: 8 },
+      alternateRowStyles: { fillColor: BGLIGHT },
+      columnStyles: { 0: { textColor: GRAY }, 2: { textColor: GRAY } },
+      tableLineColor: LGRAY,
+      tableLineWidth: 0.1,
+    });
+    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+
+    // Ringkasan eksekutif
+    const ringkasan = (aiNarr?.ringkasanEksekutif as string | undefined) ?? ar.ringkasan;
+    if (ringkasan) {
+      const lines = doc.splitTextToSize(ringkasan, W - 28);
+      ensureSpace(12 + lines.length * 4.2);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...NAVY);
+      doc.text("RINGKASAN EKSEKUTIF", 14, y);
+      y += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...BLACK);
+      // Split into chunks to handle page breaks mid-text
+      const H = doc.internal.pageSize.getHeight();
+      let lineIdx = 0;
+      while (lineIdx < lines.length) {
+        const remaining = Math.floor((H - 16 - y) / 4.2);
+        const chunk = lines.slice(lineIdx, lineIdx + Math.max(1, remaining));
+        doc.text(chunk, 14, y);
+        y += chunk.length * 4.2;
+        lineIdx += chunk.length;
+        if (lineIdx < lines.length) {
+          doc.addPage();
+          drawHeader(doc, "SITE ANALYSIS", `Analisis Lokasi — ${prospect.lokasi}`);
+          y = 42;
+        }
+      }
+      y += 6;
+    }
+
+    // Risiko detail table (dari fullAiResult) atau fallback ke simple list
+    if (aiRisikos && aiRisikos.length > 0) {
+      ensureSpace(30);
+      y = sectionTitle(doc, "06  Analisis Risiko Detail", y);
+      autoTable(doc, {
+        startY: y,
+        margin: { left: 14, right: 14 },
+        head: [["Risiko", "Level", "Deskripsi", "Mitigasi"]],
+        body: aiRisikos.map(r => [r.risiko ?? "", r.level ?? "", r.deskripsi ?? "", r.mitigasi ?? ""]),
+        styles: { fontSize: 7.5, cellPadding: 2.5, textColor: BLACK, overflow: "linebreak" },
+        headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: BGLIGHT },
+        columnStyles: {
+          0: { cellWidth: 32 },
+          1: { halign: "center", cellWidth: 20, fontStyle: "bold" },
+          2: { cellWidth: 50 },
+        },
+        didParseCell: (data) => {
+          if (data.column.index === 1 && data.section === "body") {
+            const lv = (data.cell.text[0] ?? "").toLowerCase();
+            data.cell.styles.textColor = lv.includes("tinggi") ? RED : lv.includes("sedang") ? AMBER : GREEN;
+          }
+        },
+        tableLineColor: LGRAY,
+        tableLineWidth: 0.1,
+      });
+      y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+    } else if (ar.kelebihan.length > 0 || ar.risiko.length > 0) {
+      ensureSpace(20);
+      y = sectionTitle(doc, "06  Kelebihan & Risiko", y);
+      autoTable(doc, {
+        startY: y,
+        margin: { left: 14, right: 14 },
+        head: [["Kelebihan / Potensi", "Risiko / Catatan"]],
+        body: Array.from({ length: Math.max(ar.kelebihan.length, ar.risiko.length) }, (_, i) => [
+          ar.kelebihan[i] ?? "", ar.risiko[i] ?? "",
+        ]),
+        styles: { fontSize: 7.5, cellPadding: 2.5, textColor: BLACK },
+        headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+        columnStyles: { 0: { textColor: [22, 130, 80] as [number,number,number] }, 1: { textColor: RED } },
+        tableLineColor: LGRAY,
+        tableLineWidth: 0.1,
+      });
+      y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+    }
+
+    // Rekomendasi strategis
+    const rek = (aiNarr?.rekomendasiStrategis as string | undefined) ?? ar.rekomendasi;
+    if (rek) {
+      const rekLines = doc.splitTextToSize(rek, W - 36);
+      ensureSpace(14 + rekLines.length * 4.2);
+      const rekSectionNum = (aiRisikos && aiRisikos.length > 0) || ar.kelebihan.length > 0 ? "07" : "06";
+      y = sectionTitle(doc, `${rekSectionNum}  Rekomendasi Strategis`, y);
+      doc.setFillColor(...BGLIGHT);
+      doc.setDrawColor(...GOLD);
+      doc.roundedRect(14, y, W - 28, 4 + rekLines.length * 4.5 + 4, 2, 2, "FD");
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(...BLACK);
+      doc.text(rekLines, 18, y + 6);
+      y += rekLines.length * 4.5 + 12;
+    }
+  } else {
+    ensureSpace(20);
+    y = sectionTitle(doc, "05  Analisis AI — Kelayakan Investasi", y);
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...GRAY);
+    doc.text("Analisis AI belum dijalankan. Klik 'Analisis Ulang' dari panel akuisisi untuk menghasilkan penilaian kelayakan investasi.", 14, y + 6);
+    y += 16;
+  }
 
   const totalPages = doc.internal.pages.length - 1;
   for (let i = 1; i <= totalPages; i++) {

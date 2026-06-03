@@ -488,6 +488,7 @@ function ProspectDetailPanel({
       prospect: { ...prospect, aksesJalan: aksesJalanDraft ?? prospect.aksesJalan, catatan: catatanDraft },
       checkedItems: checked,
       aiResult: aiResult ?? null,
+      fullAiResult: fullAiResult ?? null,
       terrain: terrainData ?? null,
       competitors: competitorList,
       bentukLahan: survey.bentukLahan,
