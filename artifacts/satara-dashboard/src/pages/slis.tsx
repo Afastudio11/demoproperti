@@ -597,7 +597,6 @@ export default function SLIS() {
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight flex items-center gap-2">
             <span className="inline-flex items-center justify-center size-7 rounded-md bg-foreground text-background text-xs font-black">S</span>
-            SLIS
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Kabupaten · Kecamatan · Desa Scoring Engine — Sulawesi Selatan

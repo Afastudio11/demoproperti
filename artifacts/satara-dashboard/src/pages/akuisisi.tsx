@@ -1441,9 +1441,6 @@ export default function Akuisisi() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Akuisisi Lahan</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Survey · Analisis Kompetitor · Negosiasi · Legal Checking · PKS/MoU
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg border bg-muted p-0.5 text-xs font-medium">
