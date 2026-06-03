@@ -123,39 +123,63 @@ function normGeoKab(s: string): string {
 // Pre-compute count maps (module-level, runs once)
 const _kabCountMap = new Map<string, number>();
 const _kecCountMap = new Map<string, number>(); // key: "KAB/KEC"
+const _desaCountMap = new Map<string, number>(); // key: "KAB/KEC/DESA"
 
 for (const p of DAFTAR_PERUMAHAN_SULSEL) {
   const kab = normGeoKab(p.kabupaten);
   _kabCountMap.set(kab, (_kabCountMap.get(kab) ?? 0) + 1);
-  const kecKey = kab + "/" + p.kecamatan.toUpperCase().trim();
+  const kec = p.kecamatan.toUpperCase().trim();
+  const kecKey = kab + "/" + kec;
   _kecCountMap.set(kecKey, (_kecCountMap.get(kecKey) ?? 0) + 1);
+  if (p.kelurahan) {
+    const desaKey = kecKey + "/" + p.kelurahan.toUpperCase().trim();
+    _desaCountMap.set(desaKey, (_desaCountMap.get(desaKey) ?? 0) + 1);
+  }
 }
 
-function competitorCount(name: string, level: number, parentKab?: string | null): number {
+function competitorCount(
+  name: string,
+  level: number,
+  parentKab?: string | null,
+  parentKec?: string | null,
+): number {
   const normName = name.toUpperCase().trim();
   if (level === 0) {
     return _kabCountMap.get(normGeoKab(normName)) ?? 0;
   }
+  const kab = normGeoKab(parentKab ?? "");
   if (level === 1) {
-    const kab = normGeoKab(parentKab ?? "");
     return _kecCountMap.get(kab + "/" + normName) ?? 0;
   }
-  // level 2 (desa): use kecamatan data for parent
-  const kab = normGeoKab(parentKab ?? "");
-  return _kecCountMap.get(kab + "/" + normName) ?? 0;
+  // level 2 (desa/kelurahan): lookup by desa name under parent kab+kec
+  if (parentKec) {
+    const kec = parentKec.toUpperCase().trim();
+    const desaKey = kab + "/" + kec + "/" + normName;
+    const direct = _desaCountMap.get(desaKey);
+    if (direct !== undefined) return direct;
+  }
+  // fallback: return 0 (no data at desa level)
+  return 0;
 }
 
 // Threshold → color (green = sedikit kompetitor = potensi terbaik)
-const POTENTIAL_THRESHOLDS_KAB  = [10, 30, 80, 150, 300];
-const POTENTIAL_THRESHOLDS_KEC  = [3,  8,  20,  40,  80];
+const POTENTIAL_THRESHOLDS_KAB  = [10,  30,  80, 150, 300];
+const POTENTIAL_THRESHOLDS_KEC  = [3,    8,  20,  40,  80];
+const POTENTIAL_THRESHOLDS_DESA = [1,    3,   8,  16,  30];
 const POTENTIAL_COLORS = ["#15803d","#4ade80","#facc15","#f97316","#ef4444","#991b1b"];
 const POTENTIAL_LABELS = [
   "Sangat Baik", "Baik", "Sedang", "Kompetitif", "Jenuh", "Sangat Jenuh",
 ];
 
+function _thresholds(level: number) {
+  if (level === 0) return POTENTIAL_THRESHOLDS_KAB;
+  if (level === 1) return POTENTIAL_THRESHOLDS_KEC;
+  return POTENTIAL_THRESHOLDS_DESA;
+}
+
 function potentialColor(count: number, level: number): string {
   if (count === 0) return "#6b7280"; // abu — tidak ada data
-  const thresholds = level === 0 ? POTENTIAL_THRESHOLDS_KAB : POTENTIAL_THRESHOLDS_KEC;
+  const thresholds = _thresholds(level);
   for (let i = 0; i < thresholds.length; i++) {
     if (count <= thresholds[i]) return POTENTIAL_COLORS[i];
   }
@@ -164,7 +188,7 @@ function potentialColor(count: number, level: number): string {
 
 function potentialLabel(count: number, level: number): string {
   if (count === 0) return "Belum ada data";
-  const thresholds = level === 0 ? POTENTIAL_THRESHOLDS_KAB : POTENTIAL_THRESHOLDS_KEC;
+  const thresholds = _thresholds(level);
   for (let i = 0; i < thresholds.length; i++) {
     if (count <= thresholds[i]) return POTENTIAL_LABELS[i];
   }
@@ -262,14 +286,19 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange }: {
       // Pre-compute competitor counts per group for this drill level
       const countByKey: Record<string, number> = {};
       for (const key of Object.keys(groups)) {
-        countByKey[key] = competitorCount(key, drillSnapshot.level, drillSnapshot.kab);
+        countByKey[key] = competitorCount(
+          key,
+          drillSnapshot.level,
+          drillSnapshot.kab,
+          drillSnapshot.kec, // needed for desa-level lookup
+        );
       }
 
       const geo = L.geoJSON({ type: "FeatureCollection", features } as GeoJSON.FeatureCollection, {
         style(feature) {
           const key = (feature?.properties as any)?.[gk] ?? "";
           const count = countByKey[key] ?? 0;
-          const color = drillSnapshot.level === 2 ? potentialColor(count, 1) : potentialColor(count, drillSnapshot.level);
+          const color = potentialColor(count, drillSnapshot.level);
           return { color: "#fff", weight: wBase, opacity: 0.6, fillColor: color, fillOpacity: foBase };
         },
         onEachFeature(feature, lyr) {
@@ -333,7 +362,7 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange }: {
         if (!c) continue;
         const cnt = countByKey[name] ?? 0;
         const lvlClass = drillSnapshot.level === 0 ? "kab" : drillSnapshot.level === 1 ? "kec" : "desa";
-        const cntHtml = drillSnapshot.level <= 1 && cnt > 0
+        const cntHtml = cnt > 0
           ? `<span class="adl-count">${cnt}</span>`
           : "";
         const icon = L.divIcon({
@@ -1103,8 +1132,8 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
                 </div>
               ))}
               <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-[9px] text-gray-400">
-                {adminDrill.level === 0 ? "Warna per Kabupaten" : adminDrill.level === 1 ? "Warna per Kecamatan" : "Warna per Kecamatan"}
-                {" "}&bull; {_kabCountMap.size > 0 ? `${Array.from(_kabCountMap.values()).reduce((a, b) => a + b, 0)} perumahan` : ""}
+                {adminDrill.level === 0 ? "Per Kabupaten (≤10 / ≤30 / ≤80 / …)" : adminDrill.level === 1 ? "Per Kecamatan (≤3 / ≤8 / ≤20 / …)" : "Per Kelurahan/Desa (≤1 / ≤3 / ≤8 / …)"}
+                {" "}&bull; {_kabCountMap.size > 0 ? `${Array.from(_kabCountMap.values()).reduce((a, b) => a + b, 0).toLocaleString("id-ID")} perumahan` : ""}
               </div>
             </div>
           )}
