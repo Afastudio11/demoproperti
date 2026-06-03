@@ -724,6 +724,111 @@ function ProspectDetailPanel({
 
       </div>
 
+      {/* ── Analisis AI (SLIS) ── */}
+      <div className="border-t px-4 py-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <BrainCircuit className="size-3.5 text-foreground/70" />
+            <span className="text-[11px] font-semibold">Analisis AI (SLIS)</span>
+            {aiResult && <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted border text-muted-foreground">dari Penilaian Lahan</span>}
+          </div>
+          {allChecklistsDone && (
+            <button
+              onClick={runAiAnalysis}
+              disabled={aiLoading}
+              className={cn(
+                "flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-lg border transition-colors",
+                aiLoading ? "opacity-60 cursor-not-allowed bg-muted border-border"
+                : aiResult ? "bg-background border-border hover:bg-muted"
+                : "bg-foreground text-background border-foreground hover:bg-foreground/90"
+              )}
+            >
+              {aiLoading ? <Loader2 className="size-3.5 animate-spin" /> : <BrainCircuit className="size-3.5" />}
+              {aiLoading ? "Menganalisis..." : aiResult ? "Analisis Ulang" : "Mulai Analisis AI"}
+            </button>
+          )}
+        </div>
+
+        {!allChecklistsDone && !aiResult && (
+          <div className="bg-muted/30 border border-border rounded-lg px-3 py-2.5 text-center">
+            <div className="text-[11px] text-muted-foreground">
+              Lengkapi semua checklist ({totalChecked}/{totalItems}) untuk mengaktifkan Analisis AI
+            </div>
+            <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden mx-8">
+              <div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${totalItems > 0 ? (totalChecked / totalItems) * 100 : 0}%` }} />
+            </div>
+          </div>
+        )}
+
+        {aiResult && (
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-3 bg-muted/30 border rounded-xl p-3">
+              <div className="relative shrink-0">
+                {(() => {
+                  const r = 28; const c = 2 * Math.PI * r;
+                  const color = aiResult.score >= 85 ? "#10b981" : aiResult.score >= 70 ? "#3b82f6" : aiResult.score >= 55 ? "#f59e0b" : "#ef4444";
+                  return (
+                    <svg width="70" height="70" viewBox="0 0 70 70">
+                      <circle cx="35" cy="35" r={r} fill="none" stroke="currentColor" strokeOpacity={0.1} strokeWidth="6" />
+                      <circle cx="35" cy="35" r={r} fill="none" stroke={color} strokeWidth="6"
+                        strokeDasharray={`${(aiResult.score / 100) * c} ${c}`}
+                        strokeLinecap="round" transform="rotate(-90 35 35)" />
+                      <text x="35" y="38" textAnchor="middle" fontSize="16" fontWeight="700" fill={color}>{aiResult.score}</text>
+                    </svg>
+                  );
+                })()}
+              </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                <span className={cn("inline-flex text-[11px] font-semibold rounded-full px-2 py-0.5 border",
+                  aiResult.score >= 85 ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : aiResult.score >= 70 ? "bg-blue-50 text-blue-800 border-blue-200"
+                  : aiResult.score >= 55 ? "bg-amber-50 text-amber-800 border-amber-200"
+                  : "bg-red-50 text-red-800 border-red-200"
+                )}>{aiResult.kategori ?? aiResult.verdict}</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {aiResult.tingkatRisiko && (
+                    <span className={cn("text-[10px] font-medium rounded px-1.5 py-0.5",
+                      aiResult.tingkatRisiko === "Rendah" ? "bg-emerald-100 text-emerald-700"
+                      : aiResult.tingkatRisiko === "Sedang" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                    )}>Risiko: {aiResult.tingkatRisiko}</span>
+                  )}
+                  {aiResult.roiEstimasi != null && <span className="text-[10px] bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">ROI {aiResult.roiEstimasi.toFixed(1)}%</span>}
+                  {aiResult.potensiUnit != null && <span className="text-[10px] bg-slate-100 text-slate-700 rounded px-1.5 py-0.5">{aiResult.potensiUnit} unit est.</span>}
+                </div>
+              </div>
+            </div>
+
+            {aiResult.ringkasan && (
+              <div className="bg-muted/30 border rounded-lg px-3 py-2">
+                <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-1">Ringkasan</div>
+                <p className="text-[11px] text-foreground/80 leading-relaxed">{aiResult.ringkasan}</p>
+              </div>
+            )}
+
+            {(aiResult.kelebihan.length > 0 || aiResult.risiko.length > 0) && (
+              <div className="grid grid-cols-2 gap-2">
+                {aiResult.kelebihan.length > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-2">
+                    <div className="text-[10px] font-semibold text-emerald-700 mb-1.5">Langkah Selanjutnya</div>
+                    {aiResult.kelebihan.slice(0, 3).map((k, i) => (
+                      <div key={i} className="flex gap-1 text-[10px] text-emerald-700 mb-0.5"><span className="shrink-0">-</span><span className="leading-tight">{k}</span></div>
+                    ))}
+                  </div>
+                )}
+                {aiResult.risiko.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
+                    <div className="text-[10px] font-semibold text-red-700 mb-1.5">Risiko Utama</div>
+                    {aiResult.risiko.slice(0, 3).map((r, i) => (
+                      <div key={i} className="flex gap-1 text-[10px] text-red-700 mb-0.5"><span className="shrink-0">-</span><span className="leading-tight">{r}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── DATA LAPANGAN ── */}
       <div className="border-t px-4 py-4">
         <div className="text-[10px] font-semibold text-foreground tracking-wider mb-3">DATA LAPANGAN</div>
@@ -970,110 +1075,6 @@ function ProspectDetailPanel({
         </div>
       )}
 
-      {/* ── Analisis AI (SLIS) ── */}
-      <div className="border-t px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1.5">
-            <BrainCircuit className="size-3.5 text-foreground/70" />
-            <span className="text-[11px] font-semibold">Analisis AI (SLIS)</span>
-            {aiResult && <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted border text-muted-foreground">tersimpan</span>}
-          </div>
-          {allChecklistsDone && (
-            <button
-              onClick={runAiAnalysis}
-              disabled={aiLoading}
-              className={cn(
-                "flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-lg border transition-colors",
-                aiLoading ? "opacity-60 cursor-not-allowed bg-muted border-border"
-                : aiResult ? "bg-background border-border hover:bg-muted"
-                : "bg-foreground text-background border-foreground hover:bg-foreground/90"
-              )}
-            >
-              {aiLoading ? <Loader2 className="size-3.5 animate-spin" /> : <BrainCircuit className="size-3.5" />}
-              {aiLoading ? "Menganalisis..." : aiResult ? "Analisis Ulang" : "Mulai Analisis AI"}
-            </button>
-          )}
-        </div>
-
-        {!allChecklistsDone && !aiResult && (
-          <div className="bg-muted/30 border border-border rounded-lg px-3 py-2.5 text-center">
-            <div className="text-[11px] text-muted-foreground">
-              Lengkapi semua checklist ({totalChecked}/{totalItems}) untuk mengaktifkan Analisis AI
-            </div>
-            <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden mx-8">
-              <div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${totalItems > 0 ? (totalChecked / totalItems) * 100 : 0}%` }} />
-            </div>
-          </div>
-        )}
-
-        {aiResult && (
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-3 bg-muted/30 border rounded-xl p-3">
-              <div className="relative shrink-0">
-                {(() => {
-                  const r = 28; const c = 2 * Math.PI * r;
-                  const color = aiResult.score >= 85 ? "#10b981" : aiResult.score >= 70 ? "#3b82f6" : aiResult.score >= 55 ? "#f59e0b" : "#ef4444";
-                  return (
-                    <svg width="70" height="70" viewBox="0 0 70 70">
-                      <circle cx="35" cy="35" r={r} fill="none" stroke="currentColor" strokeOpacity={0.1} strokeWidth="6" />
-                      <circle cx="35" cy="35" r={r} fill="none" stroke={color} strokeWidth="6"
-                        strokeDasharray={`${(aiResult.score / 100) * c} ${c}`}
-                        strokeLinecap="round" transform="rotate(-90 35 35)" />
-                      <text x="35" y="38" textAnchor="middle" fontSize="16" fontWeight="700" fill={color}>{aiResult.score}</text>
-                    </svg>
-                  );
-                })()}
-              </div>
-              <div className="flex-1 min-w-0 space-y-1">
-                <span className={cn("inline-flex text-[11px] font-semibold rounded-full px-2 py-0.5 border",
-                  aiResult.score >= 85 ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                  : aiResult.score >= 70 ? "bg-blue-50 text-blue-800 border-blue-200"
-                  : aiResult.score >= 55 ? "bg-amber-50 text-amber-800 border-amber-200"
-                  : "bg-red-50 text-red-800 border-red-200"
-                )}>{aiResult.kategori ?? aiResult.verdict}</span>
-                <div className="flex gap-1.5 flex-wrap">
-                  {aiResult.tingkatRisiko && (
-                    <span className={cn("text-[10px] font-medium rounded px-1.5 py-0.5",
-                      aiResult.tingkatRisiko === "Rendah" ? "bg-emerald-100 text-emerald-700"
-                      : aiResult.tingkatRisiko === "Sedang" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
-                    )}>Risiko: {aiResult.tingkatRisiko}</span>
-                  )}
-                  {aiResult.roiEstimasi != null && <span className="text-[10px] bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">ROI {aiResult.roiEstimasi.toFixed(1)}%</span>}
-                  {aiResult.potensiUnit != null && <span className="text-[10px] bg-slate-100 text-slate-700 rounded px-1.5 py-0.5">{aiResult.potensiUnit} unit est.</span>}
-                </div>
-              </div>
-            </div>
-
-            {aiResult.ringkasan && (
-              <div className="bg-muted/30 border rounded-lg px-3 py-2">
-                <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-1">Ringkasan</div>
-                <p className="text-[11px] text-foreground/80 leading-relaxed">{aiResult.ringkasan}</p>
-              </div>
-            )}
-
-            {(aiResult.kelebihan.length > 0 || aiResult.risiko.length > 0) && (
-              <div className="grid grid-cols-2 gap-2">
-                {aiResult.kelebihan.length > 0 && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-2">
-                    <div className="text-[10px] font-semibold text-emerald-700 mb-1.5">Langkah Selanjutnya</div>
-                    {aiResult.kelebihan.slice(0, 3).map((k, i) => (
-                      <div key={i} className="flex gap-1 text-[10px] text-emerald-700 mb-0.5"><span className="shrink-0">-</span><span className="leading-tight">{k}</span></div>
-                    ))}
-                  </div>
-                )}
-                {aiResult.risiko.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
-                    <div className="text-[10px] font-semibold text-red-700 mb-1.5">Risiko Utama</div>
-                    {aiResult.risiko.slice(0, 3).map((r, i) => (
-                      <div key={i} className="flex gap-1 text-[10px] text-red-700 mb-0.5"><span className="shrink-0">-</span><span className="leading-tight">{r}</span></div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

@@ -390,6 +390,75 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
         }),
       });
       if (r.ok) {
+        try {
+          const saved = await r.json();
+          const pid: number | undefined = saved?.id;
+          if (pid) {
+            // ── Map & pre-fill DATA LAPANGAN survey data ──
+            const bentukMap: Record<string, string> = {
+              kotak: "Kotak", persegi_panjang: "Persegi Panjang",
+              l_shape: "L", segitiga: "Segitiga", tidak_beraturan: "Kotak",
+            };
+            const legalMap: Record<string, string> = {
+              "SHM (Sertifikat Hak Milik)": "SHM",
+              "HGB (Hak Guna Bangunan)": "HGB",
+              "SHGB": "HGB",
+              "Girik/Adat": "Girik",
+              "Letter C/Sporadik": "Girik",
+            };
+            const utilitasMap: Record<string, string> = {
+              "Listrik PLN": "PLN", "Air PDAM": "PDAM",
+              "Internet Fiber/4G": "Internet", "Gas Kota": "Gas PGN",
+            };
+            const slope = terrainData?.slopeAvgPct;
+            const topoVal = slope != null ? (slope < 5 ? "Datar" : slope < 15 ? "Berbukit" : "Curam") : "";
+            const dist = terrainData?.waterwayDistM;
+            const banjirVal = dist != null ? (dist < 100 ? "Sangat Rawan" : dist < 300 ? "Rawan" : "Aman") : "";
+
+            const surveyData = {
+              bentukLahan: bentukMap[form.bentukLahan] ?? "Kotak",
+              statusLegal: legalMap[form.statusKepemilikan] ?? "",
+              topografi: topoVal,
+              kondisiJalan: "",
+              utilitas: form.utilitas.map(u => utilitasMap[u] ?? "").filter(Boolean),
+              peilBanjir: banjirVal,
+              namaPemilik: "",
+              kontakPemilik: "",
+            };
+            localStorage.setItem(`satara_survey_${pid}`, JSON.stringify(surveyData));
+
+            // ── Map & save AI analysis result ──
+            if (result) {
+              const decisionMap: Record<string, string> = {
+                BELI: "Sangat Direkomendasikan",
+                BELI_DENGAN_NEGOSIASI: "Direkomendasikan",
+                HOLD: "Perlu Review",
+                JANGAN_BELI: "Tidak Direkomendasikan",
+              };
+              const aiResult = {
+                verdict: decisionMap[result.decision] ?? "Perlu Review",
+                kategori: result.kategori,
+                score: result.skor,
+                ringkasan: result.ai?.ringkasanEksekutif ?? "",
+                kelebihan: (result.ai?.nextActions ?? []).slice(0, 5),
+                risiko: (result.ai?.analisisRisiko ?? []).slice(0, 5).map(
+                  (item: { risiko: string; deskripsi: string }) => `${item.risiko}: ${item.deskripsi}`
+                ),
+                rekomendasi: result.ai?.rekomendasiNarasi ?? "",
+                potensiUnit: result.calc?.unitPotential?.unitRealistis,
+                hargaMaksAkuisisi: result.calc?.financials?.maxHargaM2,
+                roiEstimasi: result.calc?.financials?.roi,
+                paybackBulan: result.calc?.financials?.paybackBulan,
+                potensiRevenue: result.calc?.financials?.revenue,
+                estimasiHPP: result.calc?.financials?.totalHPP,
+                estimasiProfit: result.calc?.financials?.profit,
+                tingkatRisiko: result.calc?.risks?.overallRisk,
+              };
+              localStorage.setItem(`satara_ai_${pid}`, JSON.stringify(aiResult));
+              localStorage.setItem(`satara_full_ai_${pid}`, JSON.stringify(result));
+            }
+          }
+        } catch { /* ignore — prospect tetap tersimpan ke pipeline */ }
         onSaved?.();
         onClose();
       }
