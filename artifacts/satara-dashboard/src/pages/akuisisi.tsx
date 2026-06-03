@@ -15,6 +15,7 @@ import type { PolygonReadyData } from "@/components/sulsel-acquisition-map";
 import LandAssessmentModal from "@/components/land-assessment-modal";
 import SLIS from "@/pages/slis";
 import { cn } from "@/lib/utils";
+import { isOwnCompany } from "@/lib/own-company";
 import {
   generateProposalAkuisisi,
   generateSiteAnalysis,
@@ -1269,8 +1270,10 @@ function ProspectDetailPanel({
               {/* Tab: Kompetitor */}
               {aiTab === "kompetitor" && (() => {
                 const ak = ai?.analisisKompetitor as Record<string, string> | undefined;
-                const kecLen = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kecamatan").length;
-                const kabLen = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kabupaten").length;
+                const kecAll = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kecamatan");
+                const kabAll = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kabupaten");
+                const kecLen = kecAll.filter(c => !isOwnCompany(c.pengembang)).length;
+                const kabLen = kabAll.filter(c => !isOwnCompany(c.pengembang)).length;
                 return (
                   <div className="space-y-2">
                     {/* Level summary */}
@@ -1629,14 +1632,25 @@ function ProspectDetailPanel({
                   {sorted.slice(0, 40).map((c, i) => {
                     const tier = getDistanceTier(prospect.kecamatan, prospect.kabupaten, c.kecamatan, c.kabupaten);
                     const { label: tierLabel, cls: tierCls } = DISTANCE_TIER_LABELS[tier];
+                    const ownProject = isOwnCompany(c.pengembang);
                     return (
-                      <div key={i} className="flex items-start gap-2 bg-muted/30 border rounded-md px-2.5 py-2">
+                      <div key={i} className={cn(
+                        "flex items-start gap-2 border rounded-md px-2.5 py-2",
+                        ownProject ? "bg-blue-50 border-blue-200" : "bg-muted/30"
+                      )}>
                         <div className="size-5 rounded-full bg-muted border flex items-center justify-center shrink-0 text-[9px] font-bold text-foreground/60 mt-0.5">{i + 1}</div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-medium leading-tight">{c.name}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-medium leading-tight">{c.name}</span>
+                            {ownProject && (
+                              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 shrink-0">Sendiri</span>
+                            )}
+                          </div>
                           <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{c.pengembang}</div>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <span className={cn("text-[8px] font-medium px-1.5 py-0.5 rounded-full border", tierCls)}>{tierLabel}</span>
+                            {!ownProject && (
+                              <span className={cn("text-[8px] font-medium px-1.5 py-0.5 rounded-full border", tierCls)}>{tierLabel}</span>
+                            )}
                             {(c.totalUnit ?? 0) > 0 && (
                               <span className="text-[9px] font-medium text-foreground/70">{c.totalUnit} unit</span>
                             )}

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { DAFTAR_PERUMAHAN_SULSEL, type PerumahanEntry } from "@/data/perumahan-sulsel";
 import { cn } from "@/lib/utils";
+import { isOwnCompany } from "@/lib/own-company";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -759,9 +760,18 @@ export default function KompetitorPage() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y">
-                                {entries.map((e) => (
-                                  <tr key={e.id} className="hover:bg-muted/20 transition-colors group">
-                                    <td className="px-5 pl-9 py-1.5 text-[11px] font-medium max-w-[220px] truncate">{e.nama}</td>
+                                {entries.map((e) => {
+                                  const ownProject = isOwnCompany(e.pengembang);
+                                  return (
+                                  <tr key={e.id} className={cn("hover:bg-muted/20 transition-colors group", ownProject && "bg-blue-50/50")}>
+                                    <td className="px-5 pl-9 py-1.5 text-[11px] font-medium max-w-[220px]">
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <span className="truncate">{e.nama}</span>
+                                        {ownProject && (
+                                          <span className="shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">Sendiri</span>
+                                        )}
+                                      </div>
+                                    </td>
                                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[180px] truncate">{e.pengembang}</td>
                                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground">{e.kelurahan ?? "-"}</td>
                                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground">{e.jenis}</td>
@@ -797,7 +807,8 @@ export default function KompetitorPage() {
                                       )}
                                     </td>
                                   </tr>
-                                ))}
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
