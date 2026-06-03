@@ -193,14 +193,17 @@ router.post("/ai/analyze-land", async (req, res) => {
     poiSection = "\n\nFasilitas & Kawasan: Data tidak tersedia (Overpass timeout)";
   }
 
-  // Competitor section
-  const competitorList: string[] = Array.isArray(competitors) ? competitors : [];
+  // Competitor section — data dari dokumen resmi Sulsel
+  const rawCompetitors: unknown[] = Array.isArray(competitors) ? competitors : [];
+  const competitorList: string[] = rawCompetitors.map(c =>
+    typeof c === "string" ? c : (typeof c === "object" && c !== null && "name" in c ? String((c as { name: unknown }).name) : "")
+  ).filter(Boolean);
   const competitorSection = competitorList.length > 0
-    ? `\n\nKompetitor perumahan (radius 3km, OSM):
-- Jumlah: ${competitorList.length} proyek
-- Nama: ${competitorList.join(", ")}
-- Kondisi pasar: ${competitorList.length <= 2 ? "Market belum jenuh — peluang besar" : competitorList.length <= 5 ? "Kompetitor moderat — demand terbukti" : "Kompetitor padat — demand kuat tapi persaingan tinggi"}`
-    : "\n\nKompetitor: Tidak ada data perumahan terdeteksi dalam radius 3km (OSM)";
+    ? `\n\nKompetitor perumahan (sumber: dokumen resmi Sulsel):
+- Jumlah: ${competitorList.length} proyek terdaftar di area yang sama
+- Nama (${Math.min(competitorList.length, 10)} pertama): ${competitorList.slice(0, 10).join(", ")}${competitorList.length > 10 ? `, dan ${competitorList.length - 10} lainnya` : ""}
+- Kondisi pasar: ${competitorList.length <= 3 ? "Persaingan rendah — peluang besar" : competitorList.length <= 10 ? "Kompetitor moderat — demand terbukti" : competitorList.length <= 25 ? "Kompetitor aktif — demand kuat, segmentasi penting" : "Persaingan tinggi — diferensiasi produk sangat penting"}`
+    : "\n\nKompetitor: Belum ada data kabupaten/kecamatan prospek untuk pencocokan kompetitor";
 
   // Survey data section
   const surveyItems: string[] = [];

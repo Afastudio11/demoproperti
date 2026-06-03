@@ -4,9 +4,10 @@ import type { LandProspect } from "@workspace/api-client-react";
 import {
   Plus, CheckCircle2, Map, LayoutList, X,
   FileText, ClipboardList, ArrowRight, BrainCircuit,
-  Loader2, AlertTriangle,
-  Building2, Radio, Search as SearchIcon, Download,
+  Loader2,
+  Building2, Radio, Download, Database,
 } from "lucide-react";
+import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
 import { Button } from "@/components/ui/button";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
 import type { PolygonReadyData } from "@/components/sulsel-acquisition-map";
@@ -51,44 +52,40 @@ interface AiResult {
 interface CompetitorEntry {
   name: string;
   type: string;
-  distanceKm?: number;
+  pengembang?: string;
+  kecamatan?: string;
+  totalUnit?: number;
 }
 
-async function fetchNearbyCompetitors(lat: number, lng: number, radiusKm = 3): Promise<string[]> {
-  const details = await fetchCompetitorDetails(lat, lng, radiusKm);
-  return details.map(d => d.name);
+function normalizeKab(s: string): string {
+  return s.toUpperCase().replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "").trim();
 }
 
-async function fetchCompetitorDetails(lat: number, lng: number, radiusKm = 3): Promise<CompetitorEntry[]> {
-  const R = radiusKm * 1000;
-  try {
-    const res = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `data=[out:json][timeout:25];(node["name"~"Perumahan|Griya|Bukit|Residence|Regency|Villa|Cluster|Perum|Taman|Garden|Park|Housing",i](around:${R},${lat},${lng});way["landuse"="residential"]["name"](around:${R},${lat},${lng});way["place"~"neighbourhood|suburb"]["name"](around:${R},${lat},${lng}););out center tags;`,
-    });
-    const data = await res.json();
-    const seen = new Set<string>();
-    const results: CompetitorEntry[] = [];
-    for (const el of (data.elements ?? []) as { type: string; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: { name?: string; landuse?: string; place?: string } }[]) {
-      const name = el.tags?.name;
-      if (!name || seen.has(name)) continue;
-      seen.add(name);
-      const elLat = el.lat ?? el.center?.lat;
-      const elLon = el.lon ?? el.center?.lon;
-      let distanceKm: number | undefined;
-      if (elLat && elLon) {
-        const dLat = (elLat - lat) * (Math.PI / 180);
-        const dLon = (elLon - lng) * (Math.PI / 180);
-        const a = Math.sin(dLat/2)**2 + Math.cos(lat * Math.PI/180) * Math.cos(elLat * Math.PI/180) * Math.sin(dLon/2)**2;
-        distanceKm = parseFloat((6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2));
+function getCompetitorsFromData(
+  kabupaten: string | null | undefined,
+  kecamatan: string | null | undefined,
+  scope: "kecamatan" | "kabupaten"
+): CompetitorEntry[] {
+  if (!kabupaten) return [];
+  const kabNorm = normalizeKab(kabupaten);
+  return DAFTAR_PERUMAHAN_SULSEL
+    .filter(p => {
+      const kabMatch = normalizeKab(p.kabupaten) === kabNorm ||
+        normalizeKab(p.kabupaten).includes(kabNorm) ||
+        kabNorm.includes(normalizeKab(p.kabupaten));
+      if (!kabMatch) return false;
+      if (scope === "kecamatan" && kecamatan) {
+        return p.kecamatan.toUpperCase() === kecamatan.toUpperCase();
       }
-      results.push({ name, type: el.tags?.landuse ? "Kawasan Residensial" : el.tags?.place ? "Permukiman" : "Perumahan", distanceKm });
-    }
-    return results.sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99)).slice(0, 20);
-  } catch (e) {
-    throw new Error("Gagal menghubungi OpenStreetMap: " + (e instanceof Error ? e.message : "network error"));
-  }
+      return true;
+    })
+    .map(p => ({
+      name: p.nama,
+      type: p.jenis,
+      pengembang: p.pengembang,
+      kecamatan: p.kecamatan,
+      totalUnit: (p.totalUnit || 0) + (p.unitKomersil || 0),
+    }));
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -204,12 +201,6 @@ function saveAiResult(id: number, r: AiResult | null) {
   else localStorage.removeItem(`satara_ai_${id}`);
 }
 
-function loadCompetitors(id: number): CompetitorEntry[] {
-  try { return JSON.parse(localStorage.getItem(`satara_comp_${id}`) ?? "[]"); } catch { return []; }
-}
-function saveCompetitors(id: number, list: CompetitorEntry[]) {
-  localStorage.setItem(`satara_comp_${id}`, JSON.stringify(list));
-}
 
 interface SurveyData {
   bentukLahan: string;
@@ -291,12 +282,10 @@ function ProspectDetailPanel({
   const [survey, setSurvey] = useState<SurveyData>(() => loadSurvey(prospect.id));
   const [aksesJalanDraft, setAksesJalanDraft] = useState<number | null>(prospect.aksesJalan ?? null);
   const [catatanDraft, setCatatanDraft] = useState(prospect.catatan ?? "");
-  const [competitorList, setCompetitorList] = useState<CompetitorEntry[]>(() => loadCompetitors(prospect.id));
-  const [competitorRadius, setCompetitorRadius] = useState(3);
-  const [competitorLoading, setCompetitorLoading] = useState(false);
-  const [competitorError, setCompetitorError] = useState<string | null>(null);
-  const [competitorHasSearched, setCompetitorHasSearched] = useState(() => loadCompetitors(prospect.id).length > 0);
-  const autoFetchedRef = useRef(false);
+  const [competitorScope, setCompetitorScope] = useState<"kecamatan" | "kabupaten">(
+    prospect.kecamatan ? "kecamatan" : "kabupaten"
+  );
+  const competitorList = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, competitorScope);
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function updateSurvey<K extends keyof SurveyData>(key: K, value: SurveyData[K]) {
@@ -328,26 +317,6 @@ function ProspectDetailPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aksesJalanDraft, catatanDraft]);
 
-  // Auto-fetch kompetitor saat panel dibuka jika ada koordinat & belum ada cache
-  useEffect(() => {
-    if (autoFetchedRef.current) return;
-    if (prospect.lat == null || prospect.lng == null) return;
-    if (loadCompetitors(prospect.id).length > 0) return;
-    autoFetchedRef.current = true;
-    setCompetitorLoading(true);
-    setCompetitorError(null);
-    fetchCompetitorDetails(prospect.lat, prospect.lng, competitorRadius)
-      .then((data) => {
-        setCompetitorList(data);
-        saveCompetitors(prospect.id, data);
-        setCompetitorHasSearched(true);
-      })
-      .catch((e) => {
-        setCompetitorError(e instanceof Error ? e.message : "Gagal mengambil data kompetitor");
-      })
-      .finally(() => setCompetitorLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const stage = STAGES.find((s) => s.key === prospect.status);
   const checked = checklists[prospect.id] ?? [];
@@ -385,22 +354,6 @@ function ProspectDetailPanel({
     pks_mou_doc:        generatePKSMoU,
   };
 
-  async function fetchCompetitors() {
-    if (prospect.lat == null || prospect.lng == null) return;
-    setCompetitorLoading(true);
-    setCompetitorError(null);
-    setCompetitorHasSearched(false);
-    try {
-      const data = await fetchCompetitorDetails(prospect.lat, prospect.lng, competitorRadius);
-      setCompetitorList(data);
-      saveCompetitors(prospect.id, data);
-      setCompetitorHasSearched(true);
-    } catch (e) {
-      setCompetitorError(e instanceof Error ? e.message : "Gagal mengambil data dari OpenStreetMap");
-    } finally {
-      setCompetitorLoading(false);
-    }
-  }
 
   return (
     <div className="bg-card border rounded-xl overflow-hidden">
@@ -799,82 +752,62 @@ function ProspectDetailPanel({
       </div>
 
       {/* ── Kompetitor ── */}
-      {(prospect.lat != null && prospect.lng != null) && (
+      {prospect.kabupaten && (
         <div className="border-t px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
-              <Building2 className="size-3.5 text-blue-500" />
-              <span className="text-[11px] font-semibold text-blue-700">Kompetitor di Sekitar Lahan</span>
+              <Building2 className="size-3.5 text-foreground/70" />
+              <span className="text-[11px] font-semibold">Kompetitor — {prospect.kabupaten}</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted border text-muted-foreground flex items-center gap-1">
+                <Database className="size-2.5" />
+                Dokumen resmi
+              </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">Radius:</span>
-              {[1, 3, 5, 10].map(r => (
-                <button key={r} onClick={() => setCompetitorRadius(r)}
-                  className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
-                    competitorRadius === r ? "bg-blue-600 text-white border-blue-600" : "bg-background border-border hover:bg-muted"
-                  )}>{r} km</button>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground mr-0.5">Lingkup:</span>
+              {(["kecamatan", "kabupaten"] as const).map(s => (
+                <button key={s} onClick={() => setCompetitorScope(s)}
+                  className={cn("text-[10px] px-2.5 py-0.5 rounded border transition-colors capitalize",
+                    competitorScope === s ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
+                  )}>
+                  {s === "kecamatan" ? `Kec. ${prospect.kecamatan ?? "—"}` : "Seluruh Kab/Kota"}
+                </button>
               ))}
-              <button
-                onClick={fetchCompetitors}
-                disabled={competitorLoading}
-                className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-60 ml-1"
-              >
-                {competitorLoading ? <Loader2 className="size-2.5 animate-spin" /> : <SearchIcon className="size-2.5" />}
-                {competitorLoading ? "Mencari..." : "Cari"}
-              </button>
             </div>
           </div>
 
-          {competitorLoading && (
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-3 py-2.5">
-              <Loader2 className="size-3 animate-spin text-blue-500" />
-              Mengambil data perumahan dari OpenStreetMap radius {competitorRadius} km...
-            </div>
-          )}
-
-          {competitorError && !competitorLoading && (
-            <div className="flex items-center gap-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              <AlertTriangle className="size-3 shrink-0" />
-              <span>{competitorError}</span>
-            </div>
-          )}
-
-          {competitorList.length > 0 && !competitorLoading && (
+          {competitorList.length > 0 ? (
             <div className="space-y-1.5">
               <div className="text-[10px] text-muted-foreground mb-2">
-                Ditemukan <strong>{competitorList.length}</strong> perumahan/developer dalam radius {competitorRadius} km (sumber: OpenStreetMap)
+                <strong>{competitorList.length}</strong> perumahan terdaftar di{" "}
+                {competitorScope === "kecamatan" ? `Kec. ${prospect.kecamatan}` : prospect.kabupaten}
+                {competitorList.length > 40 && (
+                  <span className="ml-1 text-amber-600 font-medium">(menampilkan 40 pertama)</span>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {competitorList.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-muted/30 border rounded-md px-2.5 py-2">
-                    <div className="size-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 text-[9px] font-bold">{i + 1}</div>
+              <div className="grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-0.5">
+                {competitorList.slice(0, 40).map((c, i) => (
+                  <div key={i} className="flex items-start gap-2 bg-muted/30 border rounded-md px-2.5 py-2">
+                    <div className="size-5 rounded-full bg-muted border flex items-center justify-center shrink-0 text-[9px] font-bold text-foreground/60 mt-0.5">{i + 1}</div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-medium truncate">{c.name}</div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[9px] text-muted-foreground">{c.type}</span>
-                        {c.distanceKm != null && (
-                          <span className="text-[9px] font-medium text-blue-600">±{c.distanceKm} km</span>
+                      <div className="text-[11px] font-medium leading-tight">{c.name}</div>
+                      <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{c.pengembang}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[9px] text-foreground/50">{c.kecamatan}</span>
+                        {(c.totalUnit ?? 0) > 0 && (
+                          <span className="text-[9px] font-medium text-foreground/70">{c.totalUnit} unit</span>
                         )}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="text-[9px] text-muted-foreground mt-1.5 italic">
-                * Data detail (developer, harga, jumlah unit, progres) memerlukan verifikasi lapangan
-              </div>
             </div>
-          )}
-
-          {competitorList.length === 0 && !competitorLoading && !competitorError && !competitorHasSearched && (
+          ) : (
             <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-              Klik Cari untuk mendeteksi perumahan kompetitor dalam radius yang dipilih
-            </div>
-          )}
-
-          {competitorList.length === 0 && !competitorLoading && !competitorError && competitorHasSearched && (
-            <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-              Tidak ditemukan perumahan kompetitor dalam radius {competitorRadius} km. Coba perbesar radius atau verifikasi koordinat lahan sudah benar.
+              {competitorScope === "kecamatan" && !prospect.kecamatan
+                ? "Isi kecamatan di data prospek untuk filter per kecamatan"
+                : `Tidak ada perumahan terdaftar di ${competitorScope === "kecamatan" ? `Kec. ${prospect.kecamatan}` : prospect.kabupaten}`}
             </div>
           )}
         </div>
@@ -942,7 +875,7 @@ export default function Akuisisi() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg border bg-muted p-0.5 text-xs font-medium">
-            {TABS.map(({ key, label, icon: Icon, badge }) => (
+            {TABS.map(({ key, label, icon: Icon, ...rest }) => { const badge = "badge" in rest ? (rest as { badge?: number }).badge : undefined; return (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -961,7 +894,7 @@ export default function Akuisisi() {
                   </span>
                 )}
               </button>
-            ))}
+            ); })}
           </div>
           {tab === "pipeline" && (
             <Button
