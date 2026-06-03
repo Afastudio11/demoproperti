@@ -260,6 +260,7 @@ router.post("/ai/land-assessment", async (req, res) => {
     biayaInfrastrukturPct, biayaLegalPct,
     elevMin, elevMax, elevAvg, slopeAvgPct, slopeMaxPct,
     waterwayType, waterwayName, waterwayDistM,
+    portfolioComparables,
   } = req.body;
 
   const apiKey = process.env["GROQ_API_KEY"];
@@ -293,6 +294,27 @@ router.post("/ai/land-assessment", async (req, res) => {
     : waterwayDistNum < 300 ? "SEDANG"
     : waterwayDistNum < 500 ? "WASPADA"
     : "AMAN";
+
+  // ── Portfolio Comparables (data lahan lain di kabupaten yang sama) ────────
+  interface PortfolioItem { hargaM2?: number; luas?: number; aiROI?: number; aiScore?: number; aiRisiko?: string; kecamatan?: string; stage?: string; lokasi?: string; }
+  const compItems: PortfolioItem[] = Array.isArray(portfolioComparables) ? portfolioComparables : [];
+  const withPrice = compItems.filter(c => (c.hargaM2 ?? 0) > 0);
+  const avgHargaM2Portfolio = withPrice.length > 0
+    ? Math.round(withPrice.reduce((s, c) => s + (c.hargaM2 ?? 0), 0) / withPrice.length) : 0;
+  const withROI = compItems.filter(c => c.aiROI != null);
+  const avgROIPortfolio = withROI.length > 0
+    ? parseFloat((withROI.reduce((s, c) => s + (c.aiROI ?? 0), 0) / withROI.length).toFixed(1)) : null;
+  const avgScorePortfolio = withROI.length > 0
+    ? Math.round(withROI.reduce((s, c) => s + (c.aiScore ?? 0), 0) / withROI.length) : null;
+  const priceVsAvg = avgHargaM2Portfolio > 0
+    ? parseFloat(((hargaM2Num / avgHargaM2Portfolio - 1) * 100).toFixed(1)) : null;
+  const minHargaM2 = withPrice.length > 0 ? Math.min(...withPrice.map(c => c.hargaM2 ?? Infinity)) : null;
+  const maxHargaM2Port = withPrice.length > 0 ? Math.max(...withPrice.map(c => c.hargaM2 ?? 0)) : null;
+  const stageDist = compItems.reduce<Record<string, number>>((acc, c) => {
+    if (c.stage) acc[c.stage] = (acc[c.stage] ?? 0) + 1;
+    return acc;
+  }, {});
+  const stageDistStr = Object.entries(stageDist).map(([s, n]) => `${s}: ${n}`).join(", ") || "—";
 
   // ── Calculation Engine (deterministic) ───────────────────────────────────
   const calc = calculateLandMetrics({
@@ -416,6 +438,20 @@ BOBOT SKOR:
 - TOTAL SKOR       : ${sc.total}/100 → ${sc.category}
 
 ════════════════════════════════════════
+BENCHMARK PORTOFOLIO INTERNAL (${compItems.length} prospek lain di ${kabupaten ?? "kabupaten ini"})
+════════════════════════════════════════
+${compItems.length > 0 ? `Harga tanah/m² portofolio (${withPrice.length} lahan dengan data harga):
+- Rata-rata harga tanah/m²  : Rp ${avgHargaM2Portfolio.toLocaleString("id-ID")}/m²
+- Range harga               : Rp ${(minHargaM2 ?? 0).toLocaleString("id-ID")} – Rp ${(maxHargaM2Port ?? 0).toLocaleString("id-ID")}/m²
+- Lahan ini (${hargaM2Num.toLocaleString("id-ID")}/m²)  : ${priceVsAvg != null ? (priceVsAvg <= 0 ? `${Math.abs(priceVsAvg)}% LEBIH MURAH dari rata-rata portofolio (peluang akuisisi lebih baik)` : `${priceVsAvg}% LEBIH MAHAL dari rata-rata portofolio (perlu negosiasi lebih ketat)`) : "tidak dapat dibandingkan"}
+
+Kinerja portofolio (${withROI.length} lahan sudah dianalisis AI):
+- Rata-rata ROI portofolio   : ${avgROIPortfolio != null ? avgROIPortfolio + "%" : "Belum ada lahan yang dianalisis"}
+- Rata-rata skor portofolio  : ${avgScorePortfolio ?? "—"}/100
+- Lahan ini ROI ${fin.roi}%       : ${avgROIPortfolio != null ? (fin.roi >= avgROIPortfolio ? `+${(fin.roi - avgROIPortfolio).toFixed(1)}% DI ATAS rata-rata portofolio` : `${(fin.roi - avgROIPortfolio).toFixed(1)}% di bawah rata-rata portofolio`) : "—"}
+- Pipeline stages            : ${stageDistStr}` : `PROSPEK PERTAMA di ${kabupaten ?? "kabupaten ini"} — belum ada data portofolio internal. Gunakan benchmark pasar eksternal sebagai referensi.`}
+
+════════════════════════════════════════
 TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
 {
   "ringkasanEksekutif": "<3-4 paragraf (300-400 kata). Jelaskan mengapa lahan ini mendapat skor ${sc.total} dan kategori '${sc.category}'. Sebutkan kekuatan utama dan kelemahan utama berdasarkan data di atas. Kontekskan dengan strategi developer perumahan di ${kabupaten ?? "Sulawesi Selatan"}.>",
@@ -468,6 +504,21 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
 
     const aiNarrative = JSON.parse(jsonMatch[0]);
 
+    // Portfolio benchmark data (dikembalikan ke frontend)
+    const portfolioBenchmark = {
+      totalInKabupaten: compItems.length,
+      analyzedCount: withROI.length,
+      withPriceCount: withPrice.length,
+      avgHargaM2: avgHargaM2Portfolio,
+      minHargaM2: minHargaM2 ?? null,
+      maxHargaM2: maxHargaM2Port ?? null,
+      priceVsAvg,
+      avgROI: avgROIPortfolio,
+      avgScore: avgScorePortfolio,
+      roiVsAvg: avgROIPortfolio != null ? parseFloat((fin.roi - avgROIPortfolio).toFixed(1)) : null,
+      scoreVsAvg: avgScorePortfolio != null ? sc.total - avgScorePortfolio : null,
+    };
+
     res.json({
       // Calculated (deterministic)
       skor: sc.total,
@@ -475,6 +526,7 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
       decision: sc.decision,
       calc,
       topografi,
+      portfolioBenchmark,
 
       // AI Narrative
       ai: aiNarrative,

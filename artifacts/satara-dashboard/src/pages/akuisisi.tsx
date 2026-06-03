@@ -312,6 +312,7 @@ const STAGE_STYLE: Record<string, { border: string; bg: string; header: string; 
 
 function ProspectDetailPanel({
   prospect,
+  allProspects,
   checklists,
   checklistValues,
   terrainData,
@@ -323,6 +324,7 @@ function ProspectDetailPanel({
   onRefetch,
 }: {
   prospect: LandProspect;
+  allProspects?: LandProspect[];
   checklists: Record<number, string[]>;
   checklistValues: Record<number, Record<string, string>>;
   terrainData?: { elevMin?: number; elevMax?: number; elevAvg?: number; slopeAvgPct?: number; slopeMaxPct?: number; waterwayType?: string; waterwayName?: string; waterwayDistM?: number | null } | null;
@@ -398,6 +400,25 @@ function ProspectDetailPanel({
     try {
       const vals = checklistValues[prospect.id] ?? {};
       const hargaRumahStr = (vals.harga_rumah_sekitar ?? "").replace(/\./g, "").replace(/\D/g, "");
+
+      // Bangun portfolio comparables — semua lahan lain di kabupaten yang sama
+      const portfolioComparables = (allProspects ?? [])
+        .filter(p => p.id !== prospect.id && p.kabupaten === prospect.kabupaten)
+        .map(p => {
+          const pAi = loadAiResult(p.id);
+          return {
+            id: p.id,
+            lokasi: p.lokasi,
+            kecamatan: p.kecamatan ?? "",
+            luas: p.luas ?? 0,
+            hargaM2: p.hargaM2 ?? 0,
+            stage: p.status ?? "",
+            aiScore: pAi?.score ?? null,
+            aiROI: pAi?.roiEstimasi ?? null,
+            aiRisiko: pAi?.tingkatRisiko ?? null,
+          };
+        });
+
       const body = {
         lokasi: prospect.lokasi,
         kelurahan: prospect.kelurahan,
@@ -422,6 +443,7 @@ function ProspectDetailPanel({
           vals.sistem_pembayaran ? `Sistem pembayaran: ${vals.sistem_pembayaran}` : "",
           vals.harga_tanah_m2 ? `Harga tanah/m² input: Rp${vals.harga_tanah_m2}` : "",
         ].filter(Boolean).join(". "),
+        portfolioComparables,
         ...(terrainData ?? {}),
       };
       const res = await fetch("/api/ai/land-assessment", {
@@ -778,6 +800,12 @@ function ProspectDetailPanel({
           const assumptions = calc?.assumptions as string[] | undefined;
           const analisisRisiko = (ai?.analisisRisiko as { risiko: string; level: string; deskripsi: string; mitigasi: string }[] | undefined) ?? [];
           const nextActions = (ai?.nextActions as string[] | undefined) ?? [];
+          const pb = fa?.portfolioBenchmark as {
+            totalInKabupaten: number; analyzedCount: number; withPriceCount: number;
+            avgHargaM2: number; minHargaM2: number | null; maxHargaM2: number | null;
+            priceVsAvg: number | null; avgROI: number | null; avgScore: number | null;
+            roiVsAvg: number | null; scoreVsAvg: number | null;
+          } | undefined;
           const decisionLabel: Record<string, { label: string; cls: string }> = {
             BELI: { label: "BELI", cls: "bg-emerald-600 text-white" },
             BELI_DENGAN_NEGOSIASI: { label: "BELI + NEGOSIASI", cls: "bg-teal-600 text-white" },
@@ -919,6 +947,77 @@ function ProspectDetailPanel({
                   <span className="text-muted-foreground">Target negosiasi</span>
                   <span className="font-semibold text-blue-600">Rp {Number(fin.negotTargetM2).toLocaleString("id-ID")}/m²</span>
                 </div>
+              </div>
+            )}
+
+            {/* ── Benchmark vs Portofolio ── */}
+            {pb && pb.totalInKabupaten > 0 && (
+              <div className="border rounded-xl px-3 py-2.5 bg-muted/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">
+                    Benchmark — {pb.totalInKabupaten} lahan lain di {prospect.kabupaten}
+                  </div>
+                  {pb.analyzedCount > 0 && (
+                    <span className="text-[9px] text-muted-foreground">{pb.analyzedCount} sudah dianalisis AI</span>
+                  )}
+                </div>
+
+                {/* Price benchmark bar */}
+                {pb.withPriceCount > 0 && pb.avgHargaM2 > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] mb-1">
+                      <span className="text-muted-foreground">Harga lahan ini vs rata-rata portofolio</span>
+                      <span className={cn("font-bold",
+                        (pb.priceVsAvg ?? 0) <= 0 ? "text-emerald-600" : "text-red-600"
+                      )}>
+                        {(pb.priceVsAvg ?? 0) >= 0 ? "+" : ""}{pb.priceVsAvg ?? "—"}%
+                      </span>
+                    </div>
+                    <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="absolute left-1/2 top-0 h-full w-px bg-foreground/20 z-10" />
+                      {pb.priceVsAvg != null && (
+                        <div className={cn("absolute top-0 h-full rounded-full",
+                          pb.priceVsAvg <= 0 ? "bg-emerald-400 right-1/2" : "bg-red-400 left-1/2"
+                        )} style={{ width: `${Math.min(Math.abs(pb.priceVsAvg) * 1.5, 50)}%` }} />
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[9px] text-muted-foreground mt-0.5">
+                      <span>Rp {(pb.minHargaM2 ?? 0).toLocaleString("id-ID")}/m² (terendah)</span>
+                      <span>Avg Rp {pb.avgHargaM2.toLocaleString("id-ID")}/m²</span>
+                      <span>Rp {(pb.maxHargaM2 ?? 0).toLocaleString("id-ID")}/m² (tertinggi)</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ROI & Score comparison */}
+                {pb.analyzedCount > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="border rounded-lg px-2 py-1.5 bg-background">
+                      <div className="text-[9px] text-muted-foreground">ROI lahan ini vs avg</div>
+                      <div className="flex items-end gap-1 mt-0.5">
+                        <span className="text-[13px] font-bold">{pb.roiVsAvg != null ? (pb.roiVsAvg >= 0 ? "+" : "") + pb.roiVsAvg + "%" : "—"}</span>
+                        <span className="text-[9px] text-muted-foreground mb-0.5">vs avg {pb.avgROI}%</span>
+                      </div>
+                      <div className={cn("text-[9px] font-medium mt-0.5",
+                        (pb.roiVsAvg ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                      )}>
+                        {(pb.roiVsAvg ?? 0) >= 0 ? "Di atas rata-rata portofolio" : "Di bawah rata-rata portofolio"}
+                      </div>
+                    </div>
+                    <div className="border rounded-lg px-2 py-1.5 bg-background">
+                      <div className="text-[9px] text-muted-foreground">Skor vs avg portofolio</div>
+                      <div className="flex items-end gap-1 mt-0.5">
+                        <span className="text-[13px] font-bold">{pb.scoreVsAvg != null ? (pb.scoreVsAvg >= 0 ? "+" : "") + pb.scoreVsAvg : "—"}</span>
+                        <span className="text-[9px] text-muted-foreground mb-0.5">vs avg {pb.avgScore}/100</span>
+                      </div>
+                      <div className={cn("text-[9px] font-medium mt-0.5",
+                        (pb.scoreVsAvg ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                      )}>
+                        {(pb.scoreVsAvg ?? 0) >= 0 ? "Di atas rata-rata portofolio" : "Di bawah rata-rata portofolio"}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1587,6 +1686,7 @@ export default function Akuisisi() {
           {selectedProspect && (
             <ProspectDetailPanel
               prospect={selectedProspect}
+              allProspects={prospects ?? []}
               checklists={checklists}
               checklistValues={checklistValues}
               onClose={() => setSelectedId(null)}
@@ -1614,6 +1714,7 @@ export default function Akuisisi() {
           <div className="fixed inset-y-0 right-0 z-[5001] w-[960px] max-w-full overflow-y-auto shadow-2xl border-l bg-background">
             <ProspectDetailPanel
               prospect={selectedProspect}
+              allProspects={prospects ?? []}
               checklists={checklists}
               checklistValues={checklistValues}
               terrainData={terrainData}
