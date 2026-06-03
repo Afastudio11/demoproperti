@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import {
@@ -339,6 +339,46 @@ function ProspectDetailPanel({
       return next;
     });
   }
+
+  // ── Auto-fill Data Teknis (pks_mou) dari terrain + prospect data ──
+  const terrainFillApplied = useRef(false);
+  useEffect(() => {
+    if (terrainFillApplied.current) return;
+
+    const fills: Record<string, string> = {};
+
+    if (prospect.luas) {
+      fills.luas_lahan_teknis = `${prospect.luas.toLocaleString("id-ID")} m²`;
+    }
+    if (terrainData) {
+      const slope = terrainData.slopeAvgPct;
+      if (slope != null) {
+        const lbl = slope < 2 ? "Datar" : slope < 5 ? "Landai" : slope < 15 ? "Berbukit" : "Curam";
+        fills.topografi = lbl;
+        fills.kontur = `${lbl} — rata-rata ${slope.toFixed(1)}% kemiringan`;
+      }
+      if (terrainData.waterwayDistM != null) {
+        const dist = terrainData.waterwayDistM;
+        const r = dist < 100 ? "Sangat Rawan" : dist < 300 ? "Rawan" : dist < 500 ? "Waspada" : "Aman";
+        fills.peil_banjir = `${r} — ${Math.round(dist)}m dari badan air`;
+      }
+    }
+    if (survey.utilitas?.length > 0) {
+      fills.utilitas_teknis = survey.utilitas.join(", ");
+    }
+
+    if (Object.keys(fills).length === 0) return;
+    terrainFillApplied.current = true;
+
+    const currentChecked = checklists[prospect.id] ?? [];
+    const currentVals = checklistValues[prospect.id] ?? {};
+
+    Object.entries(fills).forEach(([key, val]) => {
+      if (!currentVals[key]) onSetChecklistValue(prospect.id, key, val);
+      if (!currentChecked.includes(key)) onToggleItem(prospect.id, key);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terrainData, survey.utilitas, prospect.luas, prospect.id]);
 
   // Debounced PATCH aksesJalan + catatan ke DB
   useEffect(() => {
@@ -688,15 +728,11 @@ function ProspectDetailPanel({
                     {jStage.checklist.map((item) => {
                       const done = checked.includes(item.key);
                       const inputDef = CHECKLIST_INPUT_TYPES[item.key];
-                      // Auto-populate dari data prospek yang sudah tersimpan di DB
-                      const prospectAutoFill: Record<string, string> = {
-                        harga_tanah_m2: prospect.hargaM2 ? String(prospect.hargaM2) : "",
-                        luas_lahan: prospect.luas ? String(prospect.luas) : "",
-                      };
                       const savedVals = checklistValues[prospect.id] ?? {};
-                      const currentVal = savedVals[item.key] !== undefined
-                        ? savedVals[item.key]
-                        : (prospectAutoFill[item.key] ?? "");
+                      const currentVal = savedVals[item.key] ?? "";
+                      // Badge: apakah nilai ini berasal dari data terrain/AI?
+                      const TERRAIN_KEYS = new Set(["topografi", "kontur", "peil_banjir", "luas_lahan_teknis", "utilitas_teknis"]);
+                      const isAutoVal = TERRAIN_KEYS.has(item.key) && !!currentVal;
                       return (
                         <div key={item.key} className="space-y-0.5">
                           <div
@@ -716,9 +752,12 @@ function ProspectDetailPanel({
                               )} />
                             )}
                             <span className={cn("leading-tight flex-1", done && !inputDef && "line-through decoration-emerald-500/60")}>{item.label}</span>
+                            {isAutoVal && done && (
+                              <span className="text-[8px] font-medium text-blue-500 shrink-0 ml-1 bg-blue-50 px-1 rounded">AI</span>
+                            )}
                             {inputDef && currentVal && done && (
-                              <span className="text-[8px] font-medium text-foreground/50 shrink-0 ml-1">
-                                {inputDef.type === "rp" ? "v" : inputDef.type === "pct" ? currentVal + "%" : currentVal.slice(0, 8)}
+                              <span className="text-[8px] font-medium text-foreground/50 shrink-0 ml-1 truncate max-w-[64px]">
+                                {inputDef.type === "rp" ? "v" : inputDef.type === "pct" ? currentVal + "%" : currentVal.slice(0, 10)}
                               </span>
                             )}
                           </div>

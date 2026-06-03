@@ -95,58 +95,80 @@ function address(p: LandProspect) {
 function drawHeader(doc: jsPDF, title: string, subtitle: string) {
   const W = doc.internal.pageSize.getWidth();
 
-  // Black bar
-  doc.setFillColor(10, 10, 10);
-  doc.rect(0, 0, W, 24, "F");
+  // White background, thin bottom border
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, W, 22, "F");
 
-  // Company name
+  // Left accent line
+  doc.setFillColor(30, 30, 30);
+  doc.rect(0, 0, 3, 22, "F");
+
+  // Company name — dark text
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(...WHITE);
-  doc.text("SATARA DEVELOPMENT", 14, 10);
+  doc.setFontSize(12);
+  doc.setTextColor(20, 20, 20);
+  doc.text("SATARA DEVELOPMENT", 17, 9);
 
   // Tagline
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(160, 160, 160);
-  doc.text("Internal Operations Dashboard — Strictly Confidential", 14, 18);
+  doc.setFontSize(6.5);
+  doc.setTextColor(130, 130, 130);
+  doc.text("Internal Operations Dashboard — Strictly Confidential", 17, 16);
 
-  // Doc type (right, white bold)
+  // Doc type (right, dark)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(...WHITE);
-  doc.text(title, W - 14, 14, { align: "right" });
+  doc.setFontSize(8.5);
+  doc.setTextColor(40, 40, 40);
+  doc.text(title, W - 14, 11, { align: "right" });
 
-  // Light gray subtitle bar
-  doc.setFillColor(232, 232, 232);
-  doc.rect(0, 24, W, 9, "F");
+  // Thin separator line
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.3);
+  doc.line(0, 22, W, 22);
+
+  // Subtitle bar — very light gray
+  doc.setFillColor(248, 248, 248);
+  doc.rect(0, 22, W, 8, "F");
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(7.5);
-  doc.setTextColor(60, 60, 60);
-  doc.text(subtitle, 14, 30.5);
-  doc.text(`Dicetak: ${today()}`, W - 14, 30.5, { align: "right" });
+  doc.setFontSize(7);
+  doc.setTextColor(90, 90, 90);
+  // Truncate subtitle to avoid overflow
+  const maxSubtitleWidth = W - 80;
+  const subtitleLines = doc.splitTextToSize(subtitle, maxSubtitleWidth);
+  doc.text(subtitleLines[0] ?? subtitle, 14, 27.5);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`Dicetak: ${today()}`, W - 14, 27.5, { align: "right" });
 }
 
 function drawFooter(doc: jsPDF, pageNum: number, totalPages: number) {
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  doc.setFillColor(...NAVY);
-  doc.rect(0, H - 10, W, 10, "F");
+  // Thin top border, light bg
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.3);
+  doc.line(0, H - 9, W, H - 9);
+  doc.setFillColor(250, 250, 250);
+  doc.rect(0, H - 9, W, 9, "F");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(180, 180, 180);
-  doc.text("Dokumen ini bersifat rahasia dan hanya untuk penggunaan internal Satara Development.", 14, H - 3.5);
-  doc.text(`Hal. ${pageNum} / ${totalPages}`, W - 14, H - 3.5, { align: "right" });
+  doc.setFontSize(6.5);
+  doc.setTextColor(150, 150, 150);
+  doc.text("Dokumen ini bersifat rahasia dan hanya untuk penggunaan internal Satara Development.", 14, H - 3);
+  doc.text(`Hal. ${pageNum} / ${totalPages}`, W - 14, H - 3, { align: "right" });
 }
 
 function sectionTitle(doc: jsPDF, text: string, y: number): number {
   const W = doc.internal.pageSize.getWidth();
-  doc.setFillColor(20, 20, 20);
+  // Light gray bg with left accent line
+  doc.setFillColor(245, 245, 245);
   doc.rect(14, y, W - 28, 7, "F");
+  doc.setFillColor(50, 50, 50);
+  doc.rect(14, y, 2.5, 7, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.setTextColor(255, 255, 255);
-  doc.text(text.toUpperCase(), 17, y + 4.8);
+  doc.setFontSize(7.5);
+  doc.setTextColor(30, 30, 30);
+  doc.text(text.toUpperCase(), 20, y + 4.8);
   return y + 11;
 }
 
@@ -205,7 +227,7 @@ export function generateProposalAkuisisi(payload: DocPayload) {
        "IRR",             aiResult?.irr ? `${aiResult.irr}%` : "—"],
     ],
     styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold", fontSize: 8 },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold", fontSize: 8 },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: { 0: { textColor: GRAY, fontStyle: "normal" }, 2: { textColor: GRAY, fontStyle: "normal" } },
     tableLineColor: LGRAY,
@@ -262,7 +284,7 @@ export function generateProposalAkuisisi(payload: DocPayload) {
         aiResult.risiko[i] ?? "",
       ]),
       styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-      headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+      headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
       columnStyles: { 0: { textColor: [22, 130, 80] as [number,number,number] }, 1: { textColor: RED } },
       tableLineColor: LGRAY,
       tableLineWidth: 0.1,
@@ -297,7 +319,7 @@ export function generateProposalAkuisisi(payload: DocPayload) {
     head: [["Disiapkan Oleh", "Direview Oleh", "Disetujui Oleh"]],
     body: [["\n\n\n_____________________\nLand Acquisition Team", "\n\n\n_____________________\nProject Manager", "\n\n\n_____________________\nDirektur"]],
     styles: { fontSize: 8.5, cellPadding: 4, halign: "center", textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     tableLineColor: LGRAY,
     tableLineWidth: 0.1,
   });
@@ -364,7 +386,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
           terrain.waterwayDistM != null ? `Jarak: ${terrain.waterwayDistM} m` : ""],
       ],
       styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-      headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+      headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
       alternateRowStyles: { fillColor: BGLIGHT },
       columnStyles: { 2: { textColor: GRAY, fontStyle: "italic" } },
       tableLineColor: LGRAY,
@@ -550,7 +572,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
          "Harga Maks Akuisisi", fmtRp(ar.hargaMaksAkuisisi)],
       ],
       styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-      headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold", fontSize: 8 },
+      headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold", fontSize: 8 },
       alternateRowStyles: { fillColor: BGLIGHT },
       columnStyles: { 0: { textColor: GRAY }, 2: { textColor: GRAY } },
       tableLineColor: LGRAY,
@@ -660,7 +682,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
         head: [["Risiko", "Level", "Deskripsi", "Mitigasi"]],
         body: aiRisikos.map(r => [r.risiko ?? "", r.level ?? "", r.deskripsi ?? "", r.mitigasi ?? ""]),
         styles: { fontSize: 7.5, cellPadding: 2.5, textColor: BLACK, overflow: "linebreak" },
-        headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+        headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
         alternateRowStyles: { fillColor: BGLIGHT },
         columnStyles: {
           0: { cellWidth: 32 },
@@ -688,7 +710,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
           ar.kelebihan[i] ?? "", ar.risiko[i] ?? "",
         ]),
         styles: { fontSize: 7.5, cellPadding: 2.5, textColor: BLACK },
-        headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+        headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
         columnStyles: { 0: { textColor: [22, 130, 80] as [number,number,number] }, 1: { textColor: RED } },
         tableLineColor: LGRAY,
         tableLineWidth: 0.1,
@@ -784,7 +806,7 @@ export function generateLegalChecking(payload: DocPayload) {
       checkedItems.includes(item.key) ? "Dokumen telah diverifikasi" : "Perlu pemeriksaan lebih lanjut",
     ]),
     styles: { fontSize: 8, cellPadding: 3, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: {
       0: { halign: "center", cellWidth: 10 },
@@ -861,7 +883,7 @@ export function generateLegalChecking(payload: DocPayload) {
     head: [["Diperiksa Oleh", "Tanggal Pemeriksaan", "Tanda Tangan"]],
     body: [["Tim Legal Satara Development", today(), "\n\n_____________________"]],
     styles: { fontSize: 8.5, cellPadding: 4, halign: "center", textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     tableLineColor: LGRAY,
     tableLineWidth: 0.1,
   });
@@ -908,7 +930,7 @@ export function generateEstimasiHPP(payload: DocPayload) {
       ["Estimasi Unit",         `${potensiUnit} unit`,          aiResult?.potensiUnit ? "Output AI" : "Estimasi @100 m² / kavling"],
     ],
     styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: {
       1: { fontStyle: "bold" },
@@ -936,7 +958,7 @@ export function generateEstimasiHPP(payload: DocPayload) {
       ["TOTAL",                     fmt(luasTanah),             "100%",                               ""],
     ],
     styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: {
       2: { halign: "center" },
@@ -974,7 +996,7 @@ export function generateEstimasiHPP(payload: DocPayload) {
       ["TOTAL HPP per Unit",        fmtRp(totalHPP),         "100%",                                          ""],
     ],
     styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: {
       1: { fontStyle: "bold" },
@@ -1015,7 +1037,7 @@ export function generateEstimasiHPP(payload: DocPayload) {
       ["Payback Period",           payback ? `${payback} bulan` : "—", "<36 bulan", payback ? (payback <= 36 ? "LAYAK" : "PERLU REVIEW") : "—"],
     ],
     styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: {
       1: { fontStyle: "bold" },
@@ -1128,7 +1150,7 @@ export function generatePKSMoU(payload: DocPayload) {
       ["Batas Barat",            "____________________________________________"],
     ],
     styles: { fontSize: 8.5, cellPadding: 2.5, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 55, textColor: GRAY } },
     tableLineColor: LGRAY,
@@ -1151,7 +1173,7 @@ export function generatePKSMoU(payload: DocPayload) {
       ["Pelunasan",              fmtRp(totalNilai * 0.7),          "70% pada saat penandatanganan AJB"],
     ],
     styles: { fontSize: 8.5, cellPadding: 2.5, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: {
       1: { fontStyle: "bold" },
@@ -1212,7 +1234,7 @@ export function generatePKSMoU(payload: DocPayload) {
       `Pemilik Lahan — ${prospect.lokasi}\n\n\n\n\n_____________________________\nNama & Tanda Tangan\nMaterai Rp 10.000`,
     ]],
     styles: { fontSize: 9, cellPadding: 5, halign: "center", textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     tableLineColor: LGRAY,
     tableLineWidth: 0.1,
   });

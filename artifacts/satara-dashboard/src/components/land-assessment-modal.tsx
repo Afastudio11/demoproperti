@@ -373,6 +373,41 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
   });
   const [checkedItems, setCheckedItems] = useState<string[]>([]);
   const [checklistValues, setChecklistValues] = useState<Record<string, string>>({});
+  // Apakah user sedang mengedit lokasi secara manual
+  const [editingLocation, setEditingLocation] = useState(
+    !polygon.kecamatan || !polygon.kabupaten
+  );
+
+  // Auto-fill Data Teknis (pks_mou) dari terrain data
+  useEffect(() => {
+    if (!terrainData) return;
+    const fills: Record<string, string> = {};
+    if (polygon.luas) fills.luas_lahan_teknis = `${polygon.luas.toLocaleString("id-ID")} m²`;
+    const slope = terrainData.slopeAvgPct;
+    if (slope != null) {
+      const lbl = slope < 2 ? "Datar" : slope < 5 ? "Landai" : slope < 15 ? "Berbukit" : "Curam";
+      fills.topografi = lbl;
+      fills.kontur = `${lbl} — ${slope.toFixed(1)}% kemiringan rata-rata`;
+    }
+    if (terrainData.waterwayDistM != null) {
+      const dist = terrainData.waterwayDistM;
+      const r = dist < 100 ? "Sangat Rawan" : dist < 300 ? "Rawan" : dist < 500 ? "Waspada" : "Aman";
+      fills.peil_banjir = `${r} — ${Math.round(dist)}m dari badan air`;
+    }
+    if (Object.keys(fills).length === 0) return;
+    setChecklistValues(prev => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(fills)) {
+        if (!next[k]) next[k] = v;
+      }
+      return next;
+    });
+    setCheckedItems(prev => {
+      const missing = Object.keys(fills).filter(k => !prev.includes(k));
+      return missing.length ? [...prev, ...missing] : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terrainData, polygon.luas]);
 
   // Auto-geocode kecamatan/kabupaten jika kosong tapi koordinat tersedia
   useEffect(() => {
@@ -401,6 +436,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
           kecamatan: f.kecamatan || kecamatan,
           kabupaten: f.kabupaten || kabupaten,
         }));
+        if (kecamatan && kabupaten) setEditingLocation(false);
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -684,57 +720,112 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
           <div className="flex-1 overflow-y-auto">
             <div className="p-4 space-y-5">
 
-              {/* Koreksi Lokasi Administratif */}
+              {/* Lokasi Administratif */}
               <section className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Lokasi Administratif</h3>
-                  <span className="text-[9px] text-amber-600 font-medium">Koreksi jika auto-deteksi salah</span>
+                  {!editingLocation && form.kecamatan && form.kabupaten && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingLocation(true)}
+                      className="text-[9px] text-foreground/50 hover:text-foreground border border-border/60 px-2 py-0.5 rounded transition-colors"
+                    >
+                      Koreksi
+                    </button>
+                  )}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-[10px] text-muted-foreground block mb-1">Kelurahan/Desa</label>
-                    <input
-                      type="text"
-                      value={form.kelurahan}
-                      onChange={e => setForm(f => ({ ...f, kelurahan: e.target.value }))}
-                      placeholder="Nama kelurahan"
-                      className="w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-muted-foreground block mb-1">Kecamatan <span className="text-red-500">*</span></label>
-                    <input
-                      type="text"
-                      value={form.kecamatan}
-                      onChange={e => setForm(f => ({ ...f, kecamatan: e.target.value }))}
-                      placeholder="Nama kecamatan"
-                      className={cn(
-                        "w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30",
-                        !form.kecamatan && "border-amber-400"
+
+                {/* Mode terkonfirmasi — tampilkan sebagai tags */}
+                {!editingLocation && form.kecamatan && form.kabupaten ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <div className="size-4 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg className="size-2.5 text-white" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[9px] text-emerald-700 font-medium mb-1">Lokasi terdeteksi otomatis</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {form.kelurahan && (
+                          <span className="text-[10px] font-medium bg-white border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded">
+                            {form.kelurahan}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-medium bg-white border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded">
+                          Kec. {form.kecamatan}
+                        </span>
+                        <span className="text-[10px] font-semibold bg-emerald-500 text-white px-2 py-0.5 rounded">
+                          {form.kabupaten}
+                        </span>
+                      </div>
+                      {form.kabupaten && (
+                        <div className="text-[9px] mt-1.5 text-emerald-700">
+                          {competitorDataKab.length > 0
+                            ? `${competitorDataKec.length} kompetitor di kec. ini · ${competitorDataKab.length} di kab. ini`
+                            : "Tidak ada data kompetitor lokal — AI pakai pengetahuan pasar umum"}
+                        </div>
                       )}
-                    />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] text-muted-foreground block mb-1">Kabupaten/Kota <span className="text-red-500">*</span></label>
-                    <input
-                      type="text"
-                      value={form.kabupaten}
-                      onChange={e => setForm(f => ({ ...f, kabupaten: e.target.value }))}
-                      placeholder="Nama kabupaten"
-                      className={cn(
-                        "w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30",
-                        !form.kabupaten && "border-amber-400"
-                      )}
-                    />
-                  </div>
-                </div>
-                {form.kabupaten && (
-                  <div className="text-[9px] text-muted-foreground flex items-center gap-1">
-                    <span className={competitorDataKab.length > 0 ? "text-emerald-600" : "text-amber-600"}>
-                      {competitorDataKab.length > 0
-                        ? `${competitorDataKec.length} kompetitor di Kec. ${form.kecamatan || "—"} · ${competitorDataKab.length} di Kab. ${form.kabupaten}`
-                        : `Tidak ada data kompetitor di database untuk ${form.kabupaten} — AI akan gunakan pengetahuan pasar umum`}
-                    </span>
+                ) : (
+                  /* Mode edit */
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Kelurahan/Desa</label>
+                        <input
+                          type="text"
+                          value={form.kelurahan}
+                          onChange={e => setForm(f => ({ ...f, kelurahan: e.target.value }))}
+                          placeholder="Nama kelurahan"
+                          className="w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Kecamatan <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={form.kecamatan}
+                          onChange={e => setForm(f => ({ ...f, kecamatan: e.target.value }))}
+                          placeholder="Nama kecamatan"
+                          className={cn(
+                            "w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30",
+                            !form.kecamatan && "border-amber-400"
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Kabupaten/Kota <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={form.kabupaten}
+                          onChange={e => setForm(f => ({ ...f, kabupaten: e.target.value }))}
+                          placeholder="Nama kabupaten"
+                          className={cn(
+                            "w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30",
+                            !form.kabupaten && "border-amber-400"
+                          )}
+                        />
+                      </div>
+                    </div>
+                    {form.kecamatan && form.kabupaten && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingLocation(false)}
+                        className="text-[9px] text-emerald-600 hover:text-emerald-700 font-medium"
+                      >
+                        Konfirmasi lokasi
+                      </button>
+                    )}
+                    {form.kabupaten && (
+                      <div className="text-[9px] text-muted-foreground">
+                        <span className={competitorDataKab.length > 0 ? "text-emerald-600" : "text-amber-600"}>
+                          {competitorDataKab.length > 0
+                            ? `${competitorDataKec.length} kompetitor di Kec. ${form.kecamatan || "—"} · ${competitorDataKab.length} di Kab. ${form.kabupaten}`
+                            : `Tidak ada data kompetitor untuk ${form.kabupaten}`}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
@@ -1021,11 +1112,13 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                             const done = checkedItems.includes(item.key);
                             const inputDef = CHECKLIST_INPUT_TYPES[item.key];
                             const currentVal = checklistValues[item.key] ?? "";
-                            const autoFillVal =
+                            const formAutoFill =
                               item.key === "harga_tanah_m2" && form.hargaTanahM2 ? form.hargaTanahM2
                               : item.key === "harga_rumah_sekitar" && form.hargaRumahSekitar ? form.hargaRumahSekitar
                               : "";
-                            const displayVal = currentVal || autoFillVal;
+                            const displayVal = currentVal || formAutoFill;
+                            const TERRAIN_ITEM_KEYS = new Set(["topografi","kontur","peil_banjir","luas_lahan_teknis","utilitas_teknis"]);
+                            const isTerrainItem = TERRAIN_ITEM_KEYS.has(item.key);
                             return (
                               <div key={item.key} className="space-y-0.5">
                                 <div
@@ -1044,13 +1137,16 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                                   <span className={cn("leading-tight flex-1", done && !inputDef && "line-through decoration-emerald-500/60")}>
                                     {item.label}
                                   </span>
-                                  {inputDef && displayVal && done && (
+                                  {isTerrainItem && done && (
+                                    <span className="text-[8px] font-medium text-blue-500 bg-blue-50 px-1 rounded shrink-0 ml-1">AI</span>
+                                  )}
+                                  {inputDef && displayVal && done && !isTerrainItem && (
                                     <span className="text-[9px] font-medium text-foreground/50 shrink-0 ml-1 truncate max-w-[60px]">
                                       {displayVal.slice(0, 10)}
                                     </span>
                                   )}
                                 </div>
-                                {inputDef && done && (
+                                {inputDef && (done || isTerrainItem) && (
                                   <div className="ml-5 mt-0.5">
                                     <div className="flex items-center gap-1">
                                       {inputDef.type === "rp" && <span className="text-[10px] text-muted-foreground font-medium shrink-0">Rp</span>}

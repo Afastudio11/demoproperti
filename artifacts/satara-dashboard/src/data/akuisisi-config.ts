@@ -31,7 +31,7 @@ export const STAGE_CHECKLISTS: Record<string, { key: string; label: string }[]> 
   pks_mou: [
     { key: "luas_lahan_teknis", label: "Luas lahan terukur" },
     { key: "topografi",         label: "Topografi" },
-    { key: "kontur",            label: "Kontur" },
+    { key: "kontur",            label: "Kontur lahan" },
     { key: "utilitas_teknis",   label: "Utilitas" },
     { key: "peil_banjir",       label: "Peil banjir" },
   ],
@@ -72,12 +72,26 @@ export const JOBDESK_STAGES = [
 ];
 
 export const CHECKLIST_INPUT_TYPES: Record<string, { type: "rp" | "text" | "pct"; placeholder: string }> = {
+  // Analisis Kompetitor
   harga_rumah_sekitar: { type: "rp",   placeholder: "harga, cth: 450.000.000" },
   tipe_rumah_sekitar:  { type: "text", placeholder: "cth: 36/72 subsidi" },
   kecepatan_penjualan: { type: "text", placeholder: "cth: 3-6 bulan" },
   occupancy_rate:      { type: "pct",  placeholder: "% hunian, cth: 85" },
+  // Negosiasi
   harga_tanah_m2:      { type: "rp",   placeholder: "harga/m², cth: 280.000" },
   sistem_pembayaran:   { type: "text", placeholder: "cth: cash bertahap 12 bln" },
+  kerja_sama_lahan:    { type: "text", placeholder: "cth: Jual Putus / Bagi Hasil 80:20" },
+  legalitas_pemilik:   { type: "text", placeholder: "cth: SHM a.n. Budi, ahli waris tunggal" },
+  // Legal Checking
+  bebas_sengketa:      { type: "text", placeholder: "cth: Tidak ada sengketa, konfirmasi RT" },
+  batas_tanah:         { type: "text", placeholder: "cth: Batas jelas, ada patok 4 sudut" },
+  kelengkapan_berkas:  { type: "text", placeholder: "cth: SHM + KTP + AJB lengkap" },
+  // Data Teknis (pks_mou) — wajib ada nilai deskriptif
+  luas_lahan_teknis:   { type: "text", placeholder: "cth: 26.600 m² (hasil ukur GPS)" },
+  topografi:           { type: "text", placeholder: "cth: Datar / Landai / Berbukit / Curam" },
+  kontur:              { type: "text", placeholder: "cth: Melandai ke Timur, relatif datar" },
+  utilitas_teknis:     { type: "text", placeholder: "cth: PLN 900VA, PDAM aktif, Internet" },
+  peil_banjir:         { type: "text", placeholder: "cth: Aman, +50cm dari muka jalan" },
 };
 
 export const STAGE_ORDER = ["prospek_baru", "survey", "analisis_kompetitor", "negosiasi", "legal_checking", "pks_mou"];
