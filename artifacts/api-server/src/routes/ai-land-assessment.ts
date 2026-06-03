@@ -265,7 +265,6 @@ router.post("/ai/land-assessment", async (req, res) => {
     competitorsKecamatan,
     checkedItems,
     checklistValues,
-    namaPemilik, kondisiJalan, peilBanjir, namaPIC,
   } = req.body;
 
   const deepseek = createDeepSeekClient();
@@ -387,7 +386,7 @@ Fasilitas      : ${fasilitasList.join(", ") || "Tidak ada data"}
 Utilitas       : ${Array.isArray(utilitas) ? utilitas.join(", ") : (utilitas || "Tidak ada data")}
 Pertumbuhan    : ${potensiPertumbuhan ?? "sedang"}
 Harga rumah sekitar: ${hargaRumahNum > 0 ? `Rp ${hargaRumahNum.toLocaleString("id-ID")}` : "Tidak tersedia"}
-Catatan        : ${catatan || "Tidak ada"}${namaPemilik ? `\nNama pemilik  : ${namaPemilik}` : ""}${namaPIC ? `\nPIC/Surveyor  : ${namaPIC}` : ""}${kondisiJalan ? `\nKondisi jalan : ${kondisiJalan}` : ""}${peilBanjir ? `\nPeil banjir   : ${peilBanjir}` : ""}
+Catatan        : ${catatan || "Tidak ada"}
 
 ════════════════════════════════════════
 CHECKLIST LAPANGAN & VERIFIKASI

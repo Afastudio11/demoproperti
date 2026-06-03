@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
+import { JOBDESK_STAGES, CHECKLIST_INPUT_TYPES } from "@/data/akuisisi-config";
 import {
   X, Brain, Loader2, FileText,
   BarChart3, Scale, Building2, ScrollText, AlertTriangle,
@@ -369,11 +370,9 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
     kecamatan: polygon.kecamatan,
     kabupaten: polygon.kabupaten,
     kelurahan: polygon.kelurahan,
-    namaPemilik: "",
-    kondisiJalan: "",
-    peilBanjir: "",
-    namaPIC: "",
   });
+  const [checkedItems, setCheckedItems] = useState<string[]>([]);
+  const [checklistValues, setChecklistValues] = useState<Record<string, string>>({});
 
   // Auto-geocode kecamatan/kabupaten jika kosong tapi koordinat tersedia
   useEffect(() => {
@@ -490,11 +489,10 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
               bentukLahan: bentukMap[form.bentukLahan] ?? "Kotak",
               statusLegal: legalMap[form.statusKepemilikan] ?? "",
               topografi: topoVal,
-              kondisiJalan: form.kondisiJalan || "",
+              kondisiJalan: checklistValues["kondisi_jalan"] || "",
               utilitas: form.utilitas.map(u => utilitasMap[u] ?? "").filter(Boolean),
-              peilBanjir: form.peilBanjir || banjirVal,
-              namaPemilik: form.namaPemilik || "",
-              namaPIC: form.namaPIC || "",
+              peilBanjir: banjirVal,
+              namaPemilik: "",
               kontakPemilik: "",
             };
             localStorage.setItem(`satara_survey_${pid}`, JSON.stringify(surveyData));
@@ -609,10 +607,8 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
       statusKepemilikan: form.statusKepemilikan,
       bentukLahan: form.bentukLahan,
       catatan: form.catatan,
-      namaPemilik: form.namaPemilik || undefined,
-      kondisiJalan: form.kondisiJalan || undefined,
-      peilBanjir: form.peilBanjir || undefined,
-      namaPIC: form.namaPIC || undefined,
+      checkedItems,
+      checklistValues,
       ...(terrainData ?? {}),
       // Data kompetitor dari database SLIS
       competitors: competitorDataKab,
@@ -993,57 +989,119 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                 </div>
               )}
 
-              {/* Data Survei Lapangan */}
-              <section className="space-y-3">
-                <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Data Survei Lapangan</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-medium block mb-1.5">Nama Pemilik Lahan</label>
-                    <input type="text" placeholder="contoh: H. Ahmad Syarifudin"
-                      value={form.namaPemilik}
-                      onChange={e => setForm(f => ({ ...f, namaPemilik: e.target.value }))}
-                      className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-medium block mb-1.5">PIC / Surveyor</label>
-                    <input type="text" placeholder="Nama yang survei lapangan"
-                      value={form.namaPIC}
-                      onChange={e => setForm(f => ({ ...f, namaPIC: e.target.value }))}
-                      className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
-                    />
-                  </div>
+              {/* ── JOBDESK 5 Fase Akuisisi ── */}
+              <section className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Jobdesk Akuisisi — 5 Fase</h3>
+                  <span className="text-[9px] text-muted-foreground">
+                    {checkedItems.length}/{JOBDESK_STAGES.reduce((s, f) => s + f.checklist.length, 0)} item
+                  </span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-medium block mb-1.5">Kondisi Jalan</label>
-                    <select
-                      value={form.kondisiJalan}
-                      onChange={e => setForm(f => ({ ...f, kondisiJalan: e.target.value }))}
-                      className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
-                    >
-                      <option value="">-- Pilih kondisi --</option>
-                      <option value="Sangat Baik (aspal mulus, lebar &gt;8m)">Sangat Baik (aspal mulus, lebar &gt;8m)</option>
-                      <option value="Baik (aspal, lebar 5-8m)">Baik (aspal, lebar 5-8m)</option>
-                      <option value="Sedang (aspal rusak / beton)">Sedang (aspal rusak / beton)</option>
-                      <option value="Kurang (tanah / kerikil)">Kurang (tanah / kerikil)</option>
-                      <option value="Buruk (susah dilalui kendaraan)">Buruk (susah dilalui kendaraan)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-medium block mb-1.5">Peil Banjir / Riwayat Banjir</label>
-                    <select
-                      value={form.peilBanjir}
-                      onChange={e => setForm(f => ({ ...f, peilBanjir: e.target.value }))}
-                      className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
-                    >
-                      <option value="">-- Pilih status --</option>
-                      <option value="Aman (tidak pernah banjir)">Aman (tidak pernah banjir)</option>
-                      <option value="Genangan Ringan (saat hujan deras)">Genangan Ringan (saat hujan deras)</option>
-                      <option value="Rawan (banjir tahunan, &lt;50cm)">Rawan (banjir tahunan, &lt;50cm)</option>
-                      <option value="Sangat Rawan (banjir rutin, &gt;50cm)">Sangat Rawan (banjir rutin, &gt;50cm)</option>
-                    </select>
-                  </div>
+                <div className="space-y-2">
+                  {JOBDESK_STAGES.map((jStage) => {
+                    const stageChecked = jStage.checklist.filter(c => checkedItems.includes(c.key)).length;
+                    const allDone = stageChecked === jStage.checklist.length && jStage.checklist.length > 0;
+                    return (
+                      <div key={jStage.key} className={cn("rounded-lg border overflow-hidden", jStage.color)}>
+                        {/* Header */}
+                        <div className={cn("flex items-center gap-2 px-3 py-2", jStage.headerColor)}>
+                          <div className={cn(
+                            "size-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                            allDone ? "bg-emerald-500 border-emerald-500" : "border-current bg-transparent"
+                          )}>
+                            {allDone && <CheckCircle2 className="size-3 text-white" strokeWidth={3} />}
+                            {!allDone && <div className="size-1.5 rounded-full bg-current opacity-60" />}
+                          </div>
+                          <span className="text-[11px] font-bold flex-1">{jStage.no}. {jStage.label}</span>
+                          <span className="text-[10px] opacity-70">{stageChecked}/{jStage.checklist.length}</span>
+                        </div>
+                        {/* Items */}
+                        <div className="px-3 py-2 space-y-1.5">
+                          {jStage.checklist.map((item) => {
+                            const done = checkedItems.includes(item.key);
+                            const inputDef = CHECKLIST_INPUT_TYPES[item.key];
+                            const currentVal = checklistValues[item.key] ?? "";
+                            const autoFillVal =
+                              item.key === "harga_tanah_m2" && form.hargaTanahM2 ? form.hargaTanahM2
+                              : item.key === "harga_rumah_sekitar" && form.hargaRumahSekitar ? form.hargaRumahSekitar
+                              : "";
+                            const displayVal = currentVal || autoFillVal;
+                            return (
+                              <div key={item.key} className="space-y-0.5">
+                                <div
+                                  onClick={() => setCheckedItems(prev =>
+                                    prev.includes(item.key) ? prev.filter(k => k !== item.key) : [...prev, item.key]
+                                  )}
+                                  className={cn(
+                                    "flex items-start gap-1.5 text-[11px] rounded px-1 py-0.5 cursor-pointer hover:bg-black/5 transition-colors select-none",
+                                    done ? "text-emerald-700" : "text-foreground/80"
+                                  )}
+                                >
+                                  {done
+                                    ? <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-[1px]" strokeWidth={2.5} />
+                                    : <div className="size-3.5 rounded-full border border-foreground/30 shrink-0 mt-[1px]" />
+                                  }
+                                  <span className={cn("leading-tight flex-1", done && !inputDef && "line-through decoration-emerald-500/60")}>
+                                    {item.label}
+                                  </span>
+                                  {inputDef && displayVal && done && (
+                                    <span className="text-[9px] font-medium text-foreground/50 shrink-0 ml-1 truncate max-w-[60px]">
+                                      {displayVal.slice(0, 10)}
+                                    </span>
+                                  )}
+                                </div>
+                                {inputDef && done && (
+                                  <div className="ml-5 mt-0.5">
+                                    <div className="flex items-center gap-1">
+                                      {inputDef.type === "rp" && <span className="text-[10px] text-muted-foreground font-medium shrink-0">Rp</span>}
+                                      <input
+                                        type={inputDef.type === "pct" ? "number" : "text"}
+                                        inputMode={inputDef.type !== "text" ? "numeric" : "text"}
+                                        value={displayVal}
+                                        onChange={(e) => {
+                                          const v = e.target.value;
+                                          setChecklistValues(prev => ({ ...prev, [item.key]: v }));
+                                        }}
+                                        placeholder={inputDef.placeholder}
+                                        className="flex-1 text-[11px] px-2 py-0.5 border border-amber-300 rounded bg-background focus:outline-none focus:ring-1 focus:ring-amber-400 min-w-0 placeholder:text-muted-foreground/50"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                      {inputDef.type === "pct" && <span className="text-[10px] text-muted-foreground shrink-0">%</span>}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {/* Tandai semua button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const keys = jStage.checklist.map(c => c.key);
+                              const allChecked = keys.every(k => checkedItems.includes(k));
+                              if (allChecked) {
+                                setCheckedItems(prev => prev.filter(k => !keys.includes(k)));
+                              } else {
+                                setCheckedItems(prev => [...new Set([...prev, ...keys])]);
+                              }
+                            }}
+                            className="w-full text-[9px] text-foreground/50 hover:text-foreground py-0.5 border border-border/50 rounded hover:bg-black/5 transition-colors mt-0.5"
+                          >
+                            {jStage.checklist.every(c => checkedItems.includes(c.key)) ? "Batal semua" : "Tandai semua"}
+                          </button>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="px-3 pb-2">
+                          <div className="h-1 bg-black/10 rounded-full overflow-hidden">
+                            <div
+                              className={cn("h-full rounded-full transition-all", allDone ? "bg-emerald-500" : "bg-amber-400")}
+                              style={{ width: `${jStage.checklist.length > 0 ? (stageChecked / jStage.checklist.length) * 100 : 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
 
