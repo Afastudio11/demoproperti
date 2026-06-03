@@ -577,38 +577,29 @@ function ProspectDetailPanel({
               const status: "done" | "active" | "pending" =
                 sIdx < currentStageIdx ? "done" :
                 sIdx === currentStageIdx ? "active" : "pending";
-              const isPending = status === "pending";
-              const style = STAGE_STYLE[jStage.key];
               const stageCheckedCount = jStage.checklist.filter((c) => checked.includes(c.key)).length;
+              const allDone = jStage.checklist.every((c) => checked.includes(c.key));
 
               return (
                 <div
                   key={jStage.key}
-                  className={cn(
-                    "border rounded-lg flex flex-col",
-                    status === "done"   ? cn(style.border, style.bg) :
-                    status === "active" ? cn(style.border, "bg-background ring-1", style.border.replace("border-", "ring-")) :
-                    "border-foreground/25 bg-background"
-                  )}
+                  className="border border-border rounded-lg flex flex-col bg-background"
                 >
                   {/* Stage header */}
-                  <div className={cn("px-2.5 py-2 border-b flex items-center gap-1.5",
-                    status !== "pending" ? cn(style.border, style.bg) : "border-foreground/20"
-                  )}>
-                    <div className={cn("size-3.5 rounded-full flex items-center justify-center shrink-0",
-                      status === "done"    ? "bg-emerald-500" :
-                      status === "active"  ? style.dot : "bg-foreground/30"
+                  <div className="px-2.5 py-2 border-b border-border flex items-center gap-1.5">
+                    <div className={cn(
+                      "size-3.5 rounded-full border-2 flex items-center justify-center shrink-0",
+                      status === "done"   ? "bg-emerald-500 border-emerald-500" :
+                      status === "active" ? "border-foreground bg-background" :
+                                           "border-foreground/30 bg-background"
                     )}>
-                      {status === "done"
-                        ? <CheckCircle2 className="size-2.5 text-white" strokeWidth={3} />
-                        : status === "active"
-                        ? <div className="size-1 rounded-full bg-white" />
-                        : <div className="size-1 rounded-full bg-background" />
-                      }
+                      {status === "done" && <CheckCircle2 className="size-2.5 text-white" strokeWidth={3} />}
+                      {status === "active" && <div className="size-1.5 rounded-full bg-foreground" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className={cn("text-[10px] font-bold leading-tight truncate",
-                        isPending ? "text-foreground/60" : style.header
+                      <div className={cn(
+                        "text-[10px] font-bold leading-tight truncate",
+                        status === "pending" ? "text-foreground/50" : "text-foreground"
                       )}>
                         {jStage.no}. {jStage.label}
                       </div>
@@ -624,17 +615,23 @@ function ProspectDetailPanel({
                           key={item.key}
                           onClick={() => onToggleItem(prospect.id, item.key)}
                           className={cn(
-                            "flex items-start gap-1.5 text-[10px] rounded px-1 py-0.5 transition-colors cursor-pointer hover:bg-white/60",
-                            done ? "text-emerald-700" : isPending ? "text-foreground/65" : "text-foreground/90"
+                            "flex items-start gap-1.5 text-[10px] rounded px-1 py-0.5 transition-colors cursor-pointer group",
+                            status === "pending"
+                              ? "text-foreground/40 cursor-default"
+                              : done
+                              ? "text-emerald-600 hover:bg-muted/40"
+                              : "text-foreground/80 hover:bg-muted/40"
                           )}
                         >
-                          <div className={cn(
-                            "size-3 rounded-sm border flex items-center justify-center shrink-0 mt-[1px] transition-colors",
-                            done ? "bg-emerald-500 border-emerald-500" : "border-foreground/35 bg-background"
-                          )}>
-                            {done && <CheckCircle2 className="size-2 text-white" strokeWidth={3} />}
-                          </div>
-                          <span className={cn("leading-tight", done && "line-through")}>{item.label}</span>
+                          {done ? (
+                            <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-[0.5px]" strokeWidth={2.5} />
+                          ) : (
+                            <div className={cn(
+                              "size-3.5 rounded-full border shrink-0 mt-[0.5px]",
+                              status === "pending" ? "border-foreground/20" : "border-foreground/40"
+                            )} />
+                          )}
+                          <span className={cn("leading-tight", done && "line-through decoration-emerald-500/60")}>{item.label}</span>
                         </div>
                       );
                     })}
@@ -642,20 +639,30 @@ function ProspectDetailPanel({
 
                   {/* Footer progress */}
                   {jStage.checklist.length > 0 && (
-                    <div className={cn("px-2 pb-2 pt-1 border-t", isPending ? "border-foreground/20" : style.border.replace("border-", "border-t-"))}>
-                      <CheckProgress checked={stageCheckedCount} total={jStage.checklist.length} />
+                    <div className="px-2 pb-2 pt-1.5 border-t border-border">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={cn("h-full rounded-full transition-all", stageCheckedCount === jStage.checklist.length ? "bg-emerald-500" : "bg-amber-400")}
+                            style={{ width: `${Math.round((stageCheckedCount / jStage.checklist.length) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-foreground/60 whitespace-nowrap tabular-nums">
+                          {stageCheckedCount}/{jStage.checklist.length}
+                        </span>
+                      </div>
                       <button
-                        className="w-full mt-1.5 text-[9px] text-foreground/70 hover:text-foreground py-0.5 border border-foreground/25 rounded hover:bg-muted/40 transition-colors"
-                        onClick={() => {
+                        className="w-full text-[9px] text-foreground/60 hover:text-foreground py-0.5 border border-border rounded hover:bg-muted/40 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           const allKeys = jStage.checklist.map((c) => c.key);
-                          const allDone = allKeys.every((k) => checked.includes(k));
                           allKeys.forEach((k) => {
                             if (allDone ? checked.includes(k) : !checked.includes(k))
                               onToggleItem(prospect.id, k);
                           });
                         }}
                       >
-                        {jStage.checklist.every((c) => checked.includes(c.key)) ? "Batal semua" : "Tandai semua"}
+                        {allDone ? "Batal semua" : "Tandai semua"}
                       </button>
                     </div>
                   )}
