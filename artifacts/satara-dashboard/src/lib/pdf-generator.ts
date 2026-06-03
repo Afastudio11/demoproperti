@@ -2,17 +2,17 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { LandProspect } from "@workspace/api-client-react";
 
-// ─── Brand Colors ─────────────────────────────────────────────────────────────
-const NAVY   = [10, 22, 45]   as [number, number, number];
-const GOLD   = [192, 148, 30] as [number, number, number];
+// ─── Colors (Black & White) ───────────────────────────────────────────────────
+const NAVY   = [15, 15, 15]   as [number, number, number];
+const GOLD   = [15, 15, 15]   as [number, number, number];
 const BLACK  = [15, 15, 15]   as [number, number, number];
-const GRAY   = [95, 95, 95]   as [number, number, number];
-const LGRAY  = [185, 185, 185] as [number, number, number];
-const BGLIGHT = [246, 247, 248] as [number, number, number];
+const GRAY   = [90, 90, 90]   as [number, number, number];
+const LGRAY  = [180, 180, 180] as [number, number, number];
+const BGLIGHT = [245, 245, 245] as [number, number, number];
 const WHITE  = [255, 255, 255] as [number, number, number];
-const GREEN  = [22, 130, 80]  as [number, number, number];
-const RED    = [190, 40, 40]  as [number, number, number];
-const AMBER  = [180, 110, 20] as [number, number, number];
+const GREEN  = [30, 30, 30]   as [number, number, number];
+const RED    = [80, 80, 80]   as [number, number, number];
+const AMBER  = [50, 50, 50]   as [number, number, number];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +57,7 @@ export interface CompetitorEntry {
 export interface DocPayload {
   prospect: LandProspect;
   checkedItems: string[];
+  checklistValues?: Record<string, string>;
   aiResult?: AiResult | null;
   fullAiResult?: Record<string, unknown> | null;
   terrain?: TerrainData | null;
@@ -89,43 +90,36 @@ function address(p: LandProspect) {
 function drawHeader(doc: jsPDF, title: string, subtitle: string) {
   const W = doc.internal.pageSize.getWidth();
 
-  // Navy bar
-  doc.setFillColor(...NAVY);
-  doc.rect(0, 0, W, 28, "F");
+  // Black bar
+  doc.setFillColor(10, 10, 10);
+  doc.rect(0, 0, W, 24, "F");
 
   // Company name
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.setTextColor(...WHITE);
-  doc.text("SATARA DEVELOPMENT", 14, 11);
-
-  // Gold accent line
-  doc.setFillColor(...GOLD);
-  doc.rect(14, 14, 60, 1, "F");
+  doc.text("SATARA DEVELOPMENT", 14, 10);
 
   // Tagline
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(200, 200, 200);
-  doc.text("Internal Operations Dashboard — Strictly Confidential", 14, 21);
+  doc.setFontSize(7);
+  doc.setTextColor(160, 160, 160);
+  doc.text("Internal Operations Dashboard — Strictly Confidential", 14, 18);
 
-  // Doc type badge (right side)
-  doc.setFillColor(...GOLD);
-  const badgeW = Math.min(90, doc.getTextWidth(title) + 14);
-  doc.roundedRect(W - badgeW - 10, 6, badgeW, 16, 2, 2, "F");
+  // Doc type (right, white bold)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...NAVY);
-  doc.text(title, W - badgeW - 10 + badgeW / 2, 16, { align: "center" });
+  doc.setFontSize(9);
+  doc.setTextColor(...WHITE);
+  doc.text(title, W - 14, 14, { align: "right" });
 
-  // Subtitle bar
-  doc.setFillColor(...BGLIGHT);
-  doc.rect(0, 28, W, 10, "F");
+  // Light gray subtitle bar
+  doc.setFillColor(232, 232, 232);
+  doc.rect(0, 24, W, 9, "F");
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(8);
-  doc.setTextColor(...GRAY);
-  doc.text(subtitle, 14, 35);
-  doc.text(`Dicetak: ${today()}`, W - 14, 35, { align: "right" });
+  doc.setFontSize(7.5);
+  doc.setTextColor(60, 60, 60);
+  doc.text(subtitle, 14, 30.5);
+  doc.text(`Dicetak: ${today()}`, W - 14, 30.5, { align: "right" });
 }
 
 function drawFooter(doc: jsPDF, pageNum: number, totalPages: number) {
@@ -142,15 +136,13 @@ function drawFooter(doc: jsPDF, pageNum: number, totalPages: number) {
 
 function sectionTitle(doc: jsPDF, text: string, y: number): number {
   const W = doc.internal.pageSize.getWidth();
-  doc.setFillColor(...NAVY);
-  doc.rect(14, y, W - 28, 8, "F");
-  doc.setFillColor(...GOLD);
-  doc.rect(14, y, 3, 8, "F");
+  doc.setFillColor(20, 20, 20);
+  doc.rect(14, y, W - 28, 7, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...WHITE);
-  doc.text(text.toUpperCase(), 20, y + 5.5);
-  return y + 12;
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text(text.toUpperCase(), 17, y + 4.8);
+  return y + 11;
 }
 
 function kv(doc: jsPDF, label: string, value: string, x: number, y: number, halfW: number) {
@@ -383,71 +375,101 @@ export function generateSiteAnalysis(payload: DocPayload) {
   }
 
   // Competitor analysis
-  y = sectionTitle(doc, "03  Analisis Kompetitor", y);
+  y = sectionTitle(doc, "03  Analisis Kompetitor Pasar", y);
   if (competitors && competitors.length > 0) {
     autoTable(doc, {
       startY: y,
       margin: { left: 14, right: 14 },
-      head: [["No", "Nama Pengembangan", "Tipe", "Jarak (km)"]],
-      body: competitors.slice(0, 15).map((c, i) => [
+      head: [["No", "Nama Properti", "Tipe", "Developer", "Kelurahan/Kecamatan", "Total Unit"]],
+      body: competitors.slice(0, 25).map((c, i) => [
         `${i + 1}`,
         c.name,
         c.type,
-        c.distanceKm != null ? `${c.distanceKm} km` : "—",
+        c.pengembang ?? "—",
+        [c.kelurahan, c.kecamatan].filter(Boolean).join(", ") || "—",
+        c.totalUnit != null ? `${c.totalUnit}` : "—",
       ]),
-      styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-      headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+      styles: { fontSize: 7.5, cellPadding: 2, textColor: BLACK },
+      headStyles: { fillColor: [20, 20, 20] as [number,number,number], textColor: WHITE, fontStyle: "bold", fontSize: 7.5 },
       alternateRowStyles: { fillColor: BGLIGHT },
-      columnStyles: { 0: { halign: "center", cellWidth: 12 }, 3: { halign: "center" } },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 10 },
+        5: { halign: "center", cellWidth: 18 },
+      },
       tableLineColor: LGRAY,
       tableLineWidth: 0.1,
     });
-    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
-
+    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7.5);
     doc.setTextColor(...GRAY);
-    doc.text(`Total ${competitors.length} kompetitor teridentifikasi dalam radius survei. Sumber: OpenStreetMap.`, 14, y);
+    doc.text(`${competitors.length} properti kompetitor teridentifikasi di ${prospect.kabupaten ?? "kabupaten ini"}. Sumber: Database Satara.`, 14, y);
     y += 8;
   } else {
     doc.setFont("helvetica", "italic");
     doc.setFontSize(8.5);
     doc.setTextColor(...GRAY);
-    doc.text("Data kompetitor belum dimuat. Jalankan pencarian kompetitor dari panel akuisisi.", 14, y + 5);
+    doc.text("Tidak ada data kompetitor tersedia untuk area ini.", 14, y + 5);
     y += 14;
   }
 
-  // Checklist survey
-  y = sectionTitle(doc, "04  Checklist Survey Lapangan", y);
-  const surveyItems = [
-    { key: "akses_jalan_5m",      label: "Akses jalan minimal 5 meter" },
-    { key: "dekat_fasilitas",     label: "Dekat market / fasilitas umum" },
-    { key: "lingkungan_aman",     label: "Lingkungan aman" },
-    { key: "potensi_pertumbuhan", label: "Potensi pertumbuhan wilayah" },
-    { key: "utilitas_tersedia",   label: "Utilitas tersedia" },
+  // Checklist lengkap semua stage
+  y = sectionTitle(doc, "04  Checklist Verifikasi Lapangan — Semua Stage", y);
+  const allChecklistItems = [
+    { stage: "Survey Lokasi",       key: "akses_jalan_5m",        label: "Akses jalan minimal 5m",      valueKey: null as string | null },
+    { stage: "Survey Lokasi",       key: "dekat_fasilitas",        label: "Dekat fasilitas umum",        valueKey: null },
+    { stage: "Survey Lokasi",       key: "lingkungan_aman",        label: "Lingkungan aman",             valueKey: null },
+    { stage: "Survey Lokasi",       key: "potensi_pertumbuhan",    label: "Potensi pertumbuhan wilayah", valueKey: null },
+    { stage: "Survey Lokasi",       key: "utilitas_tersedia",      label: "Utilitas tersedia",           valueKey: null },
+    { stage: "Analisis Kompetitor", key: "harga_rumah_sekitar",    label: "Harga rumah sekitar",         valueKey: "harga_rumah_sekitar" },
+    { stage: "Analisis Kompetitor", key: "tipe_rumah_sekitar",     label: "Tipe rumah sekitar",          valueKey: "tipe_rumah_sekitar" },
+    { stage: "Analisis Kompetitor", key: "kecepatan_penjualan",    label: "Kecepatan penjualan",         valueKey: "kecepatan_penjualan" },
+    { stage: "Analisis Kompetitor", key: "occupancy_rate",         label: "Occupancy rate (%)",          valueKey: "occupancy_rate" },
+    { stage: "Negosiasi Lahan",     key: "harga_tanah_m2",         label: "Harga tanah/m²",             valueKey: "harga_tanah_m2" },
+    { stage: "Negosiasi Lahan",     key: "sistem_pembayaran",      label: "Sistem pembayaran",           valueKey: "sistem_pembayaran" },
+    { stage: "Negosiasi Lahan",     key: "kerja_sama_lahan",       label: "Kerja sama lahan",            valueKey: null },
+    { stage: "Negosiasi Lahan",     key: "legalitas_pemilik",      label: "Legalitas pemilik",           valueKey: null },
+    { stage: "Legal Checking",      key: "shm_alas_hak",           label: "SHM / Alas hak",             valueKey: null },
+    { stage: "Legal Checking",      key: "bebas_sengketa",         label: "Bebas sengketa",              valueKey: null },
+    { stage: "Legal Checking",      key: "batas_tanah",            label: "Batas tanah jelas",           valueKey: null },
+    { stage: "Legal Checking",      key: "bphtb",                  label: "BPHTB",                      valueKey: null },
+    { stage: "Legal Checking",      key: "status_pemilik_sekitar", label: "Status pemilik sekitar",      valueKey: null },
+    { stage: "Legal Checking",      key: "akses_jalan_legal",      label: "Akses jalan (legal)",         valueKey: null },
+    { stage: "Legal Checking",      key: "kelengkapan_berkas",      label: "Kelengkapan berkas",          valueKey: null },
+    { stage: "Data Teknis",         key: "luas_lahan_teknis",      label: "Luas lahan terukur",          valueKey: null },
+    { stage: "Data Teknis",         key: "topografi",              label: "Topografi",                   valueKey: null },
+    { stage: "Data Teknis",         key: "kontur",                 label: "Kontur",                     valueKey: null },
+    { stage: "Data Teknis",         key: "utilitas_teknis",        label: "Utilitas",                   valueKey: null },
+    { stage: "Data Teknis",         key: "peil_banjir",            label: "Peil banjir",                valueKey: null },
   ];
+  const cvals = payload.checklistValues ?? {};
   autoTable(doc, {
     startY: y,
     margin: { left: 14, right: 14 },
-    head: [["Item Survey", "Status"]],
-    body: surveyItems.map(item => [
-      item.label,
-      payload.checkedItems.includes(item.key) ? "TERPENUHI" : "Belum Diverifikasi",
-    ]),
-    styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },
+    head: [["Stage", "Item Verifikasi", "Status / Nilai"]],
+    body: allChecklistItems.map(item => {
+      const isChecked = payload.checkedItems.includes(item.key);
+      const rawVal = item.valueKey ? (cvals[item.valueKey] ?? "") : "";
+      const status = rawVal ? rawVal : (isChecked ? "TERPENUHI" : "—");
+      return [item.stage, item.label, status];
+    }),
+    styles: { fontSize: 7.5, cellPadding: 2, textColor: BLACK },
+    headStyles: { fillColor: [20, 20, 20] as [number,number,number], textColor: WHITE, fontStyle: "bold", fontSize: 7.5 },
     alternateRowStyles: { fillColor: BGLIGHT },
     columnStyles: {
-      1: {
-        halign: "center",
-        fontStyle: "bold",
-      },
+      0: { cellWidth: 38, textColor: GRAY },
+      2: { halign: "left", cellWidth: 55, fontStyle: "bold" },
     },
     didParseCell: (data) => {
-      if (data.column.index === 1 && data.section === "body") {
-        const val = data.cell.text[0];
-        if (val === "TERPENUHI") data.cell.styles.textColor = GREEN;
-        else data.cell.styles.textColor = AMBER;
+      if (data.column.index === 2 && data.section === "body") {
+        const val = data.cell.text[0] ?? "";
+        if (val === "—") {
+          data.cell.styles.textColor = LGRAY;
+          data.cell.styles.fontStyle = "normal";
+        } else if (val === "TERPENUHI" || val === "CLEAR" || val === "SETUJU" || val === "TERUKUR") {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = [30, 30, 30] as [number,number,number];
+        }
       }
     },
     tableLineColor: LGRAY,

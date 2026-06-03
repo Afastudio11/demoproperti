@@ -346,7 +346,12 @@ function ProspectDetailPanel({
   const [competitorScope, setCompetitorScope] = useState<"kecamatan" | "kabupaten">(
     prospect.kecamatan ? "kecamatan" : "kabupaten"
   );
-  const competitorList = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, competitorScope);
+  // Selalu ambil di level kabupaten agar data kompetitor tidak kosong
+  const competitorList = (() => {
+    const byKec = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kecamatan");
+    const byKab = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kabupaten");
+    return byKab.length > 0 ? byKab : byKec;
+  })();
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function updateSurvey<K extends keyof SurveyData>(key: K, value: SurveyData[K]) {
@@ -419,30 +424,37 @@ function ProspectDetailPanel({
           };
         });
 
+      // Derive actual values from checklist state (bukan hardcoded)
+      const hargaTanahFromInput = vals.harga_tanah_m2
+        ? parseInt((vals.harga_tanah_m2 as string).replace(/\./g, "").replace(/\D/g, ""), 10) : 0;
+
       const body = {
         lokasi: prospect.lokasi,
         kelurahan: prospect.kelurahan,
         kecamatan: prospect.kecamatan,
         kabupaten: prospect.kabupaten,
         luas: prospect.luas,
-        hargaTanahM2: prospect.hargaM2 ?? 0,
+        hargaTanahM2: hargaTanahFromInput || (prospect.hargaM2 ?? 0),
         aksesJalan: aksesJalanDraft ?? prospect.aksesJalan ?? 0,
         targetTipeRumah: "subsidi",
         hargaRumahSekitar: hargaRumahStr ? parseInt(hargaRumahStr, 10) : 0,
         statusKepemilikan: survey.statusLegal || "Belum diketahui",
         bentukLahan: survey.bentukLahan || "kotak",
-        kondisiLingkungan: "aman",
-        potensiPertumbuhan: "sedang",
-        utilitas: survey.utilitas,
-        fasilitasUmum: [],
-        catatan: [
-          catatanDraft,
-          vals.tipe_rumah_sekitar ? `Tipe rumah sekitar: ${vals.tipe_rumah_sekitar}` : "",
-          vals.kecepatan_penjualan ? `Kecepatan penjualan: ${vals.kecepatan_penjualan}` : "",
-          vals.occupancy_rate ? `Occupancy rate: ${vals.occupancy_rate}%` : "",
-          vals.sistem_pembayaran ? `Sistem pembayaran: ${vals.sistem_pembayaran}` : "",
-          vals.harga_tanah_m2 ? `Harga tanah/m² input: Rp${vals.harga_tanah_m2}` : "",
-        ].filter(Boolean).join(". "),
+        // Derived dari checklist yang sudah diisi user — bukan hardcoded
+        kondisiLingkungan: checked.includes("lingkungan_aman") ? "aman" : "kurang aman",
+        potensiPertumbuhan: checked.includes("potensi_pertumbuhan") ? "tinggi" : "sedang",
+        utilitas: checked.includes("utilitas_tersedia")
+          ? (survey.utilitas?.length ? survey.utilitas : ["PLN", "PDAM", "Air Bersih"])
+          : (survey.utilitas ?? []),
+        fasilitasUmum: [
+          checked.includes("dekat_fasilitas") ? "Pasar/Fasilitas Umum" : null,
+          checked.includes("akses_jalan_5m") ? "Akses Jalan Baik" : null,
+        ].filter(Boolean),
+        catatan: catatanDraft || "",
+        // Semua data checklist — dikirim lengkap ke API
+        checkedItems: checked,
+        checklistValues: vals,
+        competitors: competitorList,
         portfolioComparables,
         ...(terrainData ?? {}),
       };
@@ -484,9 +496,11 @@ function ProspectDetailPanel({
   }
 
   function buildPayload() {
+    const vals = checklistValues[prospect.id] ?? {};
     return {
       prospect: { ...prospect, aksesJalan: aksesJalanDraft ?? prospect.aksesJalan, catatan: catatanDraft },
       checkedItems: checked,
+      checklistValues: vals as Record<string, string>,
       aiResult: aiResult ?? null,
       fullAiResult: fullAiResult ?? null,
       terrain: terrainData ?? null,

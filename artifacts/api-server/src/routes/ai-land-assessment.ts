@@ -261,6 +261,9 @@ router.post("/ai/land-assessment", async (req, res) => {
     elevMin, elevMax, elevAvg, slopeAvgPct, slopeMaxPct,
     waterwayType, waterwayName, waterwayDistM,
     portfolioComparables,
+    competitors,
+    checkedItems,
+    checklistValues,
   } = req.body;
 
   const apiKey = process.env["GROQ_API_KEY"];
@@ -294,6 +297,13 @@ router.post("/ai/land-assessment", async (req, res) => {
     : waterwayDistNum < 300 ? "SEDANG"
     : waterwayDistNum < 500 ? "WASPADA"
     : "AMAN";
+
+  // ── Competitor & Checklist data dari frontend ─────────────────────────────
+  interface CompItem { name: string; type: string; pengembang?: string; kecamatan?: string; kabupaten?: string; kelurahan?: string; totalUnit?: number; }
+  const compList: CompItem[] = Array.isArray(competitors) ? competitors : [];
+  const ciList: string[] = Array.isArray(checkedItems) ? checkedItems : [];
+  const cVals = (checklistValues && typeof checklistValues === "object") ? checklistValues as Record<string, string> : {};
+  const ci = (key: string) => ciList.includes(key);
 
   // ── Portfolio Comparables (data lahan lain di kabupaten yang sama) ────────
   interface PortfolioItem { hargaM2?: number; luas?: number; aiROI?: number; aiScore?: number; aiRisiko?: string; kecamatan?: string; stage?: string; lokasi?: string; }
@@ -372,6 +382,39 @@ Utilitas       : ${Array.isArray(utilitas) ? utilitas.join(", ") : (utilitas || 
 Pertumbuhan    : ${potensiPertumbuhan ?? "sedang"}
 Harga rumah sekitar: ${hargaRumahNum > 0 ? `Rp ${hargaRumahNum.toLocaleString("id-ID")}` : "Tidak tersedia"}
 Catatan        : ${catatan || "Tidak ada"}
+
+════════════════════════════════════════
+CHECKLIST LAPANGAN & VERIFIKASI
+════════════════════════════════════════
+Survey Lokasi:
+- Akses jalan min. 5m     : ${ci("akses_jalan_5m") ? "TERPENUHI" : "BELUM DIVERIFIKASI"}
+- Fasilitas umum dekat    : ${ci("dekat_fasilitas") ? "TERPENUHI" : "BELUM DIVERIFIKASI"}
+- Lingkungan aman         : ${ci("lingkungan_aman") ? "TERPENUHI" : "BELUM DIVERIFIKASI"}
+- Potensi pertumbuhan     : ${ci("potensi_pertumbuhan") ? "TERPENUHI" : "BELUM DIVERIFIKASI"}
+- Utilitas tersedia       : ${ci("utilitas_tersedia") ? "TERPENUHI" : "BELUM DIVERIFIKASI"}
+Survei Kompetitor:
+- Harga jual sekitar      : ${ci("harga_rumah_sekitar") ? `Rp ${hargaRumahNum.toLocaleString("id-ID")} (${cVals.harga_rumah_sekitar || "—"})` : "Belum disurvei"}
+- Tipe produk di pasar    : ${cVals.tipe_rumah_sekitar || "Belum disurvei"}
+- Kecepatan penjualan     : ${cVals.kecepatan_penjualan || "Belum disurvei"}
+- Occupancy rate area     : ${cVals.occupancy_rate ? cVals.occupancy_rate + "%" : "Belum disurvei"}
+- Sistem pembayaran pasar : ${cVals.sistem_pembayaran || "Belum disurvei"}
+Negosiasi & Legal:
+- Kerja sama lahan        : ${ci("kerja_sama_lahan") ? "SETUJU" : "BELUM"}
+- Legalitas pemilik       : ${ci("legalitas_pemilik") ? "CLEAR" : "BELUM"}
+- SHM / Alas hak          : ${ci("shm_alas_hak") ? "CLEAR" : "BELUM DIVERIFIKASI"}
+- Bebas sengketa          : ${ci("bebas_sengketa") ? "CLEAR" : "BELUM DIVERIFIKASI"}
+- Batas tanah jelas       : ${ci("batas_tanah") ? "CLEAR" : "BELUM DIVERIFIKASI"}
+- BPHTB                   : ${ci("bphtb") ? "CLEAR" : "BELUM DIVERIFIKASI"}
+- Kelengkapan berkas      : ${ci("kelengkapan_berkas") ? "LENGKAP" : "BELUM DIVERIFIKASI"}
+Pengumpulan Data Teknis:
+- Luas lahan terukur      : ${ci("luas_lahan_teknis") ? "TERUKUR" : "BELUM"}
+- Topografi               : ${ci("topografi") ? "SUDAH" : "BELUM"}
+- Peil banjir             : ${ci("peil_banjir") ? "SUDAH" : "BELUM"}
+
+════════════════════════════════════════
+DATA KOMPETITOR PROPERTI (${compList.length} teridentifikasi di area)
+════════════════════════════════════════
+${compList.length > 0 ? compList.slice(0, 20).map((c, i) => `${i + 1}. ${c.name} (${c.type}) — ${[c.kelurahan, c.kecamatan, c.kabupaten].filter(Boolean).join(", ")}${c.pengembang ? ` — Developer: ${c.pengembang}` : ""}${c.totalUnit ? ` — ${c.totalUnit} unit` : ""}`).join("\n") : `Tidak ada data kompetitor di database lokal untuk ${kabupaten ?? "area ini"}.`}
 
 ════════════════════════════════════════
 DATA TOPOGRAFI (${konturSumber})
