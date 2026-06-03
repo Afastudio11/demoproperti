@@ -1227,7 +1227,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
               <Brain className="size-7 text-foreground animate-pulse" />
             </div>
             <div>
-              <h3 className="font-semibold text-base">SLIS sedang menganalisis lahan...</h3>
+              <h3 className="font-semibold text-base">Sedang menganalisis lahan...</h3>
               <p className="text-[12px] text-muted-foreground mt-1.5 leading-relaxed max-w-xs">
                 Menghitung semua angka finansial secara deterministik, lalu AI menulis narasi analisis
               </p>
