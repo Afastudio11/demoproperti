@@ -156,8 +156,10 @@ CATATAN: "visualisasi" bisa null jika benar-benar tidak ada data yang cocok untu
     const result = JSON.parse(jsonMatch[0]);
     res.json({ ...result, sources });
   } catch (err) {
-    req.log.error({ err }, "SLIS chat AI call failed");
-    res.status(500).json({ error: "Terjadi kesalahan saat menghubungi AI" });
+    const apiErr = err as { message?: string; status?: number; error?: { message?: string } };
+    const errDetail = apiErr?.error?.message || apiErr?.message || String(err);
+    req.log.error({ err, errDetail }, "SLIS chat AI call failed");
+    res.status(500).json({ error: `Gagal menghubungi layanan AI: ${errDetail}` });
   }
 });
 

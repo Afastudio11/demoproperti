@@ -109,8 +109,10 @@ Semua analisis harus SPESIFIK dan BERBASIS DATA scoring yang diberikan, bukan ge
     }
     res.json(JSON.parse(jsonMatch[0]));
   } catch (err) {
-    req.log.error({ err }, "AI roadmap failed");
-    res.status(500).json({ error: "Gagal menghubungi layanan AI" });
+    const apiErr = err as { message?: string; status?: number; error?: { message?: string } };
+    const errDetail = apiErr?.error?.message || apiErr?.message || String(err);
+    req.log.error({ err, errDetail }, "AI roadmap failed");
+    res.status(500).json({ error: `Gagal menghubungi layanan AI: ${errDetail}` });
   }
 });
 

@@ -369,6 +369,10 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
     kecamatan: polygon.kecamatan,
     kabupaten: polygon.kabupaten,
     kelurahan: polygon.kelurahan,
+    namaPemilik: "",
+    kondisiJalan: "",
+    peilBanjir: "",
+    namaPIC: "",
   });
 
   // Auto-geocode kecamatan/kabupaten jika kosong tapi koordinat tersedia
@@ -486,10 +490,11 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
               bentukLahan: bentukMap[form.bentukLahan] ?? "Kotak",
               statusLegal: legalMap[form.statusKepemilikan] ?? "",
               topografi: topoVal,
-              kondisiJalan: "",
+              kondisiJalan: form.kondisiJalan || "",
               utilitas: form.utilitas.map(u => utilitasMap[u] ?? "").filter(Boolean),
-              peilBanjir: banjirVal,
-              namaPemilik: "",
+              peilBanjir: form.peilBanjir || banjirVal,
+              namaPemilik: form.namaPemilik || "",
+              namaPIC: form.namaPIC || "",
               kontakPemilik: "",
             };
             localStorage.setItem(`satara_survey_${pid}`, JSON.stringify(surveyData));
@@ -604,6 +609,10 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
       statusKepemilikan: form.statusKepemilikan,
       bentukLahan: form.bentukLahan,
       catatan: form.catatan,
+      namaPemilik: form.namaPemilik || undefined,
+      kondisiJalan: form.kondisiJalan || undefined,
+      peilBanjir: form.peilBanjir || undefined,
+      namaPIC: form.namaPIC || undefined,
       ...(terrainData ?? {}),
       // Data kompetitor dari database SLIS
       competitors: competitorDataKab,
@@ -983,6 +992,60 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                   <span className="text-[11px] text-muted-foreground">Tidak ada data SRTM. AI akan mengestimasi topografi berdasarkan lokasi geografis.</span>
                 </div>
               )}
+
+              {/* Data Survei Lapangan */}
+              <section className="space-y-3">
+                <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Data Survei Lapangan</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-medium block mb-1.5">Nama Pemilik Lahan</label>
+                    <input type="text" placeholder="contoh: H. Ahmad Syarifudin"
+                      value={form.namaPemilik}
+                      onChange={e => setForm(f => ({ ...f, namaPemilik: e.target.value }))}
+                      className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium block mb-1.5">PIC / Surveyor</label>
+                    <input type="text" placeholder="Nama yang survei lapangan"
+                      value={form.namaPIC}
+                      onChange={e => setForm(f => ({ ...f, namaPIC: e.target.value }))}
+                      className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-medium block mb-1.5">Kondisi Jalan</label>
+                    <select
+                      value={form.kondisiJalan}
+                      onChange={e => setForm(f => ({ ...f, kondisiJalan: e.target.value }))}
+                      className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
+                    >
+                      <option value="">-- Pilih kondisi --</option>
+                      <option value="Sangat Baik (aspal mulus, lebar &gt;8m)">Sangat Baik (aspal mulus, lebar &gt;8m)</option>
+                      <option value="Baik (aspal, lebar 5-8m)">Baik (aspal, lebar 5-8m)</option>
+                      <option value="Sedang (aspal rusak / beton)">Sedang (aspal rusak / beton)</option>
+                      <option value="Kurang (tanah / kerikil)">Kurang (tanah / kerikil)</option>
+                      <option value="Buruk (susah dilalui kendaraan)">Buruk (susah dilalui kendaraan)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium block mb-1.5">Peil Banjir / Riwayat Banjir</label>
+                    <select
+                      value={form.peilBanjir}
+                      onChange={e => setForm(f => ({ ...f, peilBanjir: e.target.value }))}
+                      className="w-full text-[12px] rounded-lg border bg-background px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-foreground/30"
+                    >
+                      <option value="">-- Pilih status --</option>
+                      <option value="Aman (tidak pernah banjir)">Aman (tidak pernah banjir)</option>
+                      <option value="Genangan Ringan (saat hujan deras)">Genangan Ringan (saat hujan deras)</option>
+                      <option value="Rawan (banjir tahunan, &lt;50cm)">Rawan (banjir tahunan, &lt;50cm)</option>
+                      <option value="Sangat Rawan (banjir rutin, &gt;50cm)">Sangat Rawan (banjir rutin, &gt;50cm)</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
 
               {/* Catatan */}
               <section className="space-y-1.5">
