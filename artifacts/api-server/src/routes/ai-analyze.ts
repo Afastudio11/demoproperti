@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import Groq from "groq-sdk";
+import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -138,9 +138,7 @@ router.post("/ai/analyze-land", async (req, res) => {
     lat, lng,
   } = req.body;
 
-  const groq = new Groq({
-    apiKey: process.env["GROQ_API_KEY"],
-  });
+  const deepseek = createDeepSeekClient();
 
   // Fetch POI and terrain in parallel if coordinates available
   const hasCoords = typeof lat === "number" && typeof lng === "number";
@@ -218,64 +216,96 @@ router.post("/ai/analyze-land", async (req, res) => {
   const hargaM2Num = typeof hargaM2 === "number" ? hargaM2 : parseFloat(hargaM2) || 0;
   const totalAkuisisi = luasNum * hargaM2Num;
 
-  const prompt = `Kamu adalah konsultan properti senior yang berpengalaman di pasar Sulawesi Selatan, bekerja untuk Satara Development.
+  const luasHa = (luasNum / 10000).toFixed(2);
+  const totalAkuisisiStr = `Rp${totalAkuisisi.toLocaleString("id-ID")}`;
 
-═══ DATA LAHAN ═══
-Lokasi: ${lokasi}${[kelurahan, kecamatan, kabupaten].filter(Boolean).length ? ` (${[kelurahan, kecamatan, kabupaten].filter(Boolean).join(", ")})` : ""}
-Luas: ${luasNum.toLocaleString("id-ID")} m² (${(luasNum / 10000).toFixed(2)} Ha)
-Harga tanah: Rp${hargaM2Num.toLocaleString("id-ID")}/m² → Total akuisisi: Rp${totalAkuisisi.toLocaleString("id-ID")}
-ROI input: ${roi}%
-Akses Jalan: ${aksesJalan ? `${aksesJalan} meter` : "belum diisi"}
-Bentuk Lahan: ${bentukLahan ?? "Belum diisi"}
-Status Legal: ${statusLegal ?? "Belum diisi"}
-Kapasitas unit estimasi (60% efektif, 10×10m/unit): ±${estimasiUnit} unit
-Tahap saat ini: ${currentStage ?? "Prospek Baru"}
-Checklist selesai: ${checkedItems ?? 0} item${terrainSection}${poiSection}${competitorSection}${surveySection}
+  const prompt = `═══════════════════════════════════════════════════════════════
+DATA PROSPEK LAHAN — SATARA DEVELOPMENT
+═══════════════════════════════════════════════════════════════
 
-═══ STANDAR KELAYAKAN SATARA ═══
-- ROI minimal: >25% (margin >20%)
-- Akses jalan: min 5 meter
-- Legalitas: clean & clear, SHM paling diutamakan
-- Topografi: datar/landai diutamakan (kemiringan <5%)
-- Risiko banjir: jarak sungai >300m
-- Kompetitor: ada = demand terbukti, tapi >8 = oversaturated
+IDENTITAS LAHAN:
+  Nama/Lokasi  : ${lokasi}
+  Kelurahan    : ${kelurahan ?? "—"}
+  Kecamatan    : ${kecamatan ?? "—"}
+  Kabupaten    : ${kabupaten ?? "—"}
+  Status Legal : ${statusLegal ?? "Belum diketahui"}
+  Pemilik      : ${namaPemilik ?? "Belum diketahui"}
 
-═══ INSTRUKSI ═══
-Analisis komprehensif. Dalam "ringkasan" dan "rekomendasi", WAJIB:
-1. Sebutkan karakteristik kawasan dan kondisi sekitar lahan secara spesifik
-2. Sebutkan fasilitas terdekat yang relevan untuk nilai jual perumahan
-3. Berikan penilaian potensi harga jual dan daya beli di kawasan tersebut
+FISIK LAHAN:
+  Luas Total   : ${luasNum.toLocaleString("id-ID")} m² (${luasHa} Ha)
+  Bentuk Lahan : ${bentukLahan ?? "Belum diisi"}
+  Akses Jalan  : ${aksesJalan ? `${aksesJalan} meter` : "Belum diisi"}${terrainSection}${surveySection}
 
-Berikan output JSON PERSIS (tanpa markdown, tanpa teks di luar JSON):
+FINANSIAL:
+  Harga Tanah  : Rp${hargaM2Num.toLocaleString("id-ID")}/m²
+  Total Akuisisi: ${totalAkuisisiStr}
+  ROI Input    : ${roi}%
+  Est. Unit (60% efektif, 100m²/unit): ±${estimasiUnit} unit
+  Tahap Pipeline: ${currentStage ?? "Prospek Baru"}
+  Checklist Due Diligence: ${checkedItems ?? 0} item selesai
+${poiSection}${competitorSection}
+
+═══ STANDAR KELAYAKAN WAJIB SATARA DEVELOPMENT ═══
+  ✓ ROI minimal 25% (margin gross >20%)
+  ✓ Akses jalan minimal 5 meter
+  ✓ Status legal: SHM diutamakan, HGB masih acceptable
+  ✓ Topografi: datar/landai (slope <5%)
+  ✓ Jarak sungai >300m (risiko banjir rendah)
+  ✓ Kompetitor 3-8: demand terbukti, tidak oversaturated
+
+═══ INSTRUKSI ANALISIS MENDALAM ═══
+Lakukan analisis komprehensif sebagai konsultan properti senior.
+WAJIB dalam setiap bagian:
+1. Gunakan data nyata tentang kawasan ${[kecamatan, kabupaten].filter(Boolean).join(", ") || "ini"}
+2. Sebutkan nama fasilitas, jalan, atau landmark spesifik yang kamu ketahui di area tersebut
+3. Analisis daya beli dan profil pembeli potensial di kawasan ini
+4. Berikan estimasi harga jual yang realistis vs kompetitor pasar
+5. Identifikasi risiko tersembunyi yang sering terlewat developer
+
+Output HARUS berupa JSON valid saja (tanpa markdown, tanpa teks di luar JSON):
 {
   "verdict": "Sangat Direkomendasikan" | "Direkomendasikan" | "Perlu Review" | "Tidak Direkomendasikan",
-  "score": <angka 0-100>,
-  "kategori": "<kategori sama dengan verdict>",
-  "ringkasan": "<3-4 kalimat: keputusan + karakteristik kawasan + kondisi lahan + potensi>",
-  "kelebihan": ["<poin spesifik 1>", "<poin 2>", "<poin 3>", "<poin 4>"],
-  "risiko": ["<risiko spesifik 1>", "<risiko 2>", "<risiko 3>"],
-  "rekomendasi": "<3-4 kalimat saran konkret termasuk potensi harga jual dan segmen target>",
-  "potensiUnit": <estimasi unit integer>,
-  "hargaMaksAkuisisi": <harga maks akuisisi per m2 rupiah integer>,
-  "roiEstimasi": <ROI realistis persen integer>,
-  "paybackBulan": <payback period bulan integer>,
-  "potensiRevenue": <estimasi total revenue rupiah integer atau null>,
-  "estimasiHPP": <estimasi HPP total rupiah integer atau null>,
-  "estimasiProfit": <estimasi profit rupiah integer atau null>,
-  "irr": <Internal Rate of Return persen integer atau null>,
-  "npv": <Net Present Value rupiah integer atau null>,
-  "efektivitasKavling": <persen efektivitas kavling integer>,
-  "luasFasum": <luas fasum m2 integer>,
-  "luasJalan": <luas jalan m2 integer>,
+  "score": <integer 0-100 berdasarkan standar kelayakan Satara>,
+  "kategori": "<sama dengan verdict>",
+  "ringkasan": "<4-5 kalimat SUBSTANTIF: (1) keputusan dan alasannya, (2) karakteristik kawasan dan lingkungan sekitar yang spesifik — sebutkan landmark/infrastruktur nyata, (3) kondisi fisik dan legal lahan, (4) potensi dan proyeksi nilai properti ke depan, (5) catatan kritis jika ada>",
+  "kelebihan": [
+    "<kelebihan 1: spesifik dengan angka/data, contoh: 'Akses jalan 8m, 2x standar minimum Satara — memungkinkan produk tipe 36/72 dengan parkir di halaman'>",
+    "<kelebihan 2: spesifik>",
+    "<kelebihan 3: spesifik>",
+    "<kelebihan 4: spesifik>",
+    "<kelebihan 5: spesifik — tambah jika ada>"
+  ],
+  "risiko": [
+    "<risiko 1: spesifik dengan dampak finansial/operasional konkret>",
+    "<risiko 2: spesifik dengan probabilitas dan severity>",
+    "<risiko 3: risiko tersembunyi yang sering diabaikan developer>",
+    "<risiko 4: jika ada>"
+  ],
+  "rekomendasi": "<4-5 kalimat ACTIONABLE: (1) keputusan beli/tidak beli dengan kondisi spesifik, (2) target harga negosiasi yang realistis dengan justifikasi, (3) segmen produk yang paling cocok (subsidi/komersial/mix) dengan alasan demografis, (4) strategi marketing dan pricing vs kompetitor, (5) langkah due diligence paling kritis>",
+  "potensiUnit": <integer realistis berdasarkan luas efektif dan tipe produk>,
+  "hargaMaksAkuisisi": <integer harga maks per m² agar ROI ≥25%>,
+  "roiEstimasi": <integer ROI realistis % berdasarkan data pasar>,
+  "paybackBulan": <integer bulan payback period realistis>,
+  "potensiRevenue": <integer estimasi total revenue rupiah>,
+  "estimasiHPP": <integer estimasi HPP total rupiah>,
+  "estimasiProfit": <integer estimasi profit rupiah>,
+  "irr": <integer IRR % realistis atau null>,
+  "npv": <integer NPV rupiah dengan discount rate 15% atau null>,
+  "efektivitasKavling": <integer % kavling efektif dari total lahan>,
+  "luasFasum": <integer m² untuk fasilitas umum>,
+  "luasJalan": <integer m² untuk jalan internal>,
   "tingkatRisiko": "Rendah" | "Sedang" | "Tinggi"
 }`;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.25,
-      max_tokens: 1200,
+    const completion = await deepseek.chat.completions.create({
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.15,
+      max_tokens: 4096,
     });
 
     const content = completion.choices[0]?.message?.content ?? "";

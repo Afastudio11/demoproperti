@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import Groq from "groq-sdk";
+import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -267,9 +267,7 @@ router.post("/ai/land-assessment", async (req, res) => {
     checklistValues,
   } = req.body;
 
-  const groq = new Groq({
-    apiKey: process.env["GROQ_API_KEY"],
-  });
+  const deepseek = createDeepSeekClient();
 
   // ── Normalisasi Input ─────────────────────────────────────────────────────
   const luasNum      = parseFloat(luas)             || 0;
@@ -568,11 +566,14 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
 }`;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 8000,
+    const completion = await deepseek.chat.completions.create({
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.15,
+      max_tokens: 8192,
     });
 
     const content = completion.choices[0]?.message?.content ?? "";

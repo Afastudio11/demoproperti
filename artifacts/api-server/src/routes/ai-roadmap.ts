@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import Groq from "groq-sdk";
+import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -10,9 +10,7 @@ router.post("/ai/expansion-roadmap", async (req, res) => {
     budget?: string;
   };
 
-  const groq = new Groq({
-    apiKey: process.env["GROQ_API_KEY"],
-  });
+  const deepseek = createDeepSeekClient();
 
   const topKab = (kabupatenRanking ?? []).slice(0, 15).map(k =>
     `${k.name}: Skor ${k.score} (${k.grade}) | Harga: ${k.hargaTanahRange} | Kompetitor: ${k.kompetitorCount} | ${k.potensiPasar}${k.kecamatanTeratas?.length ? " | Kec. Terbaik: " + k.kecamatanTeratas.join(", ") : ""}`
@@ -92,11 +90,14 @@ Roadmap harus mencakup 5 tahun (2026-2030), 1 kabupaten per tahun. Kabupaten pri
 Semua analisis harus SPESIFIK dan BERBASIS DATA scoring yang diberikan, bukan generik.`;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 3500,
+    const completion = await deepseek.chat.completions.create({
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.15,
+      max_tokens: 6000,
     });
 
     const content = completion.choices[0]?.message?.content ?? "";

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import Groq from "groq-sdk";
+import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -44,13 +44,13 @@ router.post("/ai/slis-chat", async (req, res) => {
     return;
   }
 
-  const apiKey = process.env["GROQ_API_KEY"];
-  if (!apiKey) {
-    res.status(503).json({ error: "GROQ_API_KEY belum dikonfigurasi. Tambahkan API key di Secrets Replit." });
+  let deepseek;
+  try {
+    deepseek = createDeepSeekClient();
+  } catch {
+    res.status(503).json({ error: "DEEPSEEK_API_KEY belum dikonfigurasi. Tambahkan API key di Secrets Replit." });
     return;
   }
-
-  const groq = new Groq({ apiKey });
 
   // ── Fase 1: Web research (opsional, fallback graceful) ────────────────────
   let webData = "";
@@ -134,11 +134,14 @@ Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
 CATATAN: "visualisasi" bisa null jika benar-benar tidak ada data yang cocok untuk divisualisasikan.`;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 2500,
+    const completion = await deepseek.chat.completions.create({
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.15,
+      max_tokens: 4096,
     });
 
     const content = completion.choices[0]?.message?.content ?? "";
