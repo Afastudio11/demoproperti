@@ -15,6 +15,7 @@ import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Search, Mountain, Droplets, ChevronRight, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
 
 const RISK_COLORS: Record<string, string> = {
   green: "#16a34a",
@@ -113,18 +114,61 @@ function DesaLayer({ visible: _visible }: { visible: boolean }) {
 
 // ─── Admin Drill Layer ────────────────────────────────────────────────────────
 
-const ADMIN_PALETTE = [
-  "#ef4444","#f97316","#eab308","#22c55e","#06b6d4",
-  "#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f43f5e",
-  "#84cc16","#0ea5e9","#a855f7","#fb923c","#10b981",
-  "#6366f1","#d946ef","#f59e0b","#2dd4bf","#60a5fa",
-  "#e879f9","#a78bfa","#34d399","#fb7185","#fbbf24",
+// ─── Potensi Ekspansi — color-coded dari data perumahan resmi ─────────────────
+
+function normGeoKab(s: string): string {
+  return s.toUpperCase().replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "").trim();
+}
+
+// Pre-compute count maps (module-level, runs once)
+const _kabCountMap = new Map<string, number>();
+const _kecCountMap = new Map<string, number>(); // key: "KAB/KEC"
+
+for (const p of DAFTAR_PERUMAHAN_SULSEL) {
+  const kab = normGeoKab(p.kabupaten);
+  _kabCountMap.set(kab, (_kabCountMap.get(kab) ?? 0) + 1);
+  const kecKey = kab + "/" + p.kecamatan.toUpperCase().trim();
+  _kecCountMap.set(kecKey, (_kecCountMap.get(kecKey) ?? 0) + 1);
+}
+
+function competitorCount(name: string, level: number, parentKab?: string | null): number {
+  const normName = name.toUpperCase().trim();
+  if (level === 0) {
+    return _kabCountMap.get(normGeoKab(normName)) ?? 0;
+  }
+  if (level === 1) {
+    const kab = normGeoKab(parentKab ?? "");
+    return _kecCountMap.get(kab + "/" + normName) ?? 0;
+  }
+  // level 2 (desa): use kecamatan data for parent
+  const kab = normGeoKab(parentKab ?? "");
+  return _kecCountMap.get(kab + "/" + normName) ?? 0;
+}
+
+// Threshold → color (green = sedikit kompetitor = potensi terbaik)
+const POTENTIAL_THRESHOLDS_KAB  = [10, 30, 80, 150, 300];
+const POTENTIAL_THRESHOLDS_KEC  = [3,  8,  20,  40,  80];
+const POTENTIAL_COLORS = ["#15803d","#4ade80","#facc15","#f97316","#ef4444","#991b1b"];
+const POTENTIAL_LABELS = [
+  "Sangat Baik", "Baik", "Sedang", "Kompetitif", "Jenuh", "Sangat Jenuh",
 ];
 
-function adminHashColor(name: string): string {
-  let h = 5381;
-  for (let i = 0; i < name.length; i++) h = ((h << 5) + h) ^ name.charCodeAt(i);
-  return ADMIN_PALETTE[Math.abs(h) % ADMIN_PALETTE.length];
+function potentialColor(count: number, level: number): string {
+  if (count === 0) return "#6b7280"; // abu — tidak ada data
+  const thresholds = level === 0 ? POTENTIAL_THRESHOLDS_KAB : POTENTIAL_THRESHOLDS_KEC;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (count <= thresholds[i]) return POTENTIAL_COLORS[i];
+  }
+  return POTENTIAL_COLORS[POTENTIAL_COLORS.length - 1];
+}
+
+function potentialLabel(count: number, level: number): string {
+  if (count === 0) return "Belum ada data";
+  const thresholds = level === 0 ? POTENTIAL_THRESHOLDS_KAB : POTENTIAL_THRESHOLDS_KEC;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (count <= thresholds[i]) return POTENTIAL_LABELS[i];
+  }
+  return POTENTIAL_LABELS[POTENTIAL_LABELS.length - 1];
 }
 
 type DrillLevel = 0 | 1 | 2;
@@ -215,15 +259,40 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange }: {
         }
       }
 
+      // Pre-compute competitor counts per group for this drill level
+      const countByKey: Record<string, number> = {};
+      for (const key of Object.keys(groups)) {
+        countByKey[key] = competitorCount(key, drillSnapshot.level, drillSnapshot.kab);
+      }
+
       const geo = L.geoJSON({ type: "FeatureCollection", features } as GeoJSON.FeatureCollection, {
         style(feature) {
           const key = (feature?.properties as any)?.[gk] ?? "";
-          const color = drillSnapshot.level === 2 ? "#60a5fa" : adminHashColor(key);
-          return { color, weight: wBase, opacity: 0.7, fillColor: color, fillOpacity: foBase };
+          const count = countByKey[key] ?? 0;
+          const color = drillSnapshot.level === 2 ? potentialColor(count, 1) : potentialColor(count, drillSnapshot.level);
+          return { color: "#fff", weight: wBase, opacity: 0.6, fillColor: color, fillOpacity: foBase };
         },
         onEachFeature(feature, lyr) {
           const p = feature.properties as any;
           const key = p?.[gk] ?? "";
+          const count = countByKey[key] ?? 0;
+          const label = potentialLabel(count, drillSnapshot.level);
+          const levelName = drillSnapshot.level === 0 ? "Kabupaten" : drillSnapshot.level === 1 ? "Kecamatan" : "Desa";
+
+          const tooltip = L.tooltip({
+            permanent: false, sticky: true, opacity: 0.97, className: "leaflet-potential-tooltip",
+          }).setContent(`
+            <div style="font-family:sans-serif;font-size:11px;line-height:1.5;min-width:160px">
+              <div style="font-weight:700;margin-bottom:2px">${key}</div>
+              <div style="color:#6b7280;font-size:10px">${levelName}</div>
+              <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
+                <span style="background:${potentialColor(count, drillSnapshot.level)};width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15)"></span>
+                <span style="font-weight:600">${label}</span>
+              </div>
+              <div style="color:#6b7280;font-size:10px;margin-top:2px">${count} perumahan terdaftar</div>
+            </div>
+          `);
+          lyr.bindTooltip(tooltip);
 
           lyr.on("mouseover", () => {
             geo.eachLayer(gl => {
@@ -262,8 +331,13 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange }: {
       for (const [name, feats] of Object.entries(groups)) {
         const c = groupCentroid(feats);
         if (!c) continue;
+        const cnt = countByKey[name] ?? 0;
+        const lvlClass = drillSnapshot.level === 0 ? "kab" : drillSnapshot.level === 1 ? "kec" : "desa";
+        const cntHtml = drillSnapshot.level <= 1 && cnt > 0
+          ? `<span class="adl-count">${cnt}</span>`
+          : "";
         const icon = L.divIcon({
-          html: `<div class="adl-wrap"><span class="adl adl-${drillSnapshot.level === 0 ? "kab" : drillSnapshot.level === 1 ? "kec" : "desa"}">${name}</span></div>`,
+          html: `<div class="adl-wrap"><span class="adl adl-${lvlClass}">${name}</span>${cntHtml}</div>`,
           className: "", iconSize: [0, 0], iconAnchor: [0, 0],
         });
         L.marker(c, { icon, interactive: false }).addTo(lblGroup);
@@ -1010,6 +1084,30 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
           )}
           style={{ minHeight: 600 }}
         >
+          {/* Legend potensi ekspansi */}
+          {showAdmin && (
+            <div className="absolute bottom-6 left-3 z-[1000] bg-white/95 border border-gray-200 rounded-lg shadow-lg px-3 py-2.5 text-[10px] pointer-events-none">
+              <div className="font-semibold text-gray-700 mb-1.5 text-[11px]">Potensi Ekspansi</div>
+              {[
+                { color: "#15803d", label: "Sangat Baik" },
+                { color: "#4ade80", label: "Baik" },
+                { color: "#facc15", label: "Sedang" },
+                { color: "#f97316", label: "Kompetitif" },
+                { color: "#ef4444", label: "Jenuh" },
+                { color: "#991b1b", label: "Sangat Jenuh" },
+                { color: "#6b7280", label: "Belum ada data" },
+              ].map(({ color, label }) => (
+                <div key={label} className="flex items-center gap-1.5 py-0.5">
+                  <span style={{ background: color, width: 10, height: 10, borderRadius: 2, display: "inline-block", border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                  <span className="text-gray-600">{label}</span>
+                </div>
+              ))}
+              <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-[9px] text-gray-400">
+                {adminDrill.level === 0 ? "Warna per Kabupaten" : adminDrill.level === 1 ? "Warna per Kecamatan" : "Warna per Kecamatan"}
+                {" "}&bull; {_kabCountMap.size > 0 ? `${Array.from(_kabCountMap.values()).reduce((a, b) => a + b, 0)} perumahan` : ""}
+              </div>
+            </div>
+          )}
           <MapContainer
             center={SULSEL_CENTER}
             zoom={8}

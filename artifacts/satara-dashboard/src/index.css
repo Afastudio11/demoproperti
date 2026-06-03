@@ -174,3 +174,30 @@
   font-size: 9px;
   padding: 1px 4px;
 }
+.adl-count {
+  position: absolute;
+  top: 0; left: 0;
+  transform: translate(-50%, 8px);
+  background: rgba(0,0,0,0.75);
+  color: #fbbf24;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.03em;
+}
+
+/* ── Leaflet Potential Tooltip ───────────────────────────────────── */
+.leaflet-potential-tooltip {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  padding: 8px 10px;
+  color: #111827;
+}
+.leaflet-potential-tooltip::before {
+  display: none;
+}
