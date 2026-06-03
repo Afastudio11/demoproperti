@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT, filterOwnCompany } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -297,8 +297,8 @@ router.post("/ai/land-assessment", async (req, res) => {
 
   // ── Competitor & Checklist data dari frontend ─────────────────────────────
   interface CompItem { name: string; type: string; pengembang?: string; kecamatan?: string; kabupaten?: string; kelurahan?: string; totalUnit?: number; }
-  const compList: CompItem[] = Array.isArray(competitors) ? competitors : [];
-  const compListKec: CompItem[] = Array.isArray(competitorsKecamatan) ? competitorsKecamatan : [];
+  const compList: CompItem[] = filterOwnCompany(Array.isArray(competitors) ? competitors : []);
+  const compListKec: CompItem[] = filterOwnCompany(Array.isArray(competitorsKecamatan) ? competitorsKecamatan : []);
   const ciList: string[] = Array.isArray(checkedItems) ? checkedItems : [];
   const cVals = (checklistValues && typeof checklistValues === "object") ? checklistValues as Record<string, string> : {};
   const ci = (key: string) => ciList.includes(key);

@@ -1,5 +1,20 @@
 import OpenAI from "openai";
 
+export const OWN_COMPANY_NAMES = [
+  "PT BERKAH BINTANG PRATAMA",
+  "BERKAH BINTANG PRATAMA",
+  "BERKAH BINTANG",
+];
+
+export function filterOwnCompany<T extends { name?: string } | string>(list: T[]): T[] {
+  return list.filter((item) => {
+    const name = typeof item === "string" ? item : (item.name ?? "");
+    return !OWN_COMPANY_NAMES.some((own) =>
+      name.toUpperCase().includes(own.toUpperCase())
+    );
+  });
+}
+
 export function createDeepSeekClient(): OpenAI {
   const apiKey = process.env["DEEPSEEK_API_KEY"];
   if (!apiKey) {

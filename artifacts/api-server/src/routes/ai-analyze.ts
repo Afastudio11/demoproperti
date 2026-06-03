@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT, filterOwnCompany } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -189,9 +189,11 @@ router.post("/ai/analyze-land", async (req, res) => {
 
   // Competitor section — data dari dokumen resmi Sulsel
   const rawCompetitors: unknown[] = Array.isArray(competitors) ? competitors : [];
-  const competitorList: string[] = rawCompetitors.map(c =>
-    typeof c === "string" ? c : (typeof c === "object" && c !== null && "name" in c ? String((c as { name: unknown }).name) : "")
-  ).filter(Boolean);
+  const competitorList: string[] = filterOwnCompany(
+    rawCompetitors.map(c =>
+      typeof c === "string" ? c : (typeof c === "object" && c !== null && "name" in c ? String((c as { name: unknown }).name) : "")
+    ).filter(Boolean)
+  );
   const competitorSection = competitorList.length > 0
     ? `\n\nKompetitor perumahan (sumber: dokumen resmi Sulsel):
 - Jumlah: ${competitorList.length} proyek terdaftar di area yang sama
