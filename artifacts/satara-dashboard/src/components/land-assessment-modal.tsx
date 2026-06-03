@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
+import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
 import {
   X, Brain, Loader2, FileText,
   BarChart3, Scale, Building2, ScrollText, AlertTriangle,
@@ -365,7 +366,32 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
     statusKepemilikan: "SHM (Sertifikat Hak Milik)",
     bentukLahan: "kotak",
     catatan: "",
+    kecamatan: polygon.kecamatan,
+    kabupaten: polygon.kabupaten,
+    kelurahan: polygon.kelurahan,
   });
+
+  // Helper: normalisasi nama kabupaten untuk matching
+  function normKab(s: string) {
+    return s.toUpperCase().replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "").trim();
+  }
+
+  // Data kompetitor dari DAFTAR_PERUMAHAN_SULSEL berdasarkan kecamatan/kabupaten yang sedang aktif di form
+  const competitorDataKab = useMemo(() => {
+    if (!form.kabupaten) return [];
+    const kabNorm = normKab(form.kabupaten);
+    return DAFTAR_PERUMAHAN_SULSEL.filter(p => {
+      const pk = normKab(p.kabupaten);
+      return pk === kabNorm || pk.includes(kabNorm) || kabNorm.includes(pk);
+    }).map(p => ({ name: p.nama, type: p.jenis ?? "Perumahan", pengembang: p.pengembang, kecamatan: p.kecamatan, kabupaten: p.kabupaten, kelurahan: p.kelurahan, totalUnit: (p.totalUnit || 0) + (p.unitKomersil || 0) }));
+  }, [form.kabupaten]);
+
+  const competitorDataKec = useMemo(() => {
+    if (!form.kecamatan) return competitorDataKab;
+    const kecNorm = form.kecamatan.toUpperCase().trim();
+    return competitorDataKab.filter(p => (p.kecamatan ?? "").toUpperCase().trim() === kecNorm);
+  }, [form.kecamatan, competitorDataKab]);
+
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<typeof RESULT_TABS[number]["key"]>("overview");
@@ -527,9 +553,9 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
 
     const body = {
       lokasi: polygon.lokasi,
-      kelurahan: polygon.kelurahan,
-      kecamatan: polygon.kecamatan,
-      kabupaten: polygon.kabupaten,
+      kelurahan: form.kelurahan || polygon.kelurahan,
+      kecamatan: form.kecamatan || polygon.kecamatan,
+      kabupaten: form.kabupaten || polygon.kabupaten,
       luas: polygon.luas,
       hargaTanahM2: parseFloat(form.hargaTanahM2),
       aksesJalan: parseFloat(form.aksesJalan),
@@ -547,6 +573,9 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
       bentukLahan: form.bentukLahan,
       catatan: form.catatan,
       ...(terrainData ?? {}),
+      // Data kompetitor dari database SLIS
+      competitors: competitorDataKab,
+      competitorsKecamatan: competitorDataKec,
     };
 
     try {
@@ -617,6 +646,61 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
         {phase === "form" && (
           <div className="flex-1 overflow-y-auto">
             <div className="p-4 space-y-5">
+
+              {/* Koreksi Lokasi Administratif */}
+              <section className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Lokasi Administratif</h3>
+                  <span className="text-[9px] text-amber-600 font-medium">Koreksi jika auto-deteksi salah</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground block mb-1">Kelurahan/Desa</label>
+                    <input
+                      type="text"
+                      value={form.kelurahan}
+                      onChange={e => setForm(f => ({ ...f, kelurahan: e.target.value }))}
+                      placeholder="Nama kelurahan"
+                      className="w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground block mb-1">Kecamatan <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={form.kecamatan}
+                      onChange={e => setForm(f => ({ ...f, kecamatan: e.target.value }))}
+                      placeholder="Nama kecamatan"
+                      className={cn(
+                        "w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30",
+                        !form.kecamatan && "border-amber-400"
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground block mb-1">Kabupaten/Kota <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={form.kabupaten}
+                      onChange={e => setForm(f => ({ ...f, kabupaten: e.target.value }))}
+                      placeholder="Nama kabupaten"
+                      className={cn(
+                        "w-full text-[11px] rounded border bg-background px-2 py-1 outline-none focus:ring-1 focus:ring-foreground/30",
+                        !form.kabupaten && "border-amber-400"
+                      )}
+                    />
+                  </div>
+                </div>
+                {form.kabupaten && (
+                  <div className="text-[9px] text-muted-foreground flex items-center gap-1">
+                    <span className={competitorDataKab.length > 0 ? "text-emerald-600" : "text-amber-600"}>
+                      {competitorDataKab.length > 0
+                        ? `${competitorDataKec.length} kompetitor di Kec. ${form.kecamatan || "—"} · ${competitorDataKab.length} di Kab. ${form.kabupaten}`
+                        : `Tidak ada data kompetitor di database untuk ${form.kabupaten} — AI akan gunakan pengetahuan pasar umum`}
+                    </span>
+                  </div>
+                )}
+              </section>
 
               {/* Tipe Rumah Target */}
               <section className="space-y-2">

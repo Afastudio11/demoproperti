@@ -363,9 +363,16 @@ router.post("/ai/land-assessment", async (req, res) => {
   // AI hanya menulis narasi — semua angka sudah dihitung di atas.
   const decisionLabel = { BELI: "BELI", BELI_DENGAN_NEGOSIASI: "BELI DENGAN NEGOSIASI", HOLD: "HOLD / TINJAU ULANG", JANGAN_BELI: "JANGAN BELI" }[sc.decision] ?? sc.decision;
 
-  const prompt = `Kamu adalah SLIS (Satara Land Intelligence System), analis properti senior untuk Satara Development.
+  const noLocalCompKec = compListKec.length === 0;
+  const noLocalCompKab = compList.length === 0;
 
-PERHATIAN: Semua angka finansial sudah dihitung oleh Calculation Engine. JANGAN menghitung ulang, JANGAN mengubah angka, JANGAN membuat angka baru. Tugasmu HANYA menulis narasi analisis berdasarkan hasil perhitungan di bawah.
+  const prompt = `Kamu adalah SLIS (Satara Land Intelligence System), analis properti senior berpengalaman 15 tahun untuk Satara Development — developer perumahan di Sulawesi Selatan.
+
+ATURAN KETAT:
+1. Semua angka finansial sudah dihitung oleh Calculation Engine — JANGAN hitung ulang, JANGAN ubah angka, JANGAN buat angka baru.
+2. Tugasmu HANYA menulis narasi analisis mendalam. Gunakan angka dari Calculation Engine sebagai fakta yang sudah final.
+3. Untuk analisis kompetitor: WAJIB gunakan pengetahuanmu tentang pasar properti ${kabupaten ?? "Sulawesi Selatan"} — sebutkan developer, perumahan, dan karakteristik pasar yang kamu ketahui untuk wilayah ini. Jangan hanya bilang "tidak ada data" — itu tidak berguna.
+4. Narasi harus spesifik lokasi, bukan generik. Sebut nama wilayah, kondisi aktual, pemain pasar nyata.
 
 ════════════════════════════════════════
 DATA LAHAN
@@ -499,49 +506,64 @@ Kinerja portofolio (${withROI.length} lahan sudah dianalisis AI):
 - Pipeline stages            : ${stageDistStr}` : `PROSPEK PERTAMA di ${kabupaten ?? "kabupaten ini"} — belum ada data portofolio internal. Gunakan benchmark pasar eksternal sebagai referensi.`}
 
 ════════════════════════════════════════
-INSTRUKSI WAJIB ANALISIS KOMPETITOR:
-Kamu WAJIB mengisi analisisKompetitor dengan menyebutkan nama-nama kompetitor spesifik dari daftar di atas.
-- Jika ada kompetitor di kecamatan ${kecamatan ?? "yang sama"}: sebutkan nama, pengembang, dan tipe produk mereka secara spesifik.
-- Jika TIDAK ada kompetitor di kecamatan tersebut: jelaskan apakah ini peluang first-mover atau tanda demand rendah, dan bandingkan dengan kompetitor kabupaten terdekat.
-- JANGAN isi dengan kalimat generik. Selalu referensikan data aktual dari daftar di atas.
+KONTEKS PASAR PROPERTI ${(kabupaten ?? "SULAWESI SELATAN").toUpperCase()}:
+${noLocalCompKab
+  ? `Database internal tidak memiliki data kompetitor terdaftar untuk ${kabupaten ?? "kabupaten ini"}.
+NAMUN: Kamu WAJIB menggunakan pengetahuanmu tentang pasar properti di ${kabupaten ?? "Sulawesi Selatan"} untuk menganalisis:
+- Siapa saja developer aktif yang kamu ketahui di ${kabupaten ?? "area ini"} (Perumnas, developer lokal, dll.)
+- Tipe produk dominan yang dijual di pasar ${kabupaten ?? "ini"} (subsidi, komersial, dll.)
+- Dinamika permintaan: apakah ${kecamatan ?? "kecamatan ini"} termasuk area tumbuh, stagnan, atau belum berkembang
+- First-mover advantage atau risiko demand rendah — berikan analisis berimbang
+JANGAN katakan hanya "tidak ada data" — itu tidak berguna bagi developer. Gunakan pengetahuan kontekstualmu.`
+  : `Database memiliki ${compList.length} perumahan di ${kabupaten ?? "kabupaten ini"}, ${compListKec.length} di Kec. ${kecamatan ?? "—"}.`}
 ════════════════════════════════════════
+
+INSTRUKSI ANALISIS KOMPETITOR (WAJIB DIIKUTI):
+${noLocalCompKec
+  ? `TIDAK ADA data kompetitor di database untuk Kec. ${kecamatan ?? "—"}.
+WAJIB lakukan analisis ini:
+1. Sebutkan minimal 2-3 perumahan atau developer yang kamu ketahui beroperasi di ${kabupaten ?? "kabupaten ini"} atau kecamatan sekitarnya berdasarkan pengetahuanmu
+2. Analisis apakah absennya kompetitor di kecamatan ini adalah PELUANG (first-mover, demand terpendam) atau RISIKO (pasar belum matang, daya beli rendah)
+3. Bandingkan dengan kecamatan lain di ${kabupaten ?? "kabupaten ini"} yang lebih kompetitif — apakah demand bisa ditarik ke sini?
+4. Berikan rekomendasi strategi penetrasi pasar yang konkret`
+  : `Ada ${compListKec.length} kompetitor di kecamatan. Sebutkan nama-nama spesifik dari daftar di atas.`}
 
 TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
 {
-  "ringkasanEksekutif": "<3-4 paragraf (300-400 kata). Jelaskan mengapa lahan ini mendapat skor ${sc.total} dan kategori '${sc.category}'. Sebutkan kekuatan utama dan kelemahan utama berdasarkan data di atas. Kontekskan dengan strategi developer perumahan di ${kabupaten ?? "Sulawesi Selatan"}.>",
-  "analisisLokasi": "<2-3 paragraf (200-300 kata). Analisis ${[kelurahan, kecamatan, kabupaten].filter(Boolean).join(", ") || "lokasi ini"}: aksesibilitas, fasilitas terdekat, kondisi sekitar, potensi pertumbuhan, daya tarik bagi pembeli rumah.>",
-  "analisisFisikLahan": "<2-3 paragraf (200-300 kata). Analisis bentuk lahan (${bentukLahan}), kontur (${konturLabel}), implikasi teknis, potensi hambatan, rekomendasi tata letak kavling dan posisi fasum.>",
+  "ringkasanEksekutif": "<3-4 paragraf (350-450 kata). Jelaskan mengapa lahan ini mendapat skor ${sc.total} dan kategori '${sc.category}'. Sebutkan kekuatan utama dan kelemahan utama berdasarkan data di atas. Kontekskan dengan kondisi pasar properti ${kabupaten ?? "Sulawesi Selatan"} dan strategi developer perumahan yang tepat untuk area ini. Spesifik — sebut nama wilayah, kondisi aktual, dan implikasi bagi Satara Development.>",
+  "analisisLokasi": "<3 paragraf (250-350 kata). Analisis mendalam ${[kelurahan, kecamatan, kabupaten].filter(Boolean).join(", ") || "lokasi ini"}: (1) aksesibilitas dan infrastruktur jalan utama di sekitar, (2) fasilitas terdekat yang relevan untuk target pembeli — sekolah, pasar, RS, pusat perbelanjaan — sebutkan nama spesifik jika kamu tahu, (3) karakteristik sosial-ekonomi penduduk sekitar dan daya beli, (4) potensi pertumbuhan wilayah berdasarkan rencana tata ruang atau pembangunan infrastruktur yang kamu ketahui.>",
+  "analisisFisikLahan": "<2-3 paragraf (200-300 kata). Analisis bentuk lahan (${bentukLahan}), kontur (${konturLabel}), implikasi teknis dan biaya matang, potensi hambatan konstruksi, rekomendasi konkret tata letak kavling dan posisi fasum/RTH.>",
   "analisisKompetitor": {
-    "tingkatPersaingan": "<Tinggi/Sedang/Rendah — berdasarkan jumlah kompetitor di kecamatan dan kabupaten>",
-    "kompetitorKecamatan": "<WAJIB 2-3 paragraf. Sebutkan nama-nama spesifik kompetitor di Kec. ${kecamatan ?? "—"} dari daftar di atas. Jika tidak ada: jelaskan implikasi pasar apakah peluang first-mover atau gap demand. Bandingkan dengan kecamatan terdekat yang ada kompetitornya.>",
-    "kompetitorKabupaten": "<WAJIB 2 paragraf. Sebutkan 3-5 kompetitor terkuat di ${kabupaten ?? "kabupaten ini"} dari daftar, beserta developer, tipe produk, dan skala proyek. Jelaskan lanskap persaingan di level kabupaten.>",
-    "posisiHarga": "<1-2 paragraf. Bandingkan target harga jual ${rp(fin.hargaJualFinal)} dengan harga pasar kompetitor di area (gunakan data harga rumah sekitar: ${hargaRumahNum > 0 ? "Rp " + hargaRumahNum.toLocaleString("id-ID") : "tidak tersedia"}). Rekomendasikan strategi harga konkret.>",
-    "rekomendasiSegmen": "<1 paragraf. Segmen pembeli yang paling tepat dan strategi diferensiasi produk vs kompetitor yang ada.>"
+    "tingkatPersaingan": "${noLocalCompKec ? (noLocalCompKab ? "Rendah" : "Sedang") : (compListKec.length >= 5 ? "Tinggi" : "Sedang")}",
+    "kompetitorKecamatan": "<WAJIB 2-3 paragraf SUBSTANTIF. ${noLocalCompKec ? `Database tidak punya data kompetitor di Kec. ${kecamatan ?? "ini"}, namun berdasarkan pengetahuanmu tentang pasar properti ${kabupaten ?? "wilayah ini"}: (1) Sebutkan developer atau perumahan yang kamu ketahui di area sekitar, (2) Analisis apakah ini adalah white space (peluang first-mover) atau blind spot (demand memang rendah), (3) Apa yang membuat pembeli memilih lokasi ini vs kecamatan lain? Berikan analisis berbobot, bukan sekadar "tidak ada data".` : `Sebutkan kompetitor spesifik dari daftar: ${compListKec.slice(0, 5).map(c => c.name + (c.pengembang ? " ("+c.pengembang+")" : "")).join(", ")}. Analisis produk, harga, dan strategi mereka.`}>",
+    "kompetitorKabupaten": "<WAJIB 2-3 paragraf. ${noLocalCompKab ? `Database tidak punya data perumahan di ${kabupaten ?? "kabupaten ini"}. Berdasarkan pengetahuanmu: (1) Sebutkan minimal 3 developer atau perumahan yang kamu ketahui di ${kabupaten ?? "kabupaten ini"} atau kabupaten tetangga terdekat, (2) Karakteristik pasar properti ${kabupaten ?? "kabupaten ini"} — segmen yang dominan (subsidi vs komersial), rentang harga pasar, (3) Siapa pemain dominan dan bagaimana Satara bisa bersaing?` : `Analisis ${compList.length} kompetitor di kabupaten. Sebutkan 3-5 terkuat: ${compList.slice(0, 5).map(c => c.name).join(", ")}.`}>",
+    "posisiHarga": "<2 paragraf. Bandingkan target harga jual ${rp(fin.hargaJualFinal)} dengan harga pasar di area (data survei: ${hargaRumahNum > 0 ? "Rp " + hargaRumahNum.toLocaleString("id-ID") : "belum tersedia — estimasi dari tipe produk dan karakteristik area"}). Rekomendasikan strategi harga yang kompetitif: apakah perlu price penetration, pricing at market, atau premium pricing, dan alasannya.>",
+    "rekomendasiSegmen": "<2 paragraf. Segmen pembeli yang paling tepat untuk lahan di ${[kecamatan, kabupaten].filter(Boolean).join(", ")} ini — profil demografis, pekerjaan dominan, daya beli. Strategi diferensiasi vs kompetitor yang ada: apa yang bisa membuat proyek Satara lebih menarik? Sebutkan 2-3 keunggulan konkret yang bisa dibangun.>"
   },
   "analisisRisiko": [
-    { "risiko": "Risiko Hukum/Legal", "level": "${risks.legalRisk}", "deskripsi": "<1-2 kalimat menjelaskan kondisi legal dan implikasinya>", "mitigasi": "<langkah mitigasi konkret>" },
-    { "risiko": "Risiko Akses Jalan", "level": "${risks.aksesRisk}", "deskripsi": "<kondisi akses dan dampaknya>", "mitigasi": "<tindakan konkret>" },
-    { "risiko": "Risiko Kontur Lahan", "level": "${risks.konturRisk}", "deskripsi": "<kondisi topografi dan implikasi biaya>", "mitigasi": "<langkah teknis konkret>" },
-    { "risiko": "Risiko Banjir", "level": "${risks.banjirRisk}", "deskripsi": "<kondisi hidrologi dan risiko>", "mitigasi": "<langkah mitigasi>" },
-    { "risiko": "Risiko Harga Tanah", "level": "${risks.hargaRisk}", "deskripsi": "<apakah harga sesuai/overpriced vs potensi ROI>", "mitigasi": "<strategi negosiasi atau pengelolaan biaya>" },
-    { "risiko": "Risiko Pasar/Permintaan", "level": "${risks.marketRisk}", "deskripsi": "<kondisi permintaan lokal dan daya serap>", "mitigasi": "<strategi marketing dan segmentasi>" }
+    { "risiko": "Risiko Hukum/Legal", "level": "${risks.legalRisk}", "deskripsi": "<1-2 kalimat spesifik kondisi ${statusKepemilikan ?? "tidak diketahui"} dan implikasi waktu serta biaya>", "mitigasi": "<langkah mitigasi konkret dengan timeline realistis>" },
+    { "risiko": "Risiko Akses Jalan", "level": "${risks.aksesRisk}", "deskripsi": "<kondisi akses ${aksesNum}m dan dampak pada nilai properti dan proses pembangunan>", "mitigasi": "<tindakan konkret — apakah perlu pembebasan, koordinasi pemda, dll.>" },
+    { "risiko": "Risiko Kontur Lahan", "level": "${risks.konturRisk}", "deskripsi": "<kondisi topografi ${konturLabel} dan implikasi biaya matang vs baseline ${rp(fin.biayaInfrastruktur)}>", "mitigasi": "<langkah teknis konkret — cut and fill, retaining wall, dll.>" },
+    { "risiko": "Risiko Banjir", "level": "${risks.banjirRisk}", "deskripsi": "<${topografi.risikoBanjir === "Tidak terdeteksi" ? "Tidak ada data hidrologi — perlu survei lapangan khusus" : `Risiko banjir ${topografi.risikoBanjir}${topografi.waterwayInfo ? ", sungai/saluran berjarak " + topografi.waterwayInfo : ""}`}>", "mitigasi": "<langkah mitigasi hidrologi — drainase, sumur resapan, peil lantai>" },
+    { "risiko": "Risiko Harga Tanah", "level": "${risks.hargaRisk}", "deskripsi": "<Harga Rp ${hargaM2Num.toLocaleString("id-ID")}/m² vs harga maks akuisisi Rp ${fin.maxHargaM2.toLocaleString("id-ID")}/m² — ${fin.maxHargaM2 > 0 && hargaM2Num <= fin.maxHargaM2 ? "harga masih dalam batas layak" : "harga di atas batas layak, wajib negosiasi"}>", "mitigasi": "<strategi negosiasi konkret — target harga, cara approach, BATNA>" },
+    { "risiko": "Risiko Pasar/Permintaan", "level": "${risks.marketRisk}", "deskripsi": "<kondisi daya serap pasar ${tipe} di ${kecamatan ?? "area ini"} — apakah ada demand terpendam atau pasar sudah jenuh>", "mitigasi": "<strategi marketing dan timeline penjualan realistis>" }
   ],
-  "rekomendasiNarasi": "<2-3 paragraf (200-300 kata). Jelaskan keputusan '${decisionLabel}' — mengapa, kondisi apa yang harus dipenuhi, dan apa langkah selanjutnya. Jika BELI DENGAN NEGOSIASI: sebutkan bahwa harga saat ini Rp ${hargaM2Num.toLocaleString("id-ID")}/m² vs target maksimum Rp ${fin.maxHargaM2.toLocaleString("id-ID")}/m² dan target negosiasi Rp ${fin.negotTargetM2.toLocaleString("id-ID")}/m².>",
+  "rekomendasiNarasi": "<3 paragraf (300-400 kata). (1) Jelaskan keputusan '${decisionLabel}' dengan argumentasi kuat berdasarkan data. (2) Kondisi spesifik yang HARUS dipenuhi sebelum Satara commit — sebutkan minimal 3 kondisi konkret. (3) Langkah selanjutnya dengan timeline: apa yang harus dilakukan dalam 1 minggu, 1 bulan, dan 3 bulan ke depan. ${sc.decision === "BELI_DENGAN_NEGOSIASI" ? `Tekankan bahwa harga saat ini Rp ${hargaM2Num.toLocaleString("id-ID")}/m² vs target maksimum Rp ${fin.maxHargaM2.toLocaleString("id-ID")}/m² — negosiasi WAJIB ke Rp ${fin.negotTargetM2.toLocaleString("id-ID")}/m² atau lebih rendah.` : ""}>",
   "legalChecklist": [
-    { "item": "<tindakan legal spesifik 1 sesuai status ${statusKepemilikan ?? "Belum diketahui"}>", "prioritas": "tinggi" },
-    { "item": "<tindakan legal spesifik 2>", "prioritas": "tinggi" },
-    { "item": "<tindakan legal spesifik 3>", "prioritas": "sedang" },
-    { "item": "<tindakan legal spesifik 4>", "prioritas": "sedang" },
-    { "item": "<tindakan legal spesifik 5>", "prioritas": "sedang" },
-    { "item": "<tindakan legal spesifik 6>", "prioritas": "rendah" },
-    { "item": "<tindakan legal spesifik 7>", "prioritas": "rendah" }
+    { "item": "<verifikasi status ${statusKepemilikan ?? "kepemilikan"} — langkah pertama spesifik>", "prioritas": "tinggi" },
+    { "item": "<cek sertifikat dan riwayat perolehan — langkah konkret>", "prioritas": "tinggi" },
+    { "item": "<konfirmasi tidak ada sengketa — cara verifikasi konkret>", "prioritas": "tinggi" },
+    { "item": "<pengecekan BPHTB dan pajak terhutang>", "prioritas": "sedang" },
+    { "item": "<konfirmasi batas-batas tanah dengan tetangga — proses konkret>", "prioritas": "sedang" },
+    { "item": "<cek izin lokasi dan kesesuaian RTRW>", "prioritas": "sedang" },
+    { "item": "<persiapan dokumen untuk proses konversi/balik nama>", "prioritas": "rendah" }
   ],
-  "draftMou": "<Draft MOU formal 400-500 kata. NOTA KESEPAHAMAN (MOU). Pasal 1 Identitas Para Pihak. Pasal 2 Objek Perjanjian (sebutkan ${lokasi || "lokasi lahan"}, ${luasNum.toLocaleString("id-ID")} m²). Pasal 3 Harga dan Cara Pembayaran (sebutkan Rp ${hargaM2Num.toLocaleString("id-ID")}/m², total Rp ${fin.totalAkuisisi.toLocaleString("id-ID")}). Pasal 4 Jangka Waktu. Pasal 5 Kewajiban Penjual. Pasal 6 Kondisi Penangguhan. Pasal 7 Penyelesaian Sengketa. Tanda tangan.>",
+  "draftMou": "<Draft MOU formal 450-550 kata. NOTA KESEPAHAMAN (MOU) PENGIKATAN JUAL BELI LAHAN. Nomor: _____/SATARA/MOU/${new Date().getFullYear()}. Pasal 1 — Identitas Para Pihak: PIHAK PERTAMA (Penjual/Pemilik Lahan) dan PIHAK KEDUA (PT Satara Development). Pasal 2 — Objek: Lahan seluas ${luasNum.toLocaleString("id-ID")} m² berlokasi di ${[kelurahan, kecamatan, kabupaten].filter(Boolean).join(", ") || lokasi || "—"}, Status: ${statusKepemilikan ?? "—"}. Pasal 3 — Harga: Rp ${hargaM2Num.toLocaleString("id-ID")}/m², total Rp ${fin.totalAkuisisi.toLocaleString("id-ID")}, mekanisme pembayaran. Pasal 4 — Jangka Waktu Pengikatan: 90 hari kerja. Pasal 5 — Kewajiban Penjual: menjamin keabsahan dokumen, bebas sengketa, batas jelas. Pasal 6 — Kondisi Penangguhan: due diligence legal, persetujuan internal Satara. Pasal 7 — Uang Tanda Jadi: 2% dari harga, hangus jika Penjual wanprestasi. Pasal 8 — Penyelesaian Sengketa: musyawarah mufakat, BANI jika tidak tercapai. Tanda Tangan Para Pihak.>",
   "nextActions": [
-    "<aksi prioritas 1 — konkret dengan timeline>",
-    "<aksi prioritas 2>",
-    "<aksi prioritas 3>",
-    "<aksi prioritas 4>"
+    "<dalam 3 hari: tindakan paling kritis dan konkret>",
+    "<dalam 1-2 minggu: due diligence legal dan survei lapangan>",
+    "<dalam 1 bulan: negosiasi harga dan penyusunan MOU>",
+    "<dalam 2-3 bulan: penyelesaian legal dan persiapan perizinan>"
   ]
 }`;
 
@@ -549,8 +571,8 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.25,
-      max_tokens: 6000,
+      temperature: 0.3,
+      max_tokens: 8000,
     });
 
     const content = completion.choices[0]?.message?.content ?? "";
