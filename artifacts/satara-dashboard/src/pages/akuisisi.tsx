@@ -5,8 +5,9 @@ import {
   Plus, CheckCircle2, Map, LayoutList, X,
   FileText, ClipboardList, ArrowRight, BrainCircuit,
   Loader2,
-  Building2, Radio, Download, Database,
+  Building2, Radio, Download, Database, BarChart3,
 } from "lucide-react";
+import KompetitorPage from "./kompetitor";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
 import { Button } from "@/components/ui/button";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
@@ -335,6 +336,7 @@ function ProspectDetailPanel({
   const [aiResult, setAiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
   const [fullAiResult, setFullAiResult] = useState<Record<string, unknown> | null>(() => loadFullAiResult(prospect.id));
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "rekomendasi">("ringkasan");
 
   const [survey, setSurvey] = useState<SurveyData>(() => loadSurvey(prospect.id));
   const [aksesJalanDraft, setAksesJalanDraft] = useState<number | null>(prospect.aksesJalan ?? null);
@@ -760,73 +762,317 @@ function ProspectDetailPanel({
           </div>
         )}
 
-        {aiResult && (
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-3 bg-muted/30 border rounded-xl p-3">
-              <div className="relative shrink-0">
-                {(() => {
-                  const r = 28; const c = 2 * Math.PI * r;
-                  const color = aiResult.score >= 85 ? "#10b981" : aiResult.score >= 70 ? "#3b82f6" : aiResult.score >= 55 ? "#f59e0b" : "#ef4444";
-                  return (
-                    <svg width="70" height="70" viewBox="0 0 70 70">
-                      <circle cx="35" cy="35" r={r} fill="none" stroke="currentColor" strokeOpacity={0.1} strokeWidth="6" />
-                      <circle cx="35" cy="35" r={r} fill="none" stroke={color} strokeWidth="6"
-                        strokeDasharray={`${(aiResult.score / 100) * c} ${c}`}
-                        strokeLinecap="round" transform="rotate(-90 35 35)" />
-                      <text x="35" y="38" textAnchor="middle" fontSize="16" fontWeight="700" fill={color}>{aiResult.score}</text>
-                    </svg>
-                  );
-                })()}
-              </div>
-              <div className="flex-1 min-w-0 space-y-1">
-                <span className={cn("inline-flex text-[11px] font-semibold rounded-full px-2 py-0.5 border",
-                  aiResult.score >= 85 ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                  : aiResult.score >= 70 ? "bg-blue-50 text-blue-800 border-blue-200"
-                  : aiResult.score >= 55 ? "bg-amber-50 text-amber-800 border-amber-200"
-                  : "bg-red-50 text-red-800 border-red-200"
-                )}>{aiResult.kategori ?? aiResult.verdict}</span>
-                <div className="flex gap-1.5 flex-wrap">
-                  {aiResult.tingkatRisiko && (
-                    <span className={cn("text-[10px] font-medium rounded px-1.5 py-0.5",
-                      aiResult.tingkatRisiko === "Rendah" ? "bg-emerald-100 text-emerald-700"
-                      : aiResult.tingkatRisiko === "Sedang" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
-                    )}>Risiko: {aiResult.tingkatRisiko}</span>
-                  )}
-                  {aiResult.roiEstimasi != null && <span className="text-[10px] bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">ROI {aiResult.roiEstimasi.toFixed(1)}%</span>}
-                  {aiResult.potensiUnit != null && <span className="text-[10px] bg-slate-100 text-slate-700 rounded px-1.5 py-0.5">{aiResult.potensiUnit} unit est.</span>}
+        {aiResult && (() => {
+          const fa = fullAiResult;
+          const ai = fa?.ai as Record<string, unknown> | undefined;
+          const calc = fa?.calc as Record<string, unknown> | undefined;
+          const fin = calc?.financials as Record<string, unknown> | undefined;
+          const la = calc?.landAllocation as Record<string, unknown> | undefined;
+          const up = calc?.unitPotential as Record<string, unknown> | undefined;
+          const rk = calc?.risks as Record<string, unknown> | undefined;
+          const sc = calc?.scores as Record<string, unknown> | undefined;
+          const assumptions = calc?.assumptions as string[] | undefined;
+          const analisisRisiko = (ai?.analisisRisiko as { risiko: string; level: string; deskripsi: string; mitigasi: string }[] | undefined) ?? [];
+          const nextActions = (ai?.nextActions as string[] | undefined) ?? [];
+          const decisionLabel: Record<string, { label: string; cls: string }> = {
+            BELI: { label: "BELI", cls: "bg-emerald-600 text-white" },
+            BELI_DENGAN_NEGOSIASI: { label: "BELI + NEGOSIASI", cls: "bg-teal-600 text-white" },
+            HOLD: { label: "HOLD / TINJAU", cls: "bg-amber-500 text-white" },
+            JANGAN_BELI: { label: "JANGAN BELI", cls: "bg-red-600 text-white" },
+          };
+          const dec = decisionLabel[String(sc?.decision ?? "")] ?? { label: String(sc?.decision ?? ""), cls: "bg-muted text-foreground" };
+          const riskBadge = (level: string) =>
+            level === "Rendah" ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+            : level === "Sedang" ? "bg-amber-100 text-amber-700 border-amber-200"
+            : "bg-red-100 text-red-700 border-red-200";
+          const fmtRp = (n: unknown) => {
+            const v = Number(n);
+            if (isNaN(v)) return "—";
+            if (v >= 1_000_000_000) return `Rp ${(v / 1_000_000_000).toFixed(2)} M`;
+            if (v >= 1_000_000) return `Rp ${(v / 1_000_000).toFixed(0)} Jt`;
+            return `Rp ${v.toLocaleString("id-ID")}`;
+          };
+          const scoreItems = [
+            { label: "Lokasi & Akses", score: sc?.lokasiScore as number, weight: "20%" },
+            { label: "Harga Tanah", score: sc?.hargaScore as number, weight: "20%" },
+            { label: "Potensi ROI", score: sc?.roiScore as number, weight: "20%" },
+            { label: "Potensi Unit", score: sc?.unitScore as number, weight: "15%" },
+            { label: "Legalitas", score: sc?.legalScore as number, weight: "10%" },
+            { label: "Kompetitor/Pasar", score: sc?.pasarScore as number, weight: "10%" },
+            { label: "Risiko Teknis", score: sc?.teknisScore as number, weight: "5%" },
+          ];
+          const riskRows = [
+            { label: "Hukum/Legal", score: rk?.legalRiskScore as number, level: rk?.legalRisk as string },
+            { label: "Akses Jalan", score: rk?.aksesRiskScore as number, level: rk?.aksesRisk as string },
+            { label: "Kontur Lahan", score: rk?.konturRiskScore as number, level: rk?.konturRisk as string },
+            { label: "Banjir", score: rk?.banjirRiskScore as number, level: rk?.banjirRisk as string },
+            { label: "Harga Tanah", score: rk?.hargaRiskScore as number, level: rk?.hargaRisk as string },
+            { label: "Pasar/Demand", score: rk?.marketRiskScore as number, level: rk?.marketRisk as string },
+          ];
+          const AI_TABS = [
+            { key: "ringkasan" as const, label: "Ringkasan" },
+            { key: "lokasi" as const, label: "Lokasi & Fisik" },
+            { key: "risiko" as const, label: "Risiko" },
+            { key: "finansial" as const, label: "Finansial" },
+            { key: "rekomendasi" as const, label: "Rekomendasi" },
+          ];
+          return (
+            <div className="space-y-2.5">
+              {/* Score header */}
+              <div className="flex items-center gap-3 bg-muted/30 border rounded-xl p-3">
+                <div className="relative shrink-0">
+                  {(() => {
+                    const r = 28; const circ = 2 * Math.PI * r;
+                    const color = aiResult.score >= 85 ? "#10b981" : aiResult.score >= 70 ? "#3b82f6" : aiResult.score >= 55 ? "#f59e0b" : "#ef4444";
+                    return (
+                      <svg width="70" height="70" viewBox="0 0 70 70">
+                        <circle cx="35" cy="35" r={r} fill="none" stroke="currentColor" strokeOpacity={0.1} strokeWidth="6" />
+                        <circle cx="35" cy="35" r={r} fill="none" stroke={color} strokeWidth="6"
+                          strokeDasharray={`${(aiResult.score / 100) * circ} ${circ}`}
+                          strokeLinecap="round" transform="rotate(-90 35 35)" />
+                        <text x="35" y="38" textAnchor="middle" fontSize="16" fontWeight="700" fill={color}>{aiResult.score}</text>
+                      </svg>
+                    );
+                  })()}
+                </div>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className={cn("inline-flex text-[11px] font-semibold rounded-full px-2.5 py-0.5 border",
+                      aiResult.score >= 85 ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : aiResult.score >= 70 ? "bg-blue-50 text-blue-800 border-blue-200"
+                      : aiResult.score >= 55 ? "bg-amber-50 text-amber-800 border-amber-200"
+                      : "bg-red-50 text-red-800 border-red-200"
+                    )}>{aiResult.kategori ?? aiResult.verdict}</span>
+                    <span className={cn("inline-flex text-[10px] font-bold rounded px-2 py-0.5", dec.cls)}>{dec.label}</span>
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {aiResult.tingkatRisiko && (
+                      <span className={cn("text-[10px] font-medium rounded px-1.5 py-0.5",
+                        aiResult.tingkatRisiko === "Rendah" ? "bg-emerald-100 text-emerald-700"
+                        : aiResult.tingkatRisiko === "Sedang" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                      )}>Risiko: {aiResult.tingkatRisiko}</span>
+                    )}
+                    {aiResult.roiEstimasi != null && <span className="text-[10px] bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">ROI {aiResult.roiEstimasi.toFixed(1)}%</span>}
+                    {aiResult.potensiUnit != null && <span className="text-[10px] bg-slate-100 text-slate-700 rounded px-1.5 py-0.5">{aiResult.potensiUnit} unit est.</span>}
+                  </div>
+                  {/* Score breakdown mini */}
+                  <div className="grid grid-cols-4 gap-1 pt-0.5">
+                    {scoreItems.slice(0, 4).map(({ label, score, weight }) => (
+                      <div key={label} className="text-center">
+                        <div className={cn("text-[11px] font-bold",
+                          score >= 80 ? "text-emerald-600" : score >= 60 ? "text-blue-600" : score >= 40 ? "text-amber-600" : "text-red-600"
+                        )}>{score ?? "—"}</div>
+                        <div className="text-[8px] text-muted-foreground leading-tight">{label}</div>
+                        <div className="text-[8px] text-muted-foreground/60">{weight}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
+
+              {/* AI Tabs */}
+              <div className="flex rounded-lg border bg-muted/30 p-0.5 text-[10px] font-medium gap-0.5">
+                {AI_TABS.map(({ key, label }) => (
+                  <button key={key} onClick={() => setAiTab(key)}
+                    className={cn("flex-1 px-1.5 py-1 rounded-md transition-colors whitespace-nowrap",
+                      aiTab === key ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab: Ringkasan */}
+              {aiTab === "ringkasan" && (
+                <div className="space-y-2">
+                  {ai?.ringkasanEksekutif ? (
+                    <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
+                      <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-1.5">Ringkasan Eksekutif</div>
+                      <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{String(ai.ringkasanEksekutif)}</p>
+                    </div>
+                  ) : (
+                    <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
+                      <p className="text-[11px] text-foreground/80 leading-relaxed">{aiResult.ringkasan}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Lokasi & Fisik */}
+              {aiTab === "lokasi" && (
+                <div className="space-y-2">
+                  {ai?.analisisLokasi && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+                      <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Analisis Lokasi</div>
+                      <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{String(ai.analisisLokasi)}</p>
+                    </div>
+                  )}
+                  {ai?.analisisFisikLahan && (
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5">
+                      <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Analisis Fisik Lahan</div>
+                      <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{String(ai.analisisFisikLahan)}</p>
+                    </div>
+                  )}
+                  {la && (
+                    <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
+                      <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-2">Alokasi Lahan</div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                        {[
+                          { l: "Luas Total", v: `${Number(la.luasTotal).toLocaleString("id-ID")} m²` },
+                          { l: "Luas Efektif Kavling", v: `${Number(la.luasEfektif).toLocaleString("id-ID")} m² (${la.efficiencyPct}%)` },
+                          { l: "Jalan Internal", v: `${Number(la.luasJalan).toLocaleString("id-ID")} m²` },
+                          { l: "Fasum & RTH", v: `${Number(la.luasFasum).toLocaleString("id-ID")} m²` },
+                          { l: "Area Tidak Efektif", v: `${Number(la.luasTidakEfektif).toLocaleString("id-ID")} m²` },
+                          { l: "Tipe Target", v: String(up?.tipeLabel ?? "—") },
+                          { l: "Unit Min / Realistis / Max", v: `${up?.unitMin} / ${up?.unitRealistis} / ${up?.unitMax}` },
+                        ].map(({ l, v }) => (
+                          <div key={l} className="flex justify-between text-[10px] border-b border-border/30 py-0.5 last:border-0 col-span-1">
+                            <span className="text-muted-foreground">{l}</span>
+                            <span className="font-medium text-right">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Risiko */}
+              {aiTab === "risiko" && (
+                <div className="space-y-2">
+                  {analisisRisiko.length > 0 && analisisRisiko.map((item, i) => (
+                    <div key={i} className={cn("border rounded-lg px-3 py-2.5", riskBadge(item.level).replace("text-", "border-").replace("bg-", ""))}>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border", riskBadge(item.level))}>{item.level}</span>
+                        <span className="text-[11px] font-semibold">{item.risiko}</span>
+                      </div>
+                      <p className="text-[10px] text-foreground/75 leading-relaxed mb-1">{item.deskripsi}</p>
+                      {item.mitigasi && (
+                        <div className="flex gap-1 text-[10px] text-blue-700">
+                          <span className="shrink-0 font-medium">Mitigasi:</span>
+                          <span className="leading-relaxed">{item.mitigasi}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {/* Skor risiko grid */}
+                  <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
+                    <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-2">Skor Risiko per Kategori</div>
+                    <div className="space-y-1.5">
+                      {riskRows.map(({ label, score, level }) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground w-24 shrink-0">{label}</span>
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className={cn("h-full rounded-full transition-all",
+                              score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-blue-400" : score >= 40 ? "bg-amber-400" : "bg-red-400"
+                            )} style={{ width: `${score ?? 0}%` }} />
+                          </div>
+                          <span className="text-[10px] font-bold w-6 text-right">{score ?? "—"}</span>
+                          <span className={cn("text-[8px] font-medium px-1 py-0.5 rounded border shrink-0", riskBadge(level))}>{level}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab: Finansial */}
+              {aiTab === "finansial" && fin && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: "Total Akuisisi", value: fmtRp(fin.totalAkuisisi), highlight: false },
+                      { label: "Biaya Infrastruktur", value: fmtRp(fin.biayaInfrastruktur), highlight: false },
+                      { label: "Biaya Legal & Pajak", value: fmtRp(fin.biayaLegal), highlight: false },
+                      { label: "Biaya Konstruksi", value: fmtRp(fin.biayaKonstruksi), highlight: false },
+                      { label: "Kontingency (5%)", value: fmtRp(fin.kontingensiBiaya), highlight: false },
+                      { label: "Total HPP", value: fmtRp(fin.totalHPP), highlight: true },
+                      { label: "Revenue", value: fmtRp(fin.revenue), highlight: true },
+                      { label: "Profit Bersih", value: fmtRp(fin.profit), highlight: true },
+                    ].map(({ label, value, highlight }) => (
+                      <div key={label} className={cn("border rounded-lg px-2.5 py-2", highlight ? "bg-muted/50" : "")}>
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</div>
+                        <div className={cn("text-[12px] font-bold mt-0.5", highlight ? "text-foreground" : "text-foreground/80")}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "ROI", value: `${fin.roi}%`, good: Number(fin.roi) >= 25 },
+                      { label: "Margin Gross", value: `${fin.margin}%`, good: Number(fin.margin) >= 20 },
+                      { label: "Payback Period", value: `${fin.paybackBulan} bln`, good: Number(fin.paybackBulan) <= 30 },
+                    ].map(({ label, value, good }) => (
+                      <div key={label} className={cn("border rounded-lg px-2.5 py-2 text-center",
+                        good ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+                      )}>
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</div>
+                        <div className={cn("text-sm font-bold mt-0.5", good ? "text-emerald-700" : "text-red-700")}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
+                    <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-2">Breakdown per Unit ({up?.tipeLabel})</div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                      {[
+                        { l: "Harga Jual/Unit", v: fmtRp(fin.hargaJualFinal) + (fin.usingDefaultHargaJual ? " (default)" : "") },
+                        { l: "HPP/Unit", v: fmtRp(fin.hppPerUnit) },
+                        { l: "Biaya Bangun/Unit", v: fmtRp(fin.biayaBangunFinal) + (fin.usingDefaultBiayaBangun ? " (default)" : "") },
+                        { l: "Margin/Unit", v: `${fmtRp(fin.marginPerUnit)} (${fin.marginPerUnitPct}%)` },
+                        { l: "Harga Maks Akuisisi", v: `Rp ${Number(fin.maxHargaM2).toLocaleString("id-ID")}/m²` },
+                        { l: "Target Negosiasi", v: `Rp ${Number(fin.negotTargetM2).toLocaleString("id-ID")}/m²` },
+                      ].map(({ l, v }) => (
+                        <div key={l} className="flex justify-between text-[10px] border-b border-border/30 py-0.5 last:border-0">
+                          <span className="text-muted-foreground">{l}</span>
+                          <span className="font-medium text-right">{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {assumptions && assumptions.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1">Asumsi yang Digunakan</div>
+                      {assumptions.map((a, i) => (
+                        <div key={i} className="text-[10px] text-amber-800 flex gap-1 mb-0.5">
+                          <span className="shrink-0">*</span><span className="leading-snug">{a}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Rekomendasi */}
+              {aiTab === "rekomendasi" && (
+                <div className="space-y-2">
+                  {ai?.rekomendasiNarasi && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
+                      <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Rekomendasi</div>
+                      <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{String(ai.rekomendasiNarasi)}</p>
+                    </div>
+                  )}
+                  {nextActions.length > 0 && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+                      <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-2">Langkah Selanjutnya</div>
+                      <div className="space-y-1.5">
+                        {nextActions.map((action, i) => (
+                          <div key={i} className="flex gap-2 text-[10px] text-emerald-800">
+                            <span className="size-4 rounded-full bg-emerald-200 text-emerald-700 flex items-center justify-center font-bold shrink-0 text-[9px]">{i + 1}</span>
+                            <span className="leading-relaxed">{action}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(!ai?.rekomendasiNarasi && nextActions.length === 0) && (
+                    <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
+                      <p className="text-[11px] text-foreground/80 leading-relaxed">{aiResult.rekomendasi}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-
-            {aiResult.ringkasan && (
-              <div className="bg-muted/30 border rounded-lg px-3 py-2">
-                <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-1">Ringkasan</div>
-                <p className="text-[11px] text-foreground/80 leading-relaxed">{aiResult.ringkasan}</p>
-              </div>
-            )}
-
-            {(aiResult.kelebihan.length > 0 || aiResult.risiko.length > 0) && (
-              <div className="grid grid-cols-2 gap-2">
-                {aiResult.kelebihan.length > 0 && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-2">
-                    <div className="text-[10px] font-semibold text-emerald-700 mb-1.5">Langkah Selanjutnya</div>
-                    {aiResult.kelebihan.slice(0, 3).map((k, i) => (
-                      <div key={i} className="flex gap-1 text-[10px] text-emerald-700 mb-0.5"><span className="shrink-0">-</span><span className="leading-tight">{k}</span></div>
-                    ))}
-                  </div>
-                )}
-                {aiResult.risiko.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
-                    <div className="text-[10px] font-semibold text-red-700 mb-1.5">Risiko Utama</div>
-                    {aiResult.risiko.slice(0, 3).map((r, i) => (
-                      <div key={i} className="flex gap-1 text-[10px] text-red-700 mb-0.5"><span className="shrink-0">-</span><span className="leading-tight">{r}</span></div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* ── DATA LAPANGAN ── */}
@@ -1132,9 +1378,10 @@ export default function Akuisisi() {
   }
 
   const TABS = [
-    { key: "peta",     label: "Peta Sulsel",     icon: Map },
-    { key: "pipeline", label: "Pipeline",          icon: LayoutList, badge: prospects?.length },
-    { key: "slis",     label: "SLIS", icon: BrainCircuit },
+    { key: "peta",        label: "Peta Sulsel", icon: Map },
+    { key: "pipeline",    label: "Pipeline",    icon: LayoutList, badge: prospects?.length },
+    { key: "kompetitor",  label: "Kompetitor",  icon: BarChart3 },
+    { key: "slis",        label: "SLIS",        icon: BrainCircuit },
   ] as const;
 
   return (
@@ -1302,6 +1549,10 @@ export default function Akuisisi() {
             />
           )}
         </div>
+      )}
+
+      {tab === "kompetitor" && (
+        <KompetitorPage />
       )}
 
       {tab === "slis" && (

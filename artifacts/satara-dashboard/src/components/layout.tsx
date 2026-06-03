@@ -45,7 +45,6 @@ const navItems = [
   { name: "Executive Overview", path: "/", icon: LayoutDashboard },
   { name: "Daftar Proyek", path: "/projects", icon: Building2 },
   { name: "Akuisisi Lahan", path: "/akuisisi", icon: MapPin },
-  { name: "Data Kompetitor", path: "/kompetitor", icon: BarChart3 },
   { name: "Perencanaan", path: "/perencanaan", icon: Calculator },
   { name: "Legal & Perizinan", path: "/legal", icon: FileText },
   { name: "Marketing", path: "/marketing", icon: Magnet },
