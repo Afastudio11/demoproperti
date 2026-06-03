@@ -1,17 +1,16 @@
-import { useState, useEffect, useRef } from "react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
+import { useState, useRef } from "react";
 import {
   KABUPATEN_DATA, getGradeColor, getGradeLabel, getGradeBg,
-  KAB_WEIGHTS, KEC_WEIGHTS, DESA_WEIGHTS,
+  KAB_WEIGHTS,
   type KabupatenScore, type KecamatanScore, type DesaScore, type Grade,
 } from "@/data/slis-scoring";
 import { useListLandProspects } from "@workspace/api-client-react";
 import {
   ChevronRight, ChevronLeft, Brain, Loader2, AlertTriangle, BarChart3,
-  TrendingUp, MapPin, Target, Building2, RefreshCw,
+  TrendingUp, MapPin, Target, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SLISCompetitorMap } from "@/components/slis-competitor-map";
 
 // ─── Scoring helpers ─────────────────────────────────────────────────────────
 
@@ -36,14 +35,6 @@ function GradeDot({ grade }: { grade: Grade }) {
     tidak_direkomendasikan: "bg-red-500",
   };
   return <span className={cn("inline-block size-2 rounded-full shrink-0", colors[grade])} />;
-}
-
-// ─── Map fit bounds helper ─────────────────────────────────────────────────
-
-function MapFlyTo({ lat, lng }: { lat: number; lng: number }) {
-  const map = useMap();
-  useEffect(() => { map.flyTo([lat, lng], 10, { animate: true, duration: 0.8 }); }, [lat, lng, map]);
-  return null;
 }
 
 // ─── Scoring factor tables ────────────────────────────────────────────────
@@ -588,64 +579,12 @@ export default function SLIS() {
             )}
           </div>
 
-          {/* RIGHT: Map */}
-          <div className="flex-1 bg-card border rounded-xl overflow-hidden">
-            <MapContainer
-              center={[-4.0, 120.0]}
-              zoom={7}
-              style={{ height: "100%", width: "100%" }}
-              zoomControl={true}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>'
-              />
-              {flyTo && <MapFlyTo lat={flyTo.lat} lng={flyTo.lng} />}
-
-              {KABUPATEN_DATA.map((kab) => {
-                const color = getGradeColor(kab.grade);
-                const isSelected = selectedKab?.id === kab.id;
-                return (
-                  <CircleMarker
-                    key={kab.id}
-                    center={[kab.lat, kab.lng]}
-                    radius={isSelected ? 20 : Math.max(10, kab.score / 6)}
-                    pathOptions={{
-                      color: isSelected ? "#000" : color,
-                      fillColor: color,
-                      fillOpacity: isSelected ? 0.95 : 0.75,
-                      weight: isSelected ? 3 : 1.5,
-                    }}
-                    eventHandlers={{ click: () => selectKab(kab) }}
-                  >
-                    <Tooltip permanent={false} direction="top" offset={[0, -8]}>
-                      <div className="text-xs">
-                        <div className="font-bold">{kab.name}</div>
-                        <div>Skor: <strong>{kab.score}</strong> — {getGradeLabel(kab.grade)}</div>
-                        <div>Harga: {kab.hargaTanahRange}</div>
-                      </div>
-                    </Tooltip>
-                  </CircleMarker>
-                );
-              })}
-            </MapContainer>
-
-            {/* Legend */}
-            <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur border rounded-lg p-2.5 shadow-lg z-[1000] text-[10px]">
-              <div className="font-semibold mb-1.5 text-foreground">Potensi Wilayah</div>
-              {[
-                { color: "#16a34a", label: "🟢 Sangat Potensial (≥80)" },
-                { color: "#d97706", label: "🟡 Potensial (65–79)" },
-                { color: "#ea580c", label: "🟠 Sedang (50–64)" },
-                { color: "#dc2626", label: "🔴 Tidak Direk. (<50)" },
-              ].map(({ color, label }) => (
-                <div key={label} className="flex items-center gap-1.5 mt-0.5">
-                  <div className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                  <span>{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* RIGHT: Competitor Distribution Map */}
+          <SLISCompetitorMap
+            selectedKab={selectedKab}
+            onKabSelect={selectKab}
+            flyTo={flyTo}
+          />
         </div>
       )}
 
