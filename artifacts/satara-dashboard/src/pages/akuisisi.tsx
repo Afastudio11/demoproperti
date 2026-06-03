@@ -211,6 +211,26 @@ function saveCompetitors(id: number, list: CompetitorEntry[]) {
   localStorage.setItem(`satara_comp_${id}`, JSON.stringify(list));
 }
 
+interface SurveyData {
+  bentukLahan: string;
+  statusLegal: string;
+  topografi: string;
+  kondisiJalan: string;
+  utilitas: string[];
+  peilBanjir: string;
+  namaPemilik: string;
+  kontakPemilik: string;
+}
+
+const SURVEY_DEFAULTS: SurveyData = { bentukLahan: "", statusLegal: "", topografi: "", kondisiJalan: "", utilitas: [], peilBanjir: "", namaPemilik: "", kontakPemilik: "" };
+
+function loadSurvey(id: number): SurveyData {
+  try { return { ...SURVEY_DEFAULTS, ...JSON.parse(localStorage.getItem(`satara_survey_${id}`) ?? "{}") }; } catch { return { ...SURVEY_DEFAULTS }; }
+}
+function saveSurvey(id: number, s: SurveyData) {
+  localStorage.setItem(`satara_survey_${id}`, JSON.stringify(s));
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatLuas(n: number) {
@@ -255,6 +275,7 @@ function ProspectDetailPanel({
   onToggleItem,
   onAdvanceStage,
   advancing,
+  onRefetch,
 }: {
   prospect: LandProspect;
   checklists: Record<number, string[]>;
@@ -263,24 +284,56 @@ function ProspectDetailPanel({
   onToggleItem: (id: number, item: string) => void;
   onAdvanceStage: (id: number, nextStage: string) => void;
   advancing: boolean;
+  onRefetch: () => void;
 }) {
   const [aiResult, setAiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [bentukLahan, setBentukLahan] = useState("");
-  const [statusLegal, setStatusLegal] = useState("");
+  const [survey, setSurvey] = useState<SurveyData>(() => loadSurvey(prospect.id));
+  const [aksesJalanDraft, setAksesJalanDraft] = useState<number | null>(prospect.aksesJalan ?? null);
+  const [catatanDraft, setCatatanDraft] = useState(prospect.catatan ?? "");
   const [competitorList, setCompetitorList] = useState<CompetitorEntry[]>(() => loadCompetitors(prospect.id));
   const [competitorRadius, setCompetitorRadius] = useState(3);
   const [competitorLoading, setCompetitorLoading] = useState(false);
   const [competitorError, setCompetitorError] = useState<string | null>(null);
   const [competitorHasSearched, setCompetitorHasSearched] = useState(() => loadCompetitors(prospect.id).length > 0);
   const autoFetchedRef = useRef(false);
+  const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function updateSurvey<K extends keyof SurveyData>(key: K, value: SurveyData[K]) {
+    setSurvey(prev => {
+      const next = { ...prev, [key]: value };
+      saveSurvey(prospect.id, next);
+      return next;
+    });
+  }
+
+  // Debounced PATCH aksesJalan + catatan ke DB
+  useEffect(() => {
+    if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
+    patchTimerRef.current = setTimeout(async () => {
+      const body: Record<string, unknown> = {};
+      if (aksesJalanDraft !== (prospect.aksesJalan ?? null)) body.aksesJalan = aksesJalanDraft;
+      if (catatanDraft !== (prospect.catatan ?? "")) body.catatan = catatanDraft;
+      if (Object.keys(body).length === 0) return;
+      try {
+        await fetch(`/api/land-prospects/${prospect.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        onRefetch();
+      } catch { /* silent */ }
+    }, 800);
+    return () => { if (patchTimerRef.current) clearTimeout(patchTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aksesJalanDraft, catatanDraft]);
 
   // Auto-fetch kompetitor saat panel dibuka jika ada koordinat & belum ada cache
   useEffect(() => {
     if (autoFetchedRef.current) return;
     if (prospect.lat == null || prospect.lng == null) return;
-    if (loadCompetitors(prospect.id).length > 0) return; // sudah ada cache
+    if (loadCompetitors(prospect.id).length > 0) return;
     autoFetchedRef.current = true;
     setCompetitorLoading(true);
     setCompetitorError(null);
@@ -314,13 +367,14 @@ function ProspectDetailPanel({
 
   function buildPayload() {
     return {
-      prospect,
+      prospect: { ...prospect, aksesJalan: aksesJalanDraft ?? prospect.aksesJalan, catatan: catatanDraft },
       checkedItems: checked,
       aiResult: aiResult ?? null,
       terrain: terrainData ?? null,
       competitors: competitorList,
-      bentukLahan,
-      statusLegal,
+      bentukLahan: survey.bentukLahan,
+      statusLegal: survey.statusLegal,
+      survey,
     };
   }
 
@@ -367,9 +421,15 @@ function ProspectDetailPanel({
           luas: prospect.luas,
           hargaM2: prospect.hargaM2,
           roi: prospect.roi,
-          aksesJalan: prospect.aksesJalan,
-          bentukLahan: bentukLahan || undefined,
-          statusLegal: statusLegal || undefined,
+          aksesJalan: aksesJalanDraft ?? prospect.aksesJalan,
+          bentukLahan: survey.bentukLahan || undefined,
+          statusLegal: survey.statusLegal || undefined,
+          topografi: survey.topografi || undefined,
+          kondisiJalan: survey.kondisiJalan || undefined,
+          utilitas: survey.utilitas.length > 0 ? survey.utilitas.join(", ") : undefined,
+          peilBanjir: survey.peilBanjir || undefined,
+          namaPemilik: survey.namaPemilik || undefined,
+          catatanLapangan: catatanDraft || undefined,
           currentStage: STAGES.find((s) => s.key === prospect.status)?.label,
           checkedItems: checked.length,
           competitors,
@@ -442,8 +502,8 @@ function ProspectDetailPanel({
         </div>
       </div>
 
-      {/* ── Body: 3-column layout ── */}
-      <div className="grid grid-cols-[200px_1fr_auto] divide-x">
+      {/* ── Body: 2-column layout ── */}
+      <div className="grid grid-cols-[200px_1fr] divide-x">
 
         {/* Col 1: TUJUAN + INDIKATOR + OUTPUT */}
         <div className="p-3 space-y-3">
@@ -601,75 +661,170 @@ function ProspectDetailPanel({
           </div>
         </div>
 
-        {/* Col 3: Akses Jalan info */}
-        <div className="p-3 w-40">
-          <div className="text-[10px] font-semibold text-foreground tracking-wider mb-2">AKSES JALAN</div>
-          <div className={cn("border rounded-lg p-3 text-center",
-            (prospect.aksesJalan ?? 0) >= 5
-              ? "border-emerald-200 bg-emerald-50"
-              : (prospect.aksesJalan ?? 0) > 0
-              ? "border-amber-200 bg-amber-50"
-              : "border-border bg-muted/30"
-          )}>
-            {(prospect.aksesJalan ?? 0) > 0 ? (
-              <>
-                <div className={cn("text-xl font-bold",
-                  (prospect.aksesJalan ?? 0) >= 5 ? "text-emerald-700" : "text-amber-700"
-                )}>
-                  {prospect.aksesJalan} m
-                </div>
-                <div className={cn("text-[10px] mt-0.5",
-                  (prospect.aksesJalan ?? 0) >= 5 ? "text-emerald-600" : "text-amber-600"
-                )}>
-                  {(prospect.aksesJalan ?? 0) >= 5 ? "Memenuhi syarat" : "Kurang dari 5 m"}
-                </div>
-              </>
-            ) : (
-              <div className="text-[11px] text-foreground/70">Belum diisi</div>
-            )}
-          </div>
-          <div className="mt-2 text-[9px] text-foreground/60">
-            Standar minimum: 5 meter
-          </div>
-        </div>
       </div>
 
-      {/* ── Modul 4: Input tambahan + AI Analysis ── */}
-      <div className="border-t px-4 py-3 space-y-3">
-        {/* Input fields: Bentuk Lahan + Status Legal */}
-        <div className="grid grid-cols-2 gap-3">
+      {/* ── DATA LAPANGAN ── */}
+      <div className="border-t px-4 py-4">
+        <div className="text-[10px] font-semibold text-foreground tracking-wider mb-3">DATA LAPANGAN</div>
+        <div className="grid grid-cols-4 gap-x-5 gap-y-4">
+
+          {/* Akses Jalan */}
           <div>
-            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-1.5">BENTUK LAHAN</div>
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">AKSES JALAN</div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                value={aksesJalanDraft ?? ""}
+                onChange={(e) => setAksesJalanDraft(e.target.value === "" ? null : parseFloat(e.target.value))}
+                placeholder="0"
+                min={0}
+                step={0.5}
+                className="w-16 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30"
+              />
+              <span className="text-[11px] text-muted-foreground">m</span>
+              {aksesJalanDraft != null && (
+                <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded",
+                  aksesJalanDraft >= 5 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                )}>
+                  {aksesJalanDraft >= 5 ? "OK" : "< 5m"}
+                </span>
+              )}
+            </div>
+            <div className="text-[9px] text-foreground/50 mt-1">min. 5 meter</div>
+          </div>
+
+          {/* Bentuk Lahan */}
+          <div>
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">BENTUK LAHAN</div>
             <div className="flex gap-1 flex-wrap">
               {["Kotak", "Persegi Panjang", "L", "Segitiga"].map(b => (
-                <button key={b} onClick={() => setBentukLahan(bentukLahan === b ? "" : b)}
-                  className={cn("text-[10px] px-2 py-1 rounded border transition-colors",
-                    bentukLahan === b ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
+                <button key={b} onClick={() => updateSurvey("bentukLahan", survey.bentukLahan === b ? "" : b)}
+                  className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
+                    survey.bentukLahan === b ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
                   )}>{b}</button>
               ))}
             </div>
           </div>
+
+          {/* Status Legal */}
           <div>
-            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-1.5">STATUS LEGAL</div>
-            <div className="flex gap-1">
-              {["SHM", "AJB", "Girik"].map(s => (
-                <button key={s} onClick={() => setStatusLegal(statusLegal === s ? "" : s)}
-                  className={cn("text-[10px] px-2.5 py-1 rounded border transition-colors",
-                    statusLegal === s
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">STATUS LEGAL</div>
+            <div className="flex gap-1 flex-wrap">
+              {["SHM", "AJB", "PPJB", "HGB", "Girik"].map(s => (
+                <button key={s} onClick={() => updateSurvey("statusLegal", survey.statusLegal === s ? "" : s)}
+                  className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
+                    survey.statusLegal === s
                       ? s === "SHM" ? "bg-emerald-600 text-white border-emerald-600"
-                        : s === "AJB" ? "bg-amber-500 text-white border-amber-500"
+                        : s === "AJB" || s === "PPJB" ? "bg-teal-600 text-white border-teal-600"
+                        : s === "HGB" ? "bg-sky-600 text-white border-sky-600"
                         : "bg-orange-500 text-white border-orange-500"
                       : "bg-background border-border hover:bg-muted"
                   )}>{s}</button>
               ))}
             </div>
           </div>
+
+          {/* Topografi */}
+          <div>
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">TOPOGRAFI</div>
+            <div className="flex gap-1 flex-wrap">
+              {["Datar", "Berbukit", "Curam"].map(t => (
+                <button key={t} onClick={() => updateSurvey("topografi", survey.topografi === t ? "" : t)}
+                  className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
+                    survey.topografi === t ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
+                  )}>{t}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Kondisi Jalan */}
+          <div>
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">KONDISI JALAN</div>
+            <div className="flex gap-1 flex-wrap">
+              {["Aspal", "Beton", "Batu", "Tanah"].map(k => (
+                <button key={k} onClick={() => updateSurvey("kondisiJalan", survey.kondisiJalan === k ? "" : k)}
+                  className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
+                    survey.kondisiJalan === k ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
+                  )}>{k}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Peil Banjir */}
+          <div>
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">PEIL BANJIR</div>
+            <div className="flex gap-1 flex-wrap">
+              {["Aman", "Rawan", "Sangat Rawan"].map(p => (
+                <button key={p} onClick={() => updateSurvey("peilBanjir", survey.peilBanjir === p ? "" : p)}
+                  className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
+                    survey.peilBanjir === p
+                      ? p === "Aman" ? "bg-emerald-600 text-white border-emerald-600"
+                        : p === "Rawan" ? "bg-amber-500 text-white border-amber-500"
+                        : "bg-red-500 text-white border-red-500"
+                      : "bg-background border-border hover:bg-muted"
+                  )}>{p}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Utilitas */}
+          <div className="col-span-2">
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">UTILITAS TERSEDIA</div>
+            <div className="flex gap-1.5 flex-wrap">
+              {["PLN", "PDAM", "Gas PGN", "Internet"].map(u => {
+                const on = survey.utilitas.includes(u);
+                return (
+                  <button key={u} onClick={() => updateSurvey("utilitas", on ? survey.utilitas.filter(x => x !== u) : [...survey.utilitas, u])}
+                    className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
+                      on ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
+                    )}>{u}</button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
+        {/* Nama + Kontak Pemilik */}
+        <div className="grid grid-cols-2 gap-x-5 mt-4">
+          <div>
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">NAMA PEMILIK</div>
+            <input type="text"
+              value={survey.namaPemilik}
+              onChange={(e) => updateSurvey("namaPemilik", e.target.value)}
+              placeholder="Nama pemilik lahan"
+              className="w-full text-[11px] px-2.5 py-1.5 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30"
+            />
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">KONTAK PEMILIK</div>
+            <input type="text"
+              value={survey.kontakPemilik}
+              onChange={(e) => updateSurvey("kontakPemilik", e.target.value)}
+              placeholder="No. HP / WhatsApp"
+              className="w-full text-[11px] px-2.5 py-1.5 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30"
+            />
+          </div>
+        </div>
+
+        {/* Catatan Lapangan */}
+        <div className="mt-4">
+          <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">CATATAN LAPANGAN</div>
+          <textarea
+            value={catatanDraft}
+            onChange={(e) => setCatatanDraft(e.target.value)}
+            placeholder="Temuan survey lapangan, kondisi sekitar, potensi masalah, dll."
+            rows={3}
+            className="w-full text-[11px] px-2.5 py-1.5 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 resize-none"
+          />
+        </div>
+      </div>
+
+      {/* ── Analisis AI ── */}
+      <div className="border-t px-4 py-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Brain className="size-3.5 text-foreground" />
-            <span className="text-[11px] font-semibold">Analisis AI Kelayakan (Modul 4)</span>
+            <span className="text-[11px] font-semibold">Analisis AI Kelayakan</span>
           </div>
           <button
             onClick={runAiAnalysis}
@@ -803,13 +958,13 @@ function ProspectDetailPanel({
         )}
       </div>
 
-      {/* ── Modul 5: Competitor Intelligence ── */}
+      {/* ── Kompetitor ── */}
       {(prospect.lat != null && prospect.lng != null) && (
         <div className="border-t px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
               <Building2 className="size-3.5 text-blue-500" />
-              <span className="text-[11px] font-semibold text-blue-700">Kompetitor Intelligence (Modul 5)</span>
+              <span className="text-[11px] font-semibold text-blue-700">Kompetitor di Sekitar Lahan</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-muted-foreground">Radius:</span>
@@ -1094,6 +1249,7 @@ export default function Akuisisi() {
               onToggleItem={toggleChecklistItem}
               onAdvanceStage={advanceStage}
               advancing={advancing}
+              onRefetch={() => refetch()}
             />
           )}
         </div>
@@ -1115,6 +1271,7 @@ export default function Akuisisi() {
               onToggleItem={toggleChecklistItem}
               onAdvanceStage={advanceStage}
               advancing={advancing}
+              onRefetch={() => refetch()}
             />
           </div>
         </>
