@@ -40,47 +40,94 @@ function GradeDot({ grade }: { grade: Grade }) {
 
 // ─── Scoring factor tables ────────────────────────────────────────────────
 
-const KAB_FACTOR_LABELS: { key: keyof typeof KAB_WEIGHTS; label: string }[] = [
-  { key: "pertumbuhanPenduduk", label: "Pertumbuhan Penduduk" },
-  { key: "rumahTanggaBaru", label: "Rumah Tangga Baru" },
-  { key: "realisasiFLPP", label: "Realisasi FLPP" },
-  { key: "pertumbuhanEkonomi", label: "Pertumbuhan Ekonomi" },
-  { key: "pdrbPerKapita", label: "PDRB Per Kapita" },
-  { key: "tingkatUrbanisasi", label: "Tingkat Urbanisasi" },
-  { key: "tingkatPengangguran", label: "Tingkat Pengangguran" },
-  { key: "infrastrukturStrategis", label: "Infrastruktur Strategis" },
-  { key: "jumlahKompetitor", label: "Kompetitor (bobot pasar)" },
-  { key: "hargaTanahScore", label: "Harga Tanah" },
+const KAB_FACTOR_LABELS: { key: keyof typeof KAB_WEIGHTS; label: string; bobot: number }[] = [
+  { key: "pertumbuhanPenduduk", label: "Pertumbuhan Penduduk", bobot: 15 },
+  { key: "rumahTanggaBaru", label: "Rumah Tangga Baru", bobot: 10 },
+  { key: "realisasiFLPP", label: "Realisasi FLPP", bobot: 15 },
+  { key: "pertumbuhanEkonomi", label: "Pertumbuhan Ekonomi", bobot: 10 },
+  { key: "pdrbPerKapita", label: "PDRB Per Kapita", bobot: 10 },
+  { key: "tingkatUrbanisasi", label: "Tingkat Urbanisasi", bobot: 5 },
+  { key: "tingkatPengangguran", label: "Tingkat Pengangguran", bobot: 5 },
+  { key: "infrastrukturStrategis", label: "Infrastruktur Strategis", bobot: 10 },
+  { key: "jumlahKompetitor", label: "Peluang Pasar (Kompetitor)", bobot: 10 },
+  { key: "hargaTanahScore", label: "Harga Tanah", bobot: 10 },
 ];
 
-const KEC_FACTOR_LABELS: { key: keyof KecamatanScore; label: string }[] = [
-  { key: "jarakPusatKota", label: "Jarak dari Pusat Kota" },
-  { key: "jalanNasional", label: "Kedekatan Jalan Nasional" },
-  { key: "kawasanIndustri", label: "Kawasan Industri" },
-  { key: "pasar", label: "Kedekatan Pasar" },
-  { key: "perkantoran", label: "Kedekatan Perkantoran" },
-  { key: "sekolah", label: "Kedekatan Sekolah" },
-  { key: "rumahSakit", label: "Kedekatan Rumah Sakit" },
-  { key: "kompetitor", label: "Kompetitor" },
-  { key: "hargaTanah", label: "Harga Tanah" },
-  { key: "topografi", label: "Topografi" },
+const KEC_FACTOR_BOBOT: Record<string, number> = {
+  jarakPusatKota: 15, jalanNasional: 10, kawasanIndustri: 10, pasar: 10,
+  perkantoran: 5, sekolah: 5, rumahSakit: 5, kompetitor: 15, hargaTanah: 15, topografi: 10,
+};
+const DESA_FACTOR_BOBOT: Record<string, number> = {
+  kepadatanPenduduk: 10, pertumbuhanPenduduk: 10, hargaTanah: 20, aksesJalan: 15,
+  pln: 5, pdam: 5, internetFiber: 5, kompetitor: 15, potensiUnit: 15,
+};
+
+// ─── Rekomendasi builder ────────────────────────────────────────────────────
+
+function buildKabRekomendasi(kab: KabupatenScore): { verdict: string; verdictColor: string; kekuatan: string[]; kelemahan: string[]; kesimpulan: string } {
+  const factors = KAB_FACTOR_LABELS.map(f => ({
+    label: f.label,
+    score: kab[f.key as keyof KabupatenScore] as number,
+    bobot: f.bobot,
+  }));
+  const sorted = [...factors].sort((a, b) => b.score - a.score);
+  const kekuatan = sorted.filter(f => f.score >= 75).slice(0, 3).map(f => `${f.label} (${f.score})`);
+  const kelemahan = [...factors].sort((a, b) => a.score - b.score).filter(f => f.score < 65).slice(0, 3).map(f => `${f.label} (${f.score})`);
+
+  let verdict: string;
+  let verdictColor: string;
+  let kesimpulan: string;
+
+  if (kab.grade === "sangat_potensial") {
+    verdict = "REKOMENDASIKAN — Masuk Sekarang";
+    verdictColor = "text-emerald-600 bg-emerald-50 border-emerald-200";
+    kesimpulan = `${kab.name} menunjukkan kombinasi permintaan perumahan kuat dan kondisi pasar yang mendukung. Skor ${kab.score}/100 mencerminkan peluang investasi properti yang menarik. Segera lakukan survei lapangan dan amankan lahan di kecamatan-kecamatan prioritas sebelum kompetitor bergerak.`;
+  } else if (kab.grade === "potensial") {
+    verdict = "POTENSIAL — Entry dengan Seleksi Ketat";
+    verdictColor = "text-amber-600 bg-amber-50 border-amber-200";
+    kesimpulan = `${kab.name} memiliki potensi dengan catatan. Skor ${kab.score}/100 menunjukkan beberapa faktor perlu diperkuat. Fokus pada kecamatan dengan nilai tertinggi, hindari area dengan kelemahan ganda. Due diligence lokasi spesifik sangat penting.`;
+  } else if (kab.grade === "sedang") {
+    verdict = "TAHAN — Butuh Analisis Lebih Dalam";
+    verdictColor = "text-orange-600 bg-orange-50 border-orange-200";
+    kesimpulan = `${kab.name} berada di zona sedang (skor ${kab.score}/100). Beberapa faktor fundamental masih di bawah threshold ideal untuk pengembangan perumahan. Tidak disarankan masuk skala besar — jika ada, pilih proyek kecil di kecamatan paling potensial sebagai pilot.`;
+  } else {
+    verdict = "TIDAK DIREKOMENDASIKAN — Risiko Tinggi";
+    verdictColor = "text-red-600 bg-red-50 border-red-200";
+    kesimpulan = `${kab.name} saat ini tidak memenuhi threshold minimum pengembangan perumahan Satara (skor ${kab.score}/100). Kombinasi kelemahan di beberapa faktor kunci menciptakan risiko bisnis yang signifikan. Alokasikan sumber daya ke kabupaten dengan skor lebih tinggi.`;
+  }
+
+  return { verdict, verdictColor, kekuatan, kelemahan, kesimpulan };
+}
+
+const KEC_FACTOR_LABELS: { key: keyof KecamatanScore; label: string; bobot: number }[] = [
+  { key: "jarakPusatKota", label: "Jarak dari Pusat Kota", bobot: 15 },
+  { key: "jalanNasional", label: "Kedekatan Jalan Nasional", bobot: 10 },
+  { key: "kawasanIndustri", label: "Kawasan Industri", bobot: 10 },
+  { key: "pasar", label: "Kedekatan Pasar", bobot: 10 },
+  { key: "perkantoran", label: "Kedekatan Perkantoran", bobot: 5 },
+  { key: "sekolah", label: "Kedekatan Sekolah", bobot: 5 },
+  { key: "rumahSakit", label: "Kedekatan Rumah Sakit", bobot: 5 },
+  { key: "kompetitor", label: "Peluang Pasar (Kompetitor)", bobot: 15 },
+  { key: "hargaTanah", label: "Harga Tanah", bobot: 15 },
+  { key: "topografi", label: "Topografi", bobot: 10 },
 ];
 
-const DESA_FACTOR_LABELS: { key: keyof DesaScore; label: string }[] = [
-  { key: "kepadatanPenduduk", label: "Kepadatan Penduduk" },
-  { key: "pertumbuhanPenduduk", label: "Pertumbuhan Penduduk" },
-  { key: "hargaTanah", label: "Harga Tanah" },
-  { key: "aksesJalan", label: "Akses Jalan" },
-  { key: "pln", label: "PLN" },
-  { key: "pdam", label: "PDAM" },
-  { key: "internetFiber", label: "Internet Fiber" },
-  { key: "kompetitor", label: "Kompetitor" },
-  { key: "potensiUnit", label: "Potensi Unit" },
+const DESA_FACTOR_LABELS: { key: keyof DesaScore; label: string; bobot: number }[] = [
+  { key: "kepadatanPenduduk", label: "Kepadatan Penduduk", bobot: 10 },
+  { key: "pertumbuhanPenduduk", label: "Pertumbuhan Penduduk", bobot: 10 },
+  { key: "hargaTanah", label: "Harga Tanah", bobot: 20 },
+  { key: "aksesJalan", label: "Akses Jalan", bobot: 15 },
+  { key: "pln", label: "PLN", bobot: 5 },
+  { key: "pdam", label: "PDAM", bobot: 5 },
+  { key: "internetFiber", label: "Internet Fiber", bobot: 5 },
+  { key: "kompetitor", label: "Peluang Pasar (Kompetitor)", bobot: 15 },
+  { key: "potensiUnit", label: "Potensi Unit", bobot: 15 },
 ];
 
 // ─── Detail panels ────────────────────────────────────────────────────────
 
 function KabupatenDetail({ kab, onSelectKec }: { kab: KabupatenScore; onSelectKec: (k: KecamatanScore) => void }) {
+  const rek = buildKabRekomendasi(kab);
   return (
     <div className="space-y-3">
       {/* Header */}
@@ -113,17 +160,52 @@ function KabupatenDetail({ kab, onSelectKec }: { kab: KabupatenScore; onSelectKe
       </div>
 
       {/* Infrastruktur */}
-      <div>
-        <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-1.5">INFRASTRUKTUR STRATEGIS</div>
-        <div className="flex flex-wrap gap-1">
-          {kab.infrastruktur.map((i) => (
-            <span key={i} className="text-[10px] px-1.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded">{i}</span>
-          ))}
+      {kab.infrastruktur.length > 0 && (
+        <div>
+          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-1.5">INFRASTRUKTUR STRATEGIS</div>
+          <div className="flex flex-wrap gap-1">
+            {kab.infrastruktur.map((i) => (
+              <span key={i} className="text-[10px] px-1.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded">{i}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Rekomendasi */}
+      <div className="space-y-2">
+        <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">REKOMENDASI SATARA</div>
+        <div className={cn("rounded-md border px-2.5 py-1.5 text-[11px] font-semibold", rek.verdictColor)}>
+          {rek.verdict}
+        </div>
+        <div className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 rounded-md p-2.5">
+          {rek.kesimpulan}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {rek.kekuatan.length > 0 && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-md p-2">
+              <div className="text-[9px] font-bold text-emerald-700 tracking-wider mb-1">KEKUATAN</div>
+              {rek.kekuatan.map(k => (
+                <div key={k} className="text-[10px] text-emerald-800 flex items-start gap-1">
+                  <span className="mt-0.5 shrink-0">+</span><span>{k}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {rek.kelemahan.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-2">
+              <div className="text-[9px] font-bold text-red-700 tracking-wider mb-1">KELEMAHAN</div>
+              {rek.kelemahan.map(k => (
+                <div key={k} className="text-[10px] text-red-800 flex items-start gap-1">
+                  <span className="mt-0.5 shrink-0">-</span><span>{k}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Potensi pasar */}
-      <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-md p-2.5 leading-relaxed">
+      <div className="text-[10px] italic text-muted-foreground/70 border-l-2 border-muted pl-2">
         {kab.potensiPasar}
       </div>
 
@@ -131,15 +213,14 @@ function KabupatenDetail({ kab, onSelectKec }: { kab: KabupatenScore; onSelectKe
       <div>
         <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">SCORING FAKTOR (Modul 1)</div>
         <div className="space-y-1.5">
-          {KAB_FACTOR_LABELS.map(({ key, label }) => (
+          {KAB_FACTOR_LABELS.map(({ key, label, bobot }) => (
             <div key={key} className="grid grid-cols-[1fr_auto] items-center gap-2">
-              <div className="text-[10px] text-muted-foreground truncate">{label}</div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {label} <span className="text-muted-foreground/50">({bobot}%)</span>
+              </div>
               <div className="w-28">{scoreBar(kab[key as keyof KabupatenScore] as number)}</div>
             </div>
           ))}
-        </div>
-        <div className="text-[10px] text-muted-foreground mt-1.5 text-right">
-          Bobot: 15%/10%/15%/10%/10%/5%/5%/10%/10%/10%
         </div>
       </div>
 
@@ -187,15 +268,14 @@ function KecamatanDetail({ kec, kabName, onSelectDesa, onBack }: { kec: Kecamata
       <div>
         <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">SCORING FAKTOR (Modul 2)</div>
         <div className="space-y-1.5">
-          {KEC_FACTOR_LABELS.map(({ key, label }) => (
+          {KEC_FACTOR_LABELS.map(({ key, label, bobot }) => (
             <div key={key} className="grid grid-cols-[1fr_auto] items-center gap-2">
-              <div className="text-[10px] text-muted-foreground truncate">{label}</div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {label} <span className="text-muted-foreground/50">({bobot}%)</span>
+              </div>
               <div className="w-28">{scoreBar(kec[key as keyof KecamatanScore] as number)}</div>
             </div>
           ))}
-        </div>
-        <div className="text-[10px] text-muted-foreground mt-1.5 text-right">
-          Bobot: 15%/10%/10%/10%/5%/5%/5%/15%/15%/10%
         </div>
       </div>
 
@@ -248,15 +328,14 @@ function DesaDetail({ desa, kecName, kabName, onBack }: { desa: DesaScore; kecNa
       <div>
         <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">SCORING FAKTOR (Modul 3)</div>
         <div className="space-y-1.5">
-          {DESA_FACTOR_LABELS.map(({ key, label }) => (
+          {DESA_FACTOR_LABELS.map(({ key, label, bobot }) => (
             <div key={key} className="grid grid-cols-[1fr_auto] items-center gap-2">
-              <div className="text-[10px] text-muted-foreground truncate">{label}</div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {label} <span className="text-muted-foreground/50">({bobot}%)</span>
+              </div>
               <div className="w-28">{scoreBar(desa[key as keyof DesaScore] as number)}</div>
             </div>
           ))}
-        </div>
-        <div className="text-[10px] text-muted-foreground mt-1.5 text-right">
-          Bobot: 10%/10%/20%/15%/5%/5%/5%/15%/15%
         </div>
       </div>
     </div>
