@@ -217,7 +217,7 @@ export function generateProposalAkuisisi(payload: DocPayload) {
 
   // AI Analysis
   if (aiResult) {
-    y = sectionTitle(doc, "03  Analisis SLIS AI", y);
+    y = sectionTitle(doc, "03  Analisis AI", y);
 
     // Verdict box
     const verdictColor = aiResult.score >= 75 ? GREEN : aiResult.score >= 55 ? AMBER : RED;
@@ -283,7 +283,7 @@ export function generateProposalAkuisisi(payload: DocPayload) {
     doc.text(rekLines, 18, y + 5);
     y += rekLines.length * 4.5 + 10;
   } else {
-    y = sectionTitle(doc, "03  Analisis SLIS AI", y);
+    y = sectionTitle(doc, "03  Analisis AI", y);
     doc.setFont("helvetica", "italic");
     doc.setFontSize(9);
     doc.setTextColor(...GRAY);
@@ -637,7 +637,7 @@ export function generateEstimasiHPP(payload: DocPayload) {
       ["Total Nilai Tanah",     fmtRp(totalHargaTanah),         "Biaya pembelian lahan"],
       ["Efektivitas Kavling",   `${efektivitas}%`,              "Asumsi standar 60–70%"],
       ["Luas Kavling Efektif",  `${fmt(luasEfektif)} m²`,       "Setelah fasum, jalan, dsb"],
-      ["Estimasi Unit",         `${potensiUnit} unit`,          aiResult?.potensiUnit ? "Output SLIS AI" : "Estimasi @100 m² / kavling"],
+      ["Estimasi Unit",         `${potensiUnit} unit`,          aiResult?.potensiUnit ? "Output AI" : "Estimasi @100 m² / kavling"],
     ],
     styles: { fontSize: 8, cellPadding: 2.5, textColor: BLACK },
     headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold" },

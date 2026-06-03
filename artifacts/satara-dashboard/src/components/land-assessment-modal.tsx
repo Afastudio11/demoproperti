@@ -431,11 +431,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
         <div className="flex items-start justify-between gap-3 px-4 py-3 border-b bg-muted/30 shrink-0">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <div className="size-5 rounded bg-foreground flex items-center justify-center shrink-0">
-                <Brain className="size-3 text-background" />
-              </div>
               <h2 className="font-semibold text-sm">Penilaian Lahan</h2>
-              <span className="text-[9px] bg-muted text-foreground border border-border rounded-full px-1.5 py-0.5 font-medium">SLIS AI</span>
               <span className="text-[9px] bg-muted text-foreground border border-border rounded-full px-1.5 py-0.5 font-medium flex items-center gap-0.5">
                 <Calculator className="size-2.5" /> Calc Engine
               </span>
@@ -854,8 +850,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                     {ai.ringkasanEksekutif && (
                       <div className="bg-muted/20 rounded-xl p-3">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Brain className="size-3.5 text-foreground shrink-0" />
-                          <SectionLabel>Ringkasan Eksekutif (AI)</SectionLabel>
+                          <SectionLabel>Ringkasan Eksekutif</SectionLabel>
                         </div>
                         <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.ringkasanEksekutif)}</div>
                       </div>
@@ -1060,8 +1055,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                     {ai.analisisLokasi && (
                       <div className="bg-muted/20 rounded-xl p-3">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Brain className="size-3.5 text-foreground shrink-0" />
-                          <SectionLabel>Analisis Lokasi (AI)</SectionLabel>
+                          <SectionLabel>Analisis Lokasi</SectionLabel>
                         </div>
                         <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.analisisLokasi)}</div>
                       </div>
@@ -1072,7 +1066,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                       <div className="bg-muted/20 rounded-xl p-3">
                         <div className="flex items-center gap-1.5 mb-2">
                           <Building2 className="size-3.5 text-muted-foreground shrink-0" />
-                          <SectionLabel>Analisis Fisik Lahan (AI)</SectionLabel>
+                          <SectionLabel>Analisis Fisik Lahan</SectionLabel>
                         </div>
                         <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.analisisFisikLahan)}</div>
                       </div>
@@ -1104,7 +1098,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                     {/* AI analisis risiko dengan mitigasi */}
                     {ai.analisisRisiko?.length > 0 && (
                       <div className="space-y-2">
-                        <SectionLabel>Detail Risiko & Mitigasi (AI)</SectionLabel>
+                        <SectionLabel>Detail Risiko & Mitigasi</SectionLabel>
                         {ai.analisisRisiko.map((r, i) => (
                           <div key={i} className="border rounded-xl p-3 space-y-1.5 bg-card">
                             <div className="flex items-center justify-between">
@@ -1138,7 +1132,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                             ? <AlertTriangle className="size-3.5 text-amber-600 shrink-0" />
                             : <XCircle className="size-3.5 text-red-600 shrink-0" />
                           }
-                          <SectionLabel>Rekomendasi Keputusan (AI)</SectionLabel>
+                          <SectionLabel>Rekomendasi Keputusan</SectionLabel>
                         </div>
                         <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.rekomendasiNarasi)}</div>
                       </div>
@@ -1205,8 +1199,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
             <>
               <Button variant="outline" size="sm" onClick={onClose} className="text-[12px]">Batal</Button>
               <Button size="sm" onClick={handleSubmit} className="text-[12px] gap-1.5">
-                <Brain className="size-3.5" />
-                Analisis dengan SLIS AI
+                Analisis Lahan
               </Button>
             </>
           )}

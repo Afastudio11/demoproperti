@@ -4,7 +4,7 @@ import type { LandProspect } from "@workspace/api-client-react";
 import {
   Plus, CheckCircle2, Map, LayoutList, X,
   FileText, ClipboardList, ArrowRight, BrainCircuit,
-  Brain, Loader2, ThumbsUp, AlertTriangle, ThumbsDown, RefreshCw,
+  Loader2, ThumbsUp, AlertTriangle, ThumbsDown, RefreshCw,
   Building2, Radio, Search as SearchIcon, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -424,7 +424,9 @@ function ProspectDetailPanel({
           aksesJalan: aksesJalanDraft ?? prospect.aksesJalan,
           bentukLahan: survey.bentukLahan || undefined,
           statusLegal: survey.statusLegal || undefined,
-          topografi: survey.topografi || undefined,
+          topografi: terrainData?.slopeAvgPct != null
+            ? (terrainData.slopeAvgPct < 2 ? "Datar" : terrainData.slopeAvgPct < 5 ? "Landai" : terrainData.slopeAvgPct < 15 ? "Berbukit" : "Curam")
+            : survey.topografi || undefined,
           kondisiJalan: survey.kondisiJalan || undefined,
           utilitas: survey.utilitas.length > 0 ? survey.utilitas.join(", ") : undefined,
           peilBanjir: survey.peilBanjir || undefined,
@@ -433,6 +435,8 @@ function ProspectDetailPanel({
           currentStage: STAGES.find((s) => s.key === prospect.status)?.label,
           checkedItems: checked.length,
           competitors,
+          lat: prospect.lat ?? undefined,
+          lng: prospect.lng ?? undefined,
           ...(terrainData ?? {}),
         }),
       });
@@ -724,17 +728,37 @@ function ProspectDetailPanel({
             </div>
           </div>
 
-          {/* Topografi */}
+          {/* Topografi — auto dari terrain data */}
           <div>
             <div className="text-[10px] font-semibold text-foreground/70 tracking-wider mb-1.5">TOPOGRAFI</div>
-            <div className="flex gap-1 flex-wrap">
-              {["Datar", "Berbukit", "Curam"].map(t => (
-                <button key={t} onClick={() => updateSurvey("topografi", survey.topografi === t ? "" : t)}
-                  className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
-                    survey.topografi === t ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
-                  )}>{t}</button>
-              ))}
-            </div>
+            {terrainData?.slopeAvgPct != null ? (
+              <div className="space-y-1">
+                <div className={cn("inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded border",
+                  terrainData.slopeAvgPct < 2 ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : terrainData.slopeAvgPct < 5 ? "bg-teal-50 border-teal-200 text-teal-700"
+                    : terrainData.slopeAvgPct < 15 ? "bg-amber-50 border-amber-200 text-amber-700"
+                    : "bg-red-50 border-red-200 text-red-700"
+                )}>
+                  {terrainData.slopeAvgPct < 2 ? "Datar"
+                    : terrainData.slopeAvgPct < 5 ? "Landai"
+                    : terrainData.slopeAvgPct < 15 ? "Berbukit"
+                    : "Curam"}
+                </div>
+                <div className="text-[9px] text-foreground/50">{terrainData.slopeAvgPct.toFixed(1)}% kemiringan · SRTM</div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex gap-1 flex-wrap">
+                  {["Datar", "Berbukit", "Curam"].map(t => (
+                    <button key={t} onClick={() => updateSurvey("topografi", survey.topografi === t ? "" : t)}
+                      className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
+                        survey.topografi === t ? "bg-foreground text-background border-foreground" : "bg-background border-border hover:bg-muted"
+                      )}>{t}</button>
+                  ))}
+                </div>
+                <div className="text-[9px] text-foreground/40">Buka tab Peta untuk data SRTM otomatis</div>
+              </div>
+            )}
           </div>
 
           {/* Kondisi Jalan */}
@@ -823,7 +847,6 @@ function ProspectDetailPanel({
       <div className="border-t px-4 py-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <Brain className="size-3.5 text-foreground" />
             <span className="text-[11px] font-semibold">Analisis AI Kelayakan</span>
           </div>
           <button
@@ -835,7 +858,7 @@ function ProspectDetailPanel({
               ? <><Loader2 className="size-3 animate-spin" /> Menganalisis...</>
               : aiResult
               ? <><RefreshCw className="size-3" /> Analisis Ulang</>
-              : <><Brain className="size-3" /> Analisis dengan AI</>
+              : "Analisis dengan AI"
             }
           </button>
         </div>
@@ -1088,7 +1111,7 @@ export default function Akuisisi() {
   const TABS = [
     { key: "peta",     label: "Peta Sulsel",     icon: Map },
     { key: "pipeline", label: "Pipeline",          icon: LayoutList, badge: prospects?.length },
-    { key: "slis",     label: "SLIS Intelligence", icon: BrainCircuit },
+    { key: "slis",     label: "SLIS", icon: BrainCircuit },
   ] as const;
 
   return (
