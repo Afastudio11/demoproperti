@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import {
@@ -274,6 +274,28 @@ function ProspectDetailPanel({
   const [competitorLoading, setCompetitorLoading] = useState(false);
   const [competitorError, setCompetitorError] = useState<string | null>(null);
   const [competitorHasSearched, setCompetitorHasSearched] = useState(() => loadCompetitors(prospect.id).length > 0);
+  const autoFetchedRef = useRef(false);
+
+  // Auto-fetch kompetitor saat panel dibuka jika ada koordinat & belum ada cache
+  useEffect(() => {
+    if (autoFetchedRef.current) return;
+    if (prospect.lat == null || prospect.lng == null) return;
+    if (loadCompetitors(prospect.id).length > 0) return; // sudah ada cache
+    autoFetchedRef.current = true;
+    setCompetitorLoading(true);
+    setCompetitorError(null);
+    fetchCompetitorDetails(prospect.lat, prospect.lng, competitorRadius)
+      .then((data) => {
+        setCompetitorList(data);
+        saveCompetitors(prospect.id, data);
+        setCompetitorHasSearched(true);
+      })
+      .catch((e) => {
+        setCompetitorError(e instanceof Error ? e.message : "Gagal mengambil data kompetitor");
+      })
+      .finally(() => setCompetitorLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const stage = STAGES.find((s) => s.key === prospect.status);
   const checked = checklists[prospect.id] ?? [];
