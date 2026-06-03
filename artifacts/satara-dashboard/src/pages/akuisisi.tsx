@@ -662,7 +662,15 @@ function ProspectDetailPanel({
                     {jStage.checklist.map((item) => {
                       const done = checked.includes(item.key);
                       const inputDef = CHECKLIST_INPUT_TYPES[item.key];
-                      const currentVal = (checklistValues[prospect.id] ?? {})[item.key] ?? "";
+                      // Auto-populate dari data prospek yang sudah tersimpan di DB
+                      const prospectAutoFill: Record<string, string> = {
+                        harga_tanah_m2: prospect.hargaM2 ? String(prospect.hargaM2) : "",
+                        luas_lahan: prospect.luas ? String(prospect.luas) : "",
+                      };
+                      const savedVals = checklistValues[prospect.id] ?? {};
+                      const currentVal = savedVals[item.key] !== undefined
+                        ? savedVals[item.key]
+                        : (prospectAutoFill[item.key] ?? "");
                       return (
                         <div key={item.key} className="space-y-0.5">
                           <div
