@@ -420,7 +420,7 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-sm">Analisis Ekspansi Komprehensif — SLIS AI</h3>
+          <h3 className="font-semibold text-sm">Analisis Ekspansi Komprehensif</h3>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             Roadmap 5 tahun · Prioritas kabupaten · Strategi finansial · Milestone kunci
           </p>
@@ -448,7 +448,7 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-[11px] text-muted-foreground">
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
           <div className="text-center">
-            <div className="font-medium">SLIS AI sedang menganalisis...</div>
+            <div className="font-medium">Sedang menganalisis...</div>
             <div className="mt-1 text-muted-foreground/70">Scoring 24 kabupaten · Pipeline prospek aktif · Kondisi pasar Sulsel</div>
           </div>
         </div>

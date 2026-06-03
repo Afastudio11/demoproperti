@@ -349,9 +349,9 @@ export function SlisAiChat() {
             <Brain className="size-3.5 text-background" />
           </div>
           <div>
-            <div className="text-[12px] font-semibold">SLIS AI — Analisis Wilayah</div>
+            <div className="text-[12px] font-semibold">Analisis Wilayah</div>
             <div className="text-[10px] text-muted-foreground">
-              Web research + data SLIS internal Sulawesi Selatan
+              Web research + data internal Sulawesi Selatan
             </div>
           </div>
         </div>
@@ -371,7 +371,7 @@ export function SlisAiChat() {
         {isEmpty ? (
           <div className="h-full flex flex-col items-center justify-center gap-6 py-8">
             <div className="text-center space-y-1">
-              <div className="text-[13px] font-semibold">Tanya SLIS AI tentang wilayah Sulawesi Selatan</div>
+              <div className="text-[13px] font-semibold">Tanya tentang wilayah Sulawesi Selatan</div>
               <div className="text-[11px] text-muted-foreground max-w-sm">
                 AI akan mencari data real-time — berita, ekonomi, infrastruktur, properti — dan
                 mengkombinasikannya dengan skor SLIS internal untuk memberikan analisis mendalam.

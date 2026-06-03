@@ -1108,7 +1108,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
             {adminLoading
               ? <span className="size-3 animate-spin border border-current border-t-transparent rounded-full inline-block" />
               : <Layers className="size-3" />
-            } Analisis Wilayah
+            } Drilldown Wilayah
           </button>
           {showAdmin && adminDrill.kab && (
             <div className="flex items-center gap-1 text-[11px] bg-muted/60 border rounded-lg px-2 py-1">
