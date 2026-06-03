@@ -48,6 +48,57 @@ router.get("/land-prospects/pipeline-summary", async (req, res) => {
   }
 });
 
+// Acquisition data endpoints — must be before /:id
+router.get("/land-prospects/:id/acquisition", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [row] = await db
+      .select({
+        checklistItems: landProspectsTable.checklistItems,
+        checklistValues: landProspectsTable.checklistValues,
+        surveyData: landProspectsTable.surveyData,
+        aiResult: landProspectsTable.aiResult,
+        fullAiResult: landProspectsTable.fullAiResult,
+      })
+      .from(landProspectsTable)
+      .where(eq(landProspectsTable.id, id));
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json(row);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get acquisition data");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/land-prospects/:id/acquisition", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { checklistItems, checklistValues, surveyData, aiResult, fullAiResult } = req.body as {
+      checklistItems?: string[];
+      checklistValues?: Record<string, string>;
+      surveyData?: Record<string, unknown>;
+      aiResult?: Record<string, unknown>;
+      fullAiResult?: Record<string, unknown>;
+    };
+    const update: Partial<typeof landProspectsTable.$inferInsert> = {};
+    if (checklistItems !== undefined) update.checklistItems = checklistItems;
+    if (checklistValues !== undefined) update.checklistValues = checklistValues;
+    if (surveyData !== undefined) update.surveyData = surveyData;
+    if (aiResult !== undefined) update.aiResult = aiResult;
+    if (fullAiResult !== undefined) update.fullAiResult = fullAiResult;
+    const [row] = await db
+      .update(landProspectsTable)
+      .set(update)
+      .where(eq(landProspectsTable.id, id))
+      .returning({ id: landProspectsTable.id });
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update acquisition data");
+    res.status(400).json({ error: "Invalid request" });
+  }
+});
+
 router.get("/land-prospects/:id", async (req, res) => {
   try {
     const [prospect] = await db.select().from(landProspectsTable).where(eq(landProspectsTable.id, parseInt(req.params.id)));

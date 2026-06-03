@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, real, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, doublePrecision, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -20,6 +20,11 @@ export const landProspectsTable = pgTable("land_prospects", {
   kecamatan: text("kecamatan"),
   kabupaten: text("kabupaten"),
   polygonCoords: text("polygon_coords"),
+  checklistItems: jsonb("checklist_items").$type<string[]>(),
+  checklistValues: jsonb("checklist_values").$type<Record<string, string>>(),
+  surveyData: jsonb("survey_data").$type<Record<string, unknown>>(),
+  aiResult: jsonb("ai_result").$type<Record<string, unknown>>(),
+  fullAiResult: jsonb("full_ai_result").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

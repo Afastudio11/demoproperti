@@ -353,11 +353,60 @@ function ProspectDetailPanel({
     return byKab.length > 0 ? byKab : byKec;
   })();
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const surveyDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dbLoadedRef = useRef(false);
+
+  // Load survey + AI dari DB saat pertama buka prospect
+  useEffect(() => {
+    dbLoadedRef.current = false;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/land-prospects/${prospect.id}/acquisition`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json() as {
+          surveyData?: Record<string, unknown> | null;
+          aiResult?: Record<string, unknown> | null;
+          fullAiResult?: Record<string, unknown> | null;
+        };
+        if (data.surveyData) {
+          const s = { ...SURVEY_DEFAULTS, ...data.surveyData } as SurveyData;
+          setSurvey(s);
+          saveSurvey(prospect.id, s);
+        }
+        if (data.aiResult) {
+          const r = data.aiResult as unknown as AiResult;
+          setAiResult(r);
+          saveAiResult(prospect.id, r);
+        }
+        if (data.fullAiResult) {
+          const f = data.fullAiResult as Record<string, unknown>;
+          setFullAiResult(f);
+          saveFullAiResult(prospect.id, f);
+        }
+      } catch { /* silent */ }
+      finally { if (!cancelled) dbLoadedRef.current = true; }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospect.id]);
 
   function updateSurvey<K extends keyof SurveyData>(key: K, value: SurveyData[K]) {
     setSurvey(prev => {
       const next = { ...prev, [key]: value };
       saveSurvey(prospect.id, next);
+      // Debounced save ke DB
+      if (surveyDbTimerRef.current) clearTimeout(surveyDbTimerRef.current);
+      surveyDbTimerRef.current = setTimeout(async () => {
+        if (!dbLoadedRef.current) return;
+        try {
+          await fetch(`/api/land-prospects/${prospect.id}/acquisition`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ surveyData: next }),
+          });
+        } catch { /* silent */ }
+      }, 1000);
       return next;
     });
   }
@@ -488,6 +537,12 @@ function ProspectDetailPanel({
       saveAiResult(prospect.id, aiR);
       setAiResult(aiR);
       setAiTab("finansial");
+      // Simpan ke DB
+      fetch(`/api/land-prospects/${prospect.id}/acquisition`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiResult: aiR as unknown as Record<string, unknown>, fullAiResult: data }),
+      }).catch(() => { /* silent */ });
     } catch (err) {
       console.error("AI analysis failed:", err);
     } finally {
@@ -1517,6 +1572,60 @@ export default function Akuisisi() {
 
   const selectedProspect = selectedId ? (prospects ?? []).find((p) => p.id === selectedId) : null;
 
+  // ─── DB sync helpers for checklist ───────────────────────────────────────────
+  const checklistDbTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+
+  function scheduleChecklistDbSave(
+    prospectId: number,
+    nextItems: Record<number, string[]>,
+    nextVals: Record<number, Record<string, string>>,
+  ) {
+    if (checklistDbTimers.current[prospectId]) clearTimeout(checklistDbTimers.current[prospectId]);
+    checklistDbTimers.current[prospectId] = setTimeout(async () => {
+      try {
+        await fetch(`/api/land-prospects/${prospectId}/acquisition`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            checklistItems: nextItems[prospectId] ?? [],
+            checklistValues: nextVals[prospectId] ?? {},
+          }),
+        });
+      } catch { /* silent */ }
+    }, 1200);
+  }
+
+  // Load acquisition data dari DB saat prospect dipilih
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/land-prospects/${selectedId}/acquisition`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json() as {
+          checklistItems?: string[] | null;
+          checklistValues?: Record<string, string> | null;
+        };
+        if (data.checklistItems != null) {
+          setChecklists(prev => {
+            const updated = { ...prev, [selectedId]: data.checklistItems! };
+            saveChecklist(updated);
+            return updated;
+          });
+        }
+        if (data.checklistValues != null) {
+          setChecklistValues(prev => {
+            const updated = { ...prev, [selectedId]: data.checklistValues! };
+            saveChecklistValues(updated);
+            return updated;
+          });
+        }
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedId]);
+
   function toggleChecklistItem(prospectId: number, itemKey: string) {
     setChecklists((prev) => {
       const current = prev[prospectId] ?? [];
@@ -1525,6 +1634,7 @@ export default function Akuisisi() {
         : [...current, itemKey];
       const updated = { ...prev, [prospectId]: next };
       saveChecklist(updated);
+      scheduleChecklistDbSave(prospectId, updated, checklistValues);
       return updated;
     });
   }
@@ -1533,6 +1643,7 @@ export default function Akuisisi() {
     setChecklistValues((prev) => {
       const next = { ...prev, [prospectId]: { ...(prev[prospectId] ?? {}), [key]: value } };
       saveChecklistValues(next);
+      scheduleChecklistDbSave(prospectId, checklists, next);
       return next;
     });
   }
