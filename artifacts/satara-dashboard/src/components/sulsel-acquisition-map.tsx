@@ -601,39 +601,68 @@ function stripKabPrefix(s: string): string {
   return s.replace(/^(Kabupaten|Kab\.?|Kota)\s+/i, "").trim();
 }
 
+/** Ray-casting point-in-polygon. point=[lat,lng], ring=[[lng,lat],...] (GeoJSON order) */
+function pointInPolygon(lat: number, lng: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]; // xi=lng, yi=lat
+    const [xj, yj] = ring[j];
+    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Lookup dari GeoJSON sulsel_desa yang sudah ter-cache — akurat, tanpa network call */
+function lookupFromGeoJson(lat: number, lng: number): { kelurahan: string; kecamatan: string; kabupaten: string } | null {
+  const data = _desaCacheRef.current?.data;
+  if (!data) return null;
+  for (const feature of data.features) {
+    if (!feature.geometry || feature.geometry.type !== "Polygon") continue;
+    const ring = (feature.geometry.coordinates as number[][][])[0];
+    if (ring && pointInPolygon(lat, lng, ring)) {
+      const p = feature.properties as Record<string, string>;
+      return {
+        kelurahan: toTitleCase(p.village || ""),
+        kecamatan: toTitleCase(p.sub_district || ""),
+        kabupaten: toTitleCase(p.district || ""),
+      };
+    }
+  }
+  return null;
+}
+
+function toTitleCase(s: string): string {
+  return s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
 async function reverseGeocode(lat: number, lng: number) {
+  // Prioritas 1: lookup GeoJSON lokal — akurat, tanpa network, data langsung dari wilayah Sulsel
+  const geo = lookupFromGeoJson(lat, lng);
+  if (geo && geo.kecamatan && geo.kabupaten) {
+    const lokasi = [geo.kelurahan, geo.kecamatan, geo.kabupaten].filter(Boolean).join(", ");
+    return { lokasi, ...geo };
+  }
+
+  // Fallback: Nominatim (jika GeoJSON belum ter-load atau titik di luar coverage)
   try {
-    // Tiga request paralel: zoom=16 (detail tinggi), zoom=13, zoom=10 (kabupaten)
-    const [r16, r13, r10] = await Promise.all([
+    const [r16, r10] = await Promise.all([
       fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=13&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
       fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
     ]);
-    const [d16, d13, d10] = await Promise.all([r16.json(), r13.json(), r10.json()]);
+    const [d16, d10] = await Promise.all([r16.json(), r10.json()]);
     const a16 = d16.address || {};
-    const a13 = d13.address || {};
     const a10 = d10.address || {};
 
-    // Kelurahan/desa: zoom=16 paling detail
-    const kelurahan = a16.village || a16.hamlet || a16.suburb || a16.neighbourhood
-      || a13.village || a13.hamlet || a13.suburb || a13.neighbourhood || "";
-
-    // Kecamatan: zoom=16 district paling akurat untuk area pedesaan Sulsel
-    const kecRaw = a16.city_district || a16.district
-      || a13.city_district || a13.district
-      || a10.city_district || a10.district || "";
-    const kecamatan = stripKecPrefix(kecRaw);
-
-    // Kabupaten: county dari zoom coarse paling akurat
-    const kabRaw = a10.county || a10.state_district || a10.municipality || a10.city
-      || a13.county || a13.state_district || a13.municipality || a13.city
-      || a16.county || a16.state_district || "";
-    const kabupaten = stripKabPrefix(kabRaw);
+    const kelurahan = geo?.kelurahan || a16.village || a16.hamlet || a16.suburb || a16.neighbourhood || "";
+    const kecamatan = geo?.kecamatan || stripKecPrefix(a16.city_district || a16.district || a10.city_district || a10.district || "");
+    const kabupaten = geo?.kabupaten || stripKabPrefix(a10.county || a10.state_district || a10.municipality || a10.city || a16.county || "");
 
     const lokasi = d16.display_name?.split(",").slice(0, 3).join(", ") ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     return { lokasi, kelurahan, kecamatan, kabupaten };
   } catch {
-    return { lokasi: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, kelurahan: "", kecamatan: "", kabupaten: "" };
+    return { lokasi: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, kelurahan: geo?.kelurahan || "", kecamatan: geo?.kecamatan || "", kabupaten: geo?.kabupaten || "" };
   }
 }
 
@@ -956,6 +985,15 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
   const [form, setForm] = useState<FormState>({ lokasi: "", luas: "", hargaM2: "", roi: "", aksesJalan: "" });
   const [terrainResult, setTerrainResult] = useState<TerrainResult | null>(null);
   const [terrainLoading, setTerrainLoading] = useState(false);
+
+  // Preload GeoJSON saat mount supaya lookupFromGeoJson siap sebelum user klik
+  useEffect(() => {
+    if (!_desaCacheRef.current) {
+      const ctrl = new AbortController();
+      fetchDesaGeoJson(ctrl.signal).catch(() => {});
+      return () => ctrl.abort();
+    }
+  }, []);
 
   const placedCount = (prospects ?? []).filter((p) => p.lat != null || p.polygonCoords).length;
   const unplacedCount = (prospects ?? []).length - placedCount;
