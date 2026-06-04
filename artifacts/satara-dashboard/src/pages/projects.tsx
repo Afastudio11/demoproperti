@@ -23,7 +23,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey } from "@workspace/api-client-react";
-import { Search, Plus, MapPin, Layers } from "lucide-react";
+import { Search, Plus, MapPin, Layers, HardHat } from "lucide-react";
 import { Link } from "wouter";
 
 const FASE_COLORS: Record<string, string> = {
@@ -207,14 +207,28 @@ export default function Projects() {
                 </div>
               </div>
 
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="w-full mt-3 h-7 text-xs bg-muted/50 border-border/50"
-              >
-                <Link href={`/projects/${project.id}`}>Detail Proyek</Link>
-              </Button>
+              <div className="flex gap-2 mt-3">
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 h-7 text-xs bg-muted/50 border-border/50"
+                >
+                  <Link href={`/projects/${project.id}`}>Detail Proyek</Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1 bg-muted/50 border-border/50"
+                  title="Lihat di Produksi"
+                >
+                  <Link href={`/produksi?projectId=${project.id}`}>
+                    <HardHat className="size-3" />
+                    Produksi
+                  </Link>
+                </Button>
+              </div>
             </div>
           ))}
         </div>

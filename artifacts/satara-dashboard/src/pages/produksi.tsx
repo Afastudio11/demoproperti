@@ -2,8 +2,11 @@ import {
   useListQcDefects,
   useListMaterials,
 } from "@workspace/api-client-react";
-import { AlertTriangle, Package, Shield, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Package, Shield, CheckCircle2, FolderOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSearch } from "wouter";
+import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 const DEFECT_STATUS: Record<string, string> = {
   open: "bg-red-50 text-red-600 border-red-200",
@@ -37,6 +40,19 @@ const PROGRESS_STAGES = [
 ];
 
 export default function Produksi() {
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const urlProjectId = searchParams.get("projectId") ? parseInt(searchParams.get("projectId")!) : null;
+
+  const { data: projects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then(r => r.json()),
+    enabled: !!urlProjectId,
+  });
+  const activeProject = urlProjectId && Array.isArray(projects)
+    ? (projects as Record<string, unknown>[]).find(p => p.id === urlProjectId) as Record<string, string> | undefined
+    : undefined;
+
   const { data: defects } = useListQcDefects({});
   const { data: materials } = useListMaterials({});
 
@@ -46,14 +62,36 @@ export default function Produksi() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-          Produksi & Konstruksi
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Progress pembangunan, QC, stok material — Standar subsidi 36 m² / lahan 60–72 m²
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+            Produksi & Konstruksi
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Progress pembangunan, QC, stok material — Standar subsidi 36 m² / lahan 60–72 m²
+          </p>
+        </div>
+        {urlProjectId && (
+          <Link href="/projects" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-3" />
+            Daftar Proyek
+          </Link>
+        )}
       </div>
+
+      {activeProject && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <FolderOpen className="size-4 text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-xs text-muted-foreground">Proyek: </span>
+            <span className="text-sm font-semibold text-primary">{activeProject.nama}</span>
+            {activeProject.lokasi && <span className="text-xs text-muted-foreground ml-2">— {activeProject.lokasi}</span>}
+          </div>
+          {activeProject.kabupaten && (
+            <span className="text-[10px] font-medium text-muted-foreground border rounded px-1.5 py-0.5">{activeProject.kabupaten}</span>
+          )}
+        </div>
+      )}
 
       <div className="bg-card border rounded-xl p-3">
         <div className="flex items-center gap-2 mb-2.5">

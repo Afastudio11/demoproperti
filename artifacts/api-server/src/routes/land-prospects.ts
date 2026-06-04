@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { landProspectsTable } from "@workspace/db";
+import { landProspectsTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateLandProspectBody, UpdateLandProspectBody } from "@workspace/api-zod";
 
@@ -96,6 +96,48 @@ router.patch("/land-prospects/:id/acquisition", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update acquisition data");
     res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+router.post("/land-prospects/:id/promote", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [prospect] = await db.select().from(landProspectsTable).where(eq(landProspectsTable.id, id));
+    if (!prospect) return res.status(404).json({ error: "Not found" });
+
+    if (prospect.projectId) {
+      const [existing] = await db.select().from(projectsTable).where(eq(projectsTable.id, prospect.projectId));
+      return res.json({ projectId: prospect.projectId, isNew: false, projectNama: existing?.nama ?? "" });
+    }
+
+    const fullAi = prospect.fullAiResult as Record<string, unknown> | null;
+    const calcUnit = ((fullAi?.calc as Record<string, unknown>)?.unitPotential as Record<string, unknown>) ?? {};
+    const aiResult = prospect.aiResult as Record<string, unknown> | null;
+    const potensiUnit = Math.round((calcUnit.unitRealistis as number) || (aiResult?.potensiUnit as number) || 0);
+
+    const lokasiBagian = [prospect.kelurahan, prospect.kecamatan].filter(Boolean).join(", ");
+    const projectNama = `Proyek ${lokasiBagian || prospect.lokasi}`;
+
+    const [project] = await db.insert(projectsTable).values({
+      nama: projectNama,
+      lokasi: prospect.lokasi,
+      kabupaten: prospect.kabupaten ?? undefined,
+      kecamatan: prospect.kecamatan ?? undefined,
+      desa: prospect.kelurahan ?? undefined,
+      luas: prospect.luas ?? undefined,
+      lat: prospect.lat ?? undefined,
+      lng: prospect.lng ?? undefined,
+      totalUnit: potensiUnit,
+      fase: "PLAN",
+      status: "active",
+    }).returning();
+
+    await db.update(landProspectsTable).set({ projectId: project.id }).where(eq(landProspectsTable.id, id));
+
+    return res.json({ projectId: project.id, isNew: true, projectNama: project.nama });
+  } catch (err) {
+    req.log.error({ err }, "Failed to promote land prospect to project");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

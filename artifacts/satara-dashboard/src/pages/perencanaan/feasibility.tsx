@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearch } from "wouter";
+import { Link } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcFeasibility, fmtCurrency, fmtPct, type FeasibilityInputs } from "@/lib/planning-calc";
-import { Save, CheckCircle2, XCircle, AlertTriangle, Brain, Zap, FileDown } from "lucide-react";
+import { Save, CheckCircle2, XCircle, AlertTriangle, Brain, Zap, FileDown, ArrowRight } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const SATARA = { roi: 35, irr: 20, payback: 24, margin: 25 };
@@ -52,8 +54,20 @@ export default function FeasibilityPage() {
   const [savedId, setSavedId] = useState<number | null>(null);
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [autoSelected, setAutoSelected] = useState(false);
+
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const urlProjectId = searchParams.get("projectId") ? parseInt(searchParams.get("projectId")!) : null;
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
+
+  useEffect(() => {
+    if (!urlProjectId || autoSelected || !projects) return;
+    setAutoSelected(true);
+    selectProject(urlProjectId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlProjectId, projects]);
 
   const selectProject = async (id: number) => {
     setProjectId(id);
@@ -130,7 +144,7 @@ export default function FeasibilityPage() {
     const d = await resp.json();
     setSavedId(d.id);
     await qc.invalidateQueries({ queryKey: ["planning-feasibility"] });
-    toast({ title: "Feasibility tersimpan" });
+    toast({ title: "Feasibility tersimpan — lanjut ke Daftar Proyek untuk konfirmasi." });
   };
 
   const fetchAiAnalysis = async () => {
@@ -223,9 +237,9 @@ export default function FeasibilityPage() {
         <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Label className="text-sm shrink-0">Proyek</Label>
-        <Select onValueChange={v => selectProject(parseInt(v))}>
+        <Select value={projectId ? String(projectId) : ""} onValueChange={v => selectProject(parseInt(v))}>
           <SelectTrigger className="h-8 w-64"><SelectValue placeholder="Pilih proyek..." /></SelectTrigger>
           <SelectContent>
             {projectList.map((p: Record<string, unknown>) => (
@@ -233,6 +247,12 @@ export default function FeasibilityPage() {
             ))}
           </SelectContent>
         </Select>
+        {savedId && projectId ? (
+          <Link href={`/projects`} className="flex items-center gap-1 text-xs text-primary hover:underline">
+            <ArrowRight className="size-3" />
+            Lihat di Daftar Proyek
+          </Link>
+        ) : null}
       </div>
 
       <Tabs defaultValue="biaya">

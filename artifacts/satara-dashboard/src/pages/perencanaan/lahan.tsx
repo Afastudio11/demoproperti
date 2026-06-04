@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,12 +33,18 @@ export default function LahanPage() {
   const [form, setForm] = useState(defaultForm);
   const [savedId, setSavedId] = useState<number | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [autoImported, setAutoImported] = useState(false);
+
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const urlProjectId = searchParams.get("projectId") ? parseInt(searchParams.get("projectId")!) : null;
+  const urlProspectId = searchParams.get("prospectId") ? parseInt(searchParams.get("prospectId")!) : null;
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
   const { data: prospects } = useQuery({
     queryKey: ["land-prospects"],
     queryFn: () => fetch("/api/land-prospects").then(r => r.json()),
-    enabled: showImport,
+    enabled: showImport || !!urlProspectId,
   });
 
   const selectProject = async (id: number) => {
@@ -50,6 +57,34 @@ export default function LahanPage() {
       setSavedId(null);
     }
   };
+
+  useEffect(() => {
+    if (!urlProjectId || autoImported) return;
+    setAutoImported(true);
+    selectProject(urlProjectId).then(async () => {
+      if (urlProspectId) {
+        const resp = await fetch(`/api/land-prospects/${urlProspectId}`).then(r => r.json());
+        if (!resp) return;
+        const surveyData = resp.surveyData || {};
+        const ai = resp.fullAiResult || {};
+        const alloc = ai.landAllocation || {};
+        setForm(prev => ({
+          ...prev,
+          projectId: urlProjectId,
+          landArea: resp.luas || prev.landArea,
+          landPriceTotal: (resp.hargaM2 || 0) * (resp.luas || 0) || prev.landPriceTotal,
+          roadWidth: resp.aksesJalan || prev.roadWidth,
+          legalStatus: resp.statusKepemilikan || surveyData.statusLegal || prev.legalStatus,
+          landShape: surveyData.bentukLahan || prev.landShape,
+          contour: surveyData.kontur || prev.contour,
+          notes: [resp.lokasi || "", resp.kelurahan ? `Kel. ${resp.kelurahan}` : "", resp.kecamatan ? `Kec. ${resp.kecamatan}` : "", resp.kabupaten || ""].filter(Boolean).join(", ") || prev.notes,
+          kavlingArea: (alloc as Record<string, number>).kavlingArea || prev.kavlingArea,
+        }));
+        toast({ title: "Data lahan diimpor dari Akuisisi Lahan" });
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlProjectId, urlProspectId]);
 
   const setF = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: typeof v === "string" ? (parseFloat(v) || v) : v }));
 
@@ -164,9 +199,20 @@ export default function LahanPage() {
         </Card>
       )}
 
+      {urlProjectId && autoImported && (
+        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <MapPin className="size-3.5 text-primary shrink-0" />
+          <span className="text-xs text-muted-foreground">Proyek:</span>
+          <span className="text-xs font-semibold text-primary">
+            {(projectList.find((p: Record<string, unknown>) => p.id === urlProjectId) as Record<string, string> | undefined)?.nama ?? `Proyek #${urlProjectId}`}
+          </span>
+          {urlProspectId && <span className="text-[10px] text-emerald-600 ml-auto">Data lahan diimpor dari Akuisisi</span>}
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <Label className="text-sm shrink-0">Proyek</Label>
-        <Select onValueChange={v => selectProject(parseInt(v))}>
+        <Select value={form.projectId ? String(form.projectId) : ""} onValueChange={v => selectProject(parseInt(v))}>
           <SelectTrigger className="h-8 w-64">
             <SelectValue placeholder="Pilih proyek..." />
           </SelectTrigger>

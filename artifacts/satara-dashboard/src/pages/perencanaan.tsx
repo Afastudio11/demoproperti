@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calculator, Map, Package, Calendar, DollarSign,
   Users, ChevronRight, Building2, TrendingUp, AlertTriangle, CheckCircle2,
-  Brain, Zap, XCircle,
+  Brain, Zap, XCircle, FolderOpen,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,9 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
 export default function Perencanaan() {
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const activeProjectId = searchParams.get("projectId") ? parseInt(searchParams.get("projectId")!) : null;
 
   const { data: feasibilities } = useQuery({
     queryKey: ["planning-feasibility"],
@@ -208,12 +211,30 @@ export default function Perencanaan() {
     }
   };
 
+  const activeProject = activeProjectId ? projArr.find((p: Record<string, unknown>) => p.id === activeProjectId) as Record<string, string> | undefined : undefined;
+
+  function moduleHref(path: string) {
+    return activeProjectId ? `${path}?projectId=${activeProjectId}` : path;
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Planning Intelligence Center</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Command center perencanaan proyek — analisis, kelayakan, dan kontrol timeline</p>
       </div>
+
+      {activeProject && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <FolderOpen className="size-4 text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-xs text-muted-foreground">Proyek aktif: </span>
+            <span className="text-sm font-semibold text-primary">{activeProject.nama}</span>
+            {activeProject.lokasi && <span className="text-xs text-muted-foreground ml-2">— {activeProject.lokasi}</span>}
+          </div>
+          <Link href="/projects" className="text-[10px] text-muted-foreground hover:text-foreground shrink-0">Ganti Proyek</Link>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -392,7 +413,7 @@ export default function Perencanaan() {
         <h2 className="text-sm font-semibold mb-3">Modul Perencanaan</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {modules.map(mod => (
-            <Link key={mod.path} href={mod.path}>
+            <Link key={mod.path} href={moduleHref(mod.path)}>
               <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
                 <CardContent className="p-4 flex flex-col gap-3">
                   <div className="flex items-center justify-between">

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useLocation } from "wouter";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import {
   CheckCircle2, Map, X,
   FileText, ClipboardList, BrainCircuit,
   Loader2, Search,
-  Building2, Radio, Download, Database, BarChart3,
+  Building2, Radio, Download, Database, BarChart3, ArrowRight,
 } from "lucide-react";
 import KompetitorPage from "./kompetitor";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
@@ -272,6 +273,8 @@ function ProspectDetailPanel({
   const [aiResult, setAiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
   const [fullAiResult, setFullAiResult] = useState<Record<string, unknown> | null>(() => loadFullAiResult(prospect.id));
   const [aiLoading, setAiLoading] = useState(false);
+  const [promoting, setPromoting] = useState(false);
+  const [, navigate] = useLocation();
   const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "kompetitor" | "rekomendasi" | "simulasi">("ringkasan");
 
   const SIM_KEY = `satara_sim_${prospect.id}`;
@@ -698,6 +701,28 @@ function ProspectDetailPanel({
                 );
               })}
             </div>
+          </div>
+
+          {/* LANJUTKAN KE PERENCANAAN */}
+          <div className="pt-2 border-t border-border/50">
+            <button
+              onClick={async () => {
+                setPromoting(true);
+                try {
+                  const resp = await fetch(`/api/land-prospects/${prospect.id}/promote`, { method: "POST" });
+                  if (!resp.ok) throw new Error("Gagal");
+                  const data = await resp.json() as { projectId: number; isNew: boolean };
+                  navigate(`/perencanaan/lahan?projectId=${data.projectId}&prospectId=${prospect.id}`);
+                } catch { /* silent */ } finally { setPromoting(false); }
+              }}
+              disabled={promoting}
+              className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold px-2 py-2 rounded-md bg-foreground hover:bg-foreground/90 text-background transition-colors disabled:opacity-50"
+            >
+              {promoting
+                ? <Loader2 className="size-3 animate-spin" />
+                : <ArrowRight className="size-3" />}
+              {promoting ? "Menyiapkan proyek..." : "Lanjut ke Perencanaan"}
+            </button>
           </div>
         </div>
 
