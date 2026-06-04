@@ -1297,29 +1297,6 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
           </MapContainer>
         </div>
 
-        {drawn && (
-          <div className="w-64 shrink-0 bg-card border rounded-xl p-4 flex flex-col gap-3 self-start max-h-[calc(100vh-200px)] overflow-y-auto">
-            <div className="flex items-center gap-2">
-              <PenLine className="size-4 text-foreground" />
-              <span className="text-xs font-semibold flex-1">Lahan Tergambar</span>
-              <button onClick={cancelAll} className="text-muted-foreground hover:text-foreground">
-                <Trash2 className="size-3.5" />
-              </button>
-            </div>
-            <div className="bg-muted/30 border border-border rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-foreground">{formatLuas(drawn.area)}</div>
-              <div className="text-[11px] text-muted-foreground mt-1">luas terhitung otomatis</div>
-            </div>
-            {drawn.kecamatan && (
-              <div className="text-[11px] text-muted-foreground">
-                {[drawn.kelurahan, drawn.kecamatan, drawn.kabupaten].filter(Boolean).join(", ")}
-              </div>
-            )}
-            <HouseCapacityCard areaSqm={drawn.area} />
-            <TerrainAnalysisCard result={terrainResult} loading={terrainLoading} />
-          </div>
-        )}
-
       </div>
 
       {selectedProspect && !drawn && (
