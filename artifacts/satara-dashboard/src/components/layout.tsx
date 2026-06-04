@@ -63,9 +63,7 @@ function DashboardSidebar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2.5 w-full hover:bg-sidebar-accent rounded-md p-1 -m-1 transition-colors shrink-0">
-              <div className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background shrink-0">
-                <span className="text-sm font-bold">S</span>
-              </div>
+              <img src="/satara-logo.png" alt="Satara" className="size-7 object-contain shrink-0" />
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
                 <span className="text-sm font-medium">Satara Dev.</span>
                 <ChevronsUpDown className="size-3 text-muted-foreground" />

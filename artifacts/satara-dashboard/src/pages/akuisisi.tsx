@@ -21,6 +21,7 @@ import {
   generateLegalChecking,
   generateEstimasiHPP,
   generatePKSMoU,
+  preloadPdfAssets,
 } from "@/lib/pdf-generator";
 import { STAGE_CHECKLISTS, JOBDESK_STAGES, CHECKLIST_INPUT_TYPES, STAGE_ORDER as STAGE_ORDER_CONFIG } from "@/data/akuisisi-config";
 
@@ -686,7 +687,7 @@ function ProspectDetailPanel({
                     <Icon className="size-3 shrink-0 text-foreground/50" />
                     <span className="flex-1 leading-tight">{label}</span>
                     <button
-                      onClick={() => generator?.(buildPayload())}
+                      onClick={async () => { await preloadPdfAssets(); generator?.(buildPayload()); }}
                       title={`Download ${label}`}
                       className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded border border-foreground/25 hover:bg-foreground hover:text-background hover:border-foreground transition-colors shrink-0"
                     >

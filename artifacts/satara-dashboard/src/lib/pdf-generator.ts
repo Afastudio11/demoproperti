@@ -2,6 +2,26 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { LandProspect } from "@workspace/api-client-react";
 
+// ─── Logo preload ──────────────────────────────────────────────────────────────
+
+let _logoBase64: string | null = null;
+
+export async function preloadPdfAssets(): Promise<void> {
+  if (_logoBase64) return;
+  try {
+    const response = await fetch("/satara-logo.png");
+    const blob = await response.blob();
+    _logoBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    _logoBase64 = null;
+  }
+}
+
 // ─── Colors (Black & White) ───────────────────────────────────────────────────
 const NAVY   = [15, 15, 15]   as [number, number, number];
 const GOLD   = [15, 15, 15]   as [number, number, number];
@@ -111,17 +131,26 @@ function drawHeader(doc: jsPDF, title: string, subtitle: string) {
   doc.setFillColor(30, 30, 30);
   doc.rect(0, 0, 3, 22, "F");
 
+  // Logo (if preloaded)
+  const logoX = 5;
+  const logoY = 3;
+  const logoSize = 16;
+  if (_logoBase64) {
+    doc.addImage(_logoBase64, "PNG", logoX, logoY, logoSize, logoSize);
+  }
+  const textX = _logoBase64 ? logoX + logoSize + 2 : 17;
+
   // Company name — dark text
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(20, 20, 20);
-  doc.text("SATARA DEVELOPMENT", 17, 9);
+  doc.text("SATARA DEVELOPMENT", textX, 9);
 
   // Tagline
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(130, 130, 130);
-  doc.text("Internal Operations Dashboard — Strictly Confidential", 17, 16);
+  doc.text("Internal Operations Dashboard — Strictly Confidential", textX, 16);
 
   // Doc type (right, dark)
   doc.setFont("helvetica", "bold");
