@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import {
   CheckCircle2, Map, X,
   FileText, ClipboardList, BrainCircuit,
-  Loader2,
+  Loader2, Search,
   Building2, Radio, Download, Database, BarChart3,
 } from "lucide-react";
 import KompetitorPage from "./kompetitor";
@@ -1865,6 +1865,113 @@ function ProspectDetailPanel({
   );
 }
 
+// ─── Map Nav Search ───────────────────────────────────────────────────────────
+
+interface NominatimResult {
+  display_name: string;
+  lat: string;
+  lon: string;
+  type: string;
+  class: string;
+}
+
+function MapNavSearch({ onFly }: { onFly: (target: [number, number, number]) => void }) {
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleChange = useCallback((val: string) => {
+    setQuery(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (val.trim().length < 2) { setSuggestions([]); setOpen(false); return; }
+    timerRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val + " Sulawesi Selatan")}&format=json&limit=7&countrycodes=id&addressdetails=1&bounded=1&viewbox=118.0,-1.0,123.5,-7.5`,
+          { headers: { "Accept-Language": "id" } }
+        );
+        const data: NominatimResult[] = await res.json();
+        setSuggestions(data);
+        setOpen(data.length > 0);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }, 400);
+  }, []);
+
+  const handleSelect = useCallback((s: NominatimResult) => {
+    setQuery(s.display_name.split(",")[0]);
+    setOpen(false);
+    const zoom = s.type === "village" || s.type === "suburb" || s.type === "hamlet" ? 14
+      : s.type === "city" || s.type === "town" ? 12
+      : 11;
+    onFly([parseFloat(s.lat), parseFloat(s.lon), zoom]);
+  }, [onFly]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") { setOpen(false); }
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div className="flex items-center gap-1.5 h-8 border rounded-lg bg-card px-2.5 focus-within:ring-1 focus-within:ring-primary/50">
+        {loading
+          ? <Loader2 className="size-3.5 text-muted-foreground animate-spin shrink-0" />
+          : <Search className="size-3.5 text-muted-foreground shrink-0" />
+        }
+        <input
+          value={query}
+          onChange={(e) => handleChange(e.target.value)}
+          onFocus={() => suggestions.length > 0 && setOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder="Cari kota, kecamatan, desa di Sulsel..."
+          className="text-xs bg-transparent outline-none w-56 placeholder:text-muted-foreground/60"
+        />
+        {query && (
+          <button
+            onClick={() => { setQuery(""); setSuggestions([]); setOpen(false); }}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3" />
+          </button>
+        )}
+      </div>
+      {open && suggestions.length > 0 && (
+        <div className="absolute top-full left-0 mt-1 w-80 bg-background border rounded-lg shadow-lg z-[2000] py-1 max-h-64 overflow-y-auto">
+          {suggestions.map((s, i) => {
+            const parts = s.display_name.split(",");
+            const title = parts[0].trim();
+            const subtitle = parts.slice(1, 4).join(",").trim();
+            return (
+              <button
+                key={i}
+                onClick={() => handleSelect(s)}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors border-b last:border-0 border-border/50"
+              >
+                <div className="font-medium text-foreground truncate">{title}</div>
+                {subtitle && <div className="text-muted-foreground text-[10px] truncate mt-0.5">{subtitle}</div>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type TerrainData = { elevMin?: number; elevMax?: number; elevAvg?: number; slopeAvgPct?: number; slopeMaxPct?: number; waterwayType?: string; waterwayName?: string; waterwayDistM?: number | null } | null;
@@ -1872,6 +1979,7 @@ type TerrainData = { elevMin?: number; elevMax?: number; elevAvg?: number; slope
 export default function Akuisisi() {
   const { data: prospects, refetch } = useListLandProspects({});
   const [tab, setTab] = useState<"peta" | "slis" | "kompetitor">("peta");
+  const [mapFlyTarget, setMapFlyTarget] = useState<[number, number, number] | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [checklists, setChecklists] = useState<Record<number, string[]>>(loadChecklist);
   const [checklistValues, setChecklistValues] = useState<Record<number, Record<string, string>>>(loadChecklistValues);
@@ -1981,30 +2089,35 @@ export default function Akuisisi() {
 
   return (
     <div className="h-full flex flex-col space-y-4">
-      <div className="flex items-start justify-end gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border bg-muted p-0.5 text-xs font-medium">
-            {TABS.map(({ key, label, icon: Icon, ...rest }) => { const badge = "badge" in rest ? (rest as { badge?: number }).badge : undefined; return (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors",
-                  tab === key
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Icon className="size-3.5" />
-                {label}
-                {badge != null && badge > 0 && (
-                  <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
-                    {badge}
-                  </span>
-                )}
-              </button>
-            ); })}
-          </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {/* Search bar — hanya tampil di tab Peta */}
+        {tab === "peta" ? (
+          <MapNavSearch onFly={setMapFlyTarget} />
+        ) : (
+          <div />
+        )}
+
+        <div className="flex rounded-lg border bg-muted p-0.5 text-xs font-medium">
+          {TABS.map(({ key, label, icon: Icon, ...rest }) => { const badge = "badge" in rest ? (rest as { badge?: number }).badge : undefined; return (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors",
+                tab === key
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="size-3.5" />
+              {label}
+              {badge != null && badge > 0 && (
+                <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+                  {badge}
+                </span>
+              )}
+            </button>
+          ); })}
         </div>
       </div>
 
@@ -2020,6 +2133,7 @@ export default function Akuisisi() {
                 setTerrainLoading(true);
               }}
               clearKey={mapClearKey}
+              externalFlyTarget={mapFlyTarget}
             />
           </div>
         </div>

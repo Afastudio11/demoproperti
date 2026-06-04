@@ -13,7 +13,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
-import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Search, Mountain, Droplets, ChevronRight, Layers } from "lucide-react";
+import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Mountain, Droplets, ChevronRight, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
 
@@ -952,34 +952,18 @@ export interface PolygonReadyData {
   geoStr?: string;
 }
 
-export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly, clearKey }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean; clearKey?: number } = {}) {
+export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly, clearKey, externalFlyTarget }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean; clearKey?: number; externalFlyTarget?: [number, number, number] | null } = {}) {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminDrill, setAdminDrill] = useState<DrillState>({ level: 0, kab: null, kec: null });
-  const [navKab, setNavKab] = useState("");
-  const [navKec, setNavKec] = useState("");
-  const [navKel, setNavKel] = useState("");
-  const [navLoading, setNavLoading] = useState(false);
-  const [navError, setNavError] = useState(false);
   const [flyTarget, setFlyTarget] = useState<[number, number, number] | null>(null);
 
-  const handleNavSearch = useCallback(async () => {
-    if (!navKab && !navKec && !navKel) return;
-    setNavLoading(true);
-    setNavError(false);
-    const result = await geocodeNominatim(navKab, navKec, navKel);
-    setNavLoading(false);
-    if (result) {
-      const zoom = navKel ? 14 : navKec ? 12 : 10;
-      setFlyTarget([result.lat, result.lng, zoom]);
-    } else {
-      setNavError(true);
-      setTimeout(() => setNavError(false), 3000);
-    }
-  }, [navKab, navKec, navKel]);
+  useEffect(() => {
+    if (externalFlyTarget) setFlyTarget(externalFlyTarget);
+  }, [externalFlyTarget]);
   const [addMode, setAddMode] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
   const [draft, setDraft] = useState<DraftPin | null>(null);
@@ -1079,52 +1063,6 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
 
   return (
     <div className="flex flex-col h-full gap-3">
-      {/* Baris navigasi lokasi — hanya di mode edit */}
-      {!readOnly && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <input
-            type="text"
-            value={navKab}
-            onChange={(e) => setNavKab(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
-            placeholder="Kota / Kabupaten"
-            className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-36"
-          />
-          <input
-            type="text"
-            value={navKec}
-            onChange={(e) => setNavKec(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
-            placeholder="Kecamatan"
-            className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-32"
-          />
-          <input
-            type="text"
-            value={navKel}
-            onChange={(e) => setNavKel(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleNavSearch()}
-            placeholder="Desa / Kelurahan"
-            className="h-7 text-xs px-2.5 rounded-lg border bg-card placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary w-36"
-          />
-          <button
-            onClick={handleNavSearch}
-            disabled={navLoading || (!navKab && !navKec && !navKel)}
-            className="h-7 flex items-center gap-1.5 text-xs font-medium px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {navLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
-            Pergi
-          </button>
-          {navError && <span className="text-xs text-red-500">Lokasi tidak ditemukan</span>}
-          <div className="flex-1" />
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <MapPin className="size-3.5" />
-              <span>{placedCount} dipetakan</span>
-            </div>
-            {unplacedCount > 0 && <span className="text-amber-600 font-medium">{unplacedCount} belum dipetakan</span>}
-          </div>
-        </div>
-      )}
 
       {/* Baris layer + aksi */}
       <div className="flex items-center justify-end flex-wrap gap-2">
