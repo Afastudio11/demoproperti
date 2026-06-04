@@ -107,8 +107,9 @@ function competitorCount(name: string, level: number, parentKab?: string | null,
 const POTENTIAL_THRESHOLDS_KAB  = [10,  30,  80, 150, 300];
 const POTENTIAL_THRESHOLDS_KEC  = [3,    8,  20,  40,  80];
 const POTENTIAL_THRESHOLDS_DESA = [1,    3,   8,  16,  30];
-const POTENTIAL_COLORS = ["#15803d", "#4ade80", "#facc15", "#f97316", "#ef4444", "#991b1b"];
-const POTENTIAL_LABELS = ["Sangat Baik", "Baik", "Sedang", "Kompetitif", "Jenuh", "Sangat Jenuh"];
+// Skema biru — density heatmap netral (terang=sedikit, gelap=padat)
+const POTENTIAL_COLORS = ["#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#1e3a8a", "#0f172a"];
+const POTENTIAL_LABELS = ["Sangat Sedikit", "Sedikit", "Sedang", "Banyak", "Sangat Banyak", "Padat Sekali"];
 
 function _thresholds(level: number) {
   if (level === 0) return POTENTIAL_THRESHOLDS_KAB;
@@ -425,12 +426,12 @@ export function SLISCompetitorMap({ selectedKab, onKabSelect, flyTo }: SLISCompe
           <div className="absolute bottom-6 left-3 z-[1000] bg-white/95 border border-gray-200 rounded-lg shadow-lg px-3 py-2.5 text-[10px] pointer-events-none">
             <div className="font-semibold text-gray-700 mb-1.5 text-[11px]">Kepadatan Kompetitor</div>
             {[
-              { color: "#15803d", label: "Sangat Baik" },
-              { color: "#4ade80", label: "Baik" },
-              { color: "#facc15", label: "Sedang" },
-              { color: "#f97316", label: "Kompetitif" },
-              { color: "#ef4444", label: "Jenuh" },
-              { color: "#991b1b", label: "Sangat Jenuh" },
+              { color: "#dbeafe", label: "Sangat Sedikit" },
+              { color: "#93c5fd", label: "Sedikit" },
+              { color: "#3b82f6", label: "Sedang" },
+              { color: "#1d4ed8", label: "Banyak" },
+              { color: "#1e3a8a", label: "Sangat Banyak" },
+              { color: "#0f172a", label: "Padat Sekali" },
               { color: "#6b7280", label: "Belum ada data" },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-1.5 py-0.5">
