@@ -1,0 +1,819 @@
+# REPLIT PROMPT — MENU PERENCANAAN
+## Satara Development Internal Dashboard
+
+---
+
+## KONTEKS PROYEK
+
+Saya sedang mengembangkan dashboard internal untuk perusahaan developer perumahan bernama **Satara Development**. Dashboard ini sudah berjalan dan memiliki sidebar navigasi utama dengan menu berikut:
+
+- Executive Overview (aktif, sudah ada)
+- Daftar Proyek (sudah ada)
+- Akuisisi Lahan (sudah ada)
+- **Perencanaan** ← INI YANG AKAN KITA KERJAKAN
+- Legal & Perizinan (sudah ada)
+- Marketing (sudah ada)
+- Administrasi KPR (sudah ada)
+- Produksi (sudah ada)
+- Serah Terima (sudah ada)
+- Settings (sudah ada)
+
+**Tugas spesifik:** Bangun seluruh halaman dan sub-menu untuk menu **Perencanaan**, yang berfungsi sebagai Divisi Perencanaan (Planning Intelligence Center) perusahaan. Divisi ini adalah "otak analisis dan pengambilan keputusan proyek" sebelum proyek dieksekusi oleh divisi lain.
+
+---
+
+## TECH STACK
+
+Gunakan tech stack yang sudah dipakai di project ini. Jika belum ada preferensi, gunakan:
+- **Frontend:** React + Tailwind CSS
+- **Backend / Database:** Supabase (PostgreSQL)
+- **Routing:** React Router v6
+- **State Management:** Zustand atau React Context
+- **Charts:** Recharts
+- **UI Components:** shadcn/ui
+
+---
+
+## STRUKTUR MENU PERENCANAAN
+
+Menu Perencanaan memiliki sub-menu yang muncul sebagai nested sidebar atau collapsible menu saat diklik. Struktur lengkapnya:
+
+```
+Perencanaan
+├── 1. Command Center
+├── 2. Analisis Pasar
+│   ├── Input Demografi
+│   ├── Input Ekonomi
+│   ├── Input FLPP & Kompetitor
+│   └── Hasil Scoring Pasar
+├── 3. Analisis Lahan
+│   ├── Input Data Lahan
+│   └── Hasil Analisis Lahan
+├── 4. Perencanaan Produk
+│   ├── Input Tipe Produk
+│   └── Demand Simulation
+├── 5. Studi Kelayakan (Feasibility Engine)
+│   ├── Input Biaya (HPP)
+│   ├── Input Revenue
+│   ├── Hasil Kelayakan
+│   └── CEO Decision Report
+├── 6. Timeline Proyek (SPTIS)
+│   ├── Master Timeline
+│   ├── Input Milestone
+│   ├── Update Progress
+│   └── Early Warning System
+├── 7. Cashflow & KPP
+│   ├── Input Cashflow Bulanan
+│   ├── Simulasi Skenario
+│   ├── Hasil Cashflow
+│   ├── Input Data KPP
+│   ├── Input Realisasi HT
+│   └── Simulasi Pelunasan KPP
+├── 8. Sumber Daya
+│   ├── Input SDM Tersedia
+│   └── Kapasitas Simulator
+└── 9. Land Bank & Ekspansi
+    ├── Input Status Land Bank
+    ├── Land Absorption Simulator
+    ├── Expansion Readiness Score
+    └── Strategic Scenario Simulator
+```
+
+---
+
+## SPESIFIKASI DETAIL SETIAP HALAMAN
+
+### 1. COMMAND CENTER
+**Route:** `/perencanaan`
+**Fungsi:** Dashboard ringkasan CEO — halaman pertama yang dibuka saat masuk menu Perencanaan.
+
+**Komponen yang harus ada:**
+- Metric cards (baris atas): Total Proyek Aktif, Total Unit Pipeline, Total Revenue Pipeline (Rp), Total Profit Estimasi (Rp), Land Bank Coverage (bulan)
+- Project Health Score cards: satu card per proyek aktif, menampilkan skor Market / Cashflow / Konstruksi / Legal / Marketing masing-masing 0-100, dengan warna hijau (>80) / kuning (60-80) / merah (<60)
+- Early Warning alerts: list notifikasi otomatis jika ada delay, over budget, atau gap akad
+- CEO Recommendation panel: ringkasan rekomendasi AI per proyek (teks)
+- Cashflow Forecast chart: proyeksi 12 bulan ke depan (line chart, cash in vs cash out)
+
+**Data source:** Agregasi otomatis dari semua modul di bawah. Tidak ada input manual di halaman ini.
+
+---
+
+### 2. ANALISIS PASAR
+
+#### 2a. Input Demografi
+**Route:** `/perencanaan/pasar/demografi`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Kabupaten / Kota | Select atau text | Lokasi analisis pasar |
+| Jumlah penduduk | Number | Jiwa |
+| Pertumbuhan penduduk | Number (%) | Per tahun |
+| Jumlah KK | Number | Kepala keluarga |
+| Pertumbuhan KK | Number (%) | Per tahun |
+| Kepadatan penduduk | Number | Jiwa/km² |
+| Tahun data | Number | Sumber data |
+
+#### 2b. Input Ekonomi
+**Route:** `/perencanaan/pasar/ekonomi`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| UMK | Number (Rp) | Upah minimum kabupaten |
+| Pendapatan rata-rata | Number (Rp) | Estimasi per bulan |
+| Jumlah ASN | Number | Jiwa |
+| Jumlah karyawan swasta | Number | Jiwa |
+| Jumlah UMKM | Number | Unit usaha |
+| Tingkat pengangguran | Number (%) | |
+
+#### 2c. Input FLPP & Kompetitor
+**Route:** `/perencanaan/pasar/flpp`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Realisasi FLPP | Number | Unit per tahun di kabupaten ini |
+| Jumlah developer aktif | Number | |
+| Jumlah bank aktif FLPP | Number | |
+| Nama kompetitor (repeatable) | Text | Bisa tambah baris |
+| Harga pasar kompetitor | Number (Rp) | Per unit |
+| Tipe produk kompetitor | Text | |
+
+#### 2d. Hasil Scoring Pasar
+**Route:** `/perencanaan/pasar/hasil`
+
+**Tampilan (kalkulasi otomatis dari input di atas):**
+- Demand Score: angka 0-100 + progress bar berwarna
+- Market Potential Score: angka 0-100 + progress bar berwarna
+- Rekomendasi pasar: badge dengan 4 level (Sangat Potensial / Potensial / Moderat / Tidak Potensial)
+- Breakdown faktor-faktor yang mempengaruhi skor (tabel)
+
+**Formula Demand Score (implementasikan ini):**
+```
+Demand Score = rata-rata tertimbang dari:
+- Pertumbuhan KK (bobot 25%)
+- Rasio FLPP terhadap jumlah KK (bobot 20%)
+- UMK vs harga jual target (bobot 20%)
+- Jumlah ASN + karyawan swasta (bobot 20%)
+- Tingkat pengangguran terbalik (bobot 15%)
+Normalisasi ke skala 0-100
+```
+
+---
+
+### 3. ANALISIS LAHAN
+
+#### 3a. Input Data Lahan
+**Route:** `/perencanaan/lahan/:project_id/input`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek terkait | Select | Dari daftar proyek |
+| Luas tanah | Number (m²) | |
+| Harga tanah total | Number (Rp) | |
+| Bentuk tanah | Select | Reguler / Tidak reguler / L-shape |
+| Kontur | Select | Datar / Sedikit berbukit / Berbukit |
+| Lebar jalan akses | Number (meter) | |
+| Status legalitas | Select | SHM / HGB / AJB / Girik / Belum ada |
+| Catatan khusus | Textarea | |
+
+#### 3b. Hasil Analisis Lahan
+**Route:** `/perencanaan/lahan/:project_id/hasil`
+
+**Kalkulasi otomatis (tampilkan hasil ini):**
+```
+Luas Jalan         = Luas Tanah × 18%
+Luas Fasum         = Luas Tanah × 12%
+Luas Efektif       = Luas Tanah × 70%
+Unit Maksimal      = Luas Efektif ÷ Luas Kavling (input dari Product Planning)
+Harga Tanah/Unit   = Harga Tanah Total ÷ Unit Maksimal
+```
+
+Tampilkan sebagai: visual breakdown pie/bar chart proporsi lahan + tabel hasil kalkulasi.
+
+---
+
+### 4. PERENCANAAN PRODUK
+
+#### 4a. Input Tipe Produk
+**Route:** `/perencanaan/produk/:project_id/input`
+
+**Form fields (repeatable rows — bisa tambah tipe):**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Tipe rumah | Text | Contoh: 30/60, 36/72, 45/84 |
+| Luas bangunan | Number (m²) | |
+| Luas kavling | Number (m²) | |
+| Harga jual | Number (Rp) | |
+| Jumlah unit | Number | Alokasi unit untuk tipe ini |
+| Target segmen | Select | Subsidi / Komersial bawah / Menengah |
+| Harga kompetitor | Number (Rp) | Pembanding |
+
+#### 4b. Demand Simulation
+**Route:** `/perencanaan/produk/:project_id/simulasi`
+
+**Output kalkulasi:**
+- Estimasi penyerapan per bulan per tipe produk
+- Produk dengan potensi terbaik (highlight)
+- Harga optimal berdasarkan posisi vs kompetitor
+- Bar chart perbandingan harga Satara vs kompetitor
+
+---
+
+### 5. STUDI KELAYAKAN (FEASIBILITY ENGINE)
+
+#### 5a. Input Biaya (HPP)
+**Route:** `/perencanaan/feasibility/:project_id/biaya`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Harga tanah total | Number (Rp) | Auto-fill dari data lahan |
+| Biaya pematangan lahan | Number (Rp) | |
+| Biaya konstruksi per unit | Number (Rp) | |
+| Biaya fasum & jalan | Number (Rp) | |
+| Biaya perizinan | Number (Rp) | PKKPR, PBG, SLF, dll |
+| Biaya marketing | Number (Rp) | |
+| Biaya overhead & operasional | Number (Rp) | |
+| Contingency / biaya tak terduga | Number (%) | Umumnya 5-10% |
+
+#### 5b. Input Revenue
+**Route:** `/perencanaan/feasibility/:project_id/revenue`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Total unit | Number | Auto-fill dari analisis lahan |
+| Harga jual per unit | Number (Rp) | Auto-fill dari produk |
+| Booking fee per unit | Number (Rp) | |
+| Asumsi penjualan per bulan | Number (unit) | |
+| Persentase KPR | Number (%) | |
+| Persentase tunai keras | Number (%) | |
+| Persentase tunai bertahap | Number (%) | |
+
+#### 5c. Hasil Studi Kelayakan
+**Route:** `/perencanaan/feasibility/:project_id/hasil`
+
+**Kalkulasi otomatis:**
+```
+Total Revenue      = Harga Jual/Unit × Total Unit
+Total Cost         = Semua komponen biaya + contingency
+Gross Profit       = Total Revenue − Total Cost
+Margin             = (Gross Profit ÷ Total Revenue) × 100%
+ROI                = (Net Profit ÷ Total Cost) × 100%
+IRR                = Dihitung dari cashflow per bulan
+NPV                = Net Present Value dengan discount rate input (default 12%)
+Payback Period     = Bulan ke-N saat kumulatif cashflow = 0
+BEP (unit)         = Total Fixed Cost ÷ (Harga/Unit − Variable Cost/Unit)
+```
+
+**Standar Satara — tampilkan status lolos/tidak:**
+- ROI minimum 35% → jika <35% tampil merah
+- IRR minimum 20% → jika <20% tampil merah
+- Payback maksimum 24 bulan → jika >24 tampil merah
+- Margin minimum 25% → jika <25% tampil merah
+
+#### 5d. CEO Decision Report
+**Route:** `/perencanaan/feasibility/:project_id/report`
+
+**Tampilan satu halaman ringkasan:**
+```
+PROJECT     : [nama proyek]
+UNIT        : [jumlah]
+LAND COST   : [Rp]
+REVENUE     : [Rp]
+PROFIT      : [Rp]
+ROI         : [%]
+IRR         : [%]
+PAYBACK     : [bulan]
+DURASI      : [bulan]
+PEAK FUNDING: [Rp]
+KPP         : [Rp]
+EST. LUNAS  : [bulan]
+RISK SCORE  : [0-100]
+RISK LEVEL  : LOW / MEDIUM / HIGH
+REKOMENDASI : APPROVE / HOLD / REJECT
+```
+
+Tambahkan tombol "Export PDF" untuk laporan ini.
+
+---
+
+### 6. TIMELINE PROYEK (SPTIS — Satara Project Timeline Intelligence System)
+
+#### 6a. Master Timeline
+**Route:** `/perencanaan/timeline`
+
+**Tampilan:**
+- Gantt chart horizontal semua proyek aktif
+- Sumbu X: bulan dan tahun
+- Setiap proyek = satu baris dengan bar progress
+- Warna bar: hijau (on track) / kuning (at risk) / merah (delayed)
+- Filter by: tahun, status proyek, kabupaten
+
+#### 6b. Input Milestone Per Proyek
+**Route:** `/perencanaan/timeline/:project_id/milestone`
+
+**Form — input tanggal target untuk setiap tahap:**
+
+**Tahap Akuisisi:**
+- Survey awal, Negosiasi, Due diligence, AJB, SHM
+
+**Tahap Perencanaan:**
+- Siteplan, Budget/HPP, Feasibility Study, Approval CEO
+
+**Tahap Legal:**
+- PKKPR, PBG, SLF, Sikumbang
+
+**Tahap Marketing:**
+- Pre-launching, Launching, Target booking, Target akad pertama
+
+**Tahap Konstruksi:**
+- Mobilisasi, Pondasi, Struktur, Atap, Finishing, QC
+
+**Tahap Administrasi:**
+- Kumpul berkas, Setor bank, OTS, SP3K, Akad
+
+**Tahap Serah Terima:**
+- ST Rumah, ST PSU, Closing project
+
+Setiap baris: Field tanggal target + status dropdown (Belum mulai / Sedang berjalan / Selesai / Terlambat).
+
+#### 6c. Update Progress Aktual
+**Route:** `/perencanaan/timeline/:project_id/progress`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Tahap yang diupdate | Select | Dari list milestone |
+| Tanggal aktual | Date | |
+| Persentase progres | Number (%) | 0-100 |
+| Unit selesai | Number | |
+| Catatan kendala | Textarea | |
+
+#### 6d. Early Warning System
+**Route:** `/perencanaan/timeline/warning`
+
+**Tampilan otomatis (tidak ada input, semua dari kalkulasi):**
+- List alert dengan 3 kategori:
+  - DELAY: tahap mana, target kapan, aktual kapan, delay berapa hari
+  - OVER BUDGET: item mana, RAB berapa, aktual berapa, selisih %
+  - GAP AKAD: target akad berapa unit, aktual berapa, gap berapa
+- Setiap alert menampilkan proyeksi dampak ke cashflow dan KPP
+- AI Insight teks: narasi otomatis menjelaskan situasi dan rekomendasi
+
+---
+
+### 7. CASHFLOW & KPP
+
+#### 7a. Input Cashflow Bulanan
+**Route:** `/perencanaan/cashflow/:project_id/input`
+
+**Form — tabel per bulan (row = bulan, column = item):**
+
+**Cash Out per bulan:**
+- Biaya lahan (bulan ke-1)
+- Biaya konstruksi (repeatable per bulan)
+- Biaya marketing
+- Biaya operasional
+- Cicilan KPP (auto dari data KPP)
+
+**Cash In per bulan:**
+- Booking fee masuk
+- HT KPR masuk (dari realisasi akad)
+- Uang muka tunai
+- Pencairan KPP (dari jadwal KPP)
+
+#### 7b. Simulasi Skenario
+**Route:** `/perencanaan/cashflow/:project_id/skenario`
+
+Tiga kolom skenario (Konservatif / Moderat / Agresif):
+- Input: asumsi unit terjual per bulan untuk masing-masing skenario
+- Output: chart cashflow kumulatif untuk ketiga skenario dalam satu grafik
+
+#### 7c. Hasil Cashflow
+**Route:** `/perencanaan/cashflow/:project_id/hasil`
+
+**Output otomatis:**
+- Chart: Cash In vs Cash Out per bulan (bar chart)
+- Chart: Kumulatif cashflow (area chart)
+- Metric cards: Peak Funding (Rp), Bulan break even, Total surplus akhir
+- Funding Gap table: bulan mana yang defisit dan berapa nilainya
+
+#### 7d. Input Data KPP
+**Route:** `/perencanaan/kpp/:project_id/input`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Bank pemberi KPP | Text | |
+| Nilai KPP disetujui | Number (Rp) | |
+| Tanggal pencairan tahap 1 (30%) | Date | |
+| Tanggal pencairan tahap 2 (30%) | Date | |
+| Tanggal pencairan tahap 3 (40%) | Date | |
+| Suku bunga | Number (%) | Per tahun |
+| Jangka waktu | Number (bulan) | |
+| Provisi & biaya admin | Number (Rp) | |
+
+#### 7e. Input Realisasi HT Masuk
+**Route:** `/perencanaan/kpp/:project_id/ht`
+
+**Form — repeatable rows per akad:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama pembeli | Text | |
+| Nomor unit / kavling | Text | |
+| Tanggal akad | Date | |
+| Nilai HT (Rp) | Number | |
+| Bank KPR pembeli | Text | |
+| Status pencairan HT | Select | Proses / Cair / Ditolak |
+| Tanggal HT cair | Date | |
+
+#### 7f. Simulasi Pelunasan KPP
+**Route:** `/perencanaan/kpp/:project_id/simulasi`
+
+**Output otomatis:**
+- Tabel amortisasi: bulan, pokok dibayar, bunga dibayar, sisa pokok
+- Bar chart: sisa pokok per bulan (menurun seiring HT masuk)
+- Estimasi bulan lunas KPP
+- Alert jika proyeksi menunjukkan risiko keterlambatan pelunasan
+
+---
+
+### 8. SUMBER DAYA
+
+#### 8a. Input SDM Tersedia
+**Route:** `/perencanaan/sdm/input`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Jumlah site manager | Number | |
+| Jumlah pengawas lapangan | Number | |
+| Jumlah tukang aktif | Number | |
+| Kapasitas tukang per unit | Number | Tukang dibutuhkan per unit |
+| Kapasitas paralel per site manager | Number | Berapa unit bisa diawasi |
+
+#### 8b. Kapasitas Simulator
+**Route:** `/perencanaan/sdm/kapasitas`
+
+**Output otomatis:**
+- Kapasitas maksimal unit yang bisa berjalan bersamaan
+- Utilisasi SDM saat ini (%)
+- Jika ada proyek baru: kebutuhan tambahan SDM
+- Development Velocity: unit selesai per bulan (dari data progress)
+- Alert jika kapasitas terlampaui saat membuka proyek baru
+
+---
+
+### 9. LAND BANK & EKSPANSI
+
+#### 9a. Input Status Land Bank
+**Route:** `/perencanaan/landbank/input`
+
+**Form — tabel per tahap / lahan:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama tahap / lahan | Text | Contoh: SN3 T5, Barru T1 |
+| Proyek induk | Select | |
+| Status | Select | Selesai / Aktif / Land Bank / Negosiasi / Belum ada |
+| Luas (m²) | Number | |
+| Unit tersedia | Number | |
+| Harga perolehan (Rp) | Number | |
+| Target mulai bangun | Date | |
+| Catatan | Textarea | |
+
+#### 9b. Land Absorption Simulator
+**Route:** `/perencanaan/landbank/absorpsi`
+
+**Input:**
+- Rata-rata akad per bulan (ambil dari data historis atau input manual)
+
+**Output otomatis:**
+- Coverage stok saat ini (bulan) = Total unit land bank ÷ rata-rata akad/bulan
+- Grafik proyeksi deplesi stok
+- Sinyal: kapan harus mulai akuisisi berikutnya (berdasarkan coverage minimum 18 bulan)
+- Rekomendasi: "Akuisisi tahap berikutnya harus selesai paling lambat [tanggal]"
+
+#### 9c. Expansion Readiness Score
+**Route:** `/perencanaan/ekspansi/kesiapan`
+
+**Input (5 dimensi, masing-masing 0-100):**
+| Dimensi | Cara pengisian | Keterangan |
+|---------|---------------|-----------|
+| Land Bank Score | Otomatis dari coverage | |
+| Cashflow Score | Otomatis dari cashflow | |
+| SDM Score | Input manual | |
+| SOP Score | Input manual | |
+| Dashboard / Sistem Score | Input manual | |
+
+**Output:**
+- Total skor rata-rata
+- Radar chart 5 dimensi
+- Rekomendasi: Siap ekspansi / Belum siap + narasi area yang perlu diperkuat
+
+#### 9d. Strategic Scenario Simulator
+**Route:** `/perencanaan/ekspansi/skenario`
+
+**Interface:**
+- Tiga pilihan skenario (bisa dikustomisasi):
+  - Skenario A: deskripsi (contoh: Beli tanah Barru)
+  - Skenario B: deskripsi (contoh: Bangun Tahap 7 dulu)
+  - Skenario C: deskripsi (contoh: Fokus Villa Sinoa)
+
+**Input per skenario:**
+- Estimasi ROI (%)
+- Risk Score (0-100)
+- Proyeksi cashflow impact
+
+**Output:**
+- Tabel perbandingan 3 skenario (ROI, Risk, Cashflow, Rekomendasi)
+- Highlight skenario terbaik berdasarkan weighted score
+
+---
+
+## DATABASE SCHEMA (SUPABASE)
+
+Buat tabel-tabel berikut:
+
+```sql
+-- Master proyek (relasi ke semua modul)
+projects (
+  id uuid PRIMARY KEY,
+  name text,
+  code text UNIQUE,
+  location text,
+  kabupaten text,
+  status text, -- planning, active, completed
+  tahap integer,
+  parent_project text,
+  pic text,
+  start_date date,
+  created_at timestamptz
+)
+
+-- Analisis pasar
+market_analysis (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  kabupaten text,
+  -- demografi
+  population integer,
+  population_growth numeric,
+  kk_count integer,
+  kk_growth numeric,
+  density numeric,
+  -- ekonomi
+  umk numeric,
+  avg_income numeric,
+  asn_count integer,
+  private_employees integer,
+  umkm_count integer,
+  unemployment_rate numeric,
+  -- FLPP
+  flpp_realization integer,
+  active_developers integer,
+  active_banks integer,
+  -- scores (auto-calculated)
+  demand_score numeric,
+  market_potential_score numeric,
+  market_recommendation text,
+  created_at timestamptz
+)
+
+-- Kompetitor (one-to-many per market_analysis)
+competitors (
+  id uuid PRIMARY KEY,
+  market_analysis_id uuid REFERENCES market_analysis(id),
+  name text,
+  price numeric,
+  product_type text
+)
+
+-- Analisis lahan
+land_analysis (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  land_area numeric,
+  land_price_total numeric,
+  land_shape text,
+  contour text,
+  road_width numeric,
+  legal_status text,
+  notes text,
+  -- kalkulasi otomatis
+  road_area numeric,
+  fasum_area numeric,
+  effective_area numeric,
+  max_units integer,
+  land_price_per_unit numeric,
+  created_at timestamptz
+)
+
+-- Perencanaan produk
+product_plans (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  house_type text,
+  building_area numeric,
+  land_area numeric,
+  selling_price numeric,
+  unit_count integer,
+  target_segment text,
+  competitor_price numeric,
+  created_at timestamptz
+)
+
+-- Studi kelayakan
+feasibility (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  -- biaya
+  land_cost numeric,
+  land_preparation_cost numeric,
+  construction_cost_per_unit numeric,
+  fasum_road_cost numeric,
+  permit_cost numeric,
+  marketing_cost numeric,
+  overhead_cost numeric,
+  contingency_percent numeric,
+  -- revenue
+  selling_price_per_unit numeric,
+  total_units integer,
+  booking_fee_per_unit numeric,
+  sales_per_month integer,
+  kpr_percent numeric,
+  cash_hard_percent numeric,
+  cash_installment_percent numeric,
+  -- hasil kalkulasi
+  total_revenue numeric,
+  total_cost numeric,
+  gross_profit numeric,
+  margin numeric,
+  roi numeric,
+  irr numeric,
+  npv numeric,
+  payback_period integer,
+  bep_units integer,
+  risk_score numeric,
+  recommendation text,
+  created_at timestamptz
+)
+
+-- Milestone timeline
+project_milestones (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  phase text, -- akuisisi, perencanaan, legal, marketing, konstruksi, administrasi, serah_terima
+  task_name text,
+  target_date date,
+  actual_date date,
+  status text, -- belum_mulai, berjalan, selesai, terlambat
+  progress_percent integer,
+  notes text,
+  created_at timestamptz
+)
+
+-- Cashflow bulanan
+cashflow_entries (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  month_number integer,
+  month_date date,
+  -- cash out
+  land_cost_out numeric DEFAULT 0,
+  construction_cost_out numeric DEFAULT 0,
+  marketing_cost_out numeric DEFAULT 0,
+  operational_cost_out numeric DEFAULT 0,
+  kpp_installment_out numeric DEFAULT 0,
+  -- cash in
+  booking_fee_in numeric DEFAULT 0,
+  ht_kpr_in numeric DEFAULT 0,
+  down_payment_in numeric DEFAULT 0,
+  kpp_disbursement_in numeric DEFAULT 0,
+  created_at timestamptz
+)
+
+-- KPP
+kpp_data (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  bank_name text,
+  approved_amount numeric,
+  disbursement_date_1 date,
+  disbursement_date_2 date,
+  disbursement_date_3 date,
+  interest_rate numeric,
+  tenure_months integer,
+  admin_fee numeric,
+  created_at timestamptz
+)
+
+-- Realisasi HT (akad)
+ht_realizations (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  buyer_name text,
+  unit_number text,
+  akad_date date,
+  ht_amount numeric,
+  kpr_bank text,
+  ht_status text, -- proses, cair, ditolak
+  ht_disbursement_date date,
+  created_at timestamptz
+)
+
+-- SDM
+sdm_capacity (
+  id uuid PRIMARY KEY,
+  site_managers integer,
+  supervisors integer,
+  workers integer,
+  workers_per_unit numeric,
+  units_per_manager integer,
+  updated_at timestamptz
+)
+
+-- Land bank
+land_bank (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  name text,
+  status text, -- selesai, aktif, land_bank, negosiasi, belum_ada
+  land_area numeric,
+  available_units integer,
+  acquisition_price numeric,
+  target_start_date date,
+  notes text,
+  created_at timestamptz
+)
+
+-- Expansion scenarios
+expansion_scenarios (
+  id uuid PRIMARY KEY,
+  scenario_name text,
+  description text,
+  estimated_roi numeric,
+  risk_score numeric,
+  cashflow_impact text,
+  created_at timestamptz
+)
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+1. **Sidebar nested:** Saat klik menu Perencanaan di sidebar utama, tampilkan sub-menu nested (collapsible). Sub-menu yang memiliki sub-item lagi tampilkan sebagai group dengan indentasi.
+
+2. **Breadcrumb:** Setiap halaman menampilkan breadcrumb: `Perencanaan > [Sub-menu] > [Halaman]`
+
+3. **Project context selector:** Di bagian atas setiap halaman yang membutuhkan `project_id`, tampilkan dropdown selector proyek. Setelah proyek dipilih, semua tab/sub-halaman dalam modul tersebut menggunakan proyek yang sama.
+
+4. **Auto-fill antar modul:** Data yang sudah diinput di modul sebelumnya harus otomatis mengisi field yang relevan di modul berikutnya (contoh: harga tanah dari Analisis Lahan otomatis mengisi HPP di Feasibility Engine).
+
+5. **Status indicator:** Setiap sub-menu di sidebar menampilkan dot indicator: abu-abu (belum ada data), kuning (data parsial), hijau (data lengkap).
+
+6. **Responsive:** Dashboard ini digunakan di desktop dan tablet (minimal 768px).
+
+7. **Loading states:** Semua kalkulasi berat tampilkan loading skeleton, bukan blank screen.
+
+8. **Empty states:** Setiap halaman yang belum ada data tampilkan ilustrasi + tombol CTA untuk mulai input.
+
+9. **Warna status standar Satara:**
+   - Hijau: on track, lolos standar, nilai bagus
+   - Kuning / amber: perlu perhatian, mendekati batas
+   - Merah: bermasalah, tidak lolos standar, delay signifikan
+
+10. **Number formatting:** Semua angka rupiah menggunakan format `Rp 1.250.000.000` (titik sebagai pemisah ribuan). Persentase dengan 1 desimal. Tidak ada floating point artifacts.
+
+---
+
+## URUTAN PENGERJAAN YANG DISARANKAN
+
+Kerjakan dalam urutan ini agar setiap tahap sudah bisa digunakan:
+
+1. Setup routing dan struktur folder untuk semua halaman Perencanaan
+2. Buat database schema di Supabase (semua tabel sekaligus)
+3. Command Center (shell dulu, data akan terisi setelah modul lain selesai)
+4. Feasibility Engine (5a, 5b, 5c, 5d) — ini modul paling sering dipakai
+5. Cashflow & KPP (7a sampai 7f)
+6. Timeline SPTIS (6a sampai 6d)
+7. Analisis Pasar (2a sampai 2d)
+8. Analisis Lahan + Perencanaan Produk (3 dan 4)
+9. Sumber Daya + Land Bank & Ekspansi (8 dan 9)
+10. Polish Command Center dengan data agregasi dari semua modul
+
+---
+
+## CATATAN PENTING
+
+- Semua kalkulasi finansial harus akurat. Gunakan library `decimal.js` atau pastikan tidak ada floating point error untuk kalkulasi rupiah.
+- IRR dihitung menggunakan metode Newton-Raphson atau binary search (bukan estimasi).
+- NPV dihitung dengan discount rate yang bisa diubah di Settings.
+- Gantt chart di Master Timeline bisa menggunakan library `react-gantt-chart` atau `@dhx/trial-react-gantt` atau implementasi custom dengan Recharts.
+- Untuk export PDF di CEO Decision Report, gunakan `react-pdf` atau `html2canvas` + `jsPDF`.
+- Semua tanggal menggunakan format `DD MMMM YYYY` (contoh: 15 Januari 2026).
+- Semua teks UI dalam Bahasa Indonesia.
