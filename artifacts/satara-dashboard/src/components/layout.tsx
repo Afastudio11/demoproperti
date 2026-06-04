@@ -143,7 +143,7 @@ function DashboardSidebar() {
                                 className="h-6 pl-5"
                               >
                                 <Link href={sub.path}>
-                                  <sub.icon className="size-3" />
+                                  <span className={`size-1.5 rounded-full shrink-0 ${isSubActive ? "bg-foreground" : "bg-muted-foreground/50"}`} />
                                   <span className="text-xs">{sub.name}</span>
                                 </Link>
                               </SidebarMenuButton>
