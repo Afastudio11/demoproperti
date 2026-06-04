@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Layers, ChevronRight } from "lucide-react";
@@ -111,6 +111,36 @@ const POTENTIAL_THRESHOLDS_DESA = [1,    3,   8,  16,  30];
 const POTENTIAL_COLORS = ["#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#1e3a8a", "#0f172a"];
 const POTENTIAL_LABELS = ["Sangat Sedikit", "Sedikit", "Sedang", "Banyak", "Sangat Banyak", "Padat Sekali"];
 
+// ─── Expansion layer types & colors ───────────────────────────────────────────
+
+export interface ExpansionEntry {
+  kabupaten: string;
+  tahun: number;
+  estimasi_investasi?: string;
+  target_unit?: number;
+  kecamatan_prioritas?: string[];
+  alasan?: string;
+}
+
+interface ExpansionInfo {
+  year: number;
+  investasi?: string;
+  units?: number;
+  alasan?: string;
+  kecamatan?: string[];
+}
+
+const EXPANSION_YEAR_COLORS: Record<number, string> = {
+  1: "#16a34a",
+  2: "#2563eb",
+  3: "#7c3aed",
+  4: "#d97706",
+  5: "#dc2626",
+};
+const EXPANSION_YEAR_TAHUN: Record<number, string> = {
+  1: "2026", 2: "2027", 3: "2028", 4: "2029", 5: "2030",
+};
+
 function _thresholds(level: number) {
   if (level === 0) return POTENTIAL_THRESHOLDS_KAB;
   if (level === 1) return POTENTIAL_THRESHOLDS_KEC;
@@ -164,11 +194,13 @@ interface DrillState { level: DrillLevel; kab: string | null; kec: string | null
 
 // ─── AdminDrillLayer ──────────────────────────────────────────────────────────
 
-function AdminDrillLayer({ drill, onDrill, onLoadingChange, onKabGeoClick }: {
+function AdminDrillLayer({ drill, onDrill, onLoadingChange, onKabGeoClick, expansionMap, expansionMode }: {
   drill: DrillState;
   onDrill: (next: DrillState) => void;
   onLoadingChange: (loading: boolean) => void;
   onKabGeoClick?: (kabName: string) => void;
+  expansionMap?: Map<string, ExpansionInfo> | null;
+  expansionMode?: boolean;
 }) {
   const map = useMap();
   const geoRef = useRef<L.GeoJSON | null>(null);
@@ -176,9 +208,13 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange, onKabGeoClick }: {
   const onDrillRef = useRef(onDrill);
   const onLoadingRef = useRef(onLoadingChange);
   const onKabGeoClickRef = useRef(onKabGeoClick);
+  const expansionMapRef = useRef(expansionMap);
+  const expansionModeRef = useRef(expansionMode);
   useEffect(() => { onDrillRef.current = onDrill; }, [onDrill]);
   useEffect(() => { onLoadingRef.current = onLoadingChange; }, [onLoadingChange]);
   useEffect(() => { onKabGeoClickRef.current = onKabGeoClick; }, [onKabGeoClick]);
+  useEffect(() => { expansionMapRef.current = expansionMap; }, [expansionMap]);
+  useEffect(() => { expansionModeRef.current = expansionMode; }, [expansionMode]);
 
   useEffect(() => {
     geoRef.current?.remove(); geoRef.current = null;
@@ -233,9 +269,17 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange, onKabGeoClick }: {
         countByKey[key] = competitorCount(key, drillSnapshot.level, drillSnapshot.kab, drillSnapshot.kec);
       }
 
+      const isExpMode = expansionModeRef.current && !!expansionMapRef.current && drillSnapshot.level === 0;
+
       const geo = L.geoJSON({ type: "FeatureCollection", features } as GeoJSON.FeatureCollection, {
         style(feature) {
           const key = (feature?.properties as any)?.[gk] ?? "";
+          if (isExpMode) {
+            const normKey = normGeoKab(key);
+            const exp = expansionMapRef.current!.get(normKey);
+            const color = exp ? (EXPANSION_YEAR_COLORS[exp.year] ?? "#9ca3af") : "#d1d5db";
+            return { color: "#fff", weight: 1.5, opacity: 0.8, fillColor: color, fillOpacity: 0.65 };
+          }
           const count = countByKey[key] ?? 0;
           const color = potentialColor(count, drillSnapshot.level);
           return { color: "#fff", weight: wBase, opacity: 0.6, fillColor: color, fillOpacity: foBase };
@@ -247,19 +291,45 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange, onKabGeoClick }: {
           const label = potentialLabel(count, drillSnapshot.level);
           const levelName = drillSnapshot.level === 0 ? "Kabupaten" : drillSnapshot.level === 1 ? "Kecamatan" : "Desa";
 
+          let tooltipHtml: string;
+          if (isExpMode) {
+            const normKey = normGeoKab(key);
+            const exp = expansionMapRef.current!.get(normKey);
+            if (exp) {
+              const expColor = EXPANSION_YEAR_COLORS[exp.year] ?? "#9ca3af";
+              const tahun = EXPANSION_YEAR_TAHUN[exp.year] ?? String(exp.year);
+              tooltipHtml = `
+                <div style="font-family:sans-serif;font-size:11px;line-height:1.5;min-width:180px">
+                  <div style="font-weight:700;margin-bottom:2px">${key}</div>
+                  <div style="color:#6b7280;font-size:10px">Kabupaten</div>
+                  <div style="margin-top:5px;display:flex;align-items:center;gap:6px">
+                    <span style="background:${expColor};width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15);flex-shrink:0"></span>
+                    <span style="font-weight:700">Prioritas ${exp.year} — ${tahun}</span>
+                  </div>
+                  ${exp.investasi ? `<div style="font-size:10px;color:#374151;margin-top:3px">Investasi: <strong>${exp.investasi}</strong></div>` : ""}
+                  ${exp.units ? `<div style="font-size:10px;color:#374151">Target unit: <strong>${exp.units}</strong></div>` : ""}
+                  ${exp.kecamatan?.length ? `<div style="font-size:10px;color:#6b7280;margin-top:2px">Kec. prioritas: ${exp.kecamatan.slice(0, 2).join(", ")}</div>` : ""}
+                  ${exp.alasan ? `<div style="font-size:10px;color:#6b7280;margin-top:3px;max-width:200px">${exp.alasan.slice(0, 90)}${exp.alasan.length > 90 ? "…" : ""}</div>` : ""}
+                </div>`;
+            } else {
+              tooltipHtml = `<div style="font-family:sans-serif;font-size:11px;line-height:1.5;min-width:160px"><div style="font-weight:700">${key}</div><div style="font-size:10px;color:#9ca3af;margin-top:3px">Tidak dalam roadmap ekspansi</div></div>`;
+            }
+          } else {
+            tooltipHtml = `
+              <div style="font-family:sans-serif;font-size:11px;line-height:1.5;min-width:160px">
+                <div style="font-weight:700;margin-bottom:2px">${key}</div>
+                <div style="color:#6b7280;font-size:10px">${levelName}</div>
+                <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
+                  <span style="background:${potentialColor(count, drillSnapshot.level)};width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15)"></span>
+                  <span style="font-weight:600">${label}</span>
+                </div>
+                <div style="color:#6b7280;font-size:10px;margin-top:2px">${count} perumahan terdaftar</div>
+              </div>`;
+          }
+
           const tooltip = L.tooltip({
             permanent: false, sticky: true, opacity: 0.97, className: "leaflet-potential-tooltip",
-          }).setContent(`
-            <div style="font-family:sans-serif;font-size:11px;line-height:1.5;min-width:160px">
-              <div style="font-weight:700;margin-bottom:2px">${key}</div>
-              <div style="color:#6b7280;font-size:10px">${levelName}</div>
-              <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
-                <span style="background:${potentialColor(count, drillSnapshot.level)};width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15)"></span>
-                <span style="font-weight:600">${label}</span>
-              </div>
-              <div style="color:#6b7280;font-size:10px;margin-top:2px">${count} perumahan terdaftar</div>
-            </div>
-          `);
+          }).setContent(tooltipHtml);
           lyr.bindTooltip(tooltip);
 
           lyr.on("mouseover", () => {
@@ -314,7 +384,9 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange, onKabGeoClick }: {
     });
 
     return () => { abortCtrl.abort(); };
-  }, [drill.level, drill.kab, drill.kec, map]);
+  // expansionMode added so layer redraws when toggled
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drill.level, drill.kab, drill.kec, map, expansionMode]);
 
   useEffect(() => () => {
     geoRef.current?.remove(); lblRef.current?.remove();
@@ -338,15 +410,34 @@ interface SLISCompetitorMapProps {
   selectedKab: KabupatenScore | null;
   onKabSelect: (kab: KabupatenScore) => void;
   flyTo: { lat: number; lng: number } | null;
+  expansionData?: ExpansionEntry[] | null;
 }
 
-export function SLISCompetitorMap({ selectedKab, onKabSelect, flyTo }: SLISCompetitorMapProps) {
+export function SLISCompetitorMap({ selectedKab, onKabSelect, flyTo, expansionData }: SLISCompetitorMapProps) {
   const [layer, setLayer] = useState<LayerKey>("topo");
   const [showAdmin, setShowAdmin] = useState(true);
+  const [expansionMode, setExpansionMode] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminDrill, setAdminDrill] = useState<DrillState>({ level: 0, kab: null, kec: null });
 
   const tile = TILE_LAYERS[layer];
+
+  // Build expansion map: normalized kabupaten name → ExpansionInfo
+  const expansionMap = useMemo<Map<string, ExpansionInfo> | null>(() => {
+    if (!expansionData?.length) return null;
+    const map = new Map<string, ExpansionInfo>();
+    expansionData.forEach((e, idx) => {
+      const key = normGeoKab(e.kabupaten);
+      map.set(key, {
+        year: idx + 1,
+        investasi: e.estimasi_investasi,
+        units: e.target_unit,
+        alasan: e.alasan,
+        kecamatan: e.kecamatan_prioritas,
+      });
+    });
+    return map;
+  }, [expansionData]);
 
   function handleKabGeoClick(kabName: string) {
     const norm = kabName.toUpperCase().replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "").trim();
@@ -380,7 +471,7 @@ export function SLISCompetitorMap({ selectedKab, onKabSelect, flyTo }: SLISCompe
           onClick={() => {
             const next = !showAdmin;
             setShowAdmin(next);
-            if (!next) setAdminDrill({ level: 0, kab: null, kec: null });
+            if (!next) { setAdminDrill({ level: 0, kab: null, kec: null }); setExpansionMode(false); }
           }}
           className={cn(
             "flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition-colors",
@@ -393,6 +484,19 @@ export function SLISCompetitorMap({ selectedKab, onKabSelect, flyTo }: SLISCompe
           }
           Peta Kompetitor
         </button>
+
+        {showAdmin && expansionMap && (
+          <button
+            onClick={() => setExpansionMode(prev => !prev)}
+            className={cn(
+              "flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition-colors",
+              expansionMode ? "bg-amber-500 text-white border-amber-500" : "bg-card text-muted-foreground border-border"
+            )}
+          >
+            <span className={cn("w-2 h-2 rounded-full flex-shrink-0 inline-block", expansionMode ? "bg-white" : "bg-amber-400")} />
+            Potensi Ekspansi
+          </button>
+        )}
 
         {showAdmin && adminDrill.kab && (
           <div className="flex items-center gap-1 text-[11px] bg-muted/60 border rounded-lg px-2 py-1">
@@ -421,28 +525,49 @@ export function SLISCompetitorMap({ selectedKab, onKabSelect, flyTo }: SLISCompe
 
       {/* Map container */}
       <div className="flex-1 bg-card border rounded-xl overflow-hidden relative" style={{ minHeight: 0 }}>
-        {/* Legend competitor */}
+        {/* Legend competitor / expansion */}
         {showAdmin && (
           <div className="absolute bottom-6 left-3 z-[1000] bg-white/95 border border-gray-200 rounded-lg shadow-lg px-3 py-2.5 text-[10px] pointer-events-none">
-            <div className="font-semibold text-gray-700 mb-1.5 text-[11px]">Kepadatan Kompetitor</div>
-            {[
-              { color: "#dbeafe", label: "Sangat Sedikit" },
-              { color: "#93c5fd", label: "Sedikit" },
-              { color: "#3b82f6", label: "Sedang" },
-              { color: "#1d4ed8", label: "Banyak" },
-              { color: "#1e3a8a", label: "Sangat Banyak" },
-              { color: "#0f172a", label: "Padat Sekali" },
-              { color: "#6b7280", label: "Belum ada data" },
-            ].map(({ color, label }) => (
-              <div key={label} className="flex items-center gap-1.5 py-0.5">
-                <span style={{ background: color, width: 10, height: 10, borderRadius: 2, display: "inline-block", border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
-                <span className="text-gray-600">{label}</span>
-              </div>
-            ))}
-            <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-[9px] text-gray-400">
-              {adminDrill.level === 0 ? "Per Kabupaten (≤10 / ≤30 / ≤80 / …)" : adminDrill.level === 1 ? "Per Kecamatan (≤3 / ≤8 / ≤20 / …)" : "Per Kelurahan/Desa (≤1 / ≤3 / ≤8 / …)"}
-              {" "}&bull; {_slisKabCountMap.size > 0 ? `${Array.from(_slisKabCountMap.values()).reduce((a, b) => a + b, 0).toLocaleString("id-ID")} perumahan` : ""}
-            </div>
+            {expansionMode && expansionMap ? (
+              <>
+                <div className="font-semibold text-gray-700 mb-1.5 text-[11px]">Roadmap Ekspansi</div>
+                {([1, 2, 3, 4, 5] as const).map(yr => (
+                  <div key={yr} className="flex items-center gap-1.5 py-0.5">
+                    <span style={{ background: EXPANSION_YEAR_COLORS[yr], width: 10, height: 10, borderRadius: 2, display: "inline-block", border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                    <span className="text-gray-600">Prioritas {yr} — {EXPANSION_YEAR_TAHUN[yr]}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-1.5 py-0.5">
+                  <span style={{ background: "#d1d5db", width: 10, height: 10, borderRadius: 2, display: "inline-block", border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                  <span className="text-gray-500">Tidak diprioritaskan</span>
+                </div>
+                <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-[9px] text-gray-400">
+                  Berdasarkan analisis AI Roadmap Ekspansi
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="font-semibold text-gray-700 mb-1.5 text-[11px]">Kepadatan Kompetitor</div>
+                {[
+                  { color: "#dbeafe", label: "Sangat Sedikit" },
+                  { color: "#93c5fd", label: "Sedikit" },
+                  { color: "#3b82f6", label: "Sedang" },
+                  { color: "#1d4ed8", label: "Banyak" },
+                  { color: "#1e3a8a", label: "Sangat Banyak" },
+                  { color: "#0f172a", label: "Padat Sekali" },
+                  { color: "#6b7280", label: "Belum ada data" },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-1.5 py-0.5">
+                    <span style={{ background: color, width: 10, height: 10, borderRadius: 2, display: "inline-block", border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                    <span className="text-gray-600">{label}</span>
+                  </div>
+                ))}
+                <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-[9px] text-gray-400">
+                  {adminDrill.level === 0 ? "Per Kabupaten (≤10 / ≤30 / ≤80 / …)" : adminDrill.level === 1 ? "Per Kecamatan (≤3 / ≤8 / ≤20 / …)" : "Per Kelurahan/Desa (≤1 / ≤3 / ≤8 / …)"}
+                  {" "}&bull; {_slisKabCountMap.size > 0 ? `${Array.from(_slisKabCountMap.values()).reduce((a, b) => a + b, 0).toLocaleString("id-ID")} perumahan` : ""}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -491,6 +616,8 @@ export function SLISCompetitorMap({ selectedKab, onKabSelect, flyTo }: SLISCompe
               onDrill={setAdminDrill}
               onLoadingChange={setAdminLoading}
               onKabGeoClick={handleKabGeoClick}
+              expansionMap={expansionMap}
+              expansionMode={expansionMode}
             />
           )}
 

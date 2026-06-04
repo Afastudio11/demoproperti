@@ -378,11 +378,19 @@ const SORTED_KAB_WITH_KEC = SORTED_KAB.map(k => ({
   kecamatanTeratas: k.kecamatan?.slice(0, 3).map((kec: KecamatanScore) => kec.name) ?? [],
 }));
 
-function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: string | null; luas: number; hargaM2: number; roi: number; status: string }[] }) {
+const ROADMAP_CACHE_KEY = "satara_expansion_roadmap";
+function loadRoadmapCache(): RoadmapResult | null {
+  try { return JSON.parse(localStorage.getItem(ROADMAP_CACHE_KEY) ?? "null"); } catch { return null; }
+}
+function saveRoadmapCache(r: RoadmapResult): void { localStorage.setItem(ROADMAP_CACHE_KEY, JSON.stringify(r)); }
+
+function RoadmapPanel({ prospects, result, onResult }: {
+  prospects: { lokasi: string; kabupaten?: string | null; luas: number; hargaM2: number; roi: number; status: string }[];
+  result: RoadmapResult | null;
+  onResult: (r: RoadmapResult) => void;
+}) {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<RoadmapResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const generated = useRef(false);
 
   async function generate() {
     setLoading(true);
@@ -399,7 +407,9 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Gagal menghubungi AI");
-      setResult(await res.json());
+      const data = await res.json() as RoadmapResult;
+      onResult(data);
+      saveRoadmapCache(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Terjadi kesalahan");
     } finally {
@@ -407,8 +417,10 @@ function RoadmapPanel({ prospects }: { prospects: { lokasi: string; kabupaten?: 
     }
   }
 
+  // Auto-generate hanya jika belum ada hasil (cache habis)
   useEffect(() => {
-    if (!generated.current) { generated.current = true; generate(); }
+    if (!result) generate();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const YEAR_COLORS = ["bg-emerald-600", "bg-blue-600", "bg-slate-600", "bg-amber-600", "bg-orange-600"];
@@ -622,6 +634,7 @@ type Panel = "list" | "kab" | "kec" | "desa";
 
 export default function SLIS() {
   const { data: prospects } = useListLandProspects({});
+  const [roadmapResult, setRoadmapResult] = useState<RoadmapResult | null>(loadRoadmapCache);
   const [activeTab, setActiveTab] = useState<"heatmap" | "ranking" | "roadmap" | "tanya-ai">("heatmap");
   const [panel, setPanel] = useState<Panel>("list");
   const [selectedKab, setSelectedKab] = useState<KabupatenScore | null>(null);
@@ -763,6 +776,7 @@ export default function SLIS() {
             selectedKab={selectedKab}
             onKabSelect={selectKab}
             flyTo={flyTo}
+            expansionData={roadmapResult?.roadmap ?? null}
           />
         </div>
       )}
@@ -848,14 +862,18 @@ export default function SLIS() {
       {/* ── ROADMAP AI TAB ── */}
       {activeTab === "roadmap" && (
         <div className="bg-card border rounded-xl p-4">
-          <RoadmapPanel prospects={(prospects ?? []).map(p => ({
-            lokasi: p.lokasi,
-            kabupaten: p.kabupaten,
-            luas: p.luas,
-            hargaM2: p.hargaM2,
-            roi: p.roi,
-            status: p.status,
-          }))} />
+          <RoadmapPanel
+            result={roadmapResult}
+            onResult={setRoadmapResult}
+            prospects={(prospects ?? []).map(p => ({
+              lokasi: p.lokasi,
+              kabupaten: p.kabupaten,
+              luas: p.luas,
+              hargaM2: p.hargaM2,
+              roi: p.roi,
+              status: p.status,
+            }))}
+          />
         </div>
       )}
 
