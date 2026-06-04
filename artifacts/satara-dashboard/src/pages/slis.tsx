@@ -674,15 +674,7 @@ export default function SLIS() {
   return (
     <div className="h-full flex flex-col space-y-4">
       {/* Page header */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-            SLIS — Scoring Engine
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Kabupaten · Kecamatan · Desa — Sulawesi Selatan
-          </p>
-        </div>
+      <div className="flex items-start justify-end gap-3 flex-wrap">
         <div className="flex rounded-lg border bg-muted p-0.5 text-xs font-medium">
           {TABS.map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => setActiveTab(key)}

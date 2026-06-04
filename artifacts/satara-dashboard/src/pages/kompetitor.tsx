@@ -575,13 +575,7 @@ export default function KompetitorPage() {
     <div className="h-full flex flex-col gap-4">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Data Kompetitor</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Perumahan Sulawesi Selatan · per Wilayah · Import Excel
-          </p>
-        </div>
+      <div className="flex items-start justify-end gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={downloadTemplate}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border hover:bg-muted transition-colors">
