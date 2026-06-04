@@ -420,17 +420,21 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
     function stripKab(s: string) { return s.replace(/^(kabupaten|kota|kab\.?)\s+/i, "").trim(); }
 
     Promise.all([
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
       fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=13&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
       fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
     ])
-      .then(([r13, r10]) => Promise.all([r13.json(), r10.json()]))
-      .then(([a13, a10]) => {
-        const kelurahan = a13.address?.village || a13.address?.hamlet || a13.address?.suburb || a13.address?.neighbourhood || "";
-        const kecRaw = a13.address?.city_district || a13.address?.district
+      .then(([r16, r13, r10]) => Promise.all([r16.json(), r13.json(), r10.json()]))
+      .then(([a16, a13, a10]) => {
+        const kelurahan = a16.address?.village || a16.address?.hamlet || a16.address?.suburb || a16.address?.neighbourhood
+          || a13.address?.village || a13.address?.hamlet || a13.address?.suburb || a13.address?.neighbourhood || "";
+        const kecRaw = a16.address?.city_district || a16.address?.district
+          || a13.address?.city_district || a13.address?.district
           || a10.address?.city_district || a10.address?.district || "";
         const kecamatan = stripKec(kecRaw);
         const kabRaw = a10.address?.county || a10.address?.state_district || a10.address?.municipality || a10.address?.city
-          || a13.address?.county || a13.address?.state_district || a13.address?.municipality || a13.address?.city || "";
+          || a13.address?.county || a13.address?.state_district || a13.address?.municipality || a13.address?.city
+          || a16.address?.county || a16.address?.state_district || "";
         const kabupaten = stripKab(kabRaw);
         setForm(f => ({
           ...f,

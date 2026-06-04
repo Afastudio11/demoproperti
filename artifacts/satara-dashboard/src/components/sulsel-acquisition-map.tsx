@@ -603,28 +603,34 @@ function stripKabPrefix(s: string): string {
 
 async function reverseGeocode(lat: number, lng: number) {
   try {
-    // Dua request paralel: zoom=13 untuk kecamatan, zoom=10 untuk kabupaten
-    const [r13, r10] = await Promise.all([
+    // Tiga request paralel: zoom=16 (detail tinggi), zoom=13, zoom=10 (kabupaten)
+    const [r16, r13, r10] = await Promise.all([
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
       fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=13&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
       fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`, { headers: { "Accept-Language": "id" } }),
     ]);
-    const [d13, d10] = await Promise.all([r13.json(), r10.json()]);
+    const [d16, d13, d10] = await Promise.all([r16.json(), r13.json(), r10.json()]);
+    const a16 = d16.address || {};
     const a13 = d13.address || {};
     const a10 = d10.address || {};
 
-    // Kelurahan/desa: dari zoom fine level
-    const kelurahan = a13.village || a13.hamlet || a13.suburb || a13.neighbourhood || "";
+    // Kelurahan/desa: zoom=16 paling detail
+    const kelurahan = a16.village || a16.hamlet || a16.suburb || a16.neighbourhood
+      || a13.village || a13.hamlet || a13.suburb || a13.neighbourhood || "";
 
-    // Kecamatan: city_district (perkotaan) atau district (pedesaan) — JANGAN municipality/city (itu level kab)
-    const kecRaw = a13.city_district || a13.district || a10.city_district || a10.district || "";
+    // Kecamatan: zoom=16 district paling akurat untuk area pedesaan Sulsel
+    const kecRaw = a16.city_district || a16.district
+      || a13.city_district || a13.district
+      || a10.city_district || a10.district || "";
     const kecamatan = stripKecPrefix(kecRaw);
 
-    // Kabupaten: county > state_district > municipality > city dari zoom coarse lebih akurat
+    // Kabupaten: county dari zoom coarse paling akurat
     const kabRaw = a10.county || a10.state_district || a10.municipality || a10.city
-      || a13.county || a13.state_district || a13.municipality || a13.city || "";
+      || a13.county || a13.state_district || a13.municipality || a13.city
+      || a16.county || a16.state_district || "";
     const kabupaten = stripKabPrefix(kabRaw);
 
-    const lokasi = d13.display_name?.split(",").slice(0, 3).join(", ") ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const lokasi = d16.display_name?.split(",").slice(0, 3).join(", ") ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     return { lokasi, kelurahan, kecamatan, kabupaten };
   } catch {
     return { lokasi: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, kelurahan: "", kecamatan: "", kabupaten: "" };
