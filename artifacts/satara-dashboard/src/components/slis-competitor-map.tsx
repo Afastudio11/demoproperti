@@ -42,7 +42,7 @@ const _slisDesaCacheRef: { current: { url: string; data: GeoJSON.FeatureCollecti
 function normalizeDesaGeoJson(data: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
   const features = data.features.map(f => {
     if (!f.geometry || f.geometry.type !== "Polygon") return f;
-    const coords = f.geometry.coordinates as number[][][][];
+    const coords = f.geometry.coordinates as unknown as number[][][][];
     if (
       Array.isArray(coords[0]) &&
       Array.isArray(coords[0][0]) &&

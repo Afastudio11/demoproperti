@@ -3,7 +3,7 @@ import { useListLandProspects } from "@workspace/api-client-react";
 import type { LandProspect } from "@workspace/api-client-react";
 import {
   CheckCircle2, Map, X,
-  FileText, ClipboardList, ArrowRight, BrainCircuit,
+  FileText, ClipboardList, BrainCircuit,
   Loader2,
   Building2, Radio, Download, Database, BarChart3,
 } from "lucide-react";
@@ -267,7 +267,13 @@ function ProspectDetailPanel({
   const [aiResult, setAiResult] = useState<AiResult | null>(() => loadAiResult(prospect.id));
   const [fullAiResult, setFullAiResult] = useState<Record<string, unknown> | null>(() => loadFullAiResult(prospect.id));
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "kompetitor" | "rekomendasi">("ringkasan");
+  const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "kompetitor" | "rekomendasi" | "simulasi">("ringkasan");
+
+  const SIM_KEY = `satara_sim_${prospect.id}`;
+  const [simInputs, setSimInputs] = useState<{ modalAwal: string; hargaJual: string; biayaPerUnit: string; reinvestPct: string }>(() => {
+    try { const s = localStorage.getItem(SIM_KEY); if (s) return JSON.parse(s); } catch {}
+    return { modalAwal: "", hargaJual: "", biayaPerUnit: "", reinvestPct: "100" };
+  });
 
   const [survey, setSurvey] = useState<SurveyData>(() => loadSurvey(prospect.id));
   const [aksesJalanDraft, setAksesJalanDraft] = useState<number | null>(prospect.aksesJalan ?? null);
@@ -559,6 +565,21 @@ function ProspectDetailPanel({
       bentukLahan: survey.bentukLahan,
       statusLegal: survey.statusLegal,
       survey,
+      simInputs: (() => {
+        try {
+          const s = localStorage.getItem(SIM_KEY);
+          if (s) {
+            const p = JSON.parse(s) as Record<string, string>;
+            const modal = parseFloat(p.modalAwal) || 0;
+            const jual = parseFloat(p.hargaJual) || 0;
+            const biaya = parseFloat(p.biayaPerUnit) || 0;
+            if (modal > 0 && jual > 0 && biaya > 0) {
+              return { modalAwal: modal, hargaJual: jual, biayaPerUnit: biaya, reinvestPct: parseFloat(p.reinvestPct) || 100 };
+            }
+          }
+        } catch {}
+        return null;
+      })(),
     };
   }
 
@@ -606,16 +627,6 @@ function ProspectDetailPanel({
               <div className="text-[9px] text-muted-foreground leading-none mb-0.5">Progress</div>
               <div className="text-[11px] font-semibold">{Math.round((totalChecked / totalItems) * 100)}%</div>
             </div>
-          )}
-          {nextStage && nextStage !== "ditolak" && (
-            <button
-              disabled={advancing}
-              onClick={() => onAdvanceStage(prospect.id, nextStage)}
-              className="flex items-center gap-1.5 text-[11px] font-semibold py-1.5 px-3 rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50 shrink-0"
-            >
-              <ArrowRight className="size-3.5" />
-              Naikan ke {nextStageLabel}
-            </button>
           )}
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground ml-1">
             <X className="size-4" />
@@ -921,6 +932,7 @@ function ProspectDetailPanel({
             { key: "finansial" as const, label: "Finansial" },
             { key: "kompetitor" as const, label: "Kompetitor" },
             { key: "rekomendasi" as const, label: "Rekomendasi" },
+            { key: "simulasi" as const, label: "Simulasi" },
           ];
           return (
             <div className="space-y-2.5">
@@ -1126,13 +1138,13 @@ function ProspectDetailPanel({
               {/* Tab: Lokasi & Fisik */}
               {aiTab === "lokasi" && (
                 <div className="space-y-2">
-                  {ai?.analisisLokasi && (
+                  {!!ai?.analisisLokasi && (
                     <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
                       <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Analisis Lokasi</div>
                       <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{String(ai.analisisLokasi)}</p>
                     </div>
                   )}
-                  {ai?.analisisFisikLahan && (
+                  {!!ai?.analisisFisikLahan && (
                     <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5">
                       <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Analisis Fisik Lahan</div>
                       <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{String(ai.analisisFisikLahan)}</p>
@@ -1236,7 +1248,7 @@ function ProspectDetailPanel({
                     ))}
                   </div>
                   <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
-                    <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-2">Breakdown per Unit ({up?.tipeLabel})</div>
+                    <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider mb-2">Breakdown per Unit ({String(up?.tipeLabel ?? "")})</div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                       {[
                         { l: "Harga Jual/Unit", v: fmtRp(fin.hargaJualFinal) + (fin.usingDefaultHargaJual ? " (default)" : "") },
@@ -1277,35 +1289,19 @@ function ProspectDetailPanel({
                   <div className="space-y-2">
                     {/* Level summary */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className={cn("border rounded-lg px-2.5 py-2",
-                        kecLen === 0 && ak?.kompetitorKecamatan ? "bg-amber-50 border-amber-200" : "bg-background"
-                      )}>
+                      <div className="border rounded-lg px-2.5 py-2 bg-background">
                         <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Kompetitor di Kecamatan</div>
                         <div className="flex items-end gap-1.5 mt-0.5">
                           <span className="text-[15px] font-bold">{kecLen}</span>
-                          {kecLen === 0 && ak?.kompetitorKecamatan && (
-                            <span className="text-[9px] text-amber-600 font-medium mb-0.5">+AI</span>
-                          )}
                         </div>
                         <div className="text-[9px] text-muted-foreground">{prospect.kecamatan ?? "—"}</div>
-                        {kecLen === 0 && ak?.kompetitorKecamatan && (
-                          <div className="text-[8px] text-amber-600 mt-0.5">tidak ada di database lokal; AI temukan lebih</div>
-                        )}
                       </div>
-                      <div className={cn("border rounded-lg px-2.5 py-2",
-                        kabLen === 0 && ak?.kompetitorKabupaten ? "bg-amber-50 border-amber-200" : "bg-background"
-                      )}>
+                      <div className="border rounded-lg px-2.5 py-2 bg-background">
                         <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Kompetitor di Kabupaten</div>
                         <div className="flex items-end gap-1.5 mt-0.5">
                           <span className="text-[15px] font-bold">{kabLen}</span>
-                          {kabLen === 0 && ak?.kompetitorKabupaten && (
-                            <span className="text-[9px] text-amber-600 font-medium mb-0.5">+AI</span>
-                          )}
                         </div>
                         <div className="text-[9px] text-muted-foreground">{prospect.kabupaten ?? "—"}</div>
-                        {kabLen === 0 && ak?.kompetitorKabupaten && (
-                          <div className="text-[8px] text-amber-600 mt-0.5">tidak ada di database lokal; AI temukan lebih</div>
-                        )}
                       </div>
                     </div>
                     {ak?.tingkatPersaingan && (
@@ -1383,7 +1379,7 @@ function ProspectDetailPanel({
               {/* Tab: Rekomendasi */}
               {aiTab === "rekomendasi" && (
                 <div className="space-y-2">
-                  {ai?.rekomendasiNarasi && (
+                  {!!ai?.rekomendasiNarasi && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
                       <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Rekomendasi</div>
                       <p className="text-[11px] text-foreground/80 leading-relaxed whitespace-pre-line">{String(ai.rekomendasiNarasi)}</p>
@@ -1409,6 +1405,196 @@ function ProspectDetailPanel({
                   )}
                 </div>
               )}
+
+              {/* Tab: Simulasi */}
+              {aiTab === "simulasi" && (() => {
+                const finSim = fin as Record<string, number> | undefined;
+                const modalVal = parseFloat(simInputs.modalAwal) || 0;
+                const hargaVal = parseFloat(simInputs.hargaJual) || 0;
+                const biayaVal = parseFloat(simInputs.biayaPerUnit) || 0;
+                const reinvestVal = parseFloat(simInputs.reinvestPct) || 100;
+
+                const fmtSimRp = (n: number) => {
+                  if (!n) return "—";
+                  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)} M`;
+                  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(0)} Jt`;
+                  return `Rp ${n.toLocaleString("id-ID")}`;
+                };
+
+                const phases: { capital: number; units: number; revenue: number; cost: number; profit: number; reinvest: number }[] = [];
+                let cap = modalVal;
+                for (let i = 0; i < 4; i++) {
+                  if (biayaVal <= 0 || cap < biayaVal) break;
+                  const units = Math.floor(cap / biayaVal);
+                  const revenue = units * hargaVal;
+                  const cost = units * biayaVal;
+                  const profit = revenue - cost;
+                  const reinvest = Math.round(profit * reinvestVal / 100);
+                  phases.push({ capital: cap, units, revenue, cost, profit, reinvest });
+                  cap = reinvest;
+                }
+
+                const totalUnits = phases.reduce((s, p) => s + p.units, 0);
+                const totalRevenue = phases.reduce((s, p) => s + p.revenue, 0);
+                const totalProfit = phases.reduce((s, p) => s + p.profit, 0);
+
+                const updateSim = (key: keyof typeof simInputs, val: string) => {
+                  setSimInputs(prev => {
+                    const next = { ...prev, [key]: val };
+                    try { localStorage.setItem(SIM_KEY, JSON.stringify(next)); } catch {}
+                    return next;
+                  });
+                };
+
+                return (
+                  <div className="space-y-3">
+                    {/* Inputs */}
+                    <div className="border rounded-lg px-3 py-2.5 bg-muted/20 space-y-2.5">
+                      <div className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">Parameter Simulasi</div>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <div className="text-[9px] text-muted-foreground mb-1">Modal Awal (Rp)</div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground shrink-0">Rp</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={simInputs.modalAwal}
+                              onChange={e => updateSim("modalAwal", e.target.value.replace(/\D/g, ""))}
+                              placeholder={`${Math.round(prospect.luas * prospect.hargaM2)}`}
+                              className="flex-1 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 min-w-0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-muted-foreground mb-1">
+                            Harga Jual / Unit (Rp)
+                            {finSim?.hargaJualFinal && !simInputs.hargaJual && (
+                              <button className="ml-1 text-[8px] text-blue-600 underline" onClick={() => updateSim("hargaJual", String(Math.round(finSim.hargaJualFinal)))}>
+                                AI: {fmtSimRp(finSim.hargaJualFinal)}
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground shrink-0">Rp</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={simInputs.hargaJual}
+                              onChange={e => updateSim("hargaJual", e.target.value.replace(/\D/g, ""))}
+                              placeholder="200000000"
+                              className="flex-1 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 min-w-0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-muted-foreground mb-1">
+                            Biaya Konstruksi / Unit (Rp)
+                            {finSim?.hppPerUnit && !simInputs.biayaPerUnit && (
+                              <button className="ml-1 text-[8px] text-blue-600 underline" onClick={() => updateSim("biayaPerUnit", String(Math.round(finSim.hppPerUnit)))}>
+                                AI: {fmtSimRp(finSim.hppPerUnit)}
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground shrink-0">Rp</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={simInputs.biayaPerUnit}
+                              onChange={e => updateSim("biayaPerUnit", e.target.value.replace(/\D/g, ""))}
+                              placeholder="130000000"
+                              className="flex-1 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 min-w-0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-muted-foreground mb-1">% Profit Direinvestasi</div>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={simInputs.reinvestPct}
+                              onChange={e => updateSim("reinvestPct", e.target.value)}
+                              className="w-16 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30"
+                            />
+                            <span className="text-[10px] text-muted-foreground">%</span>
+                          </div>
+                        </div>
+                      </div>
+                      {finSim?.hargaJualFinal && (!simInputs.modalAwal || !simInputs.hargaJual || !simInputs.biayaPerUnit) && (
+                        <button
+                          className="text-[10px] text-blue-600 underline"
+                          onClick={() => setSimInputs(prev => {
+                            const next = {
+                              ...prev,
+                              modalAwal: prev.modalAwal || String(Math.round(prospect.luas * prospect.hargaM2)),
+                              hargaJual: prev.hargaJual || String(Math.round(finSim.hargaJualFinal)),
+                              biayaPerUnit: prev.biayaPerUnit || String(Math.round(finSim.hppPerUnit ?? finSim.biayaBangunFinal ?? 0)),
+                            };
+                            try { localStorage.setItem(SIM_KEY, JSON.stringify(next)); } catch {}
+                            return next;
+                          })}
+                        >
+                          Auto-isi dari analisis AI
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Results */}
+                    {phases.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {phases.map((p, i) => (
+                          <div key={i} className="border rounded-lg px-3 py-2 bg-background space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <div className="text-[10px] font-bold">Tahap {i + 1}</div>
+                              <div className="text-[10px] font-semibold text-emerald-600">{p.units} unit dibangun</div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {[
+                                { l: "Modal Masuk", v: fmtSimRp(p.capital) },
+                                { l: "Revenue", v: fmtSimRp(p.revenue) },
+                                { l: "Profit", v: fmtSimRp(p.profit) },
+                                { l: "Reinvestasi", v: fmtSimRp(p.reinvest) },
+                              ].map(({ l, v }) => (
+                                <div key={l}>
+                                  <div className="text-[8px] text-muted-foreground">{l}</div>
+                                  <div className="text-[10px] font-medium">{v}</div>
+                                </div>
+                              ))}
+                            </div>
+                            {i < phases.length - 1 && (
+                              <div className="text-[8px] text-blue-600">
+                                Reinvestasi {fmtSimRp(p.reinvest)} cukup untuk {Math.floor(p.reinvest / biayaVal)} unit di Tahap {i + 2}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <div className="border rounded-lg px-3 py-2 bg-muted/30">
+                          <div className="text-[10px] font-bold mb-1.5">Total {phases.length} Tahap</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { l: "Total Unit", v: `${totalUnits} unit` },
+                              { l: "Total Revenue", v: fmtSimRp(totalRevenue) },
+                              { l: "Total Profit", v: fmtSimRp(totalProfit) },
+                            ].map(({ l, v }) => (
+                              <div key={l} className="border rounded px-2 py-1.5 bg-background text-center">
+                                <div className="text-[8px] text-muted-foreground">{l}</div>
+                                <div className="text-[11px] font-bold">{v}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border rounded-lg px-3 py-5 bg-muted/20 text-center">
+                        <div className="text-[11px] text-muted-foreground">Isi modal awal, harga jual, dan biaya per unit untuk menghitung simulasi</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}

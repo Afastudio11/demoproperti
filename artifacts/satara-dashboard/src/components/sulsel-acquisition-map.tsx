@@ -73,7 +73,7 @@ function normalizeDesaGeoJson(data: GeoJSON.FeatureCollection): GeoJSON.FeatureC
   // where ring = [[lng,lat],...]. Detect by checking if coordinates[0][0][0] is also an array.
   const features = data.features.map(f => {
     if (!f.geometry || f.geometry.type !== "Polygon") return f;
-    const coords = f.geometry.coordinates as number[][][][];
+    const coords = f.geometry.coordinates as unknown as number[][][][];
     // If coords[0][0][0] is an array, we have extra nesting → unwrap one level
     if (
       Array.isArray(coords[0]) &&

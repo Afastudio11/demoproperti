@@ -59,6 +59,13 @@ export interface CompetitorEntry {
   totalUnit?: number;
 }
 
+export interface SimInputs {
+  modalAwal: number;
+  hargaJual: number;
+  biayaPerUnit: number;
+  reinvestPct: number;
+}
+
 export interface DocPayload {
   prospect: LandProspect;
   checkedItems: string[];
@@ -69,6 +76,7 @@ export interface DocPayload {
   competitors?: CompetitorEntry[];
   bentukLahan?: string;
   statusLegal?: string;
+  simInputs?: SimInputs | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -825,6 +833,95 @@ export function generateSiteAnalysis(payload: DocPayload) {
     doc.setTextColor(...GRAY);
     doc.text("Analisis AI belum dijalankan. Klik 'Analisis Ulang' dari panel akuisisi untuk menghasilkan penilaian kelayakan investasi.", 14, y + 6);
     y += 16;
+  }
+
+  // ── 06  Simulasi Pengembangan Bertahap ──────────────────────────────────────
+  {
+    const calcFin2 = (payload.fullAiResult?.calc as Record<string, unknown> | undefined)?.financials as Record<string, number> | undefined;
+    const sim = payload.simInputs ?? (
+      calcFin2?.hargaJualFinal && calcFin2?.hppPerUnit
+        ? {
+            modalAwal: Math.round(prospect.luas * prospect.hargaM2),
+            hargaJual: Math.round(calcFin2.hargaJualFinal),
+            biayaPerUnit: Math.round(calcFin2.hppPerUnit),
+            reinvestPct: 100,
+          }
+        : null
+    );
+
+    if (sim && sim.modalAwal > 0 && sim.hargaJual > 0 && sim.biayaPerUnit > 0) {
+      ensureSpace(36);
+      y = sectionTitle(doc, "06  Simulasi Pengembangan Bertahap", y);
+
+      interface SimPhase { capital: number; units: number; revenue: number; cost: number; profit: number; reinvest: number }
+      const phases: SimPhase[] = [];
+      let cap = sim.modalAwal;
+      for (let i = 0; i < 4; i++) {
+        if (cap < sim.biayaPerUnit) break;
+        const units = Math.floor(cap / sim.biayaPerUnit);
+        const revenue = units * sim.hargaJual;
+        const cost = units * sim.biayaPerUnit;
+        const profit = revenue - cost;
+        const reinvest = Math.round(profit * (sim.reinvestPct / 100));
+        phases.push({ capital: cap, units, revenue, cost, profit, reinvest });
+        cap = reinvest;
+      }
+
+      if (phases.length > 0) {
+        const colW = (W - 28) / 5;
+        const headers = ["Tahap", "Modal Masuk", "Unit", "Revenue", "Profit"];
+        doc.setFillColor(30, 30, 30);
+        doc.rect(14, y, W - 28, 6, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(255, 255, 255);
+        headers.forEach((h, i) => {
+          doc.text(h, 14 + i * colW + colW / 2, y + 4.2, { align: "center" });
+        });
+        y += 6;
+
+        phases.forEach((p, idx) => {
+          const rowH = 7;
+          doc.setFillColor(idx % 2 === 0 ? 248 : 242, idx % 2 === 0 ? 248 : 242, idx % 2 === 0 ? 248 : 242);
+          doc.rect(14, y, W - 28, rowH, "F");
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(...BLACK);
+          const vals = [
+            `Tahap ${idx + 1}`,
+            fmtRp(p.capital),
+            `${p.units} unit`,
+            fmtRp(p.revenue),
+            fmtRp(p.profit),
+          ];
+          vals.forEach((v, i) => {
+            doc.text(v, 14 + i * colW + colW / 2, y + 4.8, { align: "center" });
+          });
+          y += rowH;
+        });
+
+        const totUnits = phases.reduce((s, p) => s + p.units, 0);
+        const totRevenue = phases.reduce((s, p) => s + p.revenue, 0);
+        const totProfit = phases.reduce((s, p) => s + p.profit, 0);
+        const rowH2 = 7.5;
+        doc.setFillColor(30, 30, 30);
+        doc.rect(14, y, W - 28, rowH2, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(255, 255, 255);
+        const totVals = ["TOTAL", fmtRp(sim.modalAwal), `${totUnits} unit`, fmtRp(totRevenue), fmtRp(totProfit)];
+        totVals.forEach((v, i) => {
+          doc.text(v, 14 + i * colW + colW / 2, y + 5, { align: "center" });
+        });
+        y += rowH2 + 4;
+
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...GRAY);
+        doc.text(`Asumsi: ${sim.reinvestPct}% profit direinvestasi ke tahap berikutnya. Angka bersifat estimasi dan tidak mengikat.`, 14, y);
+        y += 8;
+      }
+    }
   }
 
   const totalPages = doc.internal.pages.length - 1;

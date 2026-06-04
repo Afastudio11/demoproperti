@@ -564,14 +564,16 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
             localStorage.setItem("satara_checklist_vals", JSON.stringify(existingVals));
 
             const existingChecked = (() => { try { return JSON.parse(localStorage.getItem("satara_acq_checklist") ?? "{}"); } catch { return {}; } })() as Record<string, unknown>;
-            existingChecked[pid] = autoChecked;
+            const prevChecked: string[] = Array.isArray(existingChecked[pid]) ? (existingChecked[pid] as string[]) : [];
+            const mergedChecked = [...new Set([...prevChecked, ...autoChecked])];
+            existingChecked[pid] = mergedChecked;
             localStorage.setItem("satara_acq_checklist", JSON.stringify(existingChecked));
 
             // Sync ke DB
             fetch(`/api/land-prospects/${pid}/acquisition`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ checklistItems: autoChecked, checklistValues: newChecklistVals }),
+              body: JSON.stringify({ checklistItems: mergedChecked, checklistValues: newChecklistVals }),
             }).catch(() => {});
 
             // ── Map & save AI analysis result ──
