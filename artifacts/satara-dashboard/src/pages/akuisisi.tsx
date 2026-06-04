@@ -62,7 +62,11 @@ interface CompetitorEntry {
 }
 
 function normalizeKab(s: string): string {
-  return s.toUpperCase().replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "").trim();
+  return s.toUpperCase()
+    .replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "")
+    .replace(/\s+DAN\s+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getCompetitorsFromData(

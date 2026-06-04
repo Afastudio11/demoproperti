@@ -448,9 +448,13 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Helper: normalisasi nama kabupaten untuk matching
+  // Helper: normalisasi nama kabupaten untuk matching (strip prefix + kata "DAN")
   function normKab(s: string) {
-    return s.toUpperCase().replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "").trim();
+    return s.toUpperCase()
+      .replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "")
+      .replace(/\s+DAN\s+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   // Data kompetitor dari DAFTAR_PERUMAHAN_SULSEL berdasarkan kecamatan/kabupaten yang sedang aktif di form
