@@ -30,6 +30,11 @@ import {
   Bell,
   Search,
   BarChart3,
+  Package,
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  Map,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -54,8 +59,21 @@ const navItems = [
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
+const perencanaanSubNav = [
+  { name: "Command Center", path: "/perencanaan", icon: LayoutDashboard },
+  { name: "Analisis Pasar", path: "/perencanaan/pasar", icon: TrendingUp },
+  { name: "Analisis Lahan", path: "/perencanaan/lahan", icon: Map },
+  { name: "Produk", path: "/perencanaan/produk", icon: Package },
+  { name: "Feasibility", path: "/perencanaan/feasibility", icon: Calculator },
+  { name: "Timeline SPTIS", path: "/perencanaan/timeline", icon: Calendar },
+  { name: "Cashflow & KPP", path: "/perencanaan/cashflow", icon: DollarSign },
+  { name: "SDM", path: "/perencanaan/sdm", icon: Users },
+  { name: "Land Bank", path: "/perencanaan/landbank", icon: Building2 },
+];
+
 function DashboardSidebar() {
   const [location] = useLocation();
+  const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/");
 
   return (
     <Sidebar className="lg:border-r-0!" collapsible="icon">
@@ -110,6 +128,28 @@ function DashboardSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {isPerencanaan && (
+          <SidebarGroup className="p-0 pt-1 group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-wider px-2 text-muted-foreground/70">Sub-modul</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {perencanaanSubNav.map((item) => {
+                  const isActive = location === item.path;
+                  return (
+                    <SidebarMenuItem key={item.path}>
+                      <SidebarMenuButton asChild isActive={isActive} className="h-6 pl-4">
+                        <Link href={item.path}>
+                          <item.icon className="size-3" />
+                          <span className="text-xs">{item.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
       </SidebarContent>
 

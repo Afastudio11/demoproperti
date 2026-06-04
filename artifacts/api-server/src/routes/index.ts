@@ -17,6 +17,15 @@ import aiRoadmapRouter from "./ai-roadmap";
 import aiLandAssessmentRouter from "./ai-land-assessment";
 import aiSlisChatRouter from "./ai-slis-chat";
 import aiKabupatenInsightRouter from "./ai-kabupaten-insight";
+import planningMarketRouter from "./planning-market";
+import planningLandRouter from "./planning-land";
+import planningProductRouter from "./planning-product";
+import planningFeasibilityRouter from "./planning-feasibility";
+import planningMilestonesRouter from "./planning-milestones";
+import planningCashflowRouter from "./planning-cashflow";
+import planningKppRouter from "./planning-kpp";
+import planningSDMRouter from "./planning-sdm";
+import planningLandbankRouter from "./planning-landbank";
 
 const router: IRouter = Router();
 
@@ -38,5 +47,14 @@ router.use(aiRoadmapRouter);
 router.use(aiLandAssessmentRouter);
 router.use(aiSlisChatRouter);
 router.use(aiKabupatenInsightRouter);
+router.use(planningMarketRouter);
+router.use(planningLandRouter);
+router.use(planningProductRouter);
+router.use(planningFeasibilityRouter);
+router.use(planningMilestonesRouter);
+router.use(planningCashflowRouter);
+router.use(planningKppRouter);
+router.use(planningSDMRouter);
+router.use(planningLandbankRouter);
 
 export default router;
