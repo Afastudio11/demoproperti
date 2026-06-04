@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,19 +19,23 @@ export default function SDMPage() {
     unitsPerManager: 20,
   });
 
-  useQuery({
+  const { data: sdmData } = useQuery({
     queryKey: ["planning-sdm"],
     queryFn: () => fetch("/api/planning/sdm").then(r => r.json()),
-    onSuccess: (d: Record<string, number> | null) => {
-      if (d) setForm({
+  });
+
+  useEffect(() => {
+    if (sdmData && typeof sdmData === "object") {
+      const d = sdmData as Record<string, number>;
+      setForm({
         siteManagers: d.siteManagers ?? 1,
         supervisors: d.supervisors ?? 2,
         workers: d.workers ?? 10,
         workersPerUnit: d.workersPerUnit ?? 3,
         unitsPerManager: d.unitsPerManager ?? 20,
       });
-    },
-  });
+    }
+  }, [sdmData]);
 
   const setF = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: parseFloat(v) || 0 }));
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,14 +53,17 @@ export default function PasarPage() {
       const rows = await fetch("/api/planning/market").then(r => r.json());
       return (rows as Record<string, unknown>[]).find((r) => r.projectId === form.projectId) ?? null;
     },
-    onSuccess: (d: Record<string, unknown> | null) => {
-      if (d) {
-        setForm(prev => ({ ...prev, ...d }));
-        setSavedId(d.id as number);
-        if (Array.isArray(d.competitors)) setCompetitors(d.competitors as Competitor[]);
-      }
-    },
   });
+
+  useEffect(() => {
+    if (existing) {
+      setForm(prev => ({ ...prev, ...(existing as object) }));
+      setSavedId((existing as Record<string, number>).id);
+      if (Array.isArray((existing as Record<string, unknown>).competitors)) {
+        setCompetitors((existing as Record<string, unknown>).competitors as Competitor[]);
+      }
+    }
+  }, [existing]);
 
   const setF = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: typeof v === "string" ? num(v) || v : v }));
 

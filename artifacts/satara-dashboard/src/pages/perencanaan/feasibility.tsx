@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcFeasibility, fmtCurrency, fmtPct, type FeasibilityInputs } from "@/lib/planning-calc";
-import { Save, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Save, CheckCircle2, XCircle, AlertTriangle, Brain, Zap, FileDown } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const SATARA = { roi: 35, irr: 20, payback: 24, margin: 25 };
@@ -28,8 +28,8 @@ function StatusBadge({ pass }: { pass: boolean }) {
     : <Badge className="bg-red-100 text-red-700 border-red-200 gap-1"><XCircle className="size-3" />FAIL</Badge>;
 }
 
-function NumField({ label, value, onChange, unit, prefix }: {
-  label: string; value: number; onChange: (v: number) => void; unit?: string; prefix?: string;
+function NumField({ label, value, onChange, unit, prefix, hint }: {
+  label: string; value: number; onChange: (v: number) => void; unit?: string; prefix?: string; hint?: string;
 }) {
   return (
     <div className="space-y-1">
@@ -39,6 +39,7 @@ function NumField({ label, value, onChange, unit, prefix }: {
         <Input className="h-8 text-sm" type="number" value={value || ""} onChange={e => onChange(parseFloat(e.target.value) || 0)} />
         {unit && <span className="text-xs text-muted-foreground shrink-0">{unit}</span>}
       </div>
+      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -49,11 +50,15 @@ export default function FeasibilityPage() {
   const [projectId, setProjectId] = useState(0);
   const [inputs, setInputs] = useState<FeasibilityInputs>(defaultInputs);
   const [savedId, setSavedId] = useState<number | null>(null);
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
 
   const selectProject = async (id: number) => {
     setProjectId(id);
+    setAiText("");
+    // Load feasibility data
     const rows = await fetch(`/api/planning/feasibility?projectId=${id}`).then(r => r.json());
     if (rows.length > 0) {
       const d = rows[0];
@@ -70,7 +75,31 @@ export default function FeasibilityPage() {
       });
     } else {
       setSavedId(null);
-      setInputs(defaultInputs);
+      // Try auto-fill from land analysis
+      const landRows = await fetch(`/api/planning/land?projectId=${id}`).then(r => r.json());
+      if (landRows.length > 0) {
+        const land = landRows[0];
+        setInputs(prev => ({
+          ...prev,
+          landCost: land.landPriceTotal ?? 0,
+          totalUnits: land.maxUnits ?? 0,
+        }));
+        toast({ title: "Data lahan diisi otomatis dari Analisis Lahan" });
+      } else {
+        setInputs(defaultInputs);
+      }
+      // Also try auto-fill selling price from product planning
+      const prodRows = await fetch(`/api/planning/product?projectId=${id}`).then(r => r.json());
+      if (prodRows.length > 0) {
+        const avgPrice = prodRows.reduce((s: number, r: Record<string, number>) => s + r.sellingPrice, 0) / prodRows.length;
+        const totalUnitsFromProd = prodRows.reduce((s: number, r: Record<string, number>) => s + r.unitCount, 0);
+        setInputs(prev => ({
+          ...prev,
+          sellingPricePerUnit: avgPrice || prev.sellingPricePerUnit,
+          totalUnits: totalUnitsFromProd || prev.totalUnits,
+        }));
+        if (prodRows.length > 0) toast({ title: "Harga jual diisi otomatis dari Perencanaan Produk" });
+      }
     }
   };
 
@@ -102,6 +131,79 @@ export default function FeasibilityPage() {
     setSavedId(d.id);
     await qc.invalidateQueries({ queryKey: ["planning-feasibility"] });
     toast({ title: "Feasibility tersimpan" });
+  };
+
+  const fetchAiAnalysis = async () => {
+    if (!result) return;
+    setAiLoading(true);
+    setAiText("");
+    const proj = (Array.isArray(projects) ? projects : []).find((p: Record<string, unknown>) => p.id === projectId) as Record<string, string> | undefined;
+    try {
+      const resp = await fetch("/api/ai/planning-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectName: proj?.nama ?? `Proyek #${projectId}`,
+          roi: result.roi, irr: result.irr, margin: result.margin,
+          paybackPeriod: result.paybackPeriod, npv: result.npv,
+          totalRevenue: result.totalRevenue, totalCost: result.totalCost,
+          grossProfit: result.grossProfit, bepUnits: result.bepUnits,
+          totalUnits: inputs.totalUnits, peakFunding: result.peakFunding,
+          discountRate: inputs.discountRate, salesPerMonth: inputs.salesPerMonth,
+          kprPct: inputs.kprPct, sellingPricePerUnit: inputs.sellingPricePerUnit,
+          passROI: result.passROI, passIRR: result.passIRR,
+          passMargin: result.passMargin, passPayback: result.passPayback,
+        }),
+      });
+      const reader = resp.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        setAiText(prev => prev + decoder.decode(value));
+      }
+    } catch {
+      setAiText("Gagal memuat analisis AI. Pastikan DEEPSEEK_API_KEY sudah dikonfigurasi.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const exportPdf = () => {
+    if (!result) return;
+    const proj = (Array.isArray(projects) ? projects : []).find((p: Record<string, unknown>) => p.id === projectId) as Record<string, string> | undefined;
+    const passCount = [result.passROI, result.passIRR, result.passMargin, result.passPayback].filter(Boolean).length;
+    const rec = passCount === 4 ? "APPROVE" : passCount >= 2 ? "HOLD" : "REJECT";
+    const content = [
+      `CEO DECISION REPORT — SATARA DEVELOPMENT`,
+      `========================================`,
+      `PROYEK     : ${proj?.nama ?? `Proyek #${projectId}`}`,
+      `UNIT       : ${inputs.totalUnits} unit`,
+      `LAND COST  : ${fmtCurrency(inputs.landCost)}`,
+      `REVENUE    : ${fmtCurrency(result.totalRevenue)}`,
+      `HPP TOTAL  : ${fmtCurrency(result.totalCost)}`,
+      `PROFIT     : ${fmtCurrency(result.grossProfit)}`,
+      `MARGIN     : ${fmtPct(result.margin)} ${result.passMargin ? "✓ PASS" : "✗ FAIL"}`,
+      `ROI        : ${fmtPct(result.roi)} ${result.passROI ? "✓ PASS" : "✗ FAIL"}`,
+      `IRR        : ${fmtPct(result.irr)} ${result.passIRR ? "✓ PASS" : "✗ FAIL"}`,
+      `PAYBACK    : ${result.paybackPeriod} bulan ${result.passPayback ? "✓ PASS" : "✗ FAIL"}`,
+      `NPV        : ${fmtCurrency(result.npv)}`,
+      `BEP        : ${result.bepUnits} unit`,
+      `PEAK FUND  : ${fmtCurrency(result.peakFunding)}`,
+      `KRITERIA   : ${passCount}/4 standar Satara terpenuhi`,
+      `REKOMENDASI: ${rec}`,
+      ``,
+      aiText ? `ANALISIS AI:\n${aiText}` : "",
+    ].join("\n");
+
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `CEO_Report_${proj?.nama ?? projectId}_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const projectList = Array.isArray(projects) ? projects : [];
@@ -143,16 +245,16 @@ export default function FeasibilityPage() {
 
         <TabsContent value="biaya" className="mt-3">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Komponen Biaya</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">Komponen Biaya (HPP)</CardTitle></CardHeader>
             <CardContent className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <NumField label="Biaya Lahan (Rp)" value={inputs.landCost} onChange={v => setI("landCost", v)} prefix="Rp" />
+              <NumField label="Biaya Lahan (Rp)" value={inputs.landCost} onChange={v => setI("landCost", v)} prefix="Rp" hint="Auto-fill dari Analisis Lahan" />
               <NumField label="Pematangan Lahan (Rp)" value={inputs.landPrepCost} onChange={v => setI("landPrepCost", v)} prefix="Rp" />
               <NumField label="Biaya Konstruksi/Unit (Rp)" value={inputs.constructionCostPerUnit} onChange={v => setI("constructionCostPerUnit", v)} prefix="Rp" />
               <NumField label="Jalan & Fasum (Rp)" value={inputs.fasumRoadCost} onChange={v => setI("fasumRoadCost", v)} prefix="Rp" />
-              <NumField label="IMB/Perizinan (Rp)" value={inputs.permitCost} onChange={v => setI("permitCost", v)} prefix="Rp" />
+              <NumField label="PKKPR/PBG/Perizinan (Rp)" value={inputs.permitCost} onChange={v => setI("permitCost", v)} prefix="Rp" />
               <NumField label="Biaya Pemasaran (Rp)" value={inputs.marketingCost} onChange={v => setI("marketingCost", v)} prefix="Rp" />
               <NumField label="Overhead & Operasional (Rp)" value={inputs.overheadCost} onChange={v => setI("overheadCost", v)} prefix="Rp" />
-              <NumField label="Contingency (%)" value={inputs.contingencyPct} onChange={v => setI("contingencyPct", v)} unit="%" />
+              <NumField label="Contingency (%)" value={inputs.contingencyPct} onChange={v => setI("contingencyPct", v)} unit="%" hint="Umumnya 5-10%" />
               {result && (
                 <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -160,7 +262,7 @@ export default function FeasibilityPage() {
                       { label: "Konstruksi Total", val: fmtCurrency(result.constructionTotal) },
                       { label: "Contingency", val: fmtCurrency(result.contingency) },
                       { label: "Total HPP", val: fmtCurrency(result.totalCost) },
-                      { label: "HPP/Unit", val: fmtCurrency(result.totalCost / inputs.totalUnits) },
+                      { label: "HPP/Unit", val: inputs.totalUnits > 0 ? fmtCurrency(result.totalCost / inputs.totalUnits) : "—" },
                     ].map(item => (
                       <div key={item.label} className="p-2 rounded bg-muted/40">
                         <div className="text-[10px] text-muted-foreground">{item.label}</div>
@@ -178,14 +280,14 @@ export default function FeasibilityPage() {
           <Card>
             <CardHeader><CardTitle className="text-sm">Asumsi Revenue</CardTitle></CardHeader>
             <CardContent className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <NumField label="Harga Jual/Unit (Rp)" value={inputs.sellingPricePerUnit} onChange={v => setI("sellingPricePerUnit", v)} prefix="Rp" />
-              <NumField label="Total Unit" value={inputs.totalUnits} onChange={v => setI("totalUnits", v)} unit="unit" />
+              <NumField label="Harga Jual/Unit (Rp)" value={inputs.sellingPricePerUnit} onChange={v => setI("sellingPricePerUnit", v)} prefix="Rp" hint="Auto-fill dari Perencanaan Produk" />
+              <NumField label="Total Unit" value={inputs.totalUnits} onChange={v => setI("totalUnits", v)} unit="unit" hint="Auto-fill dari Analisis Lahan" />
               <NumField label="Booking Fee/Unit (Rp)" value={inputs.bookingFeePerUnit} onChange={v => setI("bookingFeePerUnit", v)} prefix="Rp" />
               <NumField label="Sales/Bulan" value={inputs.salesPerMonth} onChange={v => setI("salesPerMonth", v)} unit="unit/bln" />
               <NumField label="Porsi KPR (%)" value={inputs.kprPct} onChange={v => setI("kprPct", v)} unit="%" />
               <NumField label="Porsi Cash Keras (%)" value={inputs.cashHardPct} onChange={v => setI("cashHardPct", v)} unit="%" />
               <NumField label="Porsi Cash Bertahap (%)" value={inputs.cashInstallmentPct} onChange={v => setI("cashInstallmentPct", v)} unit="%" />
-              <NumField label="Discount Rate (%/thn)" value={inputs.discountRate} onChange={v => setI("discountRate", v)} unit="%" />
+              <NumField label="Discount Rate (%/thn)" value={inputs.discountRate} onChange={v => setI("discountRate", v)} unit="%" hint="Untuk kalkulasi NPV" />
               {result && (
                 <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -240,6 +342,7 @@ export default function FeasibilityPage() {
                       { label: "BEP", val: `${result.bepUnits} unit` },
                       { label: "Total Revenue", val: fmtCurrency(result.totalRevenue) },
                       { label: "Total Cost (HPP)", val: fmtCurrency(result.totalCost) },
+                      { label: "Gross Profit", val: fmtCurrency(result.grossProfit) },
                     ].map(item => (
                       <div key={item.label} className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">{item.label}</span>
@@ -249,9 +352,9 @@ export default function FeasibilityPage() {
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader><CardTitle className="text-xs">Cumulative Cashflow (Jt)</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="text-xs">Cumulative Cashflow (Jt Rp)</CardTitle></CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={160}>
+                    <ResponsiveContainer width="100%" height={180}>
                       <AreaChart data={cashflowChartData} margin={{ top: 5, right: 10, bottom: 0, left: 5 }}>
                         <XAxis dataKey="month" fontSize={9} />
                         <YAxis fontSize={9} tickFormatter={v => `${v.toFixed(0)}`} />
@@ -271,56 +374,90 @@ export default function FeasibilityPage() {
           {!result ? (
             <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">Isi data biaya dan revenue terlebih dahulu</CardContent></Card>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Laporan Ringkasan Eksekutif</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                <div className="flex items-center gap-3 p-3 rounded-md border">
-                  {result.passROI && result.passIRR && result.passMargin && result.passPayback
-                    ? <CheckCircle2 className="size-8 text-emerald-500 shrink-0" />
-                    : result.passROI || result.passIRR
-                    ? <AlertTriangle className="size-8 text-amber-500 shrink-0" />
-                    : <XCircle className="size-8 text-red-500 shrink-0" />}
-                  <div>
-                    <div className="font-semibold text-base">
-                      {result.passROI && result.passIRR && result.passMargin && result.passPayback ? "REKOMENDASI: GO" :
-                        result.passROI || result.passIRR ? "REKOMENDASI: REVIEW" : "REKOMENDASI: NO-GO"}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {[result.passROI, result.passIRR, result.passMargin, result.passPayback].filter(Boolean).length} dari 4 kriteria Satara terpenuhi
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Laporan Ringkasan Eksekutif</CardTitle>
+                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={exportPdf}>
+                      <FileDown className="size-3.5" />Export
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                  <div className={`flex items-center gap-3 p-3 rounded-md border-2 ${result.passROI && result.passIRR && result.passMargin && result.passPayback ? "border-emerald-200 bg-emerald-50/30" : result.passROI || result.passIRR ? "border-amber-200 bg-amber-50/30" : "border-red-200 bg-red-50/30"}`}>
+                    {result.passROI && result.passIRR && result.passMargin && result.passPayback
+                      ? <CheckCircle2 className="size-8 text-emerald-500 shrink-0" />
+                      : result.passROI || result.passIRR
+                      ? <AlertTriangle className="size-8 text-amber-500 shrink-0" />
+                      : <XCircle className="size-8 text-red-500 shrink-0" />}
+                    <div>
+                      <div className="font-bold text-base">
+                        {result.passROI && result.passIRR && result.passMargin && result.passPayback ? "REKOMENDASI: APPROVE" :
+                          result.passROI || result.passIRR ? "REKOMENDASI: HOLD / REVIEW" : "REKOMENDASI: REJECT"}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {[result.passROI, result.passIRR, result.passMargin, result.passPayback].filter(Boolean).length} dari 4 kriteria standar Satara terpenuhi
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    ["Total Investasi (HPP)", fmtCurrency(result.totalCost)],
-                    ["Total Revenue", fmtCurrency(result.totalRevenue)],
-                    ["Gross Profit", fmtCurrency(result.grossProfit)],
-                    ["Margin Keuntungan", fmtPct(result.margin)],
-                    ["Return on Investment", fmtPct(result.roi)],
-                    ["Internal Rate of Return", fmtPct(result.irr)],
-                    ["Net Present Value", fmtCurrency(result.npv)],
-                    ["Payback Period", `${result.paybackPeriod} bulan`],
-                    ["Break Even Point", `${result.bepUnits} unit`],
-                    ["Kebutuhan Modal Puncak", fmtCurrency(result.peakFunding)],
-                  ].map(([label, val]) => (
-                    <div key={label} className="flex justify-between border-b pb-1">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-medium">{val}</span>
-                    </div>
-                  ))}
-                </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    {[
+                      ["LAND COST", fmtCurrency(inputs.landCost)],
+                      ["REVENUE", fmtCurrency(result.totalRevenue)],
+                      ["HPP TOTAL", fmtCurrency(result.totalCost)],
+                      ["PROFIT", fmtCurrency(result.grossProfit)],
+                      ["MARGIN", fmtPct(result.margin)],
+                      ["ROI", fmtPct(result.roi)],
+                      ["IRR", fmtPct(result.irr)],
+                      ["NPV", fmtCurrency(result.npv)],
+                      ["PAYBACK", `${result.paybackPeriod} bulan`],
+                      ["BEP", `${result.bepUnits} unit`],
+                      ["PEAK FUNDING", fmtCurrency(result.peakFunding)],
+                      ["TOTAL UNIT", `${inputs.totalUnits} unit`],
+                    ].map(([label, val]) => (
+                      <div key={label} className="flex justify-between border-b pb-1">
+                        <span className="text-muted-foreground">{label}</span>
+                        <span className="font-medium">{val}</span>
+                      </div>
+                    ))}
+                  </div>
 
-                <div className="p-3 bg-muted/30 rounded-md text-xs space-y-1.5">
-                  <div className="font-semibold">Asumsi Utama:</div>
-                  <div>Harga jual per unit: {fmtCurrency(inputs.sellingPricePerUnit)}, total {inputs.totalUnits} unit</div>
-                  <div>Penjualan {inputs.salesPerMonth} unit/bulan, KPR {inputs.kprPct}% / Cash {inputs.cashHardPct + inputs.cashInstallmentPct}%</div>
-                  <div>Standar Satara: ROI≥{SATARA.roi}%, IRR≥{SATARA.irr}%, Margin≥{SATARA.margin}%, Payback≤{SATARA.payback} bulan</div>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="p-3 bg-muted/30 rounded-md text-xs space-y-1">
+                    <div className="font-semibold">Asumsi Utama:</div>
+                    <div>Harga jual {fmtCurrency(inputs.sellingPricePerUnit)}/unit · {inputs.totalUnits} unit · {inputs.salesPerMonth} unit/bln</div>
+                    <div>KPR {inputs.kprPct}% · Cash keras {inputs.cashHardPct}% · Cash bertahap {inputs.cashInstallmentPct}%</div>
+                    <div>Standar Satara: ROI≥{SATARA.roi}% · IRR≥{SATARA.irr}% · Margin≥{SATARA.margin}% · Payback≤{SATARA.payback} bln</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* AI Analysis Section */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Brain className="size-4 text-primary" />
+                      Analisis AI — DeepSeek
+                    </CardTitle>
+                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={fetchAiAnalysis} disabled={aiLoading}>
+                      <Zap className="size-3" />
+                      {aiLoading ? "Menganalisis..." : "Generate Analisis"}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {aiText ? (
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{aiText}</div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Klik "Generate Analisis" untuk mendapatkan penilaian AI mendalam tentang kelayakan proyek ini, kekuatan, risiko, dan rekomendasi tindakan konkret.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           )}
         </TabsContent>
       </Tabs>

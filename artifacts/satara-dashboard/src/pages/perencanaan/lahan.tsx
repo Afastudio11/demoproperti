@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
-import { Save } from "lucide-react";
+import { Save, Download, MapPin } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 function num(v: string) { return parseFloat(v) || 0; }
@@ -31,8 +31,14 @@ export default function LahanPage() {
   const { toast } = useToast();
   const [form, setForm] = useState(defaultForm);
   const [savedId, setSavedId] = useState<number | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
+  const { data: prospects } = useQuery({
+    queryKey: ["land-prospects"],
+    queryFn: () => fetch("/api/land-prospects").then(r => r.json()),
+    enabled: showImport,
+  });
 
   const selectProject = async (id: number) => {
     setForm(prev => ({ ...prev, projectId: id }));
@@ -46,6 +52,32 @@ export default function LahanPage() {
   };
 
   const setF = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: typeof v === "string" ? (parseFloat(v) || v) : v }));
+
+  const importFromProspect = async (prospectId: number) => {
+    const resp = await fetch(`/api/land-prospects/${prospectId}`).then(r => r.json());
+    if (!resp) return;
+    const surveyData = resp.surveyData || {};
+    const ai = resp.fullAiResult || {};
+    const alloc = ai.landAllocation || {};
+
+    setForm(prev => ({
+      ...prev,
+      landArea: resp.luas || prev.landArea,
+      landPriceTotal: (resp.hargaM2 || 0) * (resp.luas || 0) || prev.landPriceTotal,
+      roadWidth: resp.aksesJalan || prev.roadWidth,
+      legalStatus: resp.statusKepemilikan || surveyData.statusLegal || prev.legalStatus,
+      landShape: surveyData.bentukLahan || prev.landShape,
+      contour: surveyData.kontur || prev.contour,
+      notes: [
+        resp.lokasi || "",
+        resp.kelurahan ? `Kel. ${resp.kelurahan}` : "",
+        resp.kecamatan ? `Kec. ${resp.kecamatan}` : "",
+        resp.kabupaten || "",
+      ].filter(Boolean).join(", ") || prev.notes,
+    }));
+    setShowImport(false);
+    toast({ title: "Data lahan diimpor dari Akuisisi Lahan" });
+  };
 
   const { roadArea, fasumArea, effectiveArea } = calcLandAnalysis(form.landArea);
   const maxUnits = calcMaxUnits(effectiveArea, form.kavlingArea);
@@ -76,6 +108,7 @@ export default function LahanPage() {
   };
 
   const projectList = Array.isArray(projects) ? projects : [];
+  const prospectList = Array.isArray(prospects) ? prospects : [];
 
   return (
     <div className="space-y-4">
@@ -84,8 +117,52 @@ export default function LahanPage() {
           <h1 className="text-xl font-semibold">Analisis Lahan</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Kavling split 18/12/70, luas efektif, dan estimasi unit</p>
         </div>
-        <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowImport(!showImport)} className="gap-1.5">
+            <Download className="size-3.5" />Import dari Akuisisi
+          </Button>
+          <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
+        </div>
       </div>
+
+      {/* Import from Akuisisi */}
+      {showImport && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MapPin className="size-3.5 text-primary" />
+              Import Data dari Akuisisi Lahan
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {prospectList.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tidak ada data prospek di menu Akuisisi Lahan.</p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground mb-3">Pilih prospek untuk mengisi otomatis data lahan (luas, harga, akses jalan, status legal, bentuk, kontur):</p>
+                {prospectList.slice(0, 10).map((p: Record<string, unknown>) => (
+                  <div key={p.id as number} className="flex items-center justify-between p-2.5 rounded-md border bg-background hover:border-primary/50 transition-colors">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{p.lokasi as string || `Prospek #${p.id}`}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {[p.kelurahan, p.kecamatan, p.kabupaten].filter(Boolean).join(", ")}
+                        {p.luas ? ` · ${(p.luas as number).toLocaleString("id-ID")} m²` : ""}
+                        {p.hargaM2 ? ` · Rp ${(p.hargaM2 as number).toLocaleString("id-ID")}/m²` : ""}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" className="text-[10px]">{p.status as string}</Badge>
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => importFromProspect(p.id as number)}>
+                        Import
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex items-center gap-3">
         <Label className="text-sm shrink-0">Proyek</Label>
@@ -118,10 +195,8 @@ export default function LahanPage() {
             ))}
             <div className="space-y-1">
               <Label className="text-xs">Bentuk Lahan</Label>
-              <Select onValueChange={v => setF("landShape", v)}>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="Pilih..." defaultValue={form.landShape} />
-                </SelectTrigger>
+              <Select value={form.landShape} onValueChange={v => setF("landShape", v)}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Pilih..." /></SelectTrigger>
                 <SelectContent>
                   {["Reguler", "Tidak Reguler", "L-Shape", "T-Shape"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
@@ -129,10 +204,8 @@ export default function LahanPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Kontur</Label>
-              <Select onValueChange={v => setF("contour", v)}>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="Pilih..." defaultValue={form.contour} />
-                </SelectTrigger>
+              <Select value={form.contour} onValueChange={v => setF("contour", v)}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Pilih..." /></SelectTrigger>
                 <SelectContent>
                   {["Datar", "Bergelombang", "Miring", "Curam"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
@@ -140,12 +213,10 @@ export default function LahanPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Status Legal</Label>
-              <Select onValueChange={v => setF("legalStatus", v)}>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="Pilih..." defaultValue={form.legalStatus} />
-                </SelectTrigger>
+              <Select value={form.legalStatus} onValueChange={v => setF("legalStatus", v)}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Pilih..." /></SelectTrigger>
                 <SelectContent>
-                  {["SHM", "HGB", "Girik", "SHSRS", "Lainnya"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {["SHM", "HGB", "Girik", "AJB", "SHSRS", "Lainnya"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -183,6 +254,21 @@ export default function LahanPage() {
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Porsi lahan per unit</span>
                     <span className="font-medium">{fmtCurrency(landPricePerUnit)}/unit</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Efisiensi lahan</span>
+                    <span className="font-medium">70% (standar Satara)</span>
+                  </div>
+                </div>
+              )}
+
+              {form.landArea > 0 && form.landPriceTotal > 0 && (
+                <div className="pt-2 border-t">
+                  <div className="text-xs font-medium mb-2">Auto-fill ke Feasibility Engine</div>
+                  <div className="text-[11px] text-muted-foreground space-y-0.5">
+                    <div>• Total Unit: <span className="font-medium text-foreground">{maxUnits} unit</span></div>
+                    <div>• Biaya Lahan: <span className="font-medium text-foreground">{fmtCurrency(form.landPriceTotal)}</span></div>
+                    <div>• HPP Lahan/Unit: <span className="font-medium text-foreground">{fmtCurrency(landPricePerUnit)}</span></div>
                   </div>
                 </div>
               )}

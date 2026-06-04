@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Plus, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Save, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const PHASES = ["LAND", "PLAN", "LEGAL", "SELL", "BUILD", "AKAD", "HANDOVER"];
@@ -32,6 +32,20 @@ type Milestone = {
 };
 
 const newMs = (): Milestone => ({ phase: "PLAN", taskName: "", targetDate: "", actualDate: "", status: "belum_mulai", progressPct: 0, unitsDone: 0, notes: "" });
+
+function daysDiff(dateStr: string): number {
+  if (!dateStr) return 0;
+  const target = new Date(dateStr);
+  const now = new Date();
+  return Math.round((now.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function daysUntil(dateStr: string): number {
+  if (!dateStr) return 0;
+  const target = new Date(dateStr);
+  const now = new Date();
+  return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 export default function TimelinePage() {
   const qc = useQueryClient();
@@ -90,12 +104,52 @@ export default function TimelinePage() {
     done: milestones.filter(m => m.phase === phase && m.status === "selesai").length,
   }));
 
+  // Early Warning computation
+  const delayWarnings = milestones
+    .filter(m => m.status === "terlambat" && m.taskName)
+    .map(m => ({
+      type: "DELAY",
+      task: m.taskName,
+      phase: m.phase,
+      delay: daysDiff(m.targetDate),
+      target: m.targetDate,
+      actual: m.actualDate,
+      progress: m.progressPct,
+      severity: daysDiff(m.targetDate) > 30 ? "red" : "amber",
+    }));
+
+  const upcomingWarnings = milestones
+    .filter(m => m.status !== "selesai" && m.targetDate && daysUntil(m.targetDate) >= 0 && daysUntil(m.targetDate) <= 14 && m.taskName)
+    .map(m => ({
+      type: "DEADLINE",
+      task: m.taskName,
+      phase: m.phase,
+      daysLeft: daysUntil(m.targetDate),
+      target: m.targetDate,
+      progress: m.progressPct,
+      severity: daysUntil(m.targetDate) <= 3 ? "red" : "amber" as "red" | "amber",
+    }));
+
+  const noProgressWarnings = milestones
+    .filter(m => m.status === "on_track" && m.progressPct === 0 && m.targetDate && m.taskName)
+    .map(m => ({
+      type: "STAGNANT",
+      task: m.taskName,
+      phase: m.phase,
+      target: m.targetDate,
+      severity: "amber" as "red" | "amber",
+    }));
+
+  const totalWarnings = delayWarnings.length + upcomingWarnings.length + noProgressWarnings.length;
+
+  const fmt = (d: string) => d ? new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—";
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-semibold">Timeline SPTIS</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Master schedule & milestone tracking per fase proyek</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Satara Project Timeline Intelligence System — master schedule & milestone tracking</p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={addMs} className="gap-1.5"><Plus className="size-3.5" />Tambah Milestone</Button>
@@ -135,6 +189,10 @@ export default function TimelinePage() {
         <TabsList>
           <TabsTrigger value="table">Tabel Milestone</TabsTrigger>
           <TabsTrigger value="progress">Progress per Fase</TabsTrigger>
+          <TabsTrigger value="warning" className="gap-1.5">
+            Early Warning
+            {totalWarnings > 0 && <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0 h-4">{totalWarnings}</Badge>}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="table" className="mt-3">
@@ -151,9 +209,8 @@ export default function TimelinePage() {
                   </thead>
                   <tbody>
                     {milestones.map((ms, i) => {
-                      const statusDef = STATUSES.find(s => s.value === ms.status);
                       return (
-                        <tr key={i} className={`border-t ${ms.status === "terlambat" ? "bg-red-50/5" : ""}`}>
+                        <tr key={i} className={`border-t ${ms.status === "terlambat" ? "bg-red-50/10" : ""}`}>
                           <td className="px-2 py-1.5">
                             <Select value={ms.phase} onValueChange={v => setMs(i, "phase", v)}>
                               <SelectTrigger className="h-7 w-20 text-xs"><SelectValue /></SelectTrigger>
@@ -217,7 +274,7 @@ export default function TimelinePage() {
             </Card>
             <Card>
               <CardHeader><CardTitle className="text-sm">Status Detail</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2 max-h-64 overflow-y-auto">
                 {milestones.filter(m => m.taskName).map((ms, i) => {
                   const statusDef = STATUSES.find(s => s.value === ms.status);
                   return (
@@ -241,6 +298,124 @@ export default function TimelinePage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="warning" className="mt-3 space-y-4">
+          {totalWarnings === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center">
+                <CheckCircle2 className="size-10 text-emerald-500 mx-auto mb-3" />
+                <div className="font-semibold text-emerald-600">Semua milestone on track</div>
+                <p className="text-sm text-muted-foreground mt-1">Tidak ada peringatan aktif untuk proyek ini</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Delays */}
+              {delayWarnings.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <XCircle className="size-3.5 text-red-500" />DELAY ({delayWarnings.length})
+                  </h3>
+                  {delayWarnings.map((w, i) => (
+                    <Card key={i} className="border-l-4 border-l-red-500">
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-[10px] px-1">{w.phase}</Badge>
+                              <span className="text-sm font-medium">{w.task}</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              <div>Target: {fmt(w.target)}{w.actual ? ` · Aktual: ${fmt(w.actual)}` : ""}</div>
+                              <div>Progress saat ini: {w.progress}%</div>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div className="text-lg font-bold text-red-600">{w.delay > 0 ? `+${w.delay}` : w.delay}</div>
+                            <div className="text-[10px] text-muted-foreground">hari terlambat</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Upcoming deadlines */}
+              {upcomingWarnings.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <AlertTriangle className="size-3.5 text-amber-500" />DEADLINE DEKAT ({upcomingWarnings.length})
+                  </h3>
+                  {upcomingWarnings.map((w, i) => (
+                    <Card key={i} className={`border-l-4 ${w.severity === "red" ? "border-l-red-500" : "border-l-amber-500"}`}>
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-[10px] px-1">{w.phase}</Badge>
+                              <span className="text-sm font-medium">{w.task}</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Target: {fmt(w.target)} · Progress: {w.progress}%
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div className={`text-lg font-bold ${w.severity === "red" ? "text-red-600" : "text-amber-600"}`}>{w.daysLeft}</div>
+                            <div className="text-[10px] text-muted-foreground">hari lagi</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Stagnant */}
+              {noProgressWarnings.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <AlertTriangle className="size-3.5 text-amber-500" />BELUM MULAI ({noProgressWarnings.length})
+                  </h3>
+                  {noProgressWarnings.map((w, i) => (
+                    <Card key={i} className="border-l-4 border-l-amber-400">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] px-1">{w.phase}</Badge>
+                          <span className="text-sm font-medium">{w.task}</span>
+                          <span className="text-xs text-muted-foreground ml-auto">Target: {fmt(w.target)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1.5">Status On Track tapi progress 0% — segera mulai atau update status</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Summary */}
+          {milestones.length > 0 && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-4">
+                <div className="text-xs font-semibold mb-2">Ringkasan Proyek</div>
+                <div className="grid grid-cols-4 gap-3 text-center">
+                  {[
+                    { label: "Total", val: milestones.filter(m => m.taskName).length, color: "text-foreground" },
+                    { label: "Selesai", val: selesai, color: "text-blue-600" },
+                    { label: "On Track", val: onTrack, color: "text-emerald-600" },
+                    { label: "Terlambat", val: terlambat, color: "text-red-600" },
+                  ].map(s => (
+                    <div key={s.label}>
+                      <div className={`text-2xl font-bold ${s.color}`}>{s.val}</div>
+                      <div className="text-[10px] text-muted-foreground">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

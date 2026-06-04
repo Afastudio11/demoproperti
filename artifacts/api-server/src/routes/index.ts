@@ -26,6 +26,7 @@ import planningCashflowRouter from "./planning-cashflow";
 import planningKppRouter from "./planning-kpp";
 import planningSDMRouter from "./planning-sdm";
 import planningLandbankRouter from "./planning-landbank";
+import aiPlanningInsightRouter from "./ai-planning-insight";
 
 const router: IRouter = Router();
 
@@ -56,5 +57,6 @@ router.use(planningCashflowRouter);
 router.use(planningKppRouter);
 router.use(planningSDMRouter);
 router.use(planningLandbankRouter);
+router.use(aiPlanningInsightRouter);
 
 export default router;
