@@ -8,6 +8,7 @@ import { useListLandProspects } from "@workspace/api-client-react";
 import {
   ChevronRight, ChevronLeft, Brain, Loader2, AlertTriangle, BarChart3,
   TrendingUp, MapPin, Target, RefreshCw, MessageSquare,
+  Newspaper, Building2, Zap, X, ArrowRight, Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SLISCompetitorMap } from "@/components/slis-competitor-map";
@@ -346,6 +347,34 @@ function DesaDetail({ desa, kecName, kabName, onBack }: { desa: DesaScore; kecNa
 
 const SORTED_KAB = [...KABUPATEN_DATA].sort((a, b) => b.score - a.score);
 
+// ─── Kabupaten Insight (AI berita + sinkronisasi lahan) ──────────────────
+
+interface KabInsight {
+  situasi_terkini: string;
+  perkembangan_infrastruktur: string;
+  dinamika_pasar: string;
+  peluang_spesifik: string[];
+  risiko_aktual: string[];
+  sinkronisasi_lahan: string;
+  rekomendasi_keputusan: string[];
+  skor_urgensi: number;
+  alasan_urgensi: string;
+}
+
+const KAB_INSIGHT_CACHE_PREFIX = "satara_kab_insight_";
+function loadInsightCache(kabupaten: string): KabInsight | null {
+  try { return JSON.parse(localStorage.getItem(KAB_INSIGHT_CACHE_PREFIX + kabupaten.toLowerCase()) ?? "null"); }
+  catch { return null; }
+}
+function saveInsightCache(kabupaten: string, data: KabInsight): void {
+  localStorage.setItem(KAB_INSIGHT_CACHE_PREFIX + kabupaten.toLowerCase(), JSON.stringify(data));
+}
+
+// Normalize kabupaten name to match against prospect.kabupaten field
+function normKabName(s: string): string {
+  return (s ?? "").toLowerCase().replace(/^kab\.?\s+|^kota\s+|^kabupaten\s+/i, "").trim();
+}
+
 // ─── Roadmap AI Panel ─────────────────────────────────────────────────────
 
 interface RoadmapItem {
@@ -384,6 +413,266 @@ function loadRoadmapCache(): RoadmapResult | null {
 }
 function saveRoadmapCache(r: RoadmapResult): void { localStorage.setItem(ROADMAP_CACHE_KEY, JSON.stringify(r)); }
 
+// ─── KabDetailPanel ──────────────────────────────────────────────────────────
+
+function UrgencyBar({ score }: { score: number }) {
+  const color = score >= 80 ? "bg-red-500" : score >= 60 ? "bg-amber-500" : score >= 40 ? "bg-blue-500" : "bg-gray-400";
+  const label = score >= 80 ? "Sangat Urgent" : score >= 60 ? "Urgent" : score >= 40 ? "Normal" : "Rendah";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+        <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${score}%` }} />
+      </div>
+      <span className="text-[10px] font-bold tabular-nums w-20 text-right">{score}/100 — {label}</span>
+    </div>
+  );
+}
+
+function KabDetailPanel({
+  item, prospects, insight, insightLoading, insightError,
+  onLoadInsight, onRefreshInsight, onClose,
+}: {
+  item: RoadmapItem;
+  prospects: { lokasi: string; luas: number; hargaM2: number; roi: number; status: string }[];
+  insight: KabInsight | null;
+  insightLoading: boolean;
+  insightError: string | null;
+  onLoadInsight: () => void;
+  onRefreshInsight: () => void;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<"insight" | "lahan">("insight");
+
+  return (
+    <div className="ml-[54px] mt-1 border border-foreground/20 rounded-xl bg-muted/10 overflow-hidden">
+      {/* Header panel */}
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-muted/30 border-b">
+        <div className="flex items-center gap-2">
+          <MapPin className="size-3.5 text-muted-foreground shrink-0" />
+          <span className="font-semibold text-[12px]">{item.kabupaten}</span>
+          <span className="text-[10px] text-muted-foreground">— Detail & Analisis AI</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {/* Tab switcher */}
+          <div className="flex rounded-md border bg-background text-[10px] font-medium overflow-hidden">
+            <button
+              onClick={() => setTab("insight")}
+              className={cn("flex items-center gap-1 px-2.5 py-1 transition-colors", tab === "insight" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+            >
+              <Globe className="size-2.5" />Analisis AI
+            </button>
+            <button
+              onClick={() => setTab("lahan")}
+              className={cn("flex items-center gap-1 px-2.5 py-1 transition-colors", tab === "lahan" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+            >
+              <Building2 className="size-2.5" />Data Lahan
+              {prospects.length > 0 && (
+                <span className="ml-0.5 bg-emerald-500 text-white rounded-full px-1 text-[8px] font-bold leading-none py-0.5">{prospects.length}</span>
+              )}
+            </button>
+          </div>
+          <button onClick={onClose} className="ml-1 p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+            <X className="size-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4">
+        {/* ── TAB: Analisis AI ── */}
+        {tab === "insight" && (
+          <div className="space-y-4">
+            {/* Belum ada insight — tampilkan tombol */}
+            {!insight && !insightLoading && !insightError && (
+              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+                <div className="size-10 rounded-full bg-muted flex items-center justify-center">
+                  <Newspaper className="size-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <div className="font-semibold text-sm">Analisis AI Belum Dimuat</div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    AI akan menganalisis kondisi terkini {item.kabupaten}, sinkronisasi lahan existing, dan memberikan rekomendasi keputusan.
+                  </p>
+                </div>
+                <button
+                  onClick={onLoadInsight}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-background text-[11px] font-semibold hover:bg-foreground/90 transition-colors"
+                >
+                  <Brain className="size-3.5" />
+                  Muat Analisis & Berita Terbaru
+                </button>
+              </div>
+            )}
+
+            {/* Loading */}
+            {insightLoading && (
+              <div className="flex flex-col items-center gap-2 py-8 text-center text-[11px] text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+                <div className="font-medium">Menganalisis {item.kabupaten}...</div>
+                <div className="text-muted-foreground/60">Kondisi pasar · Infrastruktur · Sinkronisasi lahan</div>
+              </div>
+            )}
+
+            {/* Error */}
+            {insightError && !insightLoading && (
+              <div className="flex items-center gap-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                <AlertTriangle className="size-3.5 shrink-0" />{insightError}
+                <button onClick={onLoadInsight} className="ml-auto underline font-medium">Coba lagi</button>
+              </div>
+            )}
+
+            {/* Insight tersedia */}
+            {insight && !insightLoading && (
+              <div className="space-y-3">
+                {/* Skor urgensi */}
+                <div className="bg-card border rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="size-3.5 text-amber-500" />
+                      <span className="text-[10px] font-semibold tracking-wider">SKOR URGENSI MASUK</span>
+                    </div>
+                    <button
+                      onClick={onRefreshInsight}
+                      className="flex items-center gap-1 text-[9px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <RefreshCw className="size-2.5" />Perbarui
+                    </button>
+                  </div>
+                  <UrgencyBar score={insight.skor_urgensi} />
+                  <p className="text-[10px] text-muted-foreground mt-1.5 italic">{insight.alasan_urgensi}</p>
+                </div>
+
+                {/* 3 card info baris atas */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <div className="bg-card border rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1.5">
+                      <Globe className="size-3 text-blue-500" />
+                      <span className="text-[9px] font-semibold text-blue-700 tracking-wider">SITUASI TERKINI</span>
+                    </div>
+                    <p className="text-[10px] leading-relaxed">{insight.situasi_terkini}</p>
+                  </div>
+                  <div className="bg-card border rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1.5">
+                      <Building2 className="size-3 text-violet-500" />
+                      <span className="text-[9px] font-semibold text-violet-700 tracking-wider">INFRASTRUKTUR</span>
+                    </div>
+                    <p className="text-[10px] leading-relaxed">{insight.perkembangan_infrastruktur}</p>
+                  </div>
+                  <div className="bg-card border rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1.5">
+                      <BarChart3 className="size-3 text-emerald-500" />
+                      <span className="text-[9px] font-semibold text-emerald-700 tracking-wider">DINAMIKA PASAR</span>
+                    </div>
+                    <p className="text-[10px] leading-relaxed">{insight.dinamika_pasar}</p>
+                  </div>
+                </div>
+
+                {/* Sinkronisasi lahan */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex items-center gap-1 mb-1.5">
+                    <MapPin className="size-3 text-amber-600" />
+                    <span className="text-[9px] font-semibold text-amber-700 tracking-wider">SINKRONISASI DATA LAHAN</span>
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-amber-900">{insight.sinkronisasi_lahan}</p>
+                </div>
+
+                {/* Peluang + Risiko */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                    <div className="text-[9px] font-semibold text-emerald-700 tracking-wider mb-2">PELUANG SPESIFIK</div>
+                    <div className="space-y-1.5">
+                      {(insight.peluang_spesifik ?? []).map((p, i) => (
+                        <div key={i} className="flex items-start gap-1.5 text-[10px] text-emerald-900">
+                          <span className="size-3.5 rounded-full bg-emerald-200 text-emerald-800 text-[8px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                          <span className="leading-relaxed">{p}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div className="text-[9px] font-semibold text-red-700 tracking-wider mb-2">RISIKO AKTUAL</div>
+                    <div className="space-y-1.5">
+                      {(insight.risiko_aktual ?? []).map((r, i) => (
+                        <div key={i} className="flex items-start gap-1.5 text-[10px] text-red-900">
+                          <AlertTriangle className="size-3 text-red-500 shrink-0 mt-0.5" />
+                          <span className="leading-relaxed">{r}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rekomendasi keputusan */}
+                <div className="bg-card border rounded-lg p-3">
+                  <div className="text-[9px] font-semibold text-foreground tracking-wider mb-2">REKOMENDASI KEPUTUSAN</div>
+                  <div className="space-y-1.5">
+                    {(insight.rekomendasi_keputusan ?? []).map((r, i) => (
+                      <div key={i} className="flex items-start gap-2 text-[11px]">
+                        <span className="size-4 rounded-full bg-foreground text-background text-[8px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                        <span className="leading-relaxed">{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB: Data Lahan Existing ── */}
+        {tab === "lahan" && (
+          <div className="space-y-3">
+            {prospects.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-center text-[11px] text-muted-foreground">
+                <Building2 className="size-6 opacity-40" />
+                <div className="font-medium">Belum Ada Data Lahan</div>
+                <p className="text-muted-foreground/70 max-w-xs">Belum ada prospek lahan yang tercatat untuk {item.kabupaten} di sistem. Tambahkan prospek via modul Akuisisi Lahan.</p>
+              </div>
+            ) : (
+              <>
+                <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">
+                  {prospects.length} PROSPEK LAHAN DI {item.kabupaten.toUpperCase()}
+                </div>
+                <div className="space-y-2">
+                  {prospects.map((p, i) => {
+                    const statusColor = p.status === "completed" ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                      : p.status === "prospect" ? "bg-blue-100 text-blue-700 border-blue-200"
+                      : p.status === "negotiation" ? "bg-amber-100 text-amber-700 border-amber-200"
+                      : p.status === "due_diligence" ? "bg-violet-100 text-violet-700 border-violet-200"
+                      : "bg-muted text-muted-foreground border";
+                    const statusLabel = p.status === "completed" ? "Acquired"
+                      : p.status === "prospect" ? "Prospek"
+                      : p.status === "negotiation" ? "Negosiasi"
+                      : p.status === "due_diligence" ? "Due Diligence"
+                      : p.status;
+                    return (
+                      <div key={i} className="bg-card border rounded-lg p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-[11px] truncate">{p.lokasi}</div>
+                            <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                              <span>{(p.luas / 10000).toFixed(2)} Ha</span>
+                              <span>Rp{p.hargaM2.toLocaleString("id-ID")}/m²</span>
+                              <span className="text-emerald-700 font-semibold">ROI {p.roi}%</span>
+                            </div>
+                          </div>
+                          <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-medium shrink-0", statusColor)}>{statusLabel}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-[9px] text-muted-foreground/60 italic pt-1">
+                  Data dari modul Akuisisi Lahan · Klik Analisis AI untuk sinkronisasi rekomendasi
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function RoadmapPanel({ prospects, result, onResult }: {
   prospects: { lokasi: string; kabupaten?: string | null; luas: number; hargaM2: number; roi: number; status: string }[];
   result: RoadmapResult | null;
@@ -391,6 +680,60 @@ function RoadmapPanel({ prospects, result, onResult }: {
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<RoadmapItem | null>(null);
+  const [insightCache, setInsightCache] = useState<Record<string, KabInsight>>({});
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightError, setInsightError] = useState<string | null>(null);
+
+  async function loadInsight(item: RoadmapItem) {
+    const cached = loadInsightCache(item.kabupaten) ?? insightCache[item.kabupaten];
+    if (cached) {
+      setInsightCache(prev => ({ ...prev, [item.kabupaten]: cached }));
+      return;
+    }
+    setInsightLoading(true);
+    setInsightError(null);
+    const kabProspects = prospects.filter(p => {
+      const n = normKabName(p.kabupaten ?? "");
+      const k = normKabName(item.kabupaten);
+      return n === k || n.includes(k) || k.includes(n);
+    });
+    const slisData = KABUPATEN_DATA.find(k => normKabName(k.name) === normKabName(item.kabupaten));
+    try {
+      const res = await fetch("/api/ai/kabupaten-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kabupaten: item.kabupaten,
+          roadmapItem: item,
+          prospects: kabProspects.map(p => ({ lokasi: p.lokasi, luas: p.luas, hargaM2: p.hargaM2, roi: p.roi, status: p.status })),
+          slisScore: slisData ? {
+            score: slisData.score, grade: String(slisData.grade),
+            hargaTanahRange: slisData.hargaTanahRange, kompetitorCount: slisData.kompetitorCount, potensiPasar: slisData.potensiPasar,
+          } : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Gagal menghubungi AI");
+      const data = await res.json() as KabInsight;
+      setInsightCache(prev => ({ ...prev, [item.kabupaten]: data }));
+      saveInsightCache(item.kabupaten, data);
+    } catch (e) {
+      setInsightError(e instanceof Error ? e.message : "Terjadi kesalahan");
+    } finally {
+      setInsightLoading(false);
+    }
+  }
+
+  function handleCardClick(item: RoadmapItem) {
+    if (selectedItem?.kabupaten === item.kabupaten) {
+      setSelectedItem(null);
+    } else {
+      setSelectedItem(item);
+      setInsightError(null);
+      const cached = loadInsightCache(item.kabupaten);
+      if (cached) setInsightCache(prev => ({ ...prev, [item.kabupaten]: cached }));
+    }
+  }
 
   async function generate() {
     setLoading(true);
@@ -491,50 +834,110 @@ function RoadmapPanel({ prospects, result, onResult }: {
 
           {/* Roadmap 5 tahun */}
           <div>
-            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider mb-2">ROADMAP EKSPANSI 5 TAHUN (2026–2030)</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">ROADMAP EKSPANSI 5 TAHUN (2026–2030)</div>
+              <div className="text-[9px] text-muted-foreground/60 italic">Klik kartu untuk lihat detail & analisis AI terbaru</div>
+            </div>
             <div className="space-y-2">
-              {result.roadmap.map((item, i) => (
-                <div key={item.tahun} className="flex gap-3 items-start">
-                  <div className={cn("text-[10px] font-black text-white px-2 py-1.5 rounded-lg shrink-0 mt-0.5 min-w-[42px] text-center", YEAR_COLORS[i % 5])}>
-                    {item.tahun}
-                  </div>
-                  <div className="flex-1 bg-card border rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1.5 gap-2">
-                      <div className="font-semibold text-[12px]">{item.kabupaten}</div>
-                      <div className="flex items-center gap-3 text-[10px] shrink-0">
-                        <span className="text-muted-foreground">{item.target_unit} unit</span>
-                        <span className="font-semibold text-foreground">{item.estimasi_investasi}</span>
-                        {item.estimasi_revenue && (
-                          <span className="text-emerald-700 font-semibold">{item.estimasi_revenue}</span>
+              {result.roadmap.map((item, i) => {
+                const isSelected = selectedItem?.kabupaten === item.kabupaten;
+                const insight = insightCache[item.kabupaten];
+                const kabProspects = prospects.filter(p => {
+                  const n = normKabName(p.kabupaten ?? "");
+                  const k = normKabName(item.kabupaten);
+                  return n === k || n.includes(k) || k.includes(n);
+                });
+                return (
+                  <div key={item.tahun}>
+                    {/* Kartu utama — clickable */}
+                    <button
+                      className={cn(
+                        "w-full flex gap-3 items-start text-left rounded-lg transition-all",
+                        isSelected && "ring-2 ring-foreground/30"
+                      )}
+                      onClick={() => handleCardClick(item)}
+                    >
+                      <div className={cn("text-[10px] font-black text-white px-2 py-1.5 rounded-lg shrink-0 mt-0.5 min-w-[42px] text-center", YEAR_COLORS[i % 5])}>
+                        {item.tahun}
+                      </div>
+                      <div className={cn(
+                        "flex-1 bg-card border rounded-lg p-3 hover:border-foreground/30 transition-colors",
+                        isSelected && "border-foreground/40 bg-muted/20"
+                      )}>
+                        <div className="flex items-center justify-between mb-1.5 gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-[12px]">{item.kabupaten}</span>
+                            {kabProspects.length > 0 && (
+                              <span className="text-[9px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded font-medium">
+                                {kabProspects.length} lahan
+                              </span>
+                            )}
+                            {insight && (
+                              <span className={cn(
+                                "text-[9px] px-1.5 py-0.5 rounded font-bold",
+                                insight.skor_urgensi >= 80 ? "bg-red-100 text-red-700 border border-red-200" :
+                                insight.skor_urgensi >= 60 ? "bg-amber-100 text-amber-700 border border-amber-200" :
+                                "bg-muted text-muted-foreground border"
+                              )}>
+                                Urgensi {insight.skor_urgensi}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-[10px] shrink-0">
+                            <span className="text-muted-foreground">{item.target_unit} unit</span>
+                            <span className="font-semibold text-foreground">{item.estimasi_investasi}</span>
+                            {item.estimasi_revenue && (
+                              <span className="text-emerald-700 font-semibold">{item.estimasi_revenue}</span>
+                            )}
+                            <ArrowRight className={cn("size-3 text-muted-foreground transition-transform", isSelected && "rotate-90")} />
+                          </div>
+                        </div>
+                        {item.kecamatan_prioritas?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-1.5">
+                            {item.kecamatan_prioritas.map(k => (
+                              <span key={k} className="text-[9px] px-1.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded">{k}</span>
+                            ))}
+                          </div>
                         )}
-                      </div>
-                    </div>
-                    {item.kecamatan_prioritas?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-1.5">
-                        {item.kecamatan_prioritas.map(k => (
-                          <span key={k} className="text-[9px] px-1.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded">{k}</span>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">{item.alasan}</p>
-                    {item.strategi_masuk && (
-                      <p className="text-[10px] text-foreground/70 mt-1 italic">{item.strategi_masuk}</p>
-                    )}
-                    <div className="flex gap-3 mt-1.5">
-                      {item.risiko_utama && (
-                        <div className="flex items-center gap-1 text-[10px] text-amber-700">
-                          <AlertTriangle className="size-2.5 shrink-0" />{item.risiko_utama}
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">{item.alasan}</p>
+                        {item.strategi_masuk && (
+                          <p className="text-[10px] text-foreground/70 mt-1 italic">{item.strategi_masuk}</p>
+                        )}
+                        <div className="flex gap-3 mt-1.5">
+                          {item.risiko_utama && (
+                            <div className="flex items-center gap-1 text-[10px] text-amber-700">
+                              <AlertTriangle className="size-2.5 shrink-0" />{item.risiko_utama}
+                            </div>
+                          )}
+                          {item.mitigasi_risiko && (
+                            <div className="flex items-center gap-1 text-[10px] text-emerald-700">
+                              <Target className="size-2.5 shrink-0" />{item.mitigasi_risiko}
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {item.mitigasi_risiko && (
-                        <div className="flex items-center gap-1 text-[10px] text-emerald-700">
-                          <Target className="size-2.5 shrink-0" />{item.mitigasi_risiko}
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    </button>
+
+                    {/* Detail panel — muncul di bawah kartu yang dipilih */}
+                    {isSelected && (
+                      <KabDetailPanel
+                        item={item}
+                        prospects={kabProspects}
+                        insight={insight ?? null}
+                        insightLoading={insightLoading}
+                        insightError={insightError}
+                        onLoadInsight={() => loadInsight(item)}
+                        onRefreshInsight={() => {
+                          localStorage.removeItem(KAB_INSIGHT_CACHE_PREFIX + item.kabupaten.toLowerCase());
+                          setInsightCache(prev => { const n = { ...prev }; delete n[item.kabupaten]; return n; });
+                          loadInsight(item);
+                        }}
+                        onClose={() => setSelectedItem(null)}
+                      />
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -865,7 +1268,7 @@ export default function SLIS() {
           <RoadmapPanel
             result={roadmapResult}
             onResult={setRoadmapResult}
-            prospects={(prospects ?? []).map(p => ({
+            prospects={(prospects ?? []).map((p: { lokasi: string; kabupaten?: string | null; luas: number; hargaM2: number; roi: number; status: string }) => ({
               lokasi: p.lokasi,
               kabupaten: p.kabupaten,
               luas: p.luas,
