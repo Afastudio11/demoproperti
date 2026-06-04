@@ -199,6 +199,39 @@ function cleanAiText(text: string): string {
     .trim();
 }
 
+function formatNarrative(text: string): React.ReactNode {
+  const clean = cleanAiText(text);
+  const parts = clean.split(/;\s*(?=\(\d+\))/);
+  if (parts.length <= 1) {
+    const paras = clean.split(/\n{2,}/).filter(Boolean);
+    if (paras.length <= 1) return <p className="text-[12px] leading-relaxed">{clean}</p>;
+    return (
+      <div className="space-y-1.5">
+        {paras.map((p, i) => <p key={i} className="text-[12px] leading-relaxed">{p}</p>)}
+      </div>
+    );
+  }
+  const firstHasNumber = /^\s*\(\d+\)/.test(parts[0]);
+  const intro = firstHasNumber ? null : parts[0].trim();
+  const numbered = firstHasNumber ? parts : parts.slice(1);
+  return (
+    <div className="space-y-1.5">
+      {intro && <p className="text-[12px] leading-relaxed">{intro}</p>}
+      <ul className="space-y-1.5">
+        {numbered.map((pt, i) => {
+          const content = pt.trim().replace(/^\(\d+\)\s*/, "");
+          return (
+            <li key={i} className="flex items-start gap-1.5 text-[12px] leading-relaxed">
+              <span className="shrink-0 font-bold text-foreground/40 min-w-[14px] mt-0.5">{i + 1}.</span>
+              <span className="flex-1">{content}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function riskColor(level: string) {
   return level === "Rendah" ? "text-emerald-600 bg-emerald-50 border-emerald-200"
        : level === "Sedang" ? "text-amber-600 bg-amber-50 border-amber-200"
@@ -1389,7 +1422,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                         <div className="flex items-center gap-1.5 mb-2">
                           <SectionLabel>Ringkasan Eksekutif</SectionLabel>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.ringkasanEksekutif)}</div>
+                        {formatNarrative(ai.ringkasanEksekutif)}
                       </div>
                     )}
 
@@ -1594,7 +1627,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                         <div className="flex items-center gap-1.5 mb-2">
                           <SectionLabel>Analisis Lokasi</SectionLabel>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.analisisLokasi)}</div>
+                        {formatNarrative(ai.analisisLokasi)}
                       </div>
                     )}
 
@@ -1605,7 +1638,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                           <Building2 className="size-3.5 text-muted-foreground shrink-0" />
                           <SectionLabel>Analisis Fisik Lahan</SectionLabel>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.analisisFisikLahan)}</div>
+                        {formatNarrative(ai.analisisFisikLahan)}
                       </div>
                     )}
                   </>
@@ -1671,7 +1704,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                           }
                           <SectionLabel>Rekomendasi Keputusan</SectionLabel>
                         </div>
-                        <div className="text-[12px] leading-relaxed whitespace-pre-wrap">{cleanAiText(ai.rekomendasiNarasi)}</div>
+                        {formatNarrative(ai.rekomendasiNarasi)}
                       </div>
                     )}
                   </>

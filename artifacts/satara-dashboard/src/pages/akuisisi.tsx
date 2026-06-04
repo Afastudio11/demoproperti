@@ -766,15 +766,19 @@ function ProspectDetailPanel({
                                 status === "pending" ? "border-foreground/20" : "border-foreground/40"
                               )} />
                             )}
-                            <span className={cn("leading-tight flex-1", done && !inputDef && "line-through decoration-emerald-500/60")}>{item.label}</span>
-                            {isAutoVal && done && (
-                              <span className="text-[8px] font-medium text-blue-500 shrink-0 ml-1 bg-blue-50 px-1 rounded">AI</span>
-                            )}
-                            {inputDef && currentVal && done && (
-                              <span className="text-[8px] font-medium text-foreground/50 shrink-0 ml-1 truncate max-w-[64px]">
-                                {inputDef.type === "rp" ? "v" : inputDef.type === "pct" ? currentVal + "%" : currentVal.slice(0, 10)}
-                              </span>
-                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className={cn("leading-tight break-words", done && !inputDef && "line-through decoration-emerald-500/60")}>{item.label}</div>
+                              {done && (isAutoVal || (inputDef && currentVal)) && (
+                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                                  {isAutoVal && <span className="text-[8px] font-medium text-blue-500 bg-blue-50 px-1 rounded shrink-0">AI</span>}
+                                  {currentVal && (
+                                    <span className="text-[8px] text-foreground/50 truncate max-w-[80px]">
+                                      {inputDef?.type === "rp" ? "✓" : inputDef?.type === "pct" ? currentVal + "%" : currentVal.slice(0, 14)}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           {inputDef && status !== "pending" && (
                             <div className="ml-5 mt-1 mb-1" onClick={(e) => e.stopPropagation()}>
@@ -2028,6 +2032,9 @@ export default function Akuisisi() {
         };
         if (data.checklistItems != null) {
           setChecklists(prev => {
+            const existing = prev[selectedId] ?? [];
+            // Preferensikan data lokal jika lebih banyak (cegah race condition debounce DB save)
+            if (existing.length > data.checklistItems!.length) return prev;
             const updated = { ...prev, [selectedId]: data.checklistItems! };
             saveChecklist(updated);
             return updated;
@@ -2035,6 +2042,9 @@ export default function Akuisisi() {
         }
         if (data.checklistValues != null) {
           setChecklistValues(prev => {
+            const existing = prev[selectedId] ?? {};
+            // Preferensikan data lokal jika lebih banyak key
+            if (Object.keys(existing).length > Object.keys(data.checklistValues!).length) return prev;
             const updated = { ...prev, [selectedId]: data.checklistValues! };
             saveChecklistValues(updated);
             return updated;
