@@ -131,14 +131,15 @@ function drawHeader(doc: jsPDF, title: string, subtitle: string) {
   doc.setFillColor(30, 30, 30);
   doc.rect(0, 0, 3, 22, "F");
 
-  // Logo (if preloaded)
+  // Logo (if preloaded) — original is 3840×2160 (16:9), preserve ratio
   const logoX = 5;
-  const logoY = 3;
-  const logoSize = 16;
+  const logoY = 4;
+  const logoW = 16;
+  const logoH = logoW * (2160 / 3840); // = 9 mm
   if (_logoBase64) {
-    doc.addImage(_logoBase64, "PNG", logoX, logoY, logoSize, logoSize);
+    doc.addImage(_logoBase64, "PNG", logoX, logoY, logoW, logoH);
   }
-  const textX = _logoBase64 ? logoX + logoSize + 2 : 17;
+  const textX = _logoBase64 ? logoX + logoW + 2 : 17;
 
   // Company name — dark text
   doc.setFont("helvetica", "bold");
@@ -314,7 +315,7 @@ export function generateProposalAkuisisi(payload: DocPayload) {
     doc.setFontSize(8);
     doc.setTextColor(...BLACK);
     const lines = doc.splitTextToSize(aiResult.ringkasan, W - 28);
-    doc.text(lines, 14, y);
+    lines.forEach((line: string, i: number) => doc.text(line, 14, y + i * 4.5));
     y += lines.length * 4.5 + 4;
 
     // Kelebihan & Risiko table
@@ -344,7 +345,7 @@ export function generateProposalAkuisisi(payload: DocPayload) {
     doc.setDrawColor(...GOLD);
     doc.roundedRect(14, y, W - 28, rekH, 2, 2, "FD");
     doc.setTextColor(...BLACK);
-    doc.text(rekLines, 18, y + 5);
+    rekLines.forEach((line: string, i: number) => doc.text(line, 18, y + 5 + i * 4.8));
     y += rekH + 4;
   } else {
     y = sectionTitle(doc, "03  Analisis AI", y);
@@ -454,7 +455,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
       while (lineIdx < lines.length) {
         const remaining = Math.floor((H - 16 - y) / 4.2);
         const chunk = lines.slice(lineIdx, lineIdx + Math.max(1, remaining));
-        doc.text(chunk, 14, y);
+        chunk.forEach((line: string, i: number) => doc.text(line, 14, y + i * 4.2));
         y += chunk.length * 4.2;
         lineIdx += chunk.length;
         if (lineIdx < lines.length) {
@@ -541,7 +542,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
         while (lineIdx < lines.length) {
           const remaining = Math.floor((H - 16 - y) / 4.2);
           const chunk = lines.slice(lineIdx, lineIdx + Math.max(1, remaining));
-          doc.text(chunk, 14, y);
+          chunk.forEach((line: string, i: number) => doc.text(line, 14, y + i * 4.2));
           y += chunk.length * 4.2;
           lineIdx += chunk.length;
           if (lineIdx < lines.length) {
@@ -720,7 +721,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
       while (lineIdx < lines.length) {
         const remaining = Math.floor((H - 16 - y) / 4.2);
         const chunk = lines.slice(lineIdx, lineIdx + Math.max(1, remaining));
-        doc.text(chunk, 14, y);
+        chunk.forEach((line: string, i: number) => doc.text(line, 14, y + i * 4.2));
         y += chunk.length * 4.2;
         lineIdx += chunk.length;
         if (lineIdx < lines.length) {
@@ -778,7 +779,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
         while (lineIdx < lines.length) {
           const remaining = Math.floor((H - 16 - y) / 4.2);
           const chunk = lines.slice(lineIdx, lineIdx + Math.max(1, remaining));
-          doc.text(chunk, 18, y);
+          chunk.forEach((line: string, i: number) => doc.text(line, 18, y + i * 4.2));
           y += chunk.length * 4.2;
           lineIdx += chunk.length;
           if (lineIdx < lines.length) {
@@ -851,7 +852,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
       doc.setFont("helvetica", "italic");
       doc.setFontSize(8);
       doc.setTextColor(...BLACK);
-      doc.text(rekLines, 18, y + 6);
+      rekLines.forEach((line: string, i: number) => doc.text(line, 18, y + 6 + i * 4.5));
       y += rekLines.length * 4.5 + 12;
     }
   } else {
@@ -1413,7 +1414,7 @@ export function generatePKSMoU(payload: DocPayload) {
   doc.setTextColor(...BLACK);
   ps4.forEach(line => {
     const lines2 = doc.splitTextToSize(line, W - 28);
-    doc.text(lines2, 14, y);
+    lines2.forEach((l: string, i: number) => doc.text(l, 14, y + i * 5));
     y += lines2.length * 5 + 1;
   });
   y += 6;
@@ -1424,7 +1425,7 @@ export function generatePKSMoU(payload: DocPayload) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   doc.setTextColor(...BLACK);
-  doc.text(ps5Lines, 14, y);
+  ps5Lines.forEach((line: string, i: number) => doc.text(line, 14, y + i * 5));
   y += ps5Lines.length * 5 + 10;
 
   // Sign-off

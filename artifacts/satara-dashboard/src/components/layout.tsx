@@ -1,3 +1,4 @@
+import React from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
@@ -81,7 +82,7 @@ function DashboardSidebar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2.5 w-full hover:bg-sidebar-accent rounded-md p-1 -m-1 transition-colors shrink-0">
-              <img src="/satara-logo.png" alt="Satara" className="size-7 object-contain shrink-0" />
+              <img src="/satara-logo.png" alt="Satara" className="size-10 object-contain shrink-0" />
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
                 <span className="text-sm font-medium">Satara Dev.</span>
                 <ChevronsUpDown className="size-3 text-muted-foreground" />
@@ -113,44 +114,50 @@ function DashboardSidebar() {
                 const isActive =
                   location === item.path ||
                   (item.path !== "/" && location.startsWith(item.path));
+                const isPerencanaanItem = item.path === "/perencanaan";
+
                 return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton asChild isActive={isActive} className="h-7">
-                      <Link href={item.path}>
-                        <item.icon className="size-3.5" />
-                        <span className="text-sm">{item.name}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <React.Fragment key={item.path}>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive && !isPerencanaanItem}
+                        className="h-7"
+                      >
+                        <Link href={item.path}>
+                          <item.icon className="size-3.5" />
+                          <span className="text-sm">{item.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    {isPerencanaanItem && isPerencanaan && (
+                      <div className="group-data-[collapsible=icon]:hidden">
+                        {perencanaanSubNav.map((sub) => {
+                          const isSubActive = location === sub.path;
+                          return (
+                            <SidebarMenuItem key={sub.path}>
+                              <SidebarMenuButton
+                                asChild
+                                isActive={isSubActive}
+                                className="h-6 pl-5"
+                              >
+                                <Link href={sub.path}>
+                                  <sub.icon className="size-3" />
+                                  <span className="text-xs">{sub.name}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {isPerencanaan && (
-          <SidebarGroup className="p-0 pt-1 group-data-[collapsible=icon]:hidden">
-            <SidebarGroupLabel className="text-[10px] uppercase tracking-wider px-2 text-muted-foreground/70">Sub-modul</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {perencanaanSubNav.map((item) => {
-                  const isActive = location === item.path;
-                  return (
-                    <SidebarMenuItem key={item.path}>
-                      <SidebarMenuButton asChild isActive={isActive} className="h-6 pl-4">
-                        <Link href={item.path}>
-                          <item.icon className="size-3" />
-                          <span className="text-xs">{item.name}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
       </SidebarContent>
 
       <SidebarFooter className="px-2.5 pb-3 group-data-[collapsible=icon]:hidden">
