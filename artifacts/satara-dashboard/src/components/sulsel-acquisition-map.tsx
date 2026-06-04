@@ -615,14 +615,13 @@ async function reverseGeocode(lat: number, lng: number) {
     // Kelurahan/desa: dari zoom fine level
     const kelurahan = a13.village || a13.hamlet || a13.suburb || a13.neighbourhood || "";
 
-    // Kecamatan: berbagai field Nominatim tergantung tipe area Indonesia
-    const kecRaw = a13.city_district || a13.district || a13.municipality
-      || a10.city_district || a10.district || a10.municipality || "";
+    // Kecamatan: city_district (perkotaan) atau district (pedesaan) — JANGAN municipality/city (itu level kab)
+    const kecRaw = a13.city_district || a13.district || a10.city_district || a10.district || "";
     const kecamatan = stripKecPrefix(kecRaw);
 
-    // Kabupaten: county dari zoom coarse lebih akurat, fallback ke city/state_district
-    const kabRaw = a10.county || a10.state_district || a10.city
-      || a13.county || a13.state_district || a13.city || "";
+    // Kabupaten: county > state_district > municipality > city dari zoom coarse lebih akurat
+    const kabRaw = a10.county || a10.state_district || a10.municipality || a10.city
+      || a13.county || a13.state_district || a13.municipality || a13.city || "";
     const kabupaten = stripKabPrefix(kabRaw);
 
     const lokasi = d13.display_name?.split(",").slice(0, 3).join(", ") ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;

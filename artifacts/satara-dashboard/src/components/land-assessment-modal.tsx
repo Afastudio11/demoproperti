@@ -426,11 +426,11 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
       .then(([r13, r10]) => Promise.all([r13.json(), r10.json()]))
       .then(([a13, a10]) => {
         const kelurahan = a13.address?.village || a13.address?.hamlet || a13.address?.suburb || a13.address?.neighbourhood || "";
-        const kecRaw = a13.address?.city_district || a13.address?.district || a13.address?.municipality
-          || a10.address?.city_district || a10.address?.district || a10.address?.municipality || "";
+        const kecRaw = a13.address?.city_district || a13.address?.district
+          || a10.address?.city_district || a10.address?.district || "";
         const kecamatan = stripKec(kecRaw);
-        const kabRaw = a10.address?.county || a10.address?.state_district || a10.address?.city
-          || a13.address?.county || a13.address?.state_district || a13.address?.city || "";
+        const kabRaw = a10.address?.county || a10.address?.state_district || a10.address?.municipality || a10.address?.city
+          || a13.address?.county || a13.address?.state_district || a13.address?.municipality || a13.address?.city || "";
         const kabupaten = stripKab(kabRaw);
         setForm(f => ({
           ...f,
