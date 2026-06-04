@@ -378,11 +378,28 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
     !polygon.kecamatan || !polygon.kabupaten
   );
 
+  // Auto-fill luas + utilitas dari polygon & form (tidak butuh terrain data)
+  useEffect(() => {
+    const fills: Record<string, string> = {};
+    if (polygon.luas) fills.luas_lahan_teknis = `${polygon.luas.toLocaleString("id-ID")} m²`;
+    if (form.utilitas.length > 0) fills.utilitas_teknis = form.utilitas.join(", ");
+    if (Object.keys(fills).length === 0) return;
+    setChecklistValues(prev => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(fills)) { if (!next[k]) next[k] = v; }
+      return next;
+    });
+    setCheckedItems(prev => {
+      const missing = Object.keys(fills).filter(k => !prev.includes(k));
+      return missing.length ? [...prev, ...missing] : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polygon.luas, form.utilitas]);
+
   // Auto-fill Data Teknis (pks_mou) dari terrain data
   useEffect(() => {
     if (!terrainData) return;
     const fills: Record<string, string> = {};
-    if (polygon.luas) fills.luas_lahan_teknis = `${polygon.luas.toLocaleString("id-ID")} m²`;
     const slope = terrainData.slopeAvgPct;
     if (slope != null) {
       const lbl = slope < 2 ? "Datar" : slope < 5 ? "Landai" : slope < 15 ? "Berbukit" : "Curam";
@@ -407,7 +424,28 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
       return missing.length ? [...prev, ...missing] : prev;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terrainData, polygon.luas]);
+  }, [terrainData]);
+
+  // Auto-centang item JOBDESK secara real-time berdasarkan isian form
+  useEffect(() => {
+    const derived: string[] = [];
+    if (parseFloat(form.aksesJalan) >= 5) { derived.push("akses_jalan_5m"); derived.push("akses_jalan_legal"); }
+    if (form.fasilitasUmum.length > 0) derived.push("dekat_fasilitas");
+    if (["aman", "sangat_aman"].includes(form.kondisiLingkungan)) derived.push("lingkungan_aman");
+    if (["tinggi", "sangat_tinggi"].includes(form.potensiPertumbuhan)) derived.push("potensi_pertumbuhan");
+    if (form.utilitas.length > 0) derived.push("utilitas_tersedia");
+    if (form.hargaRumahSekitar) derived.push("harga_rumah_sekitar");
+    if (form.targetTipeRumah) derived.push("tipe_rumah_sekitar");
+    if (form.hargaTanahM2) derived.push("harga_tanah_m2");
+    if (form.statusKepemilikan.includes("SHM") || form.statusKepemilikan.includes("HGB")) derived.push("shm_alas_hak");
+    if (derived.length === 0) return;
+    setCheckedItems(prev => {
+      const missing = derived.filter(k => !prev.includes(k));
+      return missing.length ? [...prev, ...missing] : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.aksesJalan, form.fasilitasUmum, form.kondisiLingkungan, form.potensiPertumbuhan,
+      form.utilitas, form.hargaRumahSekitar, form.targetTipeRumah, form.hargaTanahM2, form.statusKepemilikan]);
 
   // Auto-geocode kecamatan/kabupaten jika kosong tapi koordinat tersedia
   useEffect(() => {
@@ -549,25 +587,27 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
               komersial_kecil: "komersial",
               komersial_menengah: "menengah",
             };
-            const newChecklistVals: Record<string, string> = {};
+            const newChecklistVals: Record<string, string> = { ...checklistValues };
             if (form.hargaTanahM2)     newChecklistVals.harga_tanah_m2      = form.hargaTanahM2;
             if (form.hargaRumahSekitar) newChecklistVals.harga_rumah_sekitar  = form.hargaRumahSekitar;
             if (form.targetTipeRumah)   newChecklistVals.tipe_rumah_sekitar   = tipeRumahLabel[form.targetTipeRumah] ?? form.targetTipeRumah;
-            if (form.aksesJalan)        newChecklistVals.sistem_pembayaran    = "";
+            if (polygon.luas)           newChecklistVals.luas_lahan_teknis    = `${polygon.luas.toLocaleString("id-ID")} m²`;
+            if (form.utilitas.length > 0) newChecklistVals.utilitas_teknis   = form.utilitas.join(", ");
 
-            const autoChecked: string[] = [];
-            if (parseFloat(form.aksesJalan) >= 5)                                     autoChecked.push("akses_jalan_5m");
+            // autoChecked = checkedItems yang sudah real-time di-update + tambahan dari form
+            const autoChecked: string[] = [...checkedItems];
+            if (parseFloat(form.aksesJalan) >= 5)                                     { autoChecked.push("akses_jalan_5m"); autoChecked.push("akses_jalan_legal"); }
             if (form.fasilitasUmum.length > 0)                                        autoChecked.push("dekat_fasilitas");
             if (["aman","sangat_aman"].includes(form.kondisiLingkungan))               autoChecked.push("lingkungan_aman");
             if (["tinggi","sangat_tinggi"].includes(form.potensiPertumbuhan))          autoChecked.push("potensi_pertumbuhan");
-            if (form.utilitas.length > 0)                                             autoChecked.push("utilitas_tersedia");
+            if (form.utilitas.length > 0)                                             { autoChecked.push("utilitas_tersedia"); autoChecked.push("utilitas_teknis"); }
             if (form.hargaRumahSekitar)                                               autoChecked.push("harga_rumah_sekitar");
             if (form.targetTipeRumah)                                                 autoChecked.push("tipe_rumah_sekitar");
             if (form.hargaTanahM2)                                                    autoChecked.push("harga_tanah_m2");
+            if (polygon.luas)                                                         autoChecked.push("luas_lahan_teknis");
             if (form.statusKepemilikan.includes("SHM") || form.statusKepemilikan.includes("HGB")) {
               autoChecked.push("shm_alas_hak");
             }
-            if (parseFloat(form.aksesJalan) >= 5)                                     autoChecked.push("akses_jalan_legal");
 
             const existingVals = (() => { try { return JSON.parse(localStorage.getItem("satara_checklist_vals") ?? "{}"); } catch { return {}; } })() as Record<string, unknown>;
             existingVals[pid] = newChecklistVals;
