@@ -200,7 +200,7 @@ function potentialLabel(count: number, level: number): string {
 }
 
 type DrillLevel = 0 | 1 | 2;
-interface DrillState { level: DrillLevel; kab: string | null; kec: string | null; }
+export interface DrillState { level: DrillLevel; kab: string | null; kec: string | null; }
 
 function geomCoords(geometry: GeoJSON.Geometry): number[][] {
   const pts: number[][] = [];
@@ -952,13 +952,17 @@ export interface PolygonReadyData {
   geoStr?: string;
 }
 
-export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly, clearKey, externalFlyTarget }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean; clearKey?: number; externalFlyTarget?: [number, number, number] | null } = {}) {
+export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly, clearKey, externalFlyTarget, onDrillChange }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean; clearKey?: number; externalFlyTarget?: [number, number, number] | null; onDrillChange?: (drill: DrillState) => void } = {}) {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminDrill, setAdminDrill] = useState<DrillState>({ level: 0, kab: null, kec: null });
+  const handleAdminDrill = useCallback((next: DrillState) => {
+    setAdminDrill(next);
+    onDrillChange?.(next);
+  }, [onDrillChange]);
   const [flyTarget, setFlyTarget] = useState<[number, number, number] | null>(null);
 
   useEffect(() => {
@@ -1085,7 +1089,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
             onClick={() => {
               const next = !showAdmin;
               setShowAdmin(next);
-              if (!next) setAdminDrill({ level: 0, kab: null, kec: null });
+              if (!next) handleAdminDrill({ level: 0, kab: null, kec: null });
             }}
             className={cn(
               "flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition-colors",
@@ -1100,14 +1104,14 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
           {showAdmin && adminDrill.kab && (
             <div className="flex items-center gap-1 text-[11px] bg-muted/60 border rounded-lg px-2 py-1">
               <button
-                onClick={() => setAdminDrill({ level: 0, kab: null, kec: null })}
+                onClick={() => handleAdminDrill({ level: 0, kab: null, kec: null })}
                 className="font-medium text-blue-500 hover:underline"
               >
                 Semua Kab.
               </button>
               <ChevronRight className="size-3 text-muted-foreground shrink-0" />
               <button
-                onClick={() => setAdminDrill({ level: 1, kab: adminDrill.kab, kec: null })}
+                onClick={() => handleAdminDrill({ level: 1, kab: adminDrill.kab, kec: null })}
                 className={cn("font-medium truncate max-w-[120px]", adminDrill.level === 1 ? "text-foreground" : "text-blue-500 hover:underline")}
               >
                 {adminDrill.kab}
@@ -1212,7 +1216,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
                 opacity={0.9}
               />
             )}
-            {showAdmin && <AdminDrillLayer drill={adminDrill} onDrill={setAdminDrill} onLoadingChange={setAdminLoading} />}
+            {showAdmin && <AdminDrillLayer drill={adminDrill} onDrill={handleAdminDrill} onLoadingChange={setAdminLoading} />}
 
             <MapFlyHandler target={flyTarget} />
             <GeomanControl drawMode={drawMode} onCreated={handleDrawCreated} onDisable={() => setDrawMode(false)} />

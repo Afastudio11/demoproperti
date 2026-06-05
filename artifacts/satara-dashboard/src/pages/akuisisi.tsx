@@ -8,12 +8,11 @@ import {
   Loader2, Search,
   Building2, Radio, Download, Database, BarChart3, ArrowRight,
 } from "lucide-react";
-import KompetitorPage from "./kompetitor";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
-import type { PolygonReadyData } from "@/components/sulsel-acquisition-map";
+import type { PolygonReadyData, DrillState } from "@/components/sulsel-acquisition-map";
 import LandAssessmentModal from "@/components/land-assessment-modal";
-import SLIS from "@/pages/slis";
+import { KABUPATEN_DATA, getGradeLabel, getGradeBg, type KabupatenScore } from "@/data/slis-scoring";
 import { cn } from "@/lib/utils";
 import { isOwnCompany } from "@/lib/own-company";
 import {
@@ -2002,13 +2001,244 @@ function MapNavSearch({ onFly }: { onFly: (target: [number, number, number]) => 
   );
 }
 
+// ─── Wilayah Detail Panel ─────────────────────────────────────────────────────
+
+const WILAYAH_FACTOR_LABELS: { key: keyof KabupatenScore; label: string }[] = [
+  { key: "realisasiFLPP", label: "Realisasi FLPP" },
+  { key: "pertumbuhanPenduduk", label: "Pertumbuhan Penduduk" },
+  { key: "infrastrukturStrategis", label: "Infrastruktur Strategis" },
+  { key: "pertumbuhanEkonomi", label: "Pertumbuhan Ekonomi" },
+  { key: "hargaTanahScore", label: "Harga Tanah" },
+  { key: "jumlahKompetitor", label: "Peluang Pasar" },
+  { key: "pdrbPerKapita", label: "PDRB Per Kapita" },
+];
+
+const WILAYAH_STATUS_LABELS: Record<string, string> = {
+  prospek_baru: "Prospek Baru",
+  survey: "Survey Lokasi",
+  analisis_kompetitor: "Analisis Kompetitor",
+  negosiasi: "Negosiasi",
+  legal_checking: "Legal Checking",
+  pks_mou: "PKS / MoU",
+  ditolak: "Ditolak",
+};
+
+function normKabForMatch(s: string): string {
+  return s.toUpperCase()
+    .replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "")
+    .replace(/\s+DAN\s+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function WilayahDetailPanel({ drillState, allProspects }: {
+  drillState: DrillState;
+  allProspects: LandProspect[];
+}) {
+  const kabNormGeo = normKabForMatch(drillState.kab ?? "");
+  const kecNorm = (drillState.kec ?? "").toUpperCase().trim();
+
+  const slisKab = KABUPATEN_DATA.find(k => normKabForMatch(k.name) === kabNormGeo);
+
+  const competitors = DAFTAR_PERUMAHAN_SULSEL.filter(p => {
+    const kabMatch = normKabForMatch(p.kabupaten) === kabNormGeo;
+    if (!kabMatch) return false;
+    if (drillState.kec) return p.kecamatan.toUpperCase().trim() === kecNorm;
+    return true;
+  }).sort((a, b) => ((b.totalUnit || 0) + (b.unitKomersil || 0)) - ((a.totalUnit || 0) + (a.unitKomersil || 0)));
+
+  const activeProspects = allProspects.filter(p =>
+    p.kabupaten && normKabForMatch(p.kabupaten) === kabNormGeo
+  );
+
+  const scoreColor = slisKab
+    ? slisKab.score >= 80 ? "text-emerald-600" : slisKab.score >= 65 ? "text-amber-500" : slisKab.score >= 50 ? "text-orange-500" : "text-red-500"
+    : "text-muted-foreground";
+
+  const verdict = slisKab
+    ? slisKab.grade === "sangat_potensial" ? "REKOMENDASIKAN — Masuk Sekarang"
+    : slisKab.grade === "potensial" ? "POTENSIAL — Entry dengan Seleksi Ketat"
+    : slisKab.grade === "sedang" ? "TAHAN — Butuh Analisis Lebih Dalam"
+    : "TIDAK DIREKOMENDASIKAN — Risiko Tinggi"
+    : null;
+
+  const verdictColor = slisKab
+    ? slisKab.grade === "sangat_potensial" ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+    : slisKab.grade === "potensial" ? "text-amber-700 bg-amber-50 border-amber-200"
+    : slisKab.grade === "sedang" ? "text-orange-700 bg-orange-50 border-orange-200"
+    : "text-red-700 bg-red-50 border-red-200"
+    : "";
+
+  const displayName = drillState.kec
+    ? `${drillState.kec} · ${drillState.kab}`
+    : drillState.kab;
+
+  return (
+    <div className="border rounded-xl bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30">
+        <div className="flex items-center gap-2">
+          <Building2 className="size-3.5 text-muted-foreground shrink-0" />
+          <span className="text-sm font-semibold">{displayName}</span>
+          {slisKab && (
+            <span className={cn("text-[10px] px-2 py-0.5 rounded border font-semibold", verdictColor)}>
+              Skor SLIS {slisKab.score}
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] text-muted-foreground">
+          {competitors.length} developer terdaftar di {drillState.kec ? "kecamatan ini" : "kabupaten ini"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 divide-x">
+        {/* Kolom 1: SLIS Analysis */}
+        <div className="p-4 space-y-3">
+          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider uppercase">Analisis SLIS</div>
+          {slisKab ? (
+            <>
+              <div className="flex items-start gap-3">
+                <div className={cn("text-4xl font-black tabular-nums leading-none", scoreColor)}>{slisKab.score}</div>
+                <div className="space-y-0.5">
+                  <div className="text-[11px] font-semibold">{getGradeLabel(slisKab.grade)}</div>
+                  <div className="text-[10px] text-muted-foreground">{slisKab.hargaTanahRange}</div>
+                  <div className="text-[10px] text-muted-foreground">{typeof slisKab.populasi === "number" ? slisKab.populasi.toLocaleString("id-ID") : slisKab.populasi} penduduk</div>
+                  <div className="text-[10px] text-muted-foreground">{slisKab.kompetitorCount} developer aktif</div>
+                </div>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all",
+                    slisKab.score >= 80 ? "bg-emerald-500" : slisKab.score >= 65 ? "bg-amber-400" : slisKab.score >= 50 ? "bg-orange-500" : "bg-red-500"
+                  )}
+                  style={{ width: `${slisKab.score}%` }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                {WILAYAH_FACTOR_LABELS.map(({ key, label }) => {
+                  const score = slisKab[key] as number;
+                  const barColor = score >= 80 ? "bg-emerald-500" : score >= 65 ? "bg-amber-400" : "bg-red-400";
+                  return (
+                    <div key={key} className="flex items-center gap-2">
+                      <div className="text-[10px] text-muted-foreground flex-1 truncate">{label}</div>
+                      <div className="flex items-center gap-1.5 w-28 shrink-0">
+                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                          <div className={cn("h-full rounded-full", barColor)} style={{ width: `${score}%` }} />
+                        </div>
+                        <span className="text-[10px] font-bold tabular-nums w-6 text-right">{score}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {verdict && (
+                <div className={cn("rounded-md border px-2.5 py-1.5 text-[10px] font-semibold", verdictColor)}>
+                  {verdict}
+                </div>
+              )}
+              {slisKab.infrastruktur && slisKab.infrastruktur.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {slisKab.infrastruktur.map((i: string) => (
+                    <span key={i} className="text-[9px] px-1.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded">{i}</span>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-[11px] text-muted-foreground py-4">Data SLIS belum tersedia untuk wilayah ini.</div>
+          )}
+        </div>
+
+        {/* Kolom 2: Daftar Kompetitor */}
+        <div className="p-4 space-y-2">
+          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider uppercase">
+            Sebaran Kompetitor
+          </div>
+          {competitors.length === 0 ? (
+            <div className="text-[11px] text-muted-foreground py-4">Belum ada data perumahan terdaftar di wilayah ini.</div>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+              {competitors.slice(0, 20).map((p, i) => {
+                const totalU = (p.totalUnit || 0) + (p.unitKomersil || 0);
+                return (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="text-[10px] text-muted-foreground tabular-nums w-4 shrink-0 pt-px">{i + 1}.</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-medium leading-tight truncate">{p.nama}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">{p.pengembang}</div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] px-1 py-px bg-muted border rounded text-muted-foreground">{p.kecamatan}</span>
+                        <span className="text-[9px] text-muted-foreground">{p.jenis}</span>
+                      </div>
+                    </div>
+                    {totalU > 0 && (
+                      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 pt-px">{totalU}u</span>
+                    )}
+                  </div>
+                );
+              })}
+              {competitors.length > 20 && (
+                <div className="text-[10px] text-muted-foreground pt-1.5 border-t">
+                  +{competitors.length - 20} developer lainnya di wilayah ini
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Kolom 3: Prospek Aktif + Referensi */}
+        <div className="p-4 space-y-3">
+          <div className="text-[10px] font-semibold text-muted-foreground tracking-wider uppercase">Prospek Aktif Satara</div>
+          {activeProspects.length === 0 ? (
+            <div className="text-[11px] text-muted-foreground">Belum ada prospek lahan aktif di kabupaten ini.</div>
+          ) : (
+            <div className="space-y-2">
+              {activeProspects.map(p => (
+                <div key={p.id} className="border rounded-lg p-2.5 bg-muted/20 space-y-1">
+                  <div className="text-[11px] font-medium leading-tight">{p.lokasi}</div>
+                  <div className="text-[10px] text-muted-foreground">{WILAYAH_STATUS_LABELS[p.status] ?? p.status}</div>
+                  <div className="flex gap-3 text-[10px] text-muted-foreground">
+                    {p.luas ? <span>{p.luas.toLocaleString("id-ID")} m²</span> : null}
+                    {p.hargaM2 ? <span>Rp{p.hargaM2.toLocaleString("id-ID")}/m²</span> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="pt-3 border-t space-y-2">
+            <div className="text-[10px] font-semibold text-muted-foreground tracking-wider uppercase">Referensi Pasar</div>
+            {slisKab ? (
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Harga lahan</span>
+                  <span className="font-semibold">{slisKab.hargaTanahRange}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Pertumbuhan</span>
+                  <span className="font-semibold">+{slisKab.pertumbuhanPct}%/thn</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total developer</span>
+                  <span className="font-semibold">{competitors.length}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-[11px] text-muted-foreground">Tidak ada data referensi.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type TerrainData = { elevMin?: number; elevMax?: number; elevAvg?: number; slopeAvgPct?: number; slopeMaxPct?: number; waterwayType?: string; waterwayName?: string; waterwayDistM?: number | null } | null;
 
 export default function Akuisisi() {
   const { data: prospects, refetch } = useListLandProspects({});
-  const [tab, setTab] = useState<"peta" | "slis" | "kompetitor">("peta");
+  const [drillState, setDrillState] = useState<DrillState>({ level: 0, kab: null, kec: null });
   const [mapFlyTarget, setMapFlyTarget] = useState<[number, number, number] | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [checklists, setChecklists] = useState<Record<number, string[]>>(loadChecklist);
@@ -2117,72 +2347,31 @@ export default function Akuisisi() {
     }
   }
 
-  const TABS = [
-    { key: "peta",        label: "Peta Sulsel", icon: Map },
-    { key: "kompetitor",  label: "Kompetitor",  icon: BarChart3 },
-    { key: "slis",        label: "SLIS",        icon: BrainCircuit },
-  ] as const;
-
   return (
     <div className="h-full flex flex-col space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        {/* Search bar — hanya tampil di tab Peta */}
-        {tab === "peta" ? (
-          <MapNavSearch onFly={setMapFlyTarget} />
-        ) : (
-          <div />
-        )}
-
-        <div className="flex rounded-lg border bg-muted p-0.5 text-xs font-medium">
-          {TABS.map(({ key, label, icon: Icon, ...rest }) => { const badge = "badge" in rest ? (rest as { badge?: number }).badge : undefined; return (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors",
-                tab === key
-                  ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon className="size-3.5" />
-              {label}
-              {badge != null && badge > 0 && (
-                <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
-                  {badge}
-                </span>
-              )}
-            </button>
-          ); })}
-        </div>
+        <MapNavSearch onFly={setMapFlyTarget} />
       </div>
 
-      {tab === "peta" && (
-        <div className="flex flex-col gap-3">
-          <div className="min-h-0" style={{ height: "640px" }}>
-            <SulselAcquisitionMap
-              onSelectProspect={(id) => { setSelectedId(id); if (!id) setTerrainData(null); }}
-              onTerrainData={(d) => { setTerrainData(d as TerrainData); setTerrainLoading(false); }}
-              onPolygonReady={(poly) => {
-                setAssessmentPolygon(poly);
-                setTerrainData(null);
-                setTerrainLoading(true);
-              }}
-              clearKey={mapClearKey}
-              externalFlyTarget={mapFlyTarget}
-            />
-          </div>
+      <div className="flex flex-col gap-3">
+        <div className="min-h-0" style={{ height: "620px" }}>
+          <SulselAcquisitionMap
+            onSelectProspect={(id) => { setSelectedId(id); if (!id) setTerrainData(null); }}
+            onTerrainData={(d) => { setTerrainData(d as TerrainData); setTerrainLoading(false); }}
+            onPolygonReady={(poly) => {
+              setAssessmentPolygon(poly);
+              setTerrainData(null);
+              setTerrainLoading(true);
+            }}
+            onDrillChange={setDrillState}
+            clearKey={mapClearKey}
+            externalFlyTarget={mapFlyTarget}
+          />
         </div>
-      )}
-
-
-      {tab === "kompetitor" && (
-        <KompetitorPage />
-      )}
-
-      {tab === "slis" && (
-        <SLIS />
-      )}
+        {drillState.kab && (
+          <WilayahDetailPanel drillState={drillState} allProspects={prospects ?? []} />
+        )}
+      </div>
 
       {selectedProspect && (
         <>
