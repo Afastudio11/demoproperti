@@ -11,7 +11,6 @@ import {
   Newspaper, Building2, Zap, X, ArrowRight, Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Map as MapIcon } from "lucide-react";
 import { SlisAiChat } from "@/components/slis-ai-chat";
 
 // ─── Scoring helpers ─────────────────────────────────────────────────────────
@@ -1038,7 +1037,7 @@ type Panel = "list" | "kab" | "kec" | "desa";
 export default function SLIS() {
   const { data: prospects } = useListLandProspects({});
   const [roadmapResult, setRoadmapResult] = useState<RoadmapResult | null>(loadRoadmapCache);
-  const [activeTab, setActiveTab] = useState<"heatmap" | "ranking" | "roadmap" | "tanya-ai">("heatmap");
+  const [activeTab, setActiveTab] = useState<"ranking" | "roadmap" | "tanya-ai">("ranking");
   const [panel, setPanel] = useState<Panel>("list");
   const [selectedKab, setSelectedKab] = useState<KabupatenScore | null>(null);
   const [selectedKec, setSelectedKec] = useState<KecamatanScore | null>(null);
@@ -1073,10 +1072,9 @@ export default function SLIS() {
   const filteredKab = filterGrade === "all" ? SORTED_KAB : SORTED_KAB.filter(k => k.grade === filterGrade);
 
   const TABS = [
-    { key: "heatmap" as const, label: "Heatmap Sulsel", icon: MapPin },
-    { key: "ranking" as const, label: "Ranking", icon: BarChart3 },
-    { key: "roadmap" as const, label: "Roadmap AI", icon: TrendingUp },
-    { key: "tanya-ai" as const, label: "Tanya AI", icon: MessageSquare },
+    { key: "ranking" as const,  label: "Ranking",    icon: BarChart3 },
+    { key: "roadmap" as const,  label: "Roadmap AI", icon: TrendingUp },
+    { key: "tanya-ai" as const, label: "Tanya AI",   icon: MessageSquare },
   ];
 
   const GRADE_FILTERS: { key: Grade | "all"; label: string; color: string }[] = [
@@ -1102,90 +1100,6 @@ export default function SLIS() {
           ))}
         </div>
       </div>
-
-      {/* ── HEATMAP TAB ── */}
-      {activeTab === "heatmap" && (
-        <div className="flex gap-3 min-h-0 flex-1" style={{ height: "calc(100vh - 200px)", minHeight: 560 }}>
-          {/* LEFT: Sidebar with ranked list or detail */}
-          <div ref={sidebarRef} className="w-80 shrink-0 bg-card border rounded-xl overflow-y-auto p-3 space-y-2">
-            {panel === "list" && (
-              <>
-                <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">
-                  RANKING KABUPATEN — {SORTED_KAB.length} Kabupaten/Kota
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {GRADE_FILTERS.map(f => (
-                    <button key={f.key} onClick={() => setFilterGrade(f.key)}
-                      className={cn("text-[10px] px-2 py-0.5 rounded border transition-colors",
-                        filterGrade === f.key ? cn("bg-foreground text-background border-foreground") : cn("bg-background", f.color, "hover:bg-muted")
-                      )}>
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="space-y-1">
-                  {filteredKab.map((kab, i) => (
-                    <button key={kab.id} onClick={() => selectKab(kab)}
-                      className={cn("w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border hover:border-foreground/30 hover:bg-muted/30 transition-colors text-left group",
-                        selectedKab?.id === kab.id ? "border-foreground/30 bg-muted/30" : "border-transparent"
-                      )}>
-                      <span className="text-[10px] text-muted-foreground w-5 shrink-0">#{SORTED_KAB.indexOf(kab) + 1}</span>
-                      <div className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: getGradeColor(kab.grade) }} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[11px] font-medium truncate">{kab.name}</div>
-                        <div className="text-[9px] text-muted-foreground">{getGradeLabel(kab.grade)}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[12px] font-black">{kab.score}</div>
-                      </div>
-                      <ChevronRight className="size-3 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {panel === "kab" && selectedKab && (
-              <>
-                <button onClick={() => { setPanel("list"); setSelectedKab(null); }}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors mb-1">
-                  <ChevronLeft className="size-3.5" /> Semua Kabupaten
-                </button>
-                <KabupatenDetail kab={selectedKab} onSelectKec={selectKec} />
-              </>
-            )}
-
-            {panel === "kec" && selectedKec && selectedKab && (
-              <KecamatanDetail
-                kec={selectedKec}
-                kabName={selectedKab.name}
-                onSelectDesa={selectDesa}
-                onBack={() => { setPanel("kab"); setSelectedKec(null); }}
-              />
-            )}
-
-            {panel === "desa" && selectedDesa && selectedKec && selectedKab && (
-              <DesaDetail
-                desa={selectedDesa}
-                kecName={selectedKec.name}
-                kabName={selectedKab.name}
-                onBack={() => { setPanel("kec"); setSelectedDesa(null); }}
-              />
-            )}
-          </div>
-
-          {/* RIGHT: Redirect notice — peta sudah dipindah ke Akuisisi Lahan */}
-          <div className="flex-1 border rounded-xl bg-muted/20 flex flex-col items-center justify-center gap-3 text-center p-8">
-            <MapIcon className="size-10 text-muted-foreground/40" />
-            <div className="space-y-1">
-              <div className="text-sm font-semibold text-muted-foreground">Peta dipindahkan ke Akuisisi Lahan</div>
-              <div className="text-[12px] text-muted-foreground/70 max-w-xs">
-                Gunakan menu <span className="font-semibold">Akuisisi Lahan</span>, aktifkan <span className="font-semibold">Drilldown Wilayah</span>, lalu klik kabupaten untuk melihat peta kompetitor beserta analisis SLIS dan daftar developer di bawah peta.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── RANKING TAB ── */}
       {activeTab === "ranking" && (
@@ -1233,7 +1147,7 @@ export default function SLIS() {
                   {SORTED_KAB.map((kab, i) => (
                     <tr key={kab.id}
                       className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
-                      onClick={() => { setActiveTab("heatmap"); selectKab(kab); }}>
+                      onClick={() => selectKab(kab)}>
                       <td className="px-4 py-2.5 text-muted-foreground font-medium">{i + 1}</td>
                       <td className="px-3 py-2.5 font-medium">{kab.name}</td>
                       <td className="px-3 py-2.5 text-center font-black">{kab.score}</td>
