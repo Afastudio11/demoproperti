@@ -11,7 +11,7 @@ import {
   Newspaper, Building2, Zap, X, ArrowRight, Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SLISCompetitorMap } from "@/components/slis-competitor-map";
+import { Map as MapIcon } from "lucide-react";
 import { SlisAiChat } from "@/components/slis-ai-chat";
 
 // ─── Scoring helpers ─────────────────────────────────────────────────────────
@@ -1174,13 +1174,16 @@ export default function SLIS() {
             )}
           </div>
 
-          {/* RIGHT: Competitor Distribution Map */}
-          <SLISCompetitorMap
-            selectedKab={selectedKab}
-            onKabSelect={selectKab}
-            flyTo={flyTo}
-            expansionData={roadmapResult?.roadmap ?? null}
-          />
+          {/* RIGHT: Redirect notice — peta sudah dipindah ke Akuisisi Lahan */}
+          <div className="flex-1 border rounded-xl bg-muted/20 flex flex-col items-center justify-center gap-3 text-center p-8">
+            <MapIcon className="size-10 text-muted-foreground/40" />
+            <div className="space-y-1">
+              <div className="text-sm font-semibold text-muted-foreground">Peta dipindahkan ke Akuisisi Lahan</div>
+              <div className="text-[12px] text-muted-foreground/70 max-w-xs">
+                Gunakan menu <span className="font-semibold">Akuisisi Lahan</span>, aktifkan <span className="font-semibold">Drilldown Wilayah</span>, lalu klik kabupaten untuk melihat peta kompetitor beserta analisis SLIS dan daftar developer di bawah peta.
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
