@@ -27,6 +27,7 @@ import planningKppRouter from "./planning-kpp";
 import planningSDMRouter from "./planning-sdm";
 import planningLandbankRouter from "./planning-landbank";
 import aiPlanningInsightRouter from "./ai-planning-insight";
+import expansionRouter from "./expansion";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(planningKppRouter);
 router.use(planningSDMRouter);
 router.use(planningLandbankRouter);
 router.use(aiPlanningInsightRouter);
+router.use(expansionRouter);
 
 export default router;

@@ -36,6 +36,7 @@ import {
   DollarSign,
   TrendingUp,
   Map,
+  Compass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -57,6 +58,7 @@ const navItems = [
   { name: "Administrasi KPR", path: "/administrasi", icon: Users },
   { name: "Produksi", path: "/produksi", icon: HardHat },
   { name: "Serah Terima", path: "/serah-terima", icon: Key },
+  { name: "Potensi Ekspansi", path: "/ekspansi", icon: Compass },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
