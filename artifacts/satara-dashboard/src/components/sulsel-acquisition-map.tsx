@@ -16,6 +16,7 @@ import type { LandProspect } from "@workspace/api-client-react";
 import { MapPin, SquareDashed, PenLine, Trash2, X, Loader2, Home, Mountain, Droplets, ChevronRight, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
+import { KABUPATEN_DATA, getGradeColor, getGradeLabel } from "@/data/slis-scoring";
 
 const RISK_COLORS: Record<string, string> = {
   green: "#16a34a",
@@ -166,8 +167,22 @@ function competitorCount(
   return 0;
 }
 
-// Threshold → color (green = sedikit kompetitor = potensi terbaik)
-const POTENTIAL_THRESHOLDS_KAB  = [10,  30,  80, 150, 300];
+// ─── SLIS grade lookup ────────────────────────────────────────────────────────
+function normKabName(s: string): string {
+  return s.toUpperCase()
+    .replace(/^KAB\.?\s+|^KOTA\s+|^KABUPATEN\s+/g, "")
+    .replace(/\s+DAN\s+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const _slisMap = new Map(KABUPATEN_DATA.map(k => [normKabName(k.name), k]));
+
+function slisDataForKab(kabName: string) {
+  return _slisMap.get(normKabName(kabName)) ?? null;
+}
+
+// Threshold → color (green = sedikit kompetitor = potensi terbaik) — used for kec/desa levels
 const POTENTIAL_THRESHOLDS_KEC  = [3,    8,  20,  40,  80];
 const POTENTIAL_THRESHOLDS_DESA = [1,    3,   8,  16,  30];
 const POTENTIAL_COLORS = ["#15803d","#4ade80","#facc15","#f97316","#ef4444","#991b1b"];
@@ -176,13 +191,12 @@ const POTENTIAL_LABELS = [
 ];
 
 function _thresholds(level: number) {
-  if (level === 0) return POTENTIAL_THRESHOLDS_KAB;
   if (level === 1) return POTENTIAL_THRESHOLDS_KEC;
   return POTENTIAL_THRESHOLDS_DESA;
 }
 
 function potentialColor(count: number, level: number): string {
-  if (count === 0) return "#6b7280"; // abu — tidak ada data
+  if (count === 0) return "#6b7280";
   const thresholds = _thresholds(level);
   for (let i = 0; i < thresholds.length; i++) {
     if (count <= thresholds[i]) return POTENTIAL_COLORS[i];
@@ -301,30 +315,57 @@ function AdminDrillLayer({ drill, onDrill, onLoadingChange }: {
       const geo = L.geoJSON({ type: "FeatureCollection", features } as GeoJSON.FeatureCollection, {
         style(feature) {
           const key = (feature?.properties as any)?.[gk] ?? "";
-          const count = countByKey[key] ?? 0;
-          const color = potentialColor(count, drillSnapshot.level);
+          let color: string;
+          if (drillSnapshot.level === 0) {
+            const slis = slisDataForKab(key);
+            color = slis ? getGradeColor(slis.grade) : "#6b7280";
+          } else {
+            const count = countByKey[key] ?? 0;
+            color = potentialColor(count, drillSnapshot.level);
+          }
           return { color: "#fff", weight: wBase, opacity: 0.6, fillColor: color, fillOpacity: foBase };
         },
         onEachFeature(feature, lyr) {
           const p = feature.properties as any;
           const key = p?.[gk] ?? "";
           const count = countByKey[key] ?? 0;
-          const label = potentialLabel(count, drillSnapshot.level);
           const levelName = drillSnapshot.level === 0 ? "Kabupaten" : drillSnapshot.level === 1 ? "Kecamatan" : "Desa";
+
+          let tooltipHtml: string;
+          if (drillSnapshot.level === 0) {
+            const slis = slisDataForKab(key);
+            const gradeColor = slis ? getGradeColor(slis.grade) : "#6b7280";
+            const gradeLabel = slis ? getGradeLabel(slis.grade) : "Tidak ada data SLIS";
+            tooltipHtml = `
+              <div style="font-family:sans-serif;font-size:11px;line-height:1.5;min-width:180px">
+                <div style="font-weight:700;margin-bottom:2px">${key}</div>
+                <div style="color:#6b7280;font-size:10px">${levelName} · Sulawesi Selatan</div>
+                <div style="margin-top:5px;display:flex;align-items:center;gap:6px">
+                  <span style="background:${gradeColor};width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15);flex-shrink:0"></span>
+                  <span style="font-weight:700;font-size:12px">${slis?.score ?? "–"}</span>
+                  <span style="font-weight:600;color:${gradeColor}">${gradeLabel}</span>
+                </div>
+                ${slis ? `<div style="color:#6b7280;font-size:10px;margin-top:2px">${slis.hargaTanahRange} · ${count} developer</div>` : ""}
+              </div>
+            `;
+          } else {
+            const label = potentialLabel(count, drillSnapshot.level);
+            tooltipHtml = `
+              <div style="font-family:sans-serif;font-size:11px;line-height:1.5;min-width:160px">
+                <div style="font-weight:700;margin-bottom:2px">${key}</div>
+                <div style="color:#6b7280;font-size:10px">${levelName}</div>
+                <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
+                  <span style="background:${potentialColor(count, drillSnapshot.level)};width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15)"></span>
+                  <span style="font-weight:600">${label}</span>
+                </div>
+                <div style="color:#6b7280;font-size:10px;margin-top:2px">${count} perumahan terdaftar</div>
+              </div>
+            `;
+          }
 
           const tooltip = L.tooltip({
             permanent: false, sticky: true, opacity: 0.97, className: "leaflet-potential-tooltip",
-          }).setContent(`
-            <div style="font-family:sans-serif;font-size:11px;line-height:1.5;min-width:160px">
-              <div style="font-weight:700;margin-bottom:2px">${key}</div>
-              <div style="color:#6b7280;font-size:10px">${levelName}</div>
-              <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
-                <span style="background:${potentialColor(count, drillSnapshot.level)};width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15)"></span>
-                <span style="font-weight:600">${label}</span>
-              </div>
-              <div style="color:#6b7280;font-size:10px;margin-top:2px">${count} perumahan terdaftar</div>
-            </div>
-          `);
+          }).setContent(tooltipHtml);
           lyr.bindTooltip(tooltip);
 
           lyr.on("mouseover", () => {
@@ -1172,26 +1213,46 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
           )}
           style={{ minHeight: 600 }}
         >
-          {/* Legend potensi ekspansi */}
+          {/* Legend */}
           {showAdmin && (
             <div className="absolute bottom-6 left-3 z-[1000] bg-white/95 border border-gray-200 rounded-lg shadow-lg px-3 py-2.5 text-[10px] pointer-events-none">
-              <div className="font-semibold text-gray-700 mb-1.5 text-[11px]">Potensi Ekspansi</div>
-              {[
-                { color: "#15803d", label: "Sangat Baik" },
-                { color: "#4ade80", label: "Baik" },
-                { color: "#facc15", label: "Sedang" },
-                { color: "#f97316", label: "Kompetitif" },
-                { color: "#ef4444", label: "Jenuh" },
-                { color: "#991b1b", label: "Sangat Jenuh" },
-                { color: "#6b7280", label: "Belum ada data" },
-              ].map(({ color, label }) => (
-                <div key={label} className="flex items-center gap-1.5 py-0.5">
-                  <span style={{ background: color, width: 10, height: 10, borderRadius: 2, display: "inline-block", border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
-                  <span className="text-gray-600">{label}</span>
-                </div>
-              ))}
+              {adminDrill.level === 0 ? (
+                <>
+                  <div className="font-semibold text-gray-700 mb-1.5 text-[11px]">Grade SLIS Kabupaten</div>
+                  {[
+                    { color: "#16a34a", label: "Sangat Potensial" },
+                    { color: "#d97706", label: "Potensial" },
+                    { color: "#ea580c", label: "Sedang" },
+                    { color: "#dc2626", label: "Tidak Direkomendasikan" },
+                    { color: "#6b7280", label: "Belum ada data SLIS" },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-1.5 py-0.5">
+                      <span style={{ background: color, width: 10, height: 10, borderRadius: 2, display: "inline-block", border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                      <span className="text-gray-600">{label}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <div className="font-semibold text-gray-700 mb-1.5 text-[11px]">Kepadatan Kompetitor</div>
+                  {[
+                    { color: "#15803d", label: "Sangat Baik" },
+                    { color: "#4ade80", label: "Baik" },
+                    { color: "#facc15", label: "Sedang" },
+                    { color: "#f97316", label: "Kompetitif" },
+                    { color: "#ef4444", label: "Jenuh" },
+                    { color: "#991b1b", label: "Sangat Jenuh" },
+                    { color: "#6b7280", label: "Belum ada data" },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-1.5 py-0.5">
+                      <span style={{ background: color, width: 10, height: 10, borderRadius: 2, display: "inline-block", border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                      <span className="text-gray-600">{label}</span>
+                    </div>
+                  ))}
+                </>
+              )}
               <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-[9px] text-gray-400">
-                {adminDrill.level === 0 ? "Per Kabupaten (≤10 / ≤30 / ≤80 / …)" : adminDrill.level === 1 ? "Per Kecamatan (≤3 / ≤8 / ≤20 / …)" : "Per Kelurahan/Desa (≤1 / ≤3 / ≤8 / …)"}
+                {adminDrill.level === 0 ? "Per Kabupaten (SLIS Score)" : adminDrill.level === 1 ? "Per Kecamatan (≤3 / ≤8 / ≤20 / …)" : "Per Kelurahan/Desa (≤1 / ≤3 / ≤8 / …)"}
                 {" "}&bull; {_kabCountMap.size > 0 ? `${Array.from(_kabCountMap.values()).reduce((a, b) => a + b, 0).toLocaleString("id-ID")} perumahan` : ""}
               </div>
             </div>
