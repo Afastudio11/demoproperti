@@ -346,6 +346,109 @@ function DesaDetail({ desa, kecName, kabName, onBack }: { desa: DesaScore; kecNa
 
 const SORTED_KAB = [...KABUPATEN_DATA].sort((a, b) => b.score - a.score);
 
+// ─── Dropdown navigator hierarkis ────────────────────────────────────────
+
+function WilayahDropdownNav({
+  selectedKab, selectedKec, selectedDesa,
+  onSelectKab, onSelectKec, onSelectDesa, onReset,
+}: {
+  selectedKab: KabupatenScore | null;
+  selectedKec: KecamatanScore | null;
+  selectedDesa: DesaScore | null;
+  onSelectKab: (k: KabupatenScore) => void;
+  onSelectKec: (k: KecamatanScore) => void;
+  onSelectDesa: (d: DesaScore) => void;
+  onReset: () => void;
+}) {
+  const selectCls = cn(
+    "h-8 rounded-lg border border-border/60 bg-muted/30 px-2.5 text-[11px] font-medium",
+    "focus:outline-none focus:ring-1 focus:ring-foreground/20 focus:border-foreground/30",
+    "text-foreground cursor-pointer transition-colors hover:border-foreground/30",
+    "min-w-[160px]"
+  );
+  return (
+    <div className="bg-card border rounded-xl px-4 py-3 flex flex-wrap items-center gap-2.5">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground shrink-0">
+        <MapPin className="size-3.5" />
+        Pilih Wilayah:
+      </div>
+
+      {/* Kabupaten */}
+      <select
+        className={selectCls}
+        value={selectedKab?.id ?? ""}
+        onChange={(e) => {
+          const kab = SORTED_KAB.find(k => k.id === e.target.value);
+          if (kab) onSelectKab(kab);
+        }}
+      >
+        <option value="">-- Kabupaten/Kota --</option>
+        {SORTED_KAB.map(k => (
+          <option key={k.id} value={k.id}>{k.name} ({k.score})</option>
+        ))}
+      </select>
+
+      {/* Kecamatan */}
+      {selectedKab && (
+        <>
+          <ChevronRight className="size-3 text-muted-foreground/40 shrink-0" />
+          <select
+            className={selectCls}
+            value={selectedKec?.id ?? ""}
+            onChange={(e) => {
+              const kec = selectedKab.kecamatan.find(k => k.id === e.target.value);
+              if (kec) onSelectKec(kec);
+            }}
+          >
+            <option value="">-- Pilih Kecamatan --</option>
+            {[...selectedKab.kecamatan].sort((a, b) => b.score - a.score).map(k => (
+              <option key={k.id} value={k.id}>{k.name} ({k.score})</option>
+            ))}
+          </select>
+        </>
+      )}
+
+      {/* Desa */}
+      {selectedKec && (
+        <>
+          <ChevronRight className="size-3 text-muted-foreground/40 shrink-0" />
+          <select
+            className={selectCls}
+            value={selectedDesa?.id ?? ""}
+            onChange={(e) => {
+              const desa = selectedKec.desa.find(d => d.id === e.target.value);
+              if (desa) onSelectDesa(desa);
+            }}
+          >
+            <option value="">-- Pilih Desa/Kel. --</option>
+            {[...selectedKec.desa].sort((a, b) => b.score - a.score).map(d => (
+              <option key={d.id} value={d.id}>{d.name} ({d.score}) — {d.hargaTanahEst}</option>
+            ))}
+          </select>
+        </>
+      )}
+
+      {selectedKab && (
+        <button
+          onClick={onReset}
+          className="ml-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground border border-border/50 rounded-lg px-2 py-1 hover:border-foreground/30 transition-colors"
+        >
+          <X className="size-2.5" />Reset
+        </button>
+      )}
+
+      {/* Breadcrumb aktif */}
+      {selectedKab && (
+        <div className="ml-auto text-[10px] text-muted-foreground/70 font-medium">
+          {selectedKab.name}
+          {selectedKec ? ` › ${selectedKec.name}` : ""}
+          {selectedDesa ? ` › ${selectedDesa.name}` : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Kabupaten Insight (AI berita + sinkronisasi lahan) ──────────────────
 
 interface KabInsight {
@@ -1123,11 +1226,77 @@ export default function SLIS() {
             })}
           </div>
 
+          {/* Dropdown navigator hierarkis */}
+          <WilayahDropdownNav
+            selectedKab={selectedKab}
+            selectedKec={selectedKec}
+            selectedDesa={selectedDesa}
+            onSelectKab={selectKab}
+            onSelectKec={selectKec}
+            onSelectDesa={selectDesa}
+            onReset={() => { setPanel("list"); setSelectedKab(null); setSelectedKec(null); setSelectedDesa(null); }}
+          />
+
+          {/* Detail panel — ditampilkan ketika ada pilihan aktif */}
+          {panel === "kab" && selectedKab && (
+            <div className="bg-card border rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 border-b bg-muted/20 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <GradeDot grade={selectedKab.grade} />
+                  <span className="font-semibold text-[13px]">{selectedKab.name}</span>
+                  <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", getGradeBg(selectedKab.grade))}>{getGradeLabel(selectedKab.grade)}</span>
+                </div>
+                <button onClick={() => { setPanel("list"); setSelectedKab(null); setSelectedKec(null); setSelectedDesa(null); }} className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 border border-border/50 rounded-lg px-2 py-1 hover:border-foreground/30 transition-colors">
+                  <X className="size-3" />Tutup
+                </button>
+              </div>
+              <div className="p-4">
+                <KabupatenDetail kab={selectedKab} onSelectKec={selectKec} />
+              </div>
+            </div>
+          )}
+          {panel === "kec" && selectedKec && selectedKab && (
+            <div className="bg-card border rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 border-b bg-muted/20 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <button onClick={() => { setPanel("kab"); setSelectedKec(null); setSelectedDesa(null); }} className="hover:text-foreground transition-colors font-medium">{selectedKab.name}</button>
+                  <ChevronRight className="size-3" />
+                  <span className="text-foreground font-semibold text-[13px]">{selectedKec.name}</span>
+                </div>
+                <button onClick={() => { setPanel("list"); setSelectedKab(null); setSelectedKec(null); setSelectedDesa(null); }} className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 border border-border/50 rounded-lg px-2 py-1 hover:border-foreground/30 transition-colors">
+                  <X className="size-3" />Tutup
+                </button>
+              </div>
+              <div className="p-4">
+                <KecamatanDetail kec={selectedKec} kabName={selectedKab.name} onSelectDesa={selectDesa} onBack={() => { setPanel("kab"); setSelectedKec(null); setSelectedDesa(null); }} />
+              </div>
+            </div>
+          )}
+          {panel === "desa" && selectedDesa && selectedKec && selectedKab && (
+            <div className="bg-card border rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 border-b bg-muted/20 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <button onClick={() => { setPanel("kab"); setSelectedKec(null); setSelectedDesa(null); }} className="hover:text-foreground transition-colors font-medium">{selectedKab.name}</button>
+                  <ChevronRight className="size-3" />
+                  <button onClick={() => { setPanel("kec"); setSelectedDesa(null); }} className="hover:text-foreground transition-colors font-medium">{selectedKec.name}</button>
+                  <ChevronRight className="size-3" />
+                  <span className="text-foreground font-semibold text-[13px]">{selectedDesa.name}</span>
+                </div>
+                <button onClick={() => { setPanel("list"); setSelectedKab(null); setSelectedKec(null); setSelectedDesa(null); }} className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 border border-border/50 rounded-lg px-2 py-1 hover:border-foreground/30 transition-colors">
+                  <X className="size-3" />Tutup
+                </button>
+              </div>
+              <div className="p-4">
+                <DesaDetail desa={selectedDesa} kecName={selectedKec.name} kabName={selectedKab.name} onBack={() => { setPanel("kec"); setSelectedDesa(null); }} />
+              </div>
+            </div>
+          )}
+
           {/* Full ranking table */}
           <div className="bg-card border rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
               <h3 className="font-semibold text-sm">Ranking Kabupaten — Modul 1</h3>
-              <span className="text-[11px] text-muted-foreground">24 Kabupaten/Kota Sulawesi Selatan</span>
+              <span className="text-[11px] text-muted-foreground">24 Kabupaten/Kota Sulawesi Selatan · klik baris untuk detail</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
@@ -1146,10 +1315,18 @@ export default function SLIS() {
                 <tbody>
                   {SORTED_KAB.map((kab, i) => (
                     <tr key={kab.id}
-                      className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
+                      className={cn(
+                        "border-b last:border-0 cursor-pointer transition-colors",
+                        selectedKab?.id === kab.id
+                          ? "bg-foreground/5 border-l-2 border-l-foreground"
+                          : "hover:bg-muted/30"
+                      )}
                       onClick={() => selectKab(kab)}>
                       <td className="px-4 py-2.5 text-muted-foreground font-medium">{i + 1}</td>
-                      <td className="px-3 py-2.5 font-medium">{kab.name}</td>
+                      <td className="px-3 py-2.5 font-medium flex items-center gap-1.5">
+                        <GradeDot grade={kab.grade} />
+                        {kab.name}
+                      </td>
                       <td className="px-3 py-2.5 text-center font-black">{kab.score}</td>
                       <td className="px-3 py-2.5">
                         <span className={cn("px-2 py-0.5 rounded-full border text-[10px] font-medium", getGradeBg(kab.grade))}>

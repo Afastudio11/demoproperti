@@ -1,0 +1,971 @@
+# REPLIT PROMPT — MENU PRODUKSI
+## Satara Development Internal Dashboard
+
+---
+
+## KONTEKS
+
+Dashboard internal Satara Development sudah berjalan dengan sidebar utama:
+Executive Overview, Daftar Proyek, Akuisisi Lahan, Perencanaan, Legal & Perizinan,
+Marketing, Administrasi KPR, **Produksi** (← ini yang dibangun), Serah Terima, Settings.
+
+**Tugas:** Bangun seluruh halaman dan sub-menu untuk menu **Produksi**, yang berfungsi
+sebagai pusat kontrol pembangunan, pembayaran subkon, logistik, dan produktivitas proyek.
+Divisi ini harus mampu menjawab: "Apakah bangunan ini tepat waktu, tepat biaya, tepat
+kualitas, efisien secara material, siap akad, dan subkon mana yang paling layak diberi
+pekerjaan berikutnya?"
+
+---
+
+## STRUKTUR MENU PRODUKSI
+
+```
+Produksi
+├── 1. Production Dashboard (Command Center)
+├── 2. Progress Proyek
+│   ├── Project Level
+│   ├── Stage Level (Per Tahap)
+│   └── Unit Level (Per Rumah)
+├── 3. Fasum Progress
+├── 4. Manajemen Subkon
+│   ├── Daftar Kontrak Subkon
+│   ├── Termin Payment System
+│   ├── Approval Pembayaran
+│   └── Subkon Performance Dashboard
+├── 5. Logistik & Material
+│   ├── Master Material
+│   ├── Input Material Masuk
+│   ├── Input Material Keluar (Harian)
+│   ├── Stok Gudang
+│   ├── Konsumsi per Subkon
+│   ├── Material Variance Analysis
+│   └── Procurement Forecast
+├── 6. Quality Control
+│   ├── QC Checklist per Unit
+│   ├── Rework Monitoring
+│   └── Defect & Warranty Tracker
+├── 7. Ready Akad Tracker
+├── 8. Analisis Produktivitas
+│   ├── Velocity Analysis
+│   ├── Baseline Progress Tracker
+│   ├── Cost to Complete
+│   ├── Cashflow Impact of Delay
+│   ├── Productivity Score
+│   ├── Subkon Eligibility Score
+│   └── Production Forecast
+└── 9. Construction Health Score
+```
+
+---
+
+## SPESIFIKASI DETAIL SETIAP HALAMAN
+
+---
+
+### 1. PRODUCTION DASHBOARD
+**Route:** `/produksi`
+**Fungsi:** Halaman pertama yang dibuka. Ringkasan harian untuk CEO dan kepala produksi.
+
+**Komponen:**
+
+**Baris metric cards (atas):**
+- Progress proyek aktif (contoh: SN3 = 68%)
+- Tahap aktif dan progress-nya (contoh: T4 - 30%)
+- Jumlah unit aktif berjalan
+- Fasum progress keseluruhan (%)
+- Tagihan Layak Bayar hari ini (Rp)
+- Material Terpakai total (Rp)
+- Construction Health Score (angka/100)
+
+**Panel Subkon Snapshot:**
+- Tabel: Nama subkon, unit aktif, progress (%), velocity termin ini (%), skor produktivitas
+- Highlight: Subkon Terbaik (hijau) dan Subkon Terlambat (merah)
+
+**Panel Alerts:**
+- Unit SP3K belum ready akad (jumlah unit + estimasi selesai + HT tertahan Rp)
+- Tagihan subkon menunggu approval
+- Material kritis 14 hari ke depan
+- Unit dengan progress di bawah baseline
+
+**Data source:** Semua otomatis dari modul di bawah, tidak ada input manual.
+
+---
+
+### 2. PROGRESS PROYEK
+
+#### 2a. Project Level
+**Route:** `/produksi/progress/proyek`
+
+**Tampilan:**
+- Tabel semua proyek: Nama proyek, total unit, progress aktual (%), progress target (%), deviasi (%), status (On Track / Warning / Delayed)
+- Bar chart: Progress aktual vs target per proyek
+- Filter: tahun, kabupaten, status
+
+**Data yang dibutuhkan dari database:**
+- project_id, total_units, actual_progress (%), target_progress (%)
+
+#### 2b. Stage Level (Per Tahap)
+**Route:** `/produksi/progress/tahap`
+
+**Tampilan:**
+- Selector: pilih proyek → tampil semua tahap proyek tersebut
+- Tabel tahap: Kode tahap (T1, T2, dst), jumlah unit, progress (%), status, Stage Health Score
+- Contoh data SN Residence 3:
+
+| Tahap | Unit | Progress | Status |
+|-------|------|----------|--------|
+| T1    | 45   | 100%     | Selesai |
+| T2    | 29   | 100%     | Selesai |
+| T3    | 28   | 100%     | Selesai |
+| T4    | 25   | 30%      | Aktif |
+| T5    | 44   | 0%       | Land Bank |
+| T6    | 38   | 0%       | Land Bank |
+
+#### 2c. Unit Level (Per Rumah)
+**Route:** `/produksi/progress/unit`
+
+**Tampilan:**
+- Filter: proyek → tahap → tampil semua unit
+- Tabel unit dengan kolom: No unit/kavling, subkon PIC, progress (%), baseline target (%), status (Ahead/On Track/Warning/Critical)
+- Klik unit → buka detail checklist
+
+**Detail unit (modal atau halaman terpisah):**
+**Route:** `/produksi/progress/unit/:unit_id`
+
+**Ini adalah CHECKLIST PROGRESS per unit** — data dari file Monitoring_Progres_Pembangunan_Tipe36.xlsx.
+Sistem menggunakan bobot pekerjaan standar Satara berikut (HARDCODE ini sebagai standar):
+
+| No | Tahapan Pekerjaan | Bobot (%) |
+|----|-------------------|-----------|
+| 1  | Galian            | 3%        |
+| 2  | Pondasi           | 6%        |
+| 3  | Sloof             | 5%        |
+| 4  | Kolom             | 5%        |
+| 5  | Pasangan Dinding Bata/Hebel | 12% |
+| 6  | Ring Balk (Balok Atas) | 5%   |
+| 7  | Rangka Atap (Baja Ringan) | 4% |
+| 8  | Penutup Atap (Genteng Metal/Spandek) | 5% |
+| 9  | Cor Plat Teras    | 4%        |
+| 10 | Cor Plat WC       | 4%        |
+| 11 | Topi-topi         | 2%        |
+| 12 | Kuda-Kuda         | 4%        |
+| 13 | Plaster           | 7%        |
+| 14 | Aplus             | 6%        |
+| 15 | Kusen Pintu       | 1%        |
+| 16 | Kusen Jendela     | 1%        |
+| 17 | Kusen L           | 1%        |
+| 18 | Instalasi Pipa    | 1%        |
+| 19 | Pemasangan Keramik 40x40 | 5%  |
+| 20 | Pemasangan Keramik 25x40 | 2%  |
+| 21 | Pemasangan Keramik 25x25 | 1%  |
+| 22 | Pemasangan Closet dll | 1%     |
+| 23 | Cat               | 7%        |
+| 24 | Pemasangan Rangka Plafon | 3%  |
+| 25 | Pemasangan Gypsum | 2%        |
+| 26 | Floor Teras       | 3%        |
+| **TOTAL** |              | **100%**  |
+
+**Form input per unit:**
+- Setiap item pekerjaan: toggle/checkbox SELESAI atau input % parsial
+- Upload foto (before/during/after) — wajib untuk setiap item yang ditandai selesai
+- Nama pengawas yang verifikasi
+- Tanggal penyelesaian
+- Sistem otomatis menghitung: Progress Unit (%) = jumlah bobot item yang selesai
+
+**Baseline Progress per Minggu (tampilkan di samping aktual):**
+
+| Minggu | Target Progress |
+|--------|----------------|
+| Minggu 1 | 10% |
+| Minggu 2 | 25% |
+| Minggu 3 | 40% |
+| Minggu 4 | 55% |
+| Minggu 5 | 70% |
+| Minggu 6 | 85% |
+| Minggu 7 | 95% |
+| Minggu 8 | 100% |
+
+Sistem membandingkan progress aktual vs baseline dan menampilkan status:
+- Ahead (aktual > target + 5%)
+- On Track (±5% dari target)
+- Warning (aktual < target − 5%)
+- Critical (aktual < target − 15%)
+
+---
+
+### 3. FASUM PROGRESS
+**Route:** `/produksi/fasum`
+
+**Form input per item fasum:**
+
+| Field | Tipe |
+|-------|------|
+| Proyek | Select |
+| Item fasum | Select: Jalan / Drainase / Taman / IPAL / Masjid / Gorong-gorong / Gerbang / Selokan / Gazebo / Paving Block |
+| Progress (%) | Number |
+| Catatan | Textarea |
+| Foto | Upload |
+| Tanggal update | Date |
+
+**Tampilan dashboard fasum:**
+- Progress bar per item dengan warna status
+- Indikator "Fasum-to-Akad Dependency":
+  - Item fasum kritis yang mempengaruhi akad/serah terima diberi flag merah jika <70%
+  - Output: "Tahap X belum ideal untuk serah terima karena [item] baru [%]%"
+
+---
+
+### 4. MANAJEMEN SUBKON
+
+#### 4a. Daftar Kontrak Subkon
+**Route:** `/produksi/subkon/kontrak`
+
+**Form Tambah Kontrak:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama subkon | Text | Contoh: DG IWAN, DG ZUL, DG DANDI |
+| Proyek & tahap | Select | |
+| Jumlah unit dikerjakan | Number | |
+| Nilai kontrak per unit | Number (Rp) | Input nominal per unit, contoh: Rp 16.500.000 |
+| Total nilai kontrak | Auto (Rp) | = nilai per unit × jumlah unit |
+| Retensi per unit | Number (Rp) | Nominal tetap, contoh: Rp 500.000 per unit |
+| Total retensi | Auto (Rp) | = retensi per unit × jumlah unit |
+| Nilai bersih dapat dibayar | Auto (Rp) | = total kontrak − total retensi |
+| Tanggal mulai | Date | |
+| Tanggal target selesai | Date | |
+| Masa pemeliharaan (bulan) | Number | Retensi baru bisa dicairkan setelah N bulan sejak unit 100%. Default: 3 bulan |
+
+**Catatan penting — mekanisme retensi Satara:**
+Retensi adalah **nominal tetap per unit** (bukan persentase), dan baru bisa dicairkan setelah masa pemeliharaan berakhir. Sistem harus:
+1. Menahan retensi dari setiap termin secara proporsional sampai unit 100%.
+2. Mencatat tanggal unit selesai 100% sebagai titik mulai masa pemeliharaan.
+3. Menampilkan status retensi per kontrak: Ditahan / Masa Pemeliharaan (countdown hari) / Siap Cair.
+4. Memberi notifikasi ke finance saat retensi sudah boleh dicairkan.
+
+**Contoh data aktual dari file Laporan_subkon.xlsx yang harus bisa diinput:**
+- DG IWAN: 5 unit, Rp 16.500.000/unit, total Rp 82.500.000, retensi Rp 500.000/unit
+- DG ZUL: 3 unit, Rp 16.500.000/unit, total Rp 49.500.000, retensi Rp 500.000/unit
+- DG DANDI: 6 unit, Rp 16.500.000/unit, total Rp 99.000.000, retensi Rp 500.000/unit
+- DG RAJA: 5 unit, Rp 16.500.000/unit, total Rp 82.500.000, retensi Rp 500.000/unit
+- DG DAHLAN: 5 unit, Rp 16.500.000/unit, total Rp 82.500.000, retensi Rp 500.000/unit
+- DG AKBAR: 2 unit, Rp 16.500.000/unit, total Rp 33.000.000, retensi Rp 500.000/unit
+- DG NUDING: 5 unit, Rp 16.500.000/unit, total Rp 82.500.000, retensi Rp 500.000/unit
+
+Nilai kontrak per unit dan retensi per unit sepenuhnya **custom per proyek** — bisa berbeda antar tahap atau antar proyek (Barru, Villa Sinoa, dll bisa punya nilai berbeda).
+
+**Tampilan daftar kontrak:**
+- Tabel: nama, unit, nilai/unit, total kontrak, retensi/unit, total retensi, total terbayar (di luar retensi), retensi tertahan, status retensi, status kontrak
+- Status kontrak otomatis: Aktif / Selesai / Overdue
+- Status retensi otomatis: Ditahan / Masa Pemeliharaan [sisa N hari] / Siap Cair / Sudah Cair
+
+#### 4b. Termin Payment System
+**Route:** `/produksi/subkon/termin`
+
+**Ini adalah inti sistem pembayaran Satara. Pembayaran dilakukan tanggal 15 dan 30 berdasarkan progress fisik.**
+
+**Form input termin:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama subkon | Select | |
+| Periode termin | Select | Tanggal 15 / Tanggal 30 |
+| Bulan & tahun | Month picker | |
+| Progress termin sebelumnya (%) | Number | Auto-fill dari termin sebelumnya |
+| Progress termin saat ini (%) | Number | Input aktual |
+
+**Kalkulasi otomatis (tampilkan setelah input):**
+```
+Velocity                    = Progress Saat Ini − Progress Termin Sebelumnya
+
+Hak Bayar Bruto             = (Progress Saat Ini − Total % sudah dibayar) × Total Nilai Kontrak
+Retensi Proporsional        = Retensi Per Unit × Unit yang progress-nya tercapai termin ini
+                              (Retensi ditahan sampai unit 100% dan masa pemeliharaan selesai)
+Tagihan Bersih Termin Ini   = Hak Bayar Bruto − Retensi Proporsional
+
+Nilai Bersih Total Dapat Dibayar = Total Kontrak − Total Retensi
+Sisa yang Belum Dibayar          = Nilai Bersih Total − Akumulasi Pembayaran Sebelumnya
+```
+
+**Contoh kalkulasi (tampilkan sebagai ilustrasi di halaman):**
+```
+Subkon DG IWAN — 5 unit
+Nilai Kontrak per Unit      : Rp 16.500.000
+Total Nilai Kontrak         : Rp 82.500.000
+Retensi per Unit            : Rp 500.000
+Total Retensi               : Rp 2.500.000
+Nilai Bersih Dapat Dibayar  : Rp 80.000.000
+
+Progress Termin Sebelumnya  : 30%
+Progress Termin Saat Ini    : 47%
+Velocity                    : 17%
+
+Hak Bayar Bruto             : 17% × Rp 82.500.000 = Rp 14.025.000
+Retensi Termin Ini          : 17% × Rp 2.500.000  = Rp 425.000
+Tagihan Bersih Termin Ini   : Rp 14.025.000 − Rp 425.000 = Rp 13.600.000
+
+Status Retensi              : Ditahan (unit belum 100%)
+Total Retensi Tertahan s/d sekarang: Rp 425.000 + akumulasi termin sebelumnya
+```
+
+**Mekanisme pencairan retensi (terpisah dari termin biasa):**
+- Setelah semua unit subkon tersebut mencapai 100% progress, sistem otomatis mencatat tanggal selesai.
+- Masa pemeliharaan berjalan: countdown N bulan (sesuai kontrak, default 3 bulan).
+- Setelah masa pemeliharaan berakhir, sistem membuat tagihan retensi otomatis.
+- Tagihan retensi masuk ke antrian Approval Pembayaran dengan tipe "Pencairan Retensi".
+- Finance mencairkan total retensi tertahan sekaligus.
+
+**Output per subkon:**
+- Tagihan Bersih Termin Ini (Rp)
+- Total Sudah Dibayar (di luar retensi) (Rp)
+- Total Retensi Tertahan (Rp)
+- Status Retensi: Ditahan / Masa Pemeliharaan [sisa N hari] / Siap Cair
+- Sisa Kontrak yang Belum Dibayar (Rp)
+
+**Histori pembayaran (dari data aktual file Laporan_subkon.xlsx):**
+Sistem harus menyimpan setiap pembayaran dengan kolom: tanggal pembayaran, jumlah, termin ke-berapa.
+
+#### 4c. Approval Pembayaran
+**Route:** `/produksi/subkon/approval`
+
+**Alur approval (workflow):**
+```
+Subkon input tagihan
+→ Pengawas verifikasi progress
+→ QC verifikasi kualitas
+→ Production Manager approve
+→ Finance proses pembayaran
+→ CEO lihat summary
+```
+
+**Tampilan antrian approval:**
+- Tabel: Nama subkon, nilai tagihan, progress diklaim (%), status QC, status approval, status finance
+- Setiap baris ada tombol aksi sesuai peran user: Verifikasi / Approve / Hold / Reject
+- Status warna:
+  - Abu-abu: Menunggu verifikasi
+  - Kuning: Sedang review
+  - Hijau: Approved, menunggu payment
+  - Merah: Ditolak / Hold
+  - Biru: Sudah dibayar
+
+**Form verifikasi pengawas:**
+- Upload foto progress sebagai bukti
+- Konfirmasi progress (%)
+- Catatan (jika ada perbedaan dengan klaim subkon)
+
+#### 4d. Subkon Performance Dashboard
+**Route:** `/produksi/subkon/performa`
+
+**Tampilan:**
+- Tabel ranking subkon: nama, unit aktif, progress (%), velocity termin ini (%), QC score, rework count, productivity score, eligibility score, rekomendasi
+- Bar chart: perbandingan velocity antar subkon
+- Filter: proyek, tahap, periode
+
+---
+
+### 5. LOGISTIK & MATERIAL
+
+#### 5a. Master Material
+**Route:** `/produksi/material/master`
+
+**Ini adalah daftar master semua material yang digunakan. Berdasarkan file LAPORAN_LOGISTIK.xlsx, gunakan daftar material berikut sebagai default (bisa ditambah):**
+
+Kategori A - Pendahuluan: Tali Tukang
+
+Kategori B - Struktur: Timbunan Tanah, Batu Gunung, Semen, Pasir, Kerikil, Besi 10 Full, Besi 8 Full, Besi 6 Full, Papan, Balok, Triplek 8mm, Bambu, Paku 10, Paku 7, Paku 5, Bata Merah
+
+Kategori C - Atap & Rangka: Canal C, Reng Rangka, Spandek 6m, Spandek 7m, Baut Spandek, Hollow 2,4, Hollow 4,4
+
+Kategori D - Finishing: Keramik WC 25x40, Keramik 40x40, Keramik WC 25x25, Sika Nat Keramik, Gypsum, Pintu, Jendela, Kapek Besar, Kapek Kecil, Amplas Roll, Aplus Hijau, Cat AM Luar Putih, Cat Propan Luar Krem/Hijau, Cat AM Luar Grey, Cat Kimex Dalam Putih, Cat Plafon Vinilex, Cat Nodrop Grey, Cat Altex Cokelat, Cat Altex Putih
+
+Kategori E - Instalasi Listrik: Kabel 1x1,5 Biru, Kabel 1x1,5 Merah, Kabel 1x1,5 Hitam, Kabel 2x2,5 Eterna, Kabel Audio TV, Sadel No.8, Inbow Dus, L Bow, T Dus, Box MCB, MCB, Fitting Lampu, Lampu 10 Watt, Saklar Tunggal, Saklar Seri, Stop Kontak, Saklar+Stop Kontak, Soket Antena TV, Pipa Kabel Listrik
+
+Kategori F - Instalasi Air: Pipa 1/2", Pipa 2,5", Pipa 3", Sambungan L 1/2", Sambungan L 2,5", Sambungan L 3", Sambungan T 1/2", Sambungan T 2,5", Kran Air 1/2", Sok Drat Dalam 1/2", Sok Drat Luar 3/4", Sambungan Overshock 3/4 ke 1, Stop Kran 1/2, Lem Pipa 400gr, Wastafel, Kloset, Saringan Got
+
+**Form tambah material:**
+
+| Field | Tipe |
+|-------|------|
+| Nama material | Text |
+| Satuan | Select: bh, zak, m3, btg, lbr, m, kg, dos, DT |
+| Kategori | Select |
+| Standar pemakaian per unit | Number | (untuk variance analysis) |
+| Harga satuan (Rp) | Number |
+
+#### 5b. Input Material Masuk
+**Route:** `/produksi/material/masuk`
+
+**Form:**
+
+| Field | Tipe |
+|-------|------|
+| Tanggal | Date |
+| Proyek & tahap | Select |
+| Nama material | Select (dari master) |
+| Jumlah | Number |
+| Satuan | Auto (dari master) |
+| Supplier | Text |
+| No. surat jalan / faktur | Text |
+| Foto surat jalan | Upload |
+| Keterangan | Textarea |
+
+#### 5c. Input Material Keluar (Harian)
+**Route:** `/produksi/material/keluar`
+
+**Berdasarkan sheet HARIAN di file LAPORAN_LOGISTIK.xlsx. Form harian:**
+
+| Field | Tipe |
+|-------|------|
+| Tanggal | Date |
+| Nama pengambil | Text (nama tukang / subkon) |
+| Proyek & tahap | Select |
+| No unit / kavling | Text |
+| Nama material | Select |
+| Jumlah diambil | Number |
+| Keterangan | Textarea |
+
+**Ini adalah log harian setiap pengambilan material dari gudang.** Setiap baris = satu transaksi pengambilan.
+
+#### 5d. Stok Gudang
+**Route:** `/produksi/material/stok`
+
+**Tampilan:**
+- Tabel: material, satuan, jumlah dikeluarkan total, jumlah digunakan total, stok aktual (auto), nilai stok (Rp)
+- Filter: proyek, kategori material
+- Highlight merah jika stok di bawah minimum
+
+**Kalkulasi:**
+```
+Stok Aktual = Total Masuk − Total Keluar
+Nilai Stok  = Stok Aktual × Harga Satuan
+```
+
+**Berdasarkan struktur dari file LAPORAN_LOGISTIK.xlsx sheet REKAP:**
+Tampilkan kolom: Nama Material, Satuan, Jumlah Dikeluarkan, Jumlah Digunakan, Sisa
+
+#### 5e. Konsumsi Per Subkon
+**Route:** `/produksi/material/konsumsi`
+
+**Berdasarkan sheet per subkon di file LAPORAN_LOGISTIK.xlsx (contoh: sheet DG. ANCA).**
+
+**Tampilan:**
+- Filter: pilih subkon
+- Tabel per subkon: Material, Satuan, Rencana (standar), Jumlah Digunakan, Sisa
+- Kategori dikelompokkan: A-Pendahuluan, B-Struktur, C-Atap & Rangka, D-Finishing, E-Listrik, F-Air
+
+#### 5f. Material Variance Analysis
+**Route:** `/produksi/material/variance`
+
+**Tampilan:**
+- Tabel perbandingan: Subkon, Material, Standar per Unit, Aktual per Unit, Deviasi (%), Status
+- Alert merah jika deviasi > 10%
+- Contoh:
+
+| Subkon | Material | Standar | Aktual | Deviasi | Status |
+|--------|----------|---------|--------|---------|--------|
+| DG IWAN | Semen | 65 sak | 66 sak | +1,5% | Aman |
+| DG DAHLAN | Semen | 65 sak | 75 sak | +15,4% | Warning |
+| DG NUDING | Semen | 65 sak | 80 sak | +23% | Perlu Audit |
+
+#### 5g. Procurement Forecast
+**Route:** `/produksi/material/forecast`
+
+**Tampilan:**
+- Tabel: Material, Stok Saat Ini, Kebutuhan 14 Hari ke Depan (auto dari progress aktif), Selisih, Status
+- "Kebutuhan 14 hari" dihitung dari: unit aktif × standar pemakaian × estimasi progress 2 minggu
+- Alert warna merah untuk material kritis (stok < kebutuhan 14 hari)
+- Output teks: "Material kritis 14 hari ke depan: [daftar material]"
+
+---
+
+### 6. QUALITY CONTROL
+
+#### 6a. QC Checklist Per Unit
+**Route:** `/produksi/qc/checklist`
+
+**Form per unit:**
+- Filter: proyek → tahap → unit
+- Checklist QC standar Satara:
+
+| Item QC | Pass/Fail | Catatan |
+|---------|-----------|---------|
+| Struktur (kolom, sloof, ring balok) | Toggle | |
+| Dinding (plesteran rata, tidak retak) | Toggle | |
+| Atap (tidak bocor, rangka kuat) | Toggle | |
+| Keramik (terpasang rata, tidak hollow) | Toggle | |
+| Cat (merata, tidak luntur) | Toggle | |
+| Instalasi Listrik (fungsi semua titik) | Toggle | |
+| Instalasi Air (tidak bocor, tekanan cukup) | Toggle | |
+| Kusen & Pintu (buka-tutup lancar) | Toggle | |
+| Plafon (terpasang rapi, tidak turun) | Toggle | |
+
+**Kalkulasi:**
+```
+QC Score = (Jumlah item PASS ÷ Total item) × 100
+```
+Target QC Score > 90%.
+
+**Wajib upload foto untuk setiap item yang FAIL.**
+
+#### 6b. Rework Monitoring
+**Route:** `/produksi/qc/rework`
+
+**Form input rework:**
+
+| Field | Tipe |
+|-------|------|
+| Proyek & unit | Select |
+| Subkon PIC | Select |
+| Item pekerjaan yang dirework | Select (dari checklist) |
+| Deskripsi masalah | Textarea |
+| Tanggal ditemukan | Date |
+| Tanggal target selesai rework | Date |
+| Status | Select: Open / In Progress / Closed |
+| Tanggal selesai aktual | Date |
+| Foto | Upload |
+
+**Tampilan dashboard rework:**
+- Tabel per subkon: nama, jumlah unit rework, total item rework, rework rate (%)
+- Rework Rate = (unit dengan rework ÷ total unit dikerjakan) × 100
+- Target: Rework Rate < 3%
+
+#### 6c. Defect & Warranty Tracker
+**Route:** `/produksi/qc/defect`
+
+**Form input defect:**
+
+| Field | Tipe |
+|-------|------|
+| Unit / kavling | Select |
+| Jenis defect | Text (contoh: Retak rambut, Kran bocor, Cat belang) |
+| Kategori | Select: Struktur / Finishing / Instalasi / Lain-lain |
+| Tingkat keparahan | Select: Kritis / Sedang / Ringan |
+| PIC subkon penanggungjawab | Select |
+| Deadline perbaikan | Date |
+| Status | Select: Open / In Progress / Closed |
+| Foto bukti | Upload |
+
+**Tampilan dashboard defect:**
+- Total defect terbuka
+- Defect kritis (jumlah)
+- Rata-rata waktu penyelesaian (hari)
+- KPI: semua defect harus closed sebelum serah terima dan sebelum akad jika menghambat bank
+
+---
+
+### 7. READY AKAD TRACKER
+**Route:** `/produksi/ready-akad`
+
+**Ini adalah modul penghubung antara Produksi, Administrasi KPR, dan Finance.**
+
+**Tampilan utama:**
+- Tabel per unit dengan kolom:
+
+| Unit | Progress Bangunan | Status Adminstrasi | Status Bangunan | Keterangan | HT Tertahan (Rp) |
+|------|-------------------|--------------------|-----------------|------------|------------------|
+| A1 | 100% | SP3K | Ready Akad | Siap | - |
+| A2 | 85% | SP3K | Belum Ready | Finishing | Rp 70 juta |
+| A3 | 60% | Proses Bank | On Progress | Atap | - |
+
+**Status Administrasi diambil dari modul Administrasi KPR** (sinkron otomatis).
+**Status Bangunan** dihitung dari progress unit:
+- Ready Akad: progress ≥ 100% dan QC Score ≥ 90%
+- Belum Ready: progress < 100% atau QC Score < 90%
+- On Progress: progress > 0% dan < 100%
+
+**Kalkulasi HT Tertahan:**
+```
+HT Tertahan = Nilai HT unit × jumlah unit SP3K yang belum ready akad
+```
+
+**Metric cards di atas:**
+- Unit SP3K belum ready akad: [jumlah]
+- Estimasi selesai rata-rata: [hari]
+- Total HT tertahan: [Rp]
+
+**Unit Priority System:**
+Sistem otomatis mengurutkan unit berdasarkan prioritas pengerjaan:
+1. Sudah SP3K (prioritas tertinggi)
+2. Proses Bank
+3. Sudah Booking
+4. Stok biasa
+
+Tampilkan urutan prioritas ini sebagai daftar di panel kanan.
+
+---
+
+### 8. ANALISIS PRODUKTIVITAS
+
+#### 8a. Velocity Analysis
+**Route:** `/produksi/analitik/velocity`
+
+**Tampilan:**
+```
+Velocity = Progress Termin Saat Ini − Progress Termin Sebelumnya
+```
+- Tabel: subkon, velocity termin 1, velocity termin 2, velocity termin 3, trend (naik/turun)
+- Bar chart: velocity per subkon per termin
+- Highlight: Subkon Tercepat (hijau) dan Subkon Terlambat (merah)
+
+#### 8b. Baseline Progress Tracker
+**Route:** `/produksi/analitik/baseline`
+
+**Tampilan:**
+- Tabel per unit: progress aktual vs baseline (dari tabel standar 8 minggu)
+- Status: Ahead / On Track / Warning / Critical
+- Gantt mini per unit (opsional jika performa memungkinkan)
+
+#### 8c. Cost to Complete
+**Route:** `/produksi/analitik/cost-to-complete`
+
+**Form input per unit:**
+
+| Field | Tipe |
+|-------|------|
+| Progress saat ini (%) | Auto dari checklist |
+| Biaya terpakai hingga kini (Rp) | Number |
+| Nilai kontrak subkon (Rp) | Auto dari kontrak |
+
+**Kalkulasi:**
+```
+Biaya Standar Total    = Nilai Kontrak
+Biaya Per % Progress   = Biaya Standar Total ÷ 100
+Estimasi Sisa Biaya    = (100% − Progress Aktual) × Biaya Per % Progress
+Status Budget:
+  - Aman: biaya terpakai ≤ (progress × biaya standar)
+  - Warning: biaya terpakai > (progress × biaya standar) + 10%
+  - Overbudget: biaya terpakai > (progress × biaya standar) + 20%
+```
+
+**Output CEO:**
+- "Estimasi dana yang masih dibutuhkan untuk menyelesaikan Tahap [X]: Rp [Y]"
+
+#### 8d. Cashflow Impact of Delay
+**Route:** `/produksi/analitik/cashflow-impact`
+
+**Tampilan:**
+- Tabel: unit, status admin (SP3K/Proses/dll), delay dari target (hari), HT tertahan (Rp)
+- Total HT tertahan karena progress bangunan (Rp) — metric card besar
+- Narasi otomatis: "Keterlambatan produksi saat ini menahan HT senilai Rp [X], yang berdampak pada pembayaran cicilan KPP bulan [Y]."
+
+#### 8e. Productivity Score
+**Route:** `/produksi/analitik/produktivitas`
+
+**Kalkulasi skor per subkon (otomatis dari semua modul):**
+
+| Komponen | Bobot | Sumber Data |
+|----------|-------|-------------|
+| Velocity | 40% | Modul 8a |
+| Progress Achievement | 25% | Modul 2c |
+| QC Score | 20% | Modul 6a |
+| Rework (terbalik: 100 − rework rate) | 10% | Modul 6b |
+| Administrasi (kelengkapan dokumen) | 5% | Manual input |
+
+```
+Productivity Score = (Velocity × 0,4) + (Achievement × 0,25) + (QC × 0,2) + (Rework × 0,1) + (Admin × 0,05)
+Normalisasi ke skala 0-100
+```
+
+**Kategori:**
+- 85-100: Excellent (hijau)
+- 70-84: Good (kuning)
+- <70: Poor (merah)
+
+#### 8f. Subkon Eligibility Score
+**Route:** `/produksi/analitik/eligibilitas`
+
+**Kalkulasi untuk menentukan apakah subkon layak diberi pekerjaan tahap berikutnya:**
+
+| Komponen | Bobot |
+|----------|-------|
+| Kecepatan progress | 30% |
+| Kualitas pekerjaan (QC) | 25% |
+| Efisiensi material (variance) | 20% |
+| Rework rendah | 15% |
+| Kepatuhan administrasi | 10% |
+
+**Output per subkon:**
+
+| Subkon | Score | Rekomendasi |
+|--------|-------|-------------|
+| DG IWAN | 92 | Tambah unit |
+| DG ZUL | 84 | Lanjut |
+| DG DAHLAN | 71 | Batasi unit |
+| DG NUDING | 58 | Evaluasi / Stop |
+
+#### 8g. Production Forecast
+**Route:** `/produksi/analitik/forecast`
+
+**Kalkulasi:**
+```
+Estimasi Selesai = Progress Saat Ini + (Velocity per Termin × Jumlah Termin Tersisa)
+Termin Tersisa   = (100% − Progress Aktual) ÷ Velocity per Termin
+Estimasi Tanggal = Tanggal Hari Ini + (Termin Tersisa × 15 hari)
+```
+
+**Tampilan:**
+- Tabel per tahap: unit aktif, progress saat ini, velocity rata-rata, estimasi selesai (tanggal)
+- Alert: "Tahap [X] diperkirakan selesai [tanggal]. Jika velocity turun ke [Y]%, estimasi bergeser ke [tanggal]."
+
+---
+
+### 9. CONSTRUCTION HEALTH SCORE
+**Route:** `/produksi/health`
+
+**Kalkulasi skor kesehatan proyek (per proyek aktif):**
+
+| Komponen | Bobot | Sumber Data |
+|----------|-------|-------------|
+| Progress vs Target | 25% | Modul 2 |
+| Timeline (tidak delay) | 20% | Modul 8g |
+| QC Score rata-rata | 20% | Modul 6 |
+| Material Efficiency | 15% | Modul 5f |
+| Payment Accuracy (subkon dibayar tepat) | 10% | Modul 4b |
+| Fasum Progress | 10% | Modul 3 |
+
+```
+Construction Health Score = Σ (komponen × bobot)
+Skala 0-100
+```
+
+**Status:**
+- 85-100: SEHAT (hijau)
+- 70-84: WASPADA (kuning)
+- < 70: BERMASALAH (merah)
+
+**Tampilan:**
+- Satu score besar per proyek
+- Breakdown radar chart 6 komponen
+- Narasi otomatis: "Proyek [X] dalam kondisi [STATUS]. Area yang perlu perhatian: [komponen terendah]."
+
+---
+
+## DATABASE SCHEMA (SUPABASE)
+
+```sql
+-- Unit per proyek
+project_units (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  stage_code text,          -- T1, T2, T3, dst
+  unit_number text,         -- A1, A2, B1, dst
+  kavling_number text,
+  subkon_id uuid,           -- subkon PIC unit ini
+  admin_status text,        -- SP3K, proses_bank, booking, stock
+  ht_value numeric,         -- nilai HT unit ini (dari modul KPR)
+  created_at timestamptz
+)
+
+-- Progress per item pekerjaan per unit
+unit_progress_items (
+  id uuid PRIMARY KEY,
+  unit_id uuid REFERENCES project_units(id),
+  pekerjaan_item text,      -- nama item dari checklist standar
+  bobot numeric,            -- bobot % item tersebut
+  is_completed boolean,
+  completion_date date,
+  verified_by text,         -- nama pengawas
+  photo_urls text[],        -- array URL foto
+  notes text,
+  updated_at timestamptz
+)
+
+-- Progress summary per unit (auto-calculated)
+unit_progress_summary (
+  id uuid PRIMARY KEY,
+  unit_id uuid REFERENCES project_units(id),
+  total_progress numeric,   -- sum bobot item yang selesai
+  week_number integer,      -- minggu ke-berapa sejak mulai
+  baseline_target numeric,  -- target baseline minggu tersebut
+  status text,              -- Ahead/On Track/Warning/Critical
+  updated_at timestamptz
+)
+
+-- Fasum progress
+fasum_progress (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  fasum_type text,          -- Jalan, Drainase, Taman, dll
+  progress_percent numeric,
+  notes text,
+  photo_urls text[],
+  updated_by text,
+  updated_at timestamptz
+)
+
+-- Kontrak subkon
+subkon_contracts (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  stage_code text,
+  subkon_name text,
+  unit_count integer,
+  value_per_unit numeric,        -- nilai kontrak per unit (custom per proyek)
+  contract_value numeric,        -- auto: value_per_unit × unit_count
+  retention_per_unit numeric,    -- retensi nominal per unit (custom, contoh: Rp 500.000)
+  total_retention numeric,       -- auto: retention_per_unit × unit_count
+  net_payable_value numeric,     -- auto: contract_value − total_retention
+  maintenance_months integer DEFAULT 3, -- masa pemeliharaan dalam bulan
+  start_date date,
+  target_end_date date,
+  actual_completion_date date,   -- diisi sistem saat semua unit subkon = 100%
+  retention_release_date date,   -- auto: actual_completion_date + maintenance_months
+  retention_status text,         -- ditahan / masa_pemeliharaan / siap_cair / sudah_cair
+  status text,                   -- aktif, selesai, overdue
+  created_at timestamptz
+)
+
+-- Termin pembayaran
+subkon_payments (
+  id uuid PRIMARY KEY,
+  contract_id uuid REFERENCES subkon_contracts(id),
+  payment_type text,             -- termin / pencairan_retensi
+  termin_number integer,
+  payment_date date,
+  period text,                   -- tanggal_15 / tanggal_30
+  progress_previous numeric,
+  progress_current numeric,
+  velocity numeric,              -- auto
+  gross_eligible_amount numeric, -- auto: velocity% × contract_value
+  retention_deducted numeric,    -- auto: velocity% × total_retention
+  net_payment numeric,           -- auto: gross − retention_deducted
+  status text,                   -- draft, pending_approval, approved, paid
+  created_at timestamptz
+)
+
+-- Approval pembayaran
+payment_approvals (
+  id uuid PRIMARY KEY,
+  payment_id uuid REFERENCES subkon_payments(id),
+  step text,                -- pengawas, qc, manager, finance
+  approved_by text,
+  approved_at timestamptz,
+  status text,              -- pending, approved, rejected, hold
+  notes text,
+  photo_urls text[]
+)
+
+-- Master material
+materials (
+  id uuid PRIMARY KEY,
+  name text,
+  unit text,
+  category text,
+  standard_per_unit numeric, -- standar pemakaian per unit rumah
+  unit_price numeric,
+  created_at timestamptz
+)
+
+-- Material masuk
+material_in (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  material_id uuid REFERENCES materials(id),
+  quantity numeric,
+  supplier text,
+  document_number text,
+  photo_url text,
+  notes text,
+  date_in date,
+  created_at timestamptz
+)
+
+-- Material keluar (harian)
+material_out (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  unit_id uuid REFERENCES project_units(id),
+  material_id uuid REFERENCES materials(id),
+  quantity numeric,
+  taken_by text,            -- nama pengambil / subkon
+  date_out date,
+  notes text,
+  created_at timestamptz
+)
+
+-- QC checklist
+unit_qc (
+  id uuid PRIMARY KEY,
+  unit_id uuid REFERENCES project_units(id),
+  qc_item text,
+  is_pass boolean,
+  notes text,
+  photo_urls text[],
+  inspected_by text,
+  inspected_at timestamptz
+)
+
+-- Rework
+reworks (
+  id uuid PRIMARY KEY,
+  unit_id uuid REFERENCES project_units(id),
+  contract_id uuid REFERENCES subkon_contracts(id),
+  pekerjaan_item text,
+  description text,
+  found_date date,
+  target_completion date,
+  actual_completion date,
+  status text,              -- open, in_progress, closed
+  photo_urls text[],
+  created_at timestamptz
+)
+
+-- Defect & warranty
+defects (
+  id uuid PRIMARY KEY,
+  unit_id uuid REFERENCES project_units(id),
+  defect_type text,
+  category text,
+  severity text,            -- kritis, sedang, ringan
+  pic_subkon_id uuid REFERENCES subkon_contracts(id),
+  deadline date,
+  status text,              -- open, in_progress, closed
+  photo_urls text[],
+  reported_at timestamptz,
+  closed_at timestamptz
+)
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+1. **Nested sub-menu:** Saat klik Produksi di sidebar, tampilkan sub-menu collapsible. Sub-menu dengan item tambahan (Logistik, QC, Analitik) tampil dengan indentasi kedua.
+
+2. **Project context selector:** Di bagian atas setiap halaman, ada dropdown selector proyek aktif. Pilihan proyek tersimpan di session sehingga tidak perlu dipilih ulang di setiap halaman.
+
+3. **Status dots:** Setiap sub-menu di sidebar punya indikator warna:
+   - Abu-abu: belum ada data
+   - Hijau: normal
+   - Kuning: perlu perhatian
+   - Merah: ada masalah / alert aktif
+
+4. **Photo evidence:** Setiap form yang membutuhkan foto menggunakan komponen upload dengan preview thumbnail. Foto disimpan ke Supabase Storage. Tampilkan foto dalam grid 3 kolom (before/during/after).
+
+5. **Role-based actions:** Tombol Approve/Reject/Hold pada alur pembayaran hanya muncul sesuai peran user yang login (pengawas, qc_officer, production_manager, finance, ceo).
+
+6. **Kalkulasi real-time:** Semua kalkulasi otomatis (velocity, tagihan layak bayar, QC score, health score) harus terupdate langsung saat data berubah, tanpa reload halaman.
+
+7. **Print/Export:** Halaman Termin Payment System harus bisa dicetak / export PDF sebagai dokumen tagihan resmi ke finance.
+
+8. **Mobile-friendly:** Halaman Update Progress Unit dan Input Material Keluar harus bisa digunakan dari HP di lapangan (touch-friendly, font besar, form sederhana).
+
+9. **Number format:** Semua rupiah: `Rp 1.250.000`. Semua persentase: `42,0%`. Semua tanggal: `15 Januari 2026`.
+
+10. **Empty state:** Setiap halaman yang kosong tampilkan ilustrasi + tombol CTA. Contoh: "Belum ada data progress. Mulai input checklist unit."
+
+---
+
+## URUTAN PENGERJAAN
+
+1. Setup routing dan struktur folder semua halaman Produksi
+2. Buat semua tabel database di Supabase
+3. Tambah tabel project_units dan isi data awal unit per tahap
+4. Unit Level Progress (checklist + bobot standar) — ini paling sering dipakai di lapangan
+5. Termin Payment System — ini yang paling kritis untuk cashflow
+6. Logistik: Master Material → Input Masuk → Input Keluar → Stok
+7. QC Checklist + Rework
+8. Ready Akad Tracker (butuh sync dengan modul Administrasi KPR)
+9. Production Dashboard (aggregasi dari semua modul)
+10. Modul analitik: Velocity, Baseline, Cost to Complete, Health Score
+```

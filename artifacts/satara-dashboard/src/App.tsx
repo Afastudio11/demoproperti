@@ -23,6 +23,7 @@ import Produksi from "@/pages/produksi";
 import SerahTerima from "@/pages/serah-terima";
 import Settings from "@/pages/settings";
 import Ekspansi from "@/pages/ekspansi";
+import SLIS from "@/pages/slis";
 import Layout from "@/components/layout";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ function Router() {
         <Route path="/serah-terima" component={SerahTerima} />
         <Route path="/settings" component={Settings} />
         <Route path="/ekspansi" component={Ekspansi} />
+        <Route path="/slis" component={SLIS} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

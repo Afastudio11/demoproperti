@@ -59,6 +59,7 @@ const navItems = [
   { name: "Produksi", path: "/produksi", icon: HardHat },
   { name: "Serah Terima", path: "/serah-terima", icon: Key },
   { name: "Potensi Ekspansi", path: "/ekspansi", icon: Compass },
+  { name: "SLIS — Riset Wilayah", path: "/slis", icon: Map },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 

@@ -52,11 +52,9 @@ router.post("/ai/slis-chat", async (req, res) => {
     return;
   }
 
-  // ── Fase 1: Web research (opsional, fallback graceful) ────────────────────
+  // ── Fase 1: Siapkan sumber data referensi ────────────────────────────────
   let webData = "";
   const sources: { title: string; url: string }[] = [];
-
-  // Web search tidak tersedia di Groq — skip fase 1
 
   // ── Fase 2: Analisis terstruktur ─────────────────────────────────────────
   const slisKabText = slisKab
@@ -84,7 +82,21 @@ Kecamatan Terbaik: ${slisKab.kecamatanTeratas?.map((k) => `${k.name} (${k.score}
 
   const webSection = webData
     ? `\n══ DATA REAL-TIME (Web Research) ══\n${webData}`
-    : `\n══ CATATAN ══\nWeb search tidak tersedia. Gunakan pengetahuan training AI tentang Sulawesi Selatan secara mendalam, termasuk data BPS, PUPR, DPRD, Kementerian ATR/BPN, dan berita properti.`;
+    : `\n══ BASIS DATA YANG DIGUNAKAN ══\nGunakan pengetahuan training tentang Sulawesi Selatan secara mendalam: data BPS (bps.go.id), PUPR (pupr.go.id), PPDPP/BP Tapera (bptapera.go.id), Kementerian ATR/BPN (atrbpn.go.id), BI (bi.go.id), data FLPP dari PPDPP, RTRW Sulsel, dan laporan properti terkini.`;
+
+  // Referensi sumber data resmi yang bisa dikutip AI
+  const DATA_SOURCES = [
+    { title: "BPS Sulawesi Selatan", url: "https://sulsel.bps.go.id" },
+    { title: "BPS Indonesia — Data Perumahan", url: "https://www.bps.go.id/subject/29/perumahan.html" },
+    { title: "PPDPP / BP Tapera — Data FLPP", url: "https://bptapera.go.id/realisasi-flpp" },
+    { title: "Kementerian PUPR", url: "https://www.pu.go.id" },
+    { title: "Kementerian ATR/BPN", url: "https://www.atrbpn.go.id" },
+    { title: "Bank Indonesia — Statistik Properti Komersial", url: "https://www.bi.go.id/id/statistik/ekonomi-keuangan/sppr/Default.aspx" },
+    { title: "KRIS Kemenkeu — Data Fiskal Daerah", url: "https://djpk.kemenkeu.go.id" },
+    { title: "Disdukcapil Sulsel — Data Kependudukan", url: "https://disdukcapil.sulselprov.go.id" },
+    { title: "BKPRD Sulsel — RTRW Sulawesi Selatan", url: "https://tataruang.sulselprov.go.id" },
+    { title: "REI Sulawesi Selatan", url: "https://www.rei.or.id" },
+  ];
 
   const prompt = `Kamu adalah SLIS AI — analis investasi properti senior Satara Development, spesialis riset pasar Sulawesi Selatan.
 Kamu memiliki pengetahuan mendalam tentang: ekonomi daerah Sulsel, proyek infrastruktur pemerintah, pasar perumahan FLPP & komersial, data BPS, tren urbanisasi, kawasan industri, dan kondisi lahan.
@@ -100,12 +112,16 @@ ${webSection}
 ══ RIWAYAT CHAT ══
 ${historyText || "Percakapan baru"}
 
+══ DAFTAR SUMBER DATA RESMI (untuk dikutip di field sources) ══
+${DATA_SOURCES.map((s, i) => `${i + 1}. ${s.title} — ${s.url}`).join("\n")}
+
 ══ INSTRUKSI ANALISIS ══
 1. Berikan analisis KOMPREHENSIF berbasis SEMUA data di atas + pengetahuan mendalam tentang Sulsel
 2. Sebutkan data SPESIFIK: angka, persentase, nama proyek, harga, perbandingan
 3. Untuk visualisasi: pilih data numerik yang relevan (skor, harga per m², jumlah unit, pertumbuhan, dll)
 4. Jika membandingkan kabupaten: tampilkan perbandingan skor di visualisasi
 5. Jika membahas 1 kabupaten: tampilkan breakdown sub-skor atau harga tanah per kecamatan
+6. Di field "sources": cantumkan 3-5 sumber data paling relevan dari daftar sumber di atas yang mendukung analisismu
 
 Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
 {
@@ -124,6 +140,10 @@ Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
       { "label": "<nama singkat>", "nilai": <angka numerik>, "highlight": <true jika fokus utama> }
     ]
   },
+  "sources": [
+    { "title": "<nama sumber, contoh: BPS Sulawesi Selatan>", "url": "<url sumber>" },
+    { "title": "<nama sumber 2>", "url": "<url sumber 2>" }
+  ],
   "pertanyaan_lanjutan": [
     "<pertanyaan follow-up spesifik dan relevan 1>",
     "<pertanyaan follow-up spesifik 2>",
@@ -131,6 +151,7 @@ Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
   ]
 }
 
+WAJIB: field "sources" harus selalu berisi minimal 3 entri yang paling relevan dengan analisis.
 CATATAN: "visualisasi" bisa null jika benar-benar tidak ada data yang cocok untuk divisualisasikan.`;
 
   try {
@@ -154,7 +175,11 @@ CATATAN: "visualisasi" bisa null jika benar-benar tidak ada data yang cocok untu
     }
 
     const result = JSON.parse(jsonMatch[0]);
-    res.json({ ...result, sources });
+    // Pakai sources dari AI response; fallback ke array kosong jika tidak ada
+    const aiSources = Array.isArray(result.sources) && result.sources.length > 0
+      ? result.sources
+      : sources;
+    res.json({ ...result, sources: aiSources });
   } catch (err) {
     const apiErr = err as { message?: string; status?: number; error?: { message?: string } };
     const errDetail = apiErr?.error?.message || apiErr?.message || String(err);
