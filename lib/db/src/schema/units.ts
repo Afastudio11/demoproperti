@@ -13,6 +13,12 @@ export const unitsTable = pgTable("units", {
   status: text("status").notNull().default("available"),
   progress: real("progress").notNull().default(0),
   readyAkad: boolean("ready_akad").notNull().default(false),
+  stageCode: text("stage_code"),
+  kavlingNumber: text("kavling_number"),
+  adminStatus: text("admin_status").notNull().default("stock"),
+  htValue: real("ht_value"),
+  weekStarted: integer("week_started"),
+  subkonName: text("subkon_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

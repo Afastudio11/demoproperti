@@ -11,6 +11,7 @@ export const constructionTasksTable = pgTable("construction_tasks", {
   tanggalMulai: text("tanggal_mulai"),
   tanggalSelesai: text("tanggal_selesai"),
   catatan: text("catatan"),
+  verifiedBy: text("verified_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -1,246 +1,178 @@
-import {
-  useListQcDefects,
-  useListMaterials,
-} from "@workspace/api-client-react";
-import { AlertTriangle, Package, Shield, CheckCircle2, FolderOpen, ArrowLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useSearch } from "wouter";
-import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  HardHat, TrendingUp, Package, DollarSign, Activity, AlertTriangle,
+  CheckSquare, Building2, ChevronRight, Users, BarChart3, Shield, Key
+} from "lucide-react";
 
-const DEFECT_STATUS: Record<string, string> = {
-  open: "bg-red-50 text-red-600 border-red-200",
-  in_repair: "bg-amber-50 text-amber-600 border-amber-200",
-  closed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-};
+const fmtRp = (n: number) => `Rp ${(n / 1_000_000).toFixed(1)} Jt`;
+const fmtPct = (n: number) => `${Math.round(n)}%`;
 
-const KPI_TARGETS = [
-  { label: "Progress", target: "Sesuai Timeline" },
-  { label: "Defect Minor", target: "<5%" },
-  { label: "Kerapian Proyek", target: "Wajib" },
-  { label: "Ketepatan Material", target: "Wajib" },
-  { label: "Ready Akad", target: "Tepat Waktu" },
-];
+function ProgressBar({ value, color = "bg-primary" }: { value: number; color?: string }) {
+  return (
+    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+      <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+    </div>
+  );
+}
 
-const PROGRESS_STAGES = [
-  { pekerjaan: "Galian", pct: 3 },
-  { pekerjaan: "Pondasi", pct: 8 },
-  { pekerjaan: "Slof", pct: 6 },
-  { pekerjaan: "Kolom", pct: 5 },
-  { pekerjaan: "Pasangan Bata", pct: 12 },
-  { pekerjaan: "Ring Balk", pct: 5 },
-  { pekerjaan: "Kuda-kuda", pct: 5 },
-  { pekerjaan: "Rangka Atap", pct: 4 },
-  { pekerjaan: "Pemasangan Spandek", pct: 5 },
-  { pekerjaan: "Plaster & Aplus", pct: 14 },
-  { pekerjaan: "Keramik", pct: 9 },
-  { pekerjaan: "Cat", pct: 5 },
-  { pekerjaan: "Instalasi Listrik & Air", pct: 7 },
-  { pekerjaan: "Finishing", pct: 7 },
-];
+function KpiCard({ title, value, sub, icon: Icon, color = "text-primary", linkTo }: {
+  title: string; value: string; sub?: string; icon: React.ComponentType<{ className?: string }>; color?: string; linkTo?: string;
+}) {
+  const inner = (
+    <Card className="hover:shadow-md transition-shadow cursor-pointer">
+      <CardContent className="pt-4 pb-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground truncate">{title}</p>
+            <p className="text-xl font-bold mt-0.5 leading-tight">{value}</p>
+            {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+          </div>
+          <div className={`p-2 rounded-md bg-muted/50 ${color}`}><Icon className="size-4" /></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+  return linkTo ? <Link href={linkTo}>{inner}</Link> : inner;
+}
 
 export default function Produksi() {
-  const search = useSearch();
-  const searchParams = new URLSearchParams(search);
-  const urlProjectId = searchParams.get("projectId") ? parseInt(searchParams.get("projectId")!) : null;
-
-  const { data: projects } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => fetch("/api/projects").then(r => r.json()),
-    enabled: !!urlProjectId,
+  const { data, isLoading } = useQuery({
+    queryKey: ["produksi-dashboard"],
+    queryFn: async () => {
+      const res = await fetch("/api/produksi/dashboard");
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{
+        summary: { avgProgress: number; activeUnits: number; totalUnits: number; fasumAvg: number; pendingTotal: number; totalMatOut: number; healthScore: number };
+        subkonSnapshot: { id: number; subkonName: string; unitCount: number; progressAktual: number; velocity: number; status: string }[];
+        criticalMaterials: { id: number; name: string; stokAktual: number; minimumStock: number; satuan: string }[];
+        alerts: { type: string; message: string; severity: string }[];
+        htTertahan: number; sp3kCount: number;
+      }>;
+    },
+    refetchInterval: 30000,
   });
-  const activeProject = urlProjectId && Array.isArray(projects)
-    ? (projects as Record<string, unknown>[]).find(p => p.id === urlProjectId) as Record<string, string> | undefined
-    : undefined;
 
-  const { data: defects } = useListQcDefects({});
-  const { data: materials } = useListMaterials({});
+  const s = data?.summary;
+  const healthScore = s?.healthScore ?? 0;
+  const healthColor = healthScore >= 80 ? "text-emerald-500 border-emerald-500/30 bg-emerald-500/5" : healthScore >= 60 ? "text-amber-500 border-amber-500/30 bg-amber-500/5" : "text-red-500 border-red-500/30 bg-red-500/5";
 
-  const criticalMaterials = materials?.filter((m) => m.isBelowMinimum) ?? [];
-  const openDefects = defects?.filter((d) => d.status === "open").length ?? 0;
-  const defectOk = openDefects === 0;
+  const quickLinks = [
+    { name: "Progress Unit", path: "/produksi/progress/unit", icon: CheckSquare },
+    { name: "Termin Bayar", path: "/produksi/subkon/termin", icon: DollarSign },
+    { name: "Stok Material", path: "/produksi/material/stok", icon: Package },
+    { name: "QC Checklist", path: "/produksi/qc/checklist", icon: Shield },
+    { name: "Ready Akad", path: "/produksi/ready-akad", icon: Key },
+    { name: "Fasum", path: "/produksi/fasum", icon: Building2 },
+    { name: "Analitik", path: "/produksi/analitik/velocity", icon: BarChart3 },
+    { name: "Health Score", path: "/produksi/health", icon: Activity },
+  ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-            Produksi & Konstruksi
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Progress pembangunan, QC, stok material — Standar subsidi 36 m² / lahan 60–72 m²
-          </p>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-lg font-bold">Produksi — Command Center</h1>
+        <p className="text-sm text-muted-foreground">Monitoring konstruksi, subkon, material, dan QC secara real-time</p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <KpiCard title="Avg Progress" value={isLoading ? "—" : fmtPct(s?.avgProgress ?? 0)} sub={`${s?.activeUnits ?? 0} unit aktif`} icon={HardHat} linkTo="/produksi/progress/unit" />
+        <KpiCard title="Fasum Avg" value={isLoading ? "—" : fmtPct(s?.fasumAvg ?? 0)} sub="fasum keseluruhan" icon={Building2} color="text-blue-500" linkTo="/produksi/fasum" />
+        <KpiCard title="Tagihan Pending" value={isLoading ? "—" : fmtRp(s?.pendingTotal ?? 0)} sub="termin subkon" icon={DollarSign} color="text-amber-500" linkTo="/produksi/subkon/approval" />
+        <KpiCard title="Stok Terpakai" value={isLoading ? "—" : fmtRp(s?.totalMatOut ?? 0)} sub="nilai keluar" icon={Package} color="text-violet-500" linkTo="/produksi/material/stok" />
+        <KpiCard title="HT Tertahan" value={isLoading ? "—" : fmtRp(data?.htTertahan ?? 0)} sub={`${data?.sp3kCount ?? 0} unit SP3K`} icon={Key} color="text-red-500" linkTo="/produksi/ready-akad" />
+        <KpiCard title="Total Unit" value={isLoading ? "—" : `${s?.totalUnits ?? 0}`} sub="semua proyek" icon={Users} linkTo="/produksi/progress/unit" />
+        <div className={`rounded-lg border p-3 flex flex-col gap-0.5 ${healthColor.split(" ").slice(1).join(" ")}`}>
+          <p className="text-xs text-muted-foreground">Health Score</p>
+          <p className={`text-2xl font-bold ${healthColor.split(" ")[0]}`}>{isLoading ? "—" : healthScore}</p>
+          <Link href="/produksi/health" className="text-[11px] text-muted-foreground underline underline-offset-2">Lihat detail</Link>
         </div>
-        {urlProjectId && (
-          <Link href="/projects" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-3" />
-            Daftar Proyek
+      </div>
+
+      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        {quickLinks.map(ql => (
+          <Link key={ql.path} href={ql.path}>
+            <div className="rounded-md border p-2.5 flex flex-col items-center gap-1.5 hover:bg-muted/50 transition-colors cursor-pointer text-center">
+              <ql.icon className="size-4 text-primary" />
+              <span className="text-[10px] leading-tight text-muted-foreground">{ql.name}</span>
+            </div>
           </Link>
-        )}
-      </div>
-
-      {activeProject && (
-        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
-          <FolderOpen className="size-4 text-primary shrink-0" />
-          <div className="flex-1 min-w-0">
-            <span className="text-xs text-muted-foreground">Proyek: </span>
-            <span className="text-sm font-semibold text-primary">{activeProject.nama}</span>
-            {activeProject.lokasi && <span className="text-xs text-muted-foreground ml-2">— {activeProject.lokasi}</span>}
-          </div>
-          {activeProject.kabupaten && (
-            <span className="text-[10px] font-medium text-muted-foreground border rounded px-1.5 py-0.5">{activeProject.kabupaten}</span>
-          )}
-        </div>
-      )}
-
-      <div className="bg-card border rounded-xl p-3">
-        <div className="flex items-center gap-2 mb-2.5">
-          <CheckCircle2 className="size-3.5 text-emerald-600" />
-          <span className="text-xs font-semibold text-muted-foreground tracking-wider">INDIKATOR KEBERHASILAN</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {KPI_TARGETS.map((k) => (
-            <div key={k.label} className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 py-1">
-              <span className="text-xs text-muted-foreground">{k.label}:</span>
-              <span className="text-xs font-semibold text-foreground">{k.target}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          {
-            label: "Material Kritis",
-            value: criticalMaterials.length,
-            icon: AlertTriangle,
-            color: criticalMaterials.length > 0 ? "text-red-500" : "text-emerald-600",
-          },
-          {
-            label: "Total Material",
-            value: materials?.length ?? 0,
-            icon: Package,
-            color: "text-foreground",
-          },
-          {
-            label: "Defect Open",
-            value: openDefects,
-            icon: Shield,
-            color: defectOk ? "text-emerald-600" : "text-red-500",
-          },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-card text-card-foreground rounded-xl border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium">{label}</span>
-              <Icon className="size-4 text-muted-foreground" />
-            </div>
-            <div className="bg-muted/50 border rounded-lg p-3">
-              <span className={cn("text-2xl font-semibold tracking-tight", color)}>
-                {value}
-              </span>
-            </div>
-          </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-card text-card-foreground rounded-xl border overflow-hidden">
-          <div className="flex items-center gap-2 p-4 border-b border-border/50">
-            <AlertTriangle className="size-4 text-amber-500" />
-            <h3 className="font-medium text-sm">Material Stock Alert</h3>
-            {criticalMaterials.length > 0 && (
-              <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-200">
-                {criticalMaterials.length} kritis
-              </span>
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2 pt-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Snapshot Subkon</CardTitle>
+              <Link href="/produksi/subkon/performa" className="text-xs text-muted-foreground flex items-center gap-0.5">Lihat semua <ChevronRight className="size-3" /></Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-xs text-muted-foreground py-4 text-center">Memuat...</div>
+            ) : (data?.subkonSnapshot?.length ?? 0) === 0 ? (
+              <div className="text-xs text-muted-foreground py-6 text-center">
+                Belum ada kontrak. <Link href="/produksi/subkon/kontrak" className="underline">Tambah kontrak</Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {data!.subkonSnapshot.map(sub => (
+                  <div key={sub.id} className="flex items-center gap-3">
+                    <div className="w-24 truncate text-xs font-medium">{sub.subkonName}</div>
+                    <div className="flex-1"><ProgressBar value={sub.progressAktual} color={sub.progressAktual >= 95 ? "bg-emerald-500" : sub.progressAktual >= 70 ? "bg-amber-500" : "bg-red-500"} /></div>
+                    <span className="text-xs tabular-nums w-10 text-right">{fmtPct(sub.progressAktual)}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${sub.status === "selesai" ? "bg-emerald-500/15 text-emerald-600" : "bg-blue-500/15 text-blue-600"}`}>{sub.status}</span>
+                  </div>
+                ))}
+              </div>
             )}
-          </div>
-          <div className="p-4 space-y-3">
-            {criticalMaterials.map((m) => (
-              <div
-                key={m.id}
-                className="flex justify-between items-center rounded-lg border border-border/50 p-3 bg-muted/30"
-              >
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm">Alert & Eskalasi</CardTitle></CardHeader>
+            <CardContent>
+              {(data?.alerts?.length ?? 0) === 0 ? (
+                <p className="text-xs text-muted-foreground py-2 text-center">Tidak ada alert aktif</p>
+              ) : (
                 <div>
-                  <div className="font-medium text-sm">{m.item}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Vendor: {m.vendor || "-"}
-                  </div>
+                  {data!.alerts.map((a, i) => (
+                    <div key={i} className="flex items-start gap-2 py-1.5 border-b last:border-0">
+                      <AlertTriangle className={`size-3.5 shrink-0 mt-0.5 ${a.severity === "error" ? "text-red-500" : a.severity === "warning" ? "text-amber-500" : "text-blue-500"}`} />
+                      <span className="text-xs">{a.message}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="text-right">
-                  <div className="font-semibold text-red-500 text-sm">
-                    {m.stok} {m.satuan}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    Min: {m.minimumStock}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {!criticalMaterials.length && (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                Semua stok aman.
-              </div>
-            )}
-          </div>
-        </div>
+              )}
+            </CardContent>
+          </Card>
 
-        <div className="bg-card text-card-foreground rounded-xl border overflow-hidden">
-          <div className="flex items-center gap-2 p-4 border-b border-border/50">
-            <Shield className="size-4 text-muted-foreground" />
-            <h3 className="font-medium text-sm">QC & Defect Tracker</h3>
-          </div>
-          <div className="p-4 space-y-3">
-            {defects?.map((defect) => (
-              <div
-                key={defect.id}
-                className="flex justify-between items-start rounded-lg border border-border/50 p-3 bg-muted/30"
-              >
-                <div className="min-w-0 mr-3">
-                  <div className="font-medium text-sm line-clamp-1">
-                    {defect.deskripsi}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {defect.kategori} &bull; Unit {defect.unitId}
-                  </div>
+          <Card>
+            <CardHeader className="pb-2 pt-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Material Kritis</CardTitle>
+                <Link href="/produksi/material/stok" className="text-xs text-muted-foreground flex items-center gap-0.5">Detail <ChevronRight className="size-3" /></Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {(data?.criticalMaterials?.length ?? 0) === 0 ? (
+                <p className="text-xs text-muted-foreground py-2 text-center">Stok aman</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {data!.criticalMaterials.map(m => (
+                    <div key={m.id} className="flex items-center justify-between gap-2">
+                      <span className="text-xs truncate">{m.name}</span>
+                      <span className="text-[10px] text-red-500 font-medium whitespace-nowrap">{m.stokAktual}/{m.minimumStock} {m.satuan}</span>
+                    </div>
+                  ))}
                 </div>
-                <span
-                  className={cn(
-                    "text-[10px] font-semibold px-2 py-0.5 rounded-md border shrink-0",
-                    DEFECT_STATUS[defect.status] ??
-                      "bg-muted text-muted-foreground border-border/50"
-                  )}
-                >
-                  {defect.status.replace("_", " ")}
-                </span>
-              </div>
-            ))}
-            {!defects?.length && (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                Tidak ada defect tercatat.
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-card text-card-foreground rounded-xl border overflow-hidden">
-          <div className="flex items-center gap-2 p-4 border-b border-border/50">
-            <Package className="size-4 text-muted-foreground" />
-            <h3 className="font-medium text-sm">Standar Progress Pembangunan</h3>
-          </div>
-          <div className="p-3 space-y-1 overflow-y-auto max-h-72">
-            {PROGRESS_STAGES.map((s) => (
-              <div key={s.pekerjaan} className="flex items-center justify-between gap-3 py-1">
-                <span className="text-xs text-muted-foreground flex-1">{s.pekerjaan}</span>
-                <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-foreground/40 rounded-full"
-                    style={{ width: `${(s.pct / 14) * 100}%` }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-foreground w-6 text-right">{s.pct}%</span>
-              </div>
-            ))}
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

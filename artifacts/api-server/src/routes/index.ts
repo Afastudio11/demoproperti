@@ -28,6 +28,11 @@ import planningSDMRouter from "./planning-sdm";
 import planningLandbankRouter from "./planning-landbank";
 import aiPlanningInsightRouter from "./ai-planning-insight";
 import expansionRouter from "./expansion";
+import subkonRouter from "./subkon";
+import fasumRouter from "./fasum";
+import prodMaterialRouter from "./prod-material";
+import unitQcReworkRouter from "./unit-qc-rework";
+import prodDashboardRouter from "./prod-dashboard";
 
 const router: IRouter = Router();
 
@@ -60,5 +65,10 @@ router.use(planningSDMRouter);
 router.use(planningLandbankRouter);
 router.use(aiPlanningInsightRouter);
 router.use(expansionRouter);
+router.use(subkonRouter);
+router.use(fasumRouter);
+router.use(prodMaterialRouter);
+router.use(unitQcReworkRouter);
+router.use(prodDashboardRouter);
 
 export default router;

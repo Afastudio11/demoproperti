@@ -37,6 +37,15 @@ import {
   TrendingUp,
   Map,
   Compass,
+  CheckSquare,
+  Activity,
+  Shield,
+  Wrench,
+  ShieldCheck,
+  Layers,
+  FileCheck,
+  AlertTriangle,
+  Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -75,9 +84,29 @@ const perencanaanSubNav = [
   { name: "Land Bank", path: "/perencanaan/landbank", icon: Building2 },
 ];
 
+const produksiSubNav = [
+  { name: "Command Center", path: "/produksi", icon: LayoutDashboard },
+  { name: "Progress Proyek", path: "/produksi/progress/proyek", icon: BarChart3 },
+  { name: "Progress Tahap", path: "/produksi/progress/tahap", icon: Layers },
+  { name: "Progress Unit", path: "/produksi/progress/unit", icon: CheckSquare },
+  { name: "Fasum Progress", path: "/produksi/fasum", icon: Building2 },
+  { name: "Kontrak Subkon", path: "/produksi/subkon/kontrak", icon: FileCheck },
+  { name: "Termin Bayar", path: "/produksi/subkon/termin", icon: DollarSign },
+  { name: "Approval", path: "/produksi/subkon/approval", icon: ShieldCheck },
+  { name: "Stok Material", path: "/produksi/material/stok", icon: Package },
+  { name: "Input Masuk", path: "/produksi/material/masuk", icon: Truck },
+  { name: "Input Keluar", path: "/produksi/material/keluar", icon: Wrench },
+  { name: "QC Checklist", path: "/produksi/qc/checklist", icon: Shield },
+  { name: "Rework", path: "/produksi/qc/rework", icon: AlertTriangle },
+  { name: "Ready Akad", path: "/produksi/ready-akad", icon: Key },
+  { name: "Analitik", path: "/produksi/analitik/velocity", icon: TrendingUp },
+  { name: "Health Score", path: "/produksi/health", icon: Activity },
+];
+
 function DashboardSidebar() {
   const [location] = useLocation();
   const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/");
+  const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
 
   return (
     <Sidebar className="lg:border-r-0!" collapsible="icon">
@@ -118,13 +147,14 @@ function DashboardSidebar() {
                   location === item.path ||
                   (item.path !== "/" && location.startsWith(item.path));
                 const isPerencanaanItem = item.path === "/perencanaan";
+                const isProduksiItem = item.path === "/produksi";
 
                 return (
                   <React.Fragment key={item.path}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={isActive && !isPerencanaanItem}
+                        isActive={isActive && !isPerencanaanItem && !isProduksiItem}
                         className="h-7"
                       >
                         <Link href={item.path}>
@@ -137,6 +167,28 @@ function DashboardSidebar() {
                     {isPerencanaanItem && isPerencanaan && (
                       <div className="group-data-[collapsible=icon]:hidden">
                         {perencanaanSubNav.map((sub) => {
+                          const isSubActive = location === sub.path;
+                          return (
+                            <SidebarMenuItem key={sub.path}>
+                              <SidebarMenuButton
+                                asChild
+                                isActive={isSubActive}
+                                className="h-6 pl-5"
+                              >
+                                <Link href={sub.path}>
+                                  <span className={`size-1.5 rounded-full shrink-0 ${isSubActive ? "bg-foreground" : "bg-muted-foreground/50"}`} />
+                                  <span className="text-xs">{sub.name}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {isProduksiItem && isProduksi && (
+                      <div className="group-data-[collapsible=icon]:hidden">
+                        {produksiSubNav.map((sub) => {
                           const isSubActive = location === sub.path;
                           return (
                             <SidebarMenuItem key={sub.path}>

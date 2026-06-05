@@ -25,6 +25,33 @@ import Settings from "@/pages/settings";
 import Ekspansi from "@/pages/ekspansi";
 import SLIS from "@/pages/slis";
 import Layout from "@/components/layout";
+import ProgressProyek from "@/pages/produksi/progress/proyek";
+import ProgressTahap from "@/pages/produksi/progress/tahap";
+import ProgressUnit from "@/pages/produksi/progress/unit";
+import FasumPage from "@/pages/produksi/fasum";
+import SubkonKontrak from "@/pages/produksi/subkon/kontrak";
+import SubkonTermin from "@/pages/produksi/subkon/termin";
+import SubkonApproval from "@/pages/produksi/subkon/approval";
+import SubkonPerforma from "@/pages/produksi/subkon/performa";
+import MaterialMaster from "@/pages/produksi/material/master";
+import MaterialMasuk from "@/pages/produksi/material/masuk";
+import MaterialKeluar from "@/pages/produksi/material/keluar";
+import MaterialStok from "@/pages/produksi/material/stok";
+import MaterialKonsumsi from "@/pages/produksi/material/konsumsi";
+import MaterialVariance from "@/pages/produksi/material/variance";
+import MaterialForecast from "@/pages/produksi/material/forecast";
+import QcChecklist from "@/pages/produksi/qc/checklist";
+import QcRework from "@/pages/produksi/qc/rework";
+import QcDefect from "@/pages/produksi/qc/defect";
+import ReadyAkad from "@/pages/produksi/ready-akad";
+import AnalitikVelocity from "@/pages/produksi/analitik/velocity";
+import AnalitikBaseline from "@/pages/produksi/analitik/baseline";
+import AnalitikCostToComplete from "@/pages/produksi/analitik/cost-to-complete";
+import AnalitikCashflowImpact from "@/pages/produksi/analitik/cashflow-impact";
+import AnalitikProduktivitas from "@/pages/produksi/analitik/produktivitas";
+import AnalitikEligibilitas from "@/pages/produksi/analitik/eligibilitas";
+import AnalitikForecast from "@/pages/produksi/analitik/forecast";
+import ProduksiHealth from "@/pages/produksi/health";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +76,33 @@ function Router() {
         <Route path="/marketing" component={Marketing} />
         <Route path="/administrasi" component={Administrasi} />
         <Route path="/produksi" component={Produksi} />
+        <Route path="/produksi/progress/proyek" component={ProgressProyek} />
+        <Route path="/produksi/progress/tahap" component={ProgressTahap} />
+        <Route path="/produksi/progress/unit" component={ProgressUnit} />
+        <Route path="/produksi/fasum" component={FasumPage} />
+        <Route path="/produksi/subkon/kontrak" component={SubkonKontrak} />
+        <Route path="/produksi/subkon/termin" component={SubkonTermin} />
+        <Route path="/produksi/subkon/approval" component={SubkonApproval} />
+        <Route path="/produksi/subkon/performa" component={SubkonPerforma} />
+        <Route path="/produksi/material/master" component={MaterialMaster} />
+        <Route path="/produksi/material/masuk" component={MaterialMasuk} />
+        <Route path="/produksi/material/keluar" component={MaterialKeluar} />
+        <Route path="/produksi/material/stok" component={MaterialStok} />
+        <Route path="/produksi/material/konsumsi" component={MaterialKonsumsi} />
+        <Route path="/produksi/material/variance" component={MaterialVariance} />
+        <Route path="/produksi/material/forecast" component={MaterialForecast} />
+        <Route path="/produksi/qc/checklist" component={QcChecklist} />
+        <Route path="/produksi/qc/rework" component={QcRework} />
+        <Route path="/produksi/qc/defect" component={QcDefect} />
+        <Route path="/produksi/ready-akad" component={ReadyAkad} />
+        <Route path="/produksi/analitik/velocity" component={AnalitikVelocity} />
+        <Route path="/produksi/analitik/baseline" component={AnalitikBaseline} />
+        <Route path="/produksi/analitik/cost-to-complete" component={AnalitikCostToComplete} />
+        <Route path="/produksi/analitik/cashflow-impact" component={AnalitikCashflowImpact} />
+        <Route path="/produksi/analitik/produktivitas" component={AnalitikProduktivitas} />
+        <Route path="/produksi/analitik/eligibilitas" component={AnalitikEligibilitas} />
+        <Route path="/produksi/analitik/forecast" component={AnalitikForecast} />
+        <Route path="/produksi/health" component={ProduksiHealth} />
         <Route path="/serah-terima" component={SerahTerima} />
         <Route path="/settings" component={Settings} />
         <Route path="/ekspansi" component={Ekspansi} />
