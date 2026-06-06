@@ -23,8 +23,9 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey } from "@workspace/api-client-react";
-import { Search, Plus, MapPin, Layers, HardHat } from "lucide-react";
+import { Search, Plus, MapPin, Layers, HardHat, ClipboardList } from "lucide-react";
 import { Link } from "wouter";
+import { ProyekBerjalanDialog } from "@/components/proyek-berjalan-dialog";
 
 const FASE_COLORS: Record<string, string> = {
   LAND: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
@@ -66,6 +67,7 @@ export default function Projects() {
   const createProject = useCreateProject();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [openWizard, setOpenWizard] = useState(false);
   const [form, setForm] = useState(defaultForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -129,13 +131,23 @@ export default function Projects() {
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Daftar Proyek</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Kelola seluruh proyek Satara Development</p>
         </div>
-        <Button
-          onClick={handleOpen}
-          className="h-9 gap-1.5 bg-foreground hover:bg-foreground/90 text-background border border-border/50"
-        >
-          <Plus className="size-4" />
-          <span className="hidden sm:inline">Proyek Baru</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setOpenWizard(true)}
+            className="h-9 gap-1.5 border-amber-500/40 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+          >
+            <ClipboardList className="size-4" />
+            <span className="hidden sm:inline">Input Proyek Berjalan</span>
+          </Button>
+          <Button
+            onClick={handleOpen}
+            className="h-9 gap-1.5 bg-foreground hover:bg-foreground/90 text-background border border-border/50"
+          >
+            <Plus className="size-4" />
+            <span className="hidden sm:inline">Proyek Baru</span>
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 bg-card p-2.5 rounded-lg border">
@@ -233,6 +245,12 @@ export default function Projects() {
           ))}
         </div>
       )}
+
+      <ProyekBerjalanDialog
+        open={openWizard}
+        onOpenChange={setOpenWizard}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() })}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">

@@ -2055,6 +2055,13 @@ function ScoreBar({ score, height = "h-1.5" }: { score: number; height?: string 
   );
 }
 
+function fmtRpShort(n: number): string {
+  if (!n || isNaN(n)) return "—";
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)} M`;
+  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(0)} Jt`;
+  return `Rp ${n.toLocaleString("id-ID")}`;
+}
+
 function WilayahDetailPanel({ drillState, allProspects }: {
   drillState: DrillState;
   allProspects: LandProspect[];
@@ -2109,12 +2116,37 @@ function WilayahDetailPanel({ drillState, allProspects }: {
   }
   const jenisSorted = Object.entries(jenisMap).sort((a, b) => b[1] - a[1]);
 
+  // ── Derived stats for competitors ────────────────────────────────────────
+  const totalUnitKompetitor = competitors.reduce((s, p) => s + (p.totalUnit || 0) + (p.unitKomersil || 0), 0);
+  const avgUnitPerDev = competitors.length > 0 ? Math.round(totalUnitKompetitor / competitors.length) : 0;
+
+  const asosiasiMap: Record<string, number> = {};
+  for (const p of competitors) {
+    if (p.asosiasi) asosiasiMap[p.asosiasi] = (asosiasiMap[p.asosiasi] ?? 0) + 1;
+  }
+  const asosiasiSorted = Object.entries(asosiasiMap).sort((a, b) => b[1] - a[1]);
+
+  // kecamatan distribution
+  const kecDistMap: Record<string, { dev: number; unit: number }> = {};
+  for (const p of competitors) {
+    const kec = p.kecamatan || "—";
+    if (!kecDistMap[kec]) kecDistMap[kec] = { dev: 0, unit: 0 };
+    kecDistMap[kec].dev += 1;
+    kecDistMap[kec].unit += (p.totalUnit || 0) + (p.unitKomersil || 0);
+  }
+  const kecDistSorted = Object.entries(kecDistMap).sort((a, b) => b[1].unit - a[1].unit);
+
+  // top kecamatan from SLIS data
+  const topKecamatan = slisKab?.kecamatan
+    ? [...slisKab.kecamatan].sort((a, b) => b.score - a.score).slice(0, 5)
+    : [];
+
   return (
     <div className="border rounded-xl bg-card overflow-hidden">
       {/* ── Header ── */}
       <div className="flex items-center gap-3 px-5 py-3 border-b bg-muted/20">
         <Building2 className="size-4 text-muted-foreground shrink-0" />
-        <div className="flex-1 flex items-center gap-2 min-w-0">
+        <div className="flex-1 flex items-center gap-2 min-w-0 flex-wrap">
           <span className="text-[13px] font-bold">{displayName}</span>
           {parentName && <span className="text-[11px] text-muted-foreground">· {parentName}</span>}
           {slisKab && verdict && (
@@ -2125,6 +2157,7 @@ function WilayahDetailPanel({ drillState, allProspects }: {
         </div>
         <div className="flex items-center gap-4 text-[11px] text-muted-foreground shrink-0">
           <span><span className="font-semibold text-foreground">{competitors.length}</span> developer</span>
+          <span><span className="font-semibold text-foreground">{totalUnitKompetitor.toLocaleString("id-ID")}</span> unit</span>
           <span><span className="font-semibold text-foreground">{activeProspects.length}</span> prospek Satara</span>
         </div>
       </div>
@@ -2132,8 +2165,8 @@ function WilayahDetailPanel({ drillState, allProspects }: {
       {/* ── Body: 2 kolom utama ── */}
       <div className="flex divide-x min-h-0">
 
-        {/* ─── Kolom Kiri: Analisis SLIS (35%) ─── */}
-        <div className="w-[35%] shrink-0 p-4 space-y-4 overflow-y-auto" style={{ maxHeight: 440 }}>
+        {/* ─── Kolom Kiri: Analisis SLIS (38%) ─── */}
+        <div className="w-[38%] shrink-0 p-4 space-y-4 overflow-y-auto" style={{ maxHeight: 540 }}>
           <div className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Analisis SLIS</div>
 
           {slisKab ? (
@@ -2160,9 +2193,41 @@ function WilayahDetailPanel({ drillState, allProspects }: {
                 </div>
               )}
 
-              {/* All 10 factors */}
+              {/* Potensi pasar narrative */}
+              {slisKab.potensiPasar && (
+                <div className="bg-muted/30 border rounded-lg px-3 py-2.5">
+                  <div className="text-[9px] font-bold text-muted-foreground tracking-wider uppercase mb-1">Potensi Pasar</div>
+                  <p className="text-[10px] text-foreground/80 leading-relaxed">{slisKab.potensiPasar}</p>
+                </div>
+              )}
+
+              {/* Key metrics grid */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { l: "FLPP Score",     v: slisKab.realisasiFLPP,        unit: "" },
+                  { l: "Pertumb. Ekonomi", v: slisKab.pertumbuhanEkonomi,  unit: "" },
+                  { l: "PDRB/Kapita",    v: slisKab.pdrbPerKapita,        unit: "" },
+                  { l: "Urbanisasi",     v: slisKab.tingkatUrbanisasi,    unit: "" },
+                  { l: "RTB / thn",      v: slisKab.rumahTanggaBaru,      unit: "" },
+                  { l: "Pengangguran",   v: slisKab.tingkatPengangguran,  unit: "" },
+                ].map(({ l, v }) => {
+                  const score = v as number;
+                  const color = score >= 80 ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                    : score >= 65 ? "text-amber-600 bg-amber-50 border-amber-200"
+                    : score >= 50 ? "text-orange-600 bg-orange-50 border-orange-200"
+                    : "text-red-600 bg-red-50 border-red-200";
+                  return (
+                    <div key={l} className={cn("border rounded-lg px-2 py-1.5 flex items-center justify-between gap-1.5", color)}>
+                      <span className="text-[9px] font-medium leading-tight">{l}</span>
+                      <span className="text-[11px] font-bold tabular-nums">{score}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* All scoring factors */}
               <div className="space-y-1.5">
-                <div className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase">Scoring Faktor</div>
+                <div className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase">Scoring Faktor (10 Variabel)</div>
                 {faktors.map(({ key, label, bobot, score }) => {
                   const dotColor = score >= 80 ? "bg-emerald-500" : score >= 65 ? "bg-amber-400" : "bg-red-400";
                   return (
@@ -2220,54 +2285,139 @@ function WilayahDetailPanel({ drillState, allProspects }: {
                   </div>
                 </div>
               )}
+
+              {/* Top Kecamatan */}
+              {topKecamatan.length > 0 && (
+                <div>
+                  <div className="text-[9px] font-bold text-muted-foreground tracking-wider uppercase mb-1.5">Kecamatan Teratas (SLIS)</div>
+                  <div className="space-y-1">
+                    {topKecamatan.map((kec, i) => (
+                      <div key={kec.id} className="flex items-center gap-2">
+                        <span className="text-[9px] text-muted-foreground tabular-nums w-3 shrink-0">{i + 1}.</span>
+                        <span className="text-[10px] flex-1 truncate font-medium">{kec.name}</span>
+                        <div className="flex items-center gap-1.5 w-20 shrink-0">
+                          <ScoreBar score={kec.score} height="h-1" />
+                          <span className="text-[10px] font-bold tabular-nums w-6 text-right">{kec.score}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="text-[11px] text-muted-foreground py-6 text-center">Data SLIS belum tersedia untuk wilayah ini.</div>
           )}
         </div>
 
-        {/* ─── Kolom Kanan: Kompetitor + Prospek (65%) ─── */}
+        {/* ─── Kolom Kanan: Kompetitor + Prospek (62%) ─── */}
         <div className="flex-1 flex flex-col divide-y min-w-0">
 
           {/* Bagian atas: Daftar Kompetitor */}
-          <div className="flex-1 p-4 space-y-2 overflow-y-auto" style={{ maxHeight: 320 }}>
+          <div className="p-4 space-y-3 overflow-y-auto" style={{ maxHeight: 380 }}>
+            {/* Header + summary stats */}
             <div className="flex items-center justify-between">
               <div className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Daftar Developer / Kompetitor</div>
-              {jenisSorted.length > 0 && (
-                <div className="flex items-center gap-1.5">
-                  {jenisSorted.slice(0, 3).map(([jenis, count]) => (
-                    <span key={jenis} className="text-[9px] px-1.5 py-px bg-muted border rounded text-muted-foreground">
-                      {jenis} ({count})
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="flex items-center gap-1.5">
+                {jenisSorted.slice(0, 3).map(([jenis, count]) => (
+                  <span key={jenis} className="text-[9px] px-1.5 py-px bg-muted border rounded text-muted-foreground">
+                    {jenis} ({count})
+                  </span>
+                ))}
+              </div>
             </div>
 
+            {/* Stats bar */}
+            {competitors.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="border rounded-lg px-2.5 py-2 bg-muted/20">
+                  <div className="text-[9px] text-muted-foreground">Developer</div>
+                  <div className="text-[15px] font-black tabular-nums">{competitors.length}</div>
+                </div>
+                <div className="border rounded-lg px-2.5 py-2 bg-muted/20">
+                  <div className="text-[9px] text-muted-foreground">Total Unit</div>
+                  <div className="text-[15px] font-black tabular-nums">{totalUnitKompetitor.toLocaleString("id-ID")}</div>
+                </div>
+                <div className="border rounded-lg px-2.5 py-2 bg-muted/20">
+                  <div className="text-[9px] text-muted-foreground">Rata-rata/Dev</div>
+                  <div className="text-[15px] font-black tabular-nums">{avgUnitPerDev}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Asosiasi breakdown */}
+            {asosiasiSorted.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {asosiasiSorted.map(([asosiasi, count]) => (
+                  <span key={asosiasi} className="text-[9px] px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full font-medium">
+                    {asosiasi} · {count}
+                  </span>
+                ))}
+                <span className="text-[9px] px-2 py-0.5 bg-muted border border-border text-muted-foreground rounded-full">
+                  Non-asosiasi · {competitors.filter(p => !p.asosiasi).length}
+                </span>
+              </div>
+            )}
+
+            {/* Kecamatan distribution bar */}
+            {kecDistSorted.length > 0 && (
+              <div>
+                <div className="text-[9px] font-bold text-muted-foreground tracking-wider uppercase mb-1.5">Sebaran per Kecamatan</div>
+                <div className="space-y-1">
+                  {kecDistSorted.slice(0, 5).map(([kec, data]) => {
+                    const pct = totalUnitKompetitor > 0 ? Math.round((data.unit / totalUnitKompetitor) * 100) : 0;
+                    return (
+                      <div key={kec} className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground w-28 shrink-0 truncate">{kec}</span>
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-[9px] text-muted-foreground tabular-nums w-8 text-right">{data.dev}dev</span>
+                        <span className="text-[9px] font-semibold tabular-nums w-14 text-right">{data.unit.toLocaleString("id-ID")} u</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Competitor list */}
             {competitors.length === 0 ? (
               <div className="text-[11px] text-muted-foreground py-6 text-center">Belum ada data perumahan terdaftar di wilayah ini.</div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {competitors.map((p, i) => {
                   const totalU = (p.totalUnit || 0) + (p.unitKomersil || 0);
+                  const pctOfTotal = totalUnitKompetitor > 0 ? Math.round((totalU / totalUnitKompetitor) * 100) : 0;
                   return (
-                    <div key={i} className="flex items-start gap-2.5 py-1.5 border-b border-border/40 last:border-0">
+                    <div key={i} className="flex items-start gap-2.5 py-2 border-b border-border/30 last:border-0">
                       <span className="text-[10px] text-muted-foreground tabular-nums w-5 shrink-0 pt-px text-right">{i + 1}.</span>
-                      <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto] gap-x-3 items-start">
-                        <div className="min-w-0">
-                          <div className="text-[11px] font-semibold leading-tight truncate">{p.nama}</div>
-                          <div className="text-[10px] text-muted-foreground truncate mt-0.5">{p.pengembang}</div>
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <span className="text-[9px] px-1.5 py-px bg-muted border rounded text-muted-foreground">{p.kecamatan}</span>
-                            <span className="text-[9px] px-1.5 py-px bg-muted border rounded text-muted-foreground">{p.jenis}</span>
-                            {p.asosiasi && <span className="text-[9px] px-1.5 py-px bg-blue-50 border border-blue-100 rounded text-blue-700">{p.asosiasi}</span>}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-2 justify-between">
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-semibold leading-tight truncate">{p.nama}</div>
+                            <div className="text-[10px] text-muted-foreground truncate mt-0.5">{p.pengembang}</div>
+                          </div>
+                          <div className="text-right shrink-0 ml-2">
+                            {totalU > 0 ? (
+                              <>
+                                <div className="text-[12px] font-bold tabular-nums">{totalU.toLocaleString("id-ID")}</div>
+                                <div className="text-[9px] text-muted-foreground">unit · {pctOfTotal}%</div>
+                              </>
+                            ) : <div className="text-[9px] text-muted-foreground/50">—</div>}
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          {totalU > 0 && (
-                            <div className="text-[11px] font-bold tabular-nums">{totalU.toLocaleString("id-ID")}</div>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-[9px] px-1.5 py-px bg-muted border rounded text-muted-foreground">{p.kecamatan}</span>
+                          <span className="text-[9px] px-1.5 py-px bg-muted border rounded text-muted-foreground">{p.jenis}</span>
+                          {p.asosiasi && (
+                            <span className="text-[9px] px-1.5 py-px bg-blue-50 border border-blue-100 rounded text-blue-700 font-medium">{p.asosiasi}</span>
                           )}
-                          {totalU > 0 && <div className="text-[9px] text-muted-foreground">unit</div>}
+                          {totalU > 0 && (
+                            <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden min-w-[40px] max-w-[60px]">
+                              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pctOfTotal}%` }} />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2278,16 +2428,21 @@ function WilayahDetailPanel({ drillState, allProspects }: {
           </div>
 
           {/* Bagian bawah: Prospek Aktif + Referensi Pasar */}
-          <div className="grid grid-cols-2 divide-x" style={{ minHeight: 120 }}>
+          <div className="grid grid-cols-2 divide-x" style={{ minHeight: 160 }}>
             {/* Prospek Aktif */}
-            <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: 180 }}>
-              <div className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Prospek Aktif Satara</div>
+            <div className="p-4 space-y-2.5 overflow-y-auto" style={{ maxHeight: 220 }}>
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Prospek Aktif Satara</div>
+                {activeProspects.length > 0 && (
+                  <span className="text-[9px] font-bold text-foreground bg-muted border rounded px-1.5 py-px">{activeProspects.length}</span>
+                )}
+              </div>
               {activeProspects.length === 0 ? (
                 <div className="text-[11px] text-muted-foreground">Belum ada prospek lahan di wilayah ini.</div>
               ) : (
                 <div className="space-y-2">
                   {activeProspects.map(p => (
-                    <div key={p.id} className="border rounded-lg p-2.5 bg-muted/10 space-y-1.5">
+                    <div key={p.id} className="border rounded-lg p-2.5 bg-muted/10 space-y-1.5 hover:border-foreground/20 transition-colors">
                       <div className="flex items-start justify-between gap-2">
                         <div className="text-[11px] font-semibold leading-tight flex-1">{p.lokasi}</div>
                         <span className={cn("text-[9px] px-1.5 py-0.5 rounded border font-medium shrink-0",
@@ -2296,10 +2451,15 @@ function WilayahDetailPanel({ drillState, allProspects }: {
                           {WILAYAH_STATUS_LABELS[p.status] ?? p.status}
                         </span>
                       </div>
-                      <div className="flex gap-3 text-[10px] text-muted-foreground">
-                        {p.luas ? <span>{p.luas.toLocaleString("id-ID")} m²</span> : null}
-                        {p.hargaM2 ? <span>Rp {p.hargaM2.toLocaleString("id-ID")}/m²</span> : null}
-                        {p.kecamatan ? <span>{p.kecamatan}</span> : null}
+                      <div className="grid grid-cols-2 gap-x-3 text-[10px] text-muted-foreground">
+                        {p.luas ? <span>{(p.luas / 10000).toFixed(2)} ha</span> : <span>—</span>}
+                        {p.hargaM2 ? <span>Rp {p.hargaM2.toLocaleString("id-ID")}/m²</span> : <span>—</span>}
+                        {p.kecamatan ? <span className="truncate">{p.kecamatan}</span> : null}
+                        {p.luas && p.hargaM2 ? (
+                          <span className="font-semibold text-foreground">
+                            {fmtRpShort(p.luas * p.hargaM2)}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -2308,20 +2468,28 @@ function WilayahDetailPanel({ drillState, allProspects }: {
             </div>
 
             {/* Referensi Pasar */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-2.5 overflow-y-auto" style={{ maxHeight: 220 }}>
               <div className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Referensi Pasar</div>
               {slisKab ? (
-                <div className="space-y-2">
+                <div className="space-y-0">
                   {[
-                    { l: "Harga Tanah",       v: slisKab.hargaTanahRange },
-                    { l: "Pertumbuhan",        v: `+${slisKab.pertumbuhanPct}%/tahun` },
-                    { l: "Total Developer",    v: `${competitors.length} terdaftar` },
-                    { l: "Populasi",           v: `${slisKab.populasi} jiwa` },
-                    { l: "Developer Aktif",    v: `${slisKab.kompetitorCount} developer` },
-                  ].map(({ l, v }) => (
-                    <div key={l} className="flex items-center justify-between text-[11px] py-0.5 border-b border-border/30 last:border-0">
+                    { l: "Harga Tanah",      v: slisKab.hargaTanahRange,                    hi: false },
+                    { l: "Pertumb. Populasi", v: `+${slisKab.pertumbuhanPct}%/tahun`,        hi: false },
+                    { l: "Total Developer",  v: `${competitors.length} terdaftar`,            hi: false },
+                    { l: "Total Unit Pasar", v: `${totalUnitKompetitor.toLocaleString("id-ID")} unit`, hi: true },
+                    { l: "Avg Unit/Dev",     v: `${avgUnitPerDev} unit`,                     hi: false },
+                    { l: "Developer Aktif",  v: `${slisKab.kompetitorCount} developer`,      hi: false },
+                    { l: "Populasi",         v: `${slisKab.populasi} jiwa`,                  hi: false },
+                    { l: "FLPP Score",       v: `${slisKab.realisasiFLPP}/100`,              hi: false },
+                    { l: "PDRB/Kapita",      v: `${slisKab.pdrbPerKapita}/100`,              hi: false },
+                    { l: "Urbanisasi",       v: `${slisKab.tingkatUrbanisasi}/100`,          hi: false },
+                    { l: "Pengangguran",     v: `${slisKab.tingkatPengangguran}/100`,        hi: false },
+                  ].map(({ l, v, hi }) => (
+                    <div key={l} className={cn("flex items-center justify-between text-[11px] py-1 border-b border-border/25 last:border-0",
+                      hi ? "font-semibold" : ""
+                    )}>
                       <span className="text-muted-foreground">{l}</span>
-                      <span className="font-semibold text-right">{v}</span>
+                      <span className={hi ? "text-foreground" : "font-medium"}>{v}</span>
                     </div>
                   ))}
                 </div>
