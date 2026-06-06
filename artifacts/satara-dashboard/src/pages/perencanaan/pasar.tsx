@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcDemandScore } from "@/lib/planning-calc";
 import { Save, Plus, Trash2 } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 
 const SATARA_STANDARDS = { minDemand: 60 };
 
@@ -150,7 +151,7 @@ export default function PasarPage() {
                 <div key={k} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
                   <div className="flex items-center gap-1.5">
-                    <Input className="h-8 text-sm" type="number" value={(form as Record<string, unknown>)[k] as number ?? 0} onChange={e => setF(k, e.target.value)} />
+                    <NumericInput className="h-8 text-sm" decimals={2} value={(form as Record<string, unknown>)[k] as number ?? 0} onChange={v => setF(k, v)} />
                     <span className="text-xs text-muted-foreground w-14 shrink-0">{unit}</span>
                   </div>
                 </div>
@@ -173,7 +174,7 @@ export default function PasarPage() {
                 <div key={k} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
                   <div className="flex items-center gap-1.5">
-                    <Input className="h-8 text-sm" type="number" value={(form as Record<string, unknown>)[k] as number ?? 0} onChange={e => setF(k, e.target.value)} />
+                    <NumericInput className="h-8 text-sm" decimals={2} value={(form as Record<string, unknown>)[k] as number ?? 0} onChange={v => setF(k, v)} />
                     <span className="text-xs text-muted-foreground w-10 shrink-0">{unit}</span>
                   </div>
                 </div>
@@ -195,7 +196,7 @@ export default function PasarPage() {
                 <div key={k} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
                   <div className="flex items-center gap-1.5">
-                    <Input className="h-8 text-sm" type="number" value={(form as Record<string, unknown>)[k] as number ?? 0} onChange={e => setF(k, e.target.value)} />
+                    <NumericInput className="h-8 text-sm" decimals={2} value={(form as Record<string, unknown>)[k] as number ?? 0} onChange={v => setF(k, v)} />
                     <span className="text-xs text-muted-foreground w-10 shrink-0">{unit}</span>
                   </div>
                 </div>
@@ -220,18 +221,29 @@ export default function PasarPage() {
                   {competitors.map((c, i) => (
                     <div key={i} className="grid grid-cols-6 gap-2 items-end p-3 border rounded-md">
                       {[
-                        ["name", "Nama Proyek", "text"],
-                        ["type", "Tipe", "text"],
-                        ["price", "Harga (jt)", "number"],
-                        ["units", "Total Unit", "number"],
-                        ["absorption", "Absorpsi/Bln", "number"],
-                        ["distance", "Jarak (km)", "number"],
-                      ].map(([k, label, type]) => (
+                        ["name", "Nama Proyek"],
+                        ["type", "Tipe"],
+                      ].map(([k, label]) => (
                         <div key={k} className="space-y-1">
                           <Label className="text-[10px]">{label}</Label>
-                          <Input className="h-7 text-xs" type={type} value={(c as Record<string, unknown>)[k] as string ?? ""} onChange={e => {
+                          <Input className="h-7 text-xs" value={(c as Record<string, unknown>)[k] as string ?? ""} onChange={e => {
                             const updated = [...competitors];
-                            (updated[i] as Record<string, unknown>)[k] = type === "number" ? parseFloat(e.target.value) || 0 : e.target.value;
+                            (updated[i] as Record<string, unknown>)[k] = e.target.value;
+                            setCompetitors(updated);
+                          }} />
+                        </div>
+                      ))}
+                      {[
+                        ["price", "Harga (jt)"],
+                        ["units", "Total Unit"],
+                        ["absorption", "Absorpsi/Bln"],
+                        ["distance", "Jarak (km)"],
+                      ].map(([k, label]) => (
+                        <div key={k} className="space-y-1">
+                          <Label className="text-[10px]">{label}</Label>
+                          <NumericInput className="h-7 text-xs" decimals={2} value={(c as Record<string, unknown>)[k] as number ?? 0} onChange={v => {
+                            const updated = [...competitors];
+                            (updated[i] as Record<string, unknown>)[k] = v;
                             setCompetitors(updated);
                           }} />
                         </div>

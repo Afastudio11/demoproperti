@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcFeasibility, fmtCurrency, fmtPct, type FeasibilityInputs } from "@/lib/planning-calc";
 import { Save, CheckCircle2, XCircle, AlertTriangle, Brain, Zap, FileDown, ArrowRight } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const SATARA = { roi: 35, irr: 20, payback: 24, margin: 25 };
@@ -30,15 +31,15 @@ function StatusBadge({ pass }: { pass: boolean }) {
     : <Badge className="bg-red-100 text-red-700 border-red-200 gap-1"><XCircle className="size-3" />FAIL</Badge>;
 }
 
-function NumField({ label, value, onChange, unit, prefix, hint }: {
-  label: string; value: number; onChange: (v: number) => void; unit?: string; prefix?: string; hint?: string;
+function NumField({ label, value, onChange, unit, prefix, hint, decimals }: {
+  label: string; value: number; onChange: (v: number) => void; unit?: string; prefix?: string; hint?: string; decimals?: number;
 }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       <div className="flex items-center gap-1">
         {prefix && <span className="text-xs text-muted-foreground">{prefix}</span>}
-        <Input className="h-8 text-sm" type="number" value={value || ""} onChange={e => onChange(parseFloat(e.target.value) || 0)} />
+        <NumericInput className="h-8 text-sm" value={value} onChange={onChange} decimals={decimals} />
         {unit && <span className="text-xs text-muted-foreground shrink-0">{unit}</span>}
       </div>
       {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { fmtCurrency } from "@/lib/planning-calc";
 import { Plus, Trash2, Save, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   LineChart, Line, ReferenceLine, Legend,
@@ -221,13 +222,13 @@ export default function LandBankPage() {
                           </Select>
                         </td>
                         <td className="px-2 py-1.5">
-                          <Input className="h-7 w-20 text-xs" type="number" value={land.landArea || ""} onChange={e => setLand(i, "landArea", parseFloat(e.target.value) || 0)} />
+                          <NumericInput className="h-7 w-20 text-xs" decimals={1} value={land.landArea ?? 0} onChange={v => setLand(i, "landArea", v)} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <Input className="h-7 w-16 text-xs" type="number" value={land.availableUnits || ""} onChange={e => setLand(i, "availableUnits", parseInt(e.target.value) || 0)} />
+                          <NumericInput className="h-7 w-16 text-xs" value={land.availableUnits ?? 0} onChange={v => setLand(i, "availableUnits", v)} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <Input className="h-7 w-32 text-xs" type="number" value={land.acquisitionPrice || ""} onChange={e => setLand(i, "acquisitionPrice", parseFloat(e.target.value) || 0)} />
+                          <NumericInput className="h-7 w-32 text-xs" value={land.acquisitionPrice ?? 0} onChange={v => setLand(i, "acquisitionPrice", v)} />
                         </td>
                         <td className="px-2 py-1.5">
                           <Input className="h-7 w-28 text-xs" type="date" value={land.targetStartDate} onChange={e => setLand(i, "targetStartDate", e.target.value)} />
@@ -270,7 +271,7 @@ export default function LandBankPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
                 <Label className="text-sm shrink-0">Rata-rata akad per bulan</Label>
-                <Input className="h-8 w-24 text-sm" type="number" min={1} value={avgAkadPerMonth} onChange={e => setAvgAkadPerMonth(parseInt(e.target.value) || 1)} />
+                <NumericInput className="h-8 w-24 text-sm" value={avgAkadPerMonth} onChange={v => setAvgAkadPerMonth(Math.max(1, v))} />
                 <span className="text-sm text-muted-foreground">unit/bulan</span>
               </div>
 

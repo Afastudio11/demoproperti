@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Users, Building2 } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 type Project = { id: number; nama: string; lokasi: string; fase: string };
@@ -157,7 +158,7 @@ export default function SDMPage() {
               <div key={k} className="space-y-1">
                 <Label className="text-xs">{label}</Label>
                 <div className="flex items-center gap-2">
-                  <Input className="h-8 text-sm w-24" type="number" value={(form as Record<string, number>)[k]} onChange={e => setF(k, e.target.value)} />
+                  <NumericInput className="h-8 text-sm w-24" value={(form as Record<string, number>)[k]} onChange={v => setF(k, String(v))} />
                   <span className="text-xs text-muted-foreground">{unit}</span>
                 </div>
               </div>
@@ -175,7 +176,7 @@ export default function SDMPage() {
               <div key={k} className="space-y-1">
                 <Label className="text-xs">{label}</Label>
                 <div className="flex items-center gap-2">
-                  <Input className="h-8 text-sm w-24" type="number" value={(form as Record<string, number>)[k]} onChange={e => setF(k, e.target.value)} />
+                  <NumericInput className="h-8 text-sm w-24" value={(form as Record<string, number>)[k]} onChange={v => setF(k, String(v))} />
                   <span className="text-xs text-muted-foreground">{unit}</span>
                 </div>
               </div>

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
 
 type Material = { id: number; name: string; satuan: string };
@@ -65,7 +66,7 @@ export default function MaterialKeluar() {
                 <SelectContent>{(materials ?? []).map(m => <SelectItem key={m.id} value={String(m.id)}>{m.name} ({m.satuan})</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5"><Label className="text-xs">Jumlah</Label><Input type="number" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))} className="h-8 text-sm" /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Jumlah</Label><NumericInput decimals={3} value={parseFloat(form.quantity) || 0} onChange={v => setForm(p => ({ ...p, quantity: String(v) }))} className="h-8 text-sm" /></div>
             <div className="space-y-1.5"><Label className="text-xs">Diambil Oleh</Label><Input value={form.takenBy} onChange={e => setForm(p => ({ ...p, takenBy: e.target.value }))} className="h-8 text-sm" /></div>
             <div className="space-y-1.5"><Label className="text-xs">Subkon</Label><Input value={form.subkonName} onChange={e => setForm(p => ({ ...p, subkonName: e.target.value }))} className="h-8 text-sm" /></div>
           </div>

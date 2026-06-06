@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Save, RefreshCw } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
 
 type FasumRow = { id: number; projectId: number; stageCode: string | null; fasumType: string; progressPercent: number; notes: string | null; updatedBy: string | null };
@@ -132,12 +133,9 @@ export default function FasumPage() {
                 </div>
                 {selectedProject && (
                   <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
+                    <NumericInput
                       value={edits[type]?.progress ?? row?.progressPercent ?? 0}
-                      onChange={e => setEdits(prev => ({ ...prev, [type]: { progress: Number(e.target.value), notes: prev[type]?.notes ?? row?.notes ?? "" } }))}
+                      onChange={v => setEdits(prev => ({ ...prev, [type]: { progress: Math.min(100, Math.max(0, v)), notes: prev[type]?.notes ?? row?.notes ?? "" } }))}
                       className="h-7 text-xs w-20"
                     />
                     <Input

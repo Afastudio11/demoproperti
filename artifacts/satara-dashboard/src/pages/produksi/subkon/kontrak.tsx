@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileCheck, Trash2 } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
 
 const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
@@ -121,19 +122,19 @@ export default function SubkonKontrak() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Jumlah Unit</Label>
-                <Input type="number" value={form.unitCount} onChange={e => setForm(p => ({ ...p, unitCount: e.target.value }))} className="h-8 text-sm" />
+                <NumericInput value={parseFloat(form.unitCount) || 0} onChange={v => setForm(p => ({ ...p, unitCount: String(v) }))} className="h-8 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Nilai per Unit (Rp)</Label>
-                <Input type="number" value={form.valuePerUnit} onChange={e => setForm(p => ({ ...p, valuePerUnit: e.target.value }))} className="h-8 text-sm" />
+                <NumericInput value={parseFloat(form.valuePerUnit) || 0} onChange={v => setForm(p => ({ ...p, valuePerUnit: String(v) }))} className="h-8 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Retensi per Unit (Rp)</Label>
-                <Input type="number" value={form.retentionPerUnit} onChange={e => setForm(p => ({ ...p, retentionPerUnit: e.target.value }))} className="h-8 text-sm" />
+                <NumericInput value={parseFloat(form.retentionPerUnit) || 0} onChange={v => setForm(p => ({ ...p, retentionPerUnit: String(v) }))} className="h-8 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Masa Pemeliharaan (bln)</Label>
-                <Input type="number" value={form.maintenanceMonths} onChange={e => setForm(p => ({ ...p, maintenanceMonths: e.target.value }))} className="h-8 text-sm" />
+                <NumericInput value={parseFloat(form.maintenanceMonths) || 0} onChange={v => setForm(p => ({ ...p, maintenanceMonths: String(v) }))} className="h-8 text-sm" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

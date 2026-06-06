@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Truck } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
 
 type Material = { id: number; name: string; satuan: string; category: string };
@@ -57,7 +58,7 @@ export default function MaterialMasuk() {
               </Select>
             </div>
             <div className="space-y-1.5"><Label className="text-xs">Jumlah</Label>
-              <Input type="number" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))} className="h-8 text-sm" />
+              <NumericInput decimals={3} value={parseFloat(form.quantity) || 0} onChange={v => setForm(p => ({ ...p, quantity: String(v) }))} className="h-8 text-sm" />
             </div>
             <div className="space-y-1.5"><Label className="text-xs">Supplier</Label>
               <Input value={form.supplier} onChange={e => setForm(p => ({ ...p, supplier: e.target.value }))} placeholder="Nama supplier..." className="h-8 text-sm" />

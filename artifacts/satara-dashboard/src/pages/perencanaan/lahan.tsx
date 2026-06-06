@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
 import { Save, Download, MapPin } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 function num(v: string) { return parseFloat(v) || 0; }
@@ -228,17 +229,22 @@ export default function LahanPage() {
         <Card>
           <CardHeader><CardTitle className="text-sm">Data Lahan</CardTitle></CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-3">
-            {[
-              ["landArea", "Total Luas Lahan (m²)", "number"],
-              ["landPriceTotal", "Total Harga Lahan (Rp)", "number"],
-              ["roadWidth", "Lebar Jalan Utama (m)", "number"],
-              ["kavlingArea", "Luas Kavling/Unit (m²)", "number"],
-            ].map(([k, label, type]) => (
-              <div key={k} className="space-y-1">
-                <Label className="text-xs">{label}</Label>
-                <Input className="h-8 text-sm" type={type} value={(form as Record<string, unknown>)[k] as number ?? 0} onChange={e => setF(k, e.target.value)} />
-              </div>
-            ))}
+            <div className="space-y-1">
+              <Label className="text-xs">Total Luas Lahan (m²)</Label>
+              <NumericInput className="h-8 text-sm" decimals={1} value={form.landArea} onChange={v => setF("landArea", v)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Total Harga Lahan (Rp)</Label>
+              <NumericInput className="h-8 text-sm" value={form.landPriceTotal} onChange={v => setF("landPriceTotal", v)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Lebar Jalan Utama (m)</Label>
+              <NumericInput className="h-8 text-sm" decimals={1} value={form.roadWidth} onChange={v => setF("roadWidth", v)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Luas Kavling/Unit (m²)</Label>
+              <NumericInput className="h-8 text-sm" decimals={1} value={form.kavlingArea} onChange={v => setF("kavlingArea", v)} />
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">Bentuk Lahan</Label>
               <Select value={form.landShape} onValueChange={v => setF("landShape", v)}>

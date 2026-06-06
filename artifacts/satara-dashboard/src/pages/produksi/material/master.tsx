@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Package } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
 
 type Material = { id: number; name: string; category: string; satuan: string; standardPerUnit: number | null; unitPrice: number | null; minimumStock: number };
@@ -79,15 +80,15 @@ export default function MaterialMaster() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Standar per Unit</Label>
-              <Input type="number" value={form.standardPerUnit} onChange={e => setForm(p => ({ ...p, standardPerUnit: e.target.value }))} className="h-8 text-sm" />
+              <NumericInput decimals={3} value={parseFloat(form.standardPerUnit) || 0} onChange={v => setForm(p => ({ ...p, standardPerUnit: String(v) }))} className="h-8 text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Harga Satuan (Rp)</Label>
-              <Input type="number" value={form.unitPrice} onChange={e => setForm(p => ({ ...p, unitPrice: e.target.value }))} className="h-8 text-sm" />
+              <NumericInput value={parseFloat(form.unitPrice) || 0} onChange={v => setForm(p => ({ ...p, unitPrice: String(v) }))} className="h-8 text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Minimum Stok</Label>
-              <Input type="number" value={form.minimumStock} onChange={e => setForm(p => ({ ...p, minimumStock: e.target.value }))} className="h-8 text-sm" />
+              <NumericInput decimals={1} value={parseFloat(form.minimumStock) || 0} onChange={v => setForm(p => ({ ...p, minimumStock: String(v) }))} className="h-8 text-sm" />
             </div>
           </div>
           <div className="flex gap-2 justify-end">

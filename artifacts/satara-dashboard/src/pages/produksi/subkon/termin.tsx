@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { DollarSign, Calculator, Plus, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
 
 const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
@@ -157,7 +158,7 @@ export default function SubkonTermin() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Progress Saat Ini (%)</Label>
-                <Input type="number" min={prevProgress} max={100} value={progressCurrent} onChange={e => setProgressCurrent(e.target.value)} placeholder={`min ${prevProgress}%`} className="h-8 text-sm" />
+                <NumericInput decimals={1} value={parseFloat(progressCurrent) || 0} onChange={v => setProgressCurrent(String(Math.min(100, Math.max(prevProgress, v))))} className="h-8 text-sm" />
               </div>
             </div>
 

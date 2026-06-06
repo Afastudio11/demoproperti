@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const PHASES = ["LAND", "PLAN", "LEGAL", "SELL", "BUILD", "AKAD", "HANDOVER"];
@@ -228,7 +229,7 @@ export default function TimelinePage() {
                           </td>
                           <td className="px-2 py-1.5">
                             <div className="flex items-center gap-1">
-                              <Input className="h-7 w-14 text-xs" type="number" min={0} max={100} value={ms.progressPct} onChange={e => setMs(i, "progressPct", parseInt(e.target.value) || 0)} />
+                              <NumericInput className="h-7 w-14 text-xs" value={ms.progressPct} onChange={v => setMs(i, "progressPct", Math.min(100, Math.max(0, v)))} />
                               <span className="text-muted-foreground">%</span>
                             </div>
                           </td>

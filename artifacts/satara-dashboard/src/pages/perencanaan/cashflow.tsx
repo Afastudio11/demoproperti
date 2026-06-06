@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { fmtCurrency } from "@/lib/planning-calc";
 import { Save, Plus, Trash2 } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 
 const DEFAULT_MONTHS = 24;
@@ -203,7 +204,7 @@ export default function CashflowPage() {
                         <td className="px-2 py-1 font-medium">{e.monthLabel}</td>
                         {["landCostOut","constructionCostOut","marketingCostOut","operationalCostOut","kppInstallmentOut","bookingFeeIn","htKprIn","downPaymentIn","kppDisbursementIn"].map(k => (
                           <td key={k} className="px-1 py-1">
-                            <Input className="h-6 w-24 text-xs" type="number" value={(e as Record<string, unknown>)[k] as number || ""} onChange={ev => setEntry(i, k, parseFloat(ev.target.value) || 0)} />
+                            <NumericInput className="h-6 w-24 text-xs" value={(e as Record<string, unknown>)[k] as number ?? 0} onChange={v => setEntry(i, k, v)} />
                           </td>
                         ))}
                       </tr>
@@ -231,7 +232,10 @@ export default function CashflowPage() {
               ].map(([k, label, type]) => (
                 <div key={k} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
-                  <Input className="h-8 text-sm" type={type} value={(kpp as Record<string, unknown>)[k] as string ?? ""} onChange={e => setKpp(prev => ({ ...prev, [k]: type === "number" ? parseFloat(e.target.value) || 0 : e.target.value }))} />
+                  {type === "number"
+                  ? <NumericInput className="h-8 text-sm" value={(kpp as Record<string, unknown>)[k] as number ?? 0} onChange={v => setKpp(prev => ({ ...prev, [k]: v }))} />
+                  : <Input className="h-8 text-sm" value={(kpp as Record<string, unknown>)[k] as string ?? ""} onChange={e => setKpp(prev => ({ ...prev, [k]: e.target.value }))} />
+                }
                 </div>
               ))}
             </CardContent>
@@ -268,7 +272,7 @@ export default function CashflowPage() {
                           <Input className="h-7 text-xs w-28" type="date" value={ht.akadDate} onChange={e => { const next = [...htRows]; next[i].akadDate = e.target.value; setHtRows(next); }} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <Input className="h-7 text-xs w-28" type="number" value={ht.htAmount || ""} onChange={e => { const next = [...htRows]; next[i].htAmount = parseFloat(e.target.value) || 0; setHtRows(next); }} />
+                          <NumericInput className="h-7 text-xs w-28" value={ht.htAmount} onChange={v => { const next = [...htRows]; next[i].htAmount = v; setHtRows(next); }} />
                         </td>
                         <td className="px-2 py-1.5">
                           <Input className="h-7 text-xs w-20" value={ht.kprBank} onChange={e => { const next = [...htRows]; next[i].kprBank = e.target.value; setHtRows(next); }} />

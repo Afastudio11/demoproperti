@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
 import { fmtCurrency } from "@/lib/planning-calc";
 import { Save, Plus, Trash2 } from "lucide-react";
@@ -34,7 +35,6 @@ export default function ProdukPage() {
   const { toast } = useToast();
   const [projectId, setProjectId] = useState(0);
   const [rows, setRows] = useState<ProductRow[]>([]);
-  const [saved, setSaved] = useState<number[]>([]);
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
 
@@ -43,23 +43,21 @@ export default function ProdukPage() {
     const existing = await fetch(`/api/planning/product?projectId=${id}`).then(r => r.json());
     if (existing.length > 0) {
       setRows(existing);
-      setSaved(existing.map((r: ProductRow) => r.id!));
     } else {
       setRows([newRow(id)]);
-      setSaved([]);
     }
   };
 
-  const setRow = (i: number, k: keyof ProductRow, v: string | number) => {
+  const setRowField = (i: number, k: keyof ProductRow, v: string | number) => {
     setRows(prev => {
       const next = [...prev];
-      (next[i] as Record<string, unknown>)[k] = typeof v === "string" && k !== "houseType" && k !== "targetSegment"
-        ? parseFloat(v) || 0 : v;
+      (next[i] as Record<string, unknown>)[k] = v;
       return next;
     });
   };
 
   const addRow = () => setRows(prev => [...prev, newRow(projectId)]);
+
   const removeRow = async (i: number) => {
     const row = rows[i];
     if (row.id) {
@@ -130,7 +128,7 @@ export default function ProdukPage() {
             <table className="w-full text-xs">
               <thead className="bg-muted/50 border-b">
                 <tr>
-                  {["Tipe Rumah", "LB (m²)", "LT (m²)", "Harga Jual (jt)", "Jumlah Unit", "Segmen", "Harga Kompetitor (jt)", ""].map(h => (
+                  {["Tipe Rumah", "LB (m²)", "LT (m²)", "Harga Jual (Rp)", "Jumlah Unit", "Segmen", "Harga Kompetitor (Rp)", ""].map(h => (
                     <th key={h} className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -139,27 +137,28 @@ export default function ProdukPage() {
                 {rows.map((row, i) => (
                   <tr key={i} className="border-t">
                     <td className="px-2 py-1.5">
-                      <Input className="h-7 w-28 text-xs" value={row.houseType} onChange={e => setRow(i, "houseType", e.target.value)} placeholder="Tipe 36/72" />
-                    </td>
-                    {(["buildingArea", "kavlingArea"] as (keyof ProductRow)[]).map(k => (
-                      <td key={k} className="px-2 py-1.5">
-                        <Input className="h-7 w-16 text-xs" type="number" value={row[k] as number} onChange={e => setRow(i, k, e.target.value)} />
-                      </td>
-                    ))}
-                    <td className="px-2 py-1.5">
-                      <Input className="h-7 w-24 text-xs" type="number" value={(row.sellingPrice / 1_000_000).toFixed(0)} onChange={e => setRow(i, "sellingPrice", parseFloat(e.target.value) * 1_000_000)} />
+                      <Input className="h-7 w-28 text-xs" value={row.houseType} onChange={e => setRowField(i, "houseType", e.target.value)} placeholder="Tipe 36/72" />
                     </td>
                     <td className="px-2 py-1.5">
-                      <Input className="h-7 w-16 text-xs" type="number" value={row.unitCount} onChange={e => setRow(i, "unitCount", e.target.value)} />
+                      <NumericInput className="h-7 w-16 text-xs" decimals={1} value={row.buildingArea} onChange={v => setRowField(i, "buildingArea", v)} />
                     </td>
                     <td className="px-2 py-1.5">
-                      <Select value={row.targetSegment} onValueChange={v => setRow(i, "targetSegment", v)}>
+                      <NumericInput className="h-7 w-16 text-xs" decimals={1} value={row.kavlingArea} onChange={v => setRowField(i, "kavlingArea", v)} />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <NumericInput className="h-7 w-32 text-xs" value={row.sellingPrice} onChange={v => setRowField(i, "sellingPrice", v)} />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <NumericInput className="h-7 w-16 text-xs" value={row.unitCount} onChange={v => setRowField(i, "unitCount", v)} />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Select value={row.targetSegment} onValueChange={v => setRowField(i, "targetSegment", v)}>
                         <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>{SEGMENTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                       </Select>
                     </td>
                     <td className="px-2 py-1.5">
-                      <Input className="h-7 w-24 text-xs" type="number" value={(row.competitorPrice / 1_000_000).toFixed(0)} onChange={e => setRow(i, "competitorPrice", parseFloat(e.target.value) * 1_000_000)} />
+                      <NumericInput className="h-7 w-32 text-xs" value={row.competitorPrice} onChange={v => setRowField(i, "competitorPrice", v)} />
                     </td>
                     <td className="px-2 py-1.5">
                       <Button variant="ghost" size="icon" className="size-7" onClick={() => removeRow(i)}>
@@ -171,7 +170,7 @@ export default function ProdukPage() {
                 <tr className="border-t bg-muted/30 font-medium">
                   <td className="px-3 py-2 text-xs">TOTAL</td>
                   <td colSpan={2} />
-                  <td className="px-3 py-2 text-xs">{fmtCurrency(avgPrice / 1_000_000 * 1_000_000)}</td>
+                  <td className="px-3 py-2 text-xs">{fmtCurrency(avgPrice)}</td>
                   <td className="px-3 py-2 text-xs">{totalUnits} unit</td>
                   <td colSpan={2} />
                   <td />
