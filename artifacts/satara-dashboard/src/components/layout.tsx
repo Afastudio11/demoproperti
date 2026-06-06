@@ -72,35 +72,48 @@ const navItems = [
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
-const perencanaanSubNav = [
-  { name: "Command Center", path: "/perencanaan", icon: LayoutDashboard },
-  { name: "Analisis Pasar", path: "/perencanaan/pasar", icon: TrendingUp },
-  { name: "Analisis Lahan", path: "/perencanaan/lahan", icon: Map },
-  { name: "Produk", path: "/perencanaan/produk", icon: Package },
-  { name: "Feasibility", path: "/perencanaan/feasibility", icon: Calculator },
-  { name: "Timeline SPTIS", path: "/perencanaan/timeline", icon: Calendar },
-  { name: "Cashflow & KPP", path: "/perencanaan/cashflow", icon: DollarSign },
-  { name: "SDM", path: "/perencanaan/sdm", icon: Users },
-  { name: "Land Bank", path: "/perencanaan/landbank", icon: Building2 },
+type SubNavItem =
+  | { type: "link"; name: string; path: string }
+  | { type: "group"; label: string };
+
+const perencanaanSubNav: SubNavItem[] = [
+  { type: "link", name: "Command Center", path: "/perencanaan" },
+  { type: "group", label: "Riset" },
+  { type: "link", name: "Analisis Pasar", path: "/perencanaan/pasar" },
+  { type: "link", name: "Analisis Lahan", path: "/perencanaan/lahan" },
+  { type: "link", name: "Land Bank", path: "/perencanaan/landbank" },
+  { type: "group", label: "Produk & Kelayakan" },
+  { type: "link", name: "Produk", path: "/perencanaan/produk" },
+  { type: "link", name: "Feasibility", path: "/perencanaan/feasibility" },
+  { type: "group", label: "Finansial & Jadwal" },
+  { type: "link", name: "Cashflow & KPP", path: "/perencanaan/cashflow" },
+  { type: "link", name: "Timeline SPTIS", path: "/perencanaan/timeline" },
+  { type: "group", label: "Sumber Daya" },
+  { type: "link", name: "SDM", path: "/perencanaan/sdm" },
 ];
 
-const produksiSubNav = [
-  { name: "Command Center", path: "/produksi", icon: LayoutDashboard },
-  { name: "Progress Proyek", path: "/produksi/progress/proyek", icon: BarChart3 },
-  { name: "Progress Tahap", path: "/produksi/progress/tahap", icon: Layers },
-  { name: "Progress Unit", path: "/produksi/progress/unit", icon: CheckSquare },
-  { name: "Fasum Progress", path: "/produksi/fasum", icon: Building2 },
-  { name: "Kontrak Subkon", path: "/produksi/subkon/kontrak", icon: FileCheck },
-  { name: "Termin Bayar", path: "/produksi/subkon/termin", icon: DollarSign },
-  { name: "Approval", path: "/produksi/subkon/approval", icon: ShieldCheck },
-  { name: "Stok Material", path: "/produksi/material/stok", icon: Package },
-  { name: "Input Masuk", path: "/produksi/material/masuk", icon: Truck },
-  { name: "Input Keluar", path: "/produksi/material/keluar", icon: Wrench },
-  { name: "QC Checklist", path: "/produksi/qc/checklist", icon: Shield },
-  { name: "Rework", path: "/produksi/qc/rework", icon: AlertTriangle },
-  { name: "Ready Akad", path: "/produksi/ready-akad", icon: Key },
-  { name: "Analitik", path: "/produksi/analitik/velocity", icon: TrendingUp },
-  { name: "Health Score", path: "/produksi/health", icon: Activity },
+const produksiSubNav: SubNavItem[] = [
+  { type: "link", name: "Command Center", path: "/produksi" },
+  { type: "group", label: "Subkontraktor" },
+  { type: "link", name: "Kontrak Subkon", path: "/produksi/subkon/kontrak" },
+  { type: "link", name: "Approval", path: "/produksi/subkon/approval" },
+  { type: "link", name: "Termin Bayar", path: "/produksi/subkon/termin" },
+  { type: "group", label: "Material" },
+  { type: "link", name: "Stok Material", path: "/produksi/material/stok" },
+  { type: "link", name: "Input Masuk", path: "/produksi/material/masuk" },
+  { type: "link", name: "Input Keluar", path: "/produksi/material/keluar" },
+  { type: "group", label: "Progress" },
+  { type: "link", name: "Progress Proyek", path: "/produksi/progress/proyek" },
+  { type: "link", name: "Progress Tahap", path: "/produksi/progress/tahap" },
+  { type: "link", name: "Progress Unit", path: "/produksi/progress/unit" },
+  { type: "link", name: "Fasum", path: "/produksi/fasum" },
+  { type: "group", label: "Quality Control" },
+  { type: "link", name: "QC Checklist", path: "/produksi/qc/checklist" },
+  { type: "link", name: "Rework", path: "/produksi/qc/rework" },
+  { type: "group", label: "Milestone & Analitik" },
+  { type: "link", name: "Ready Akad", path: "/produksi/ready-akad" },
+  { type: "link", name: "Health Score", path: "/produksi/health" },
+  { type: "link", name: "Analitik", path: "/produksi/analitik/velocity" },
 ];
 
 function DashboardSidebar() {
@@ -166,7 +179,16 @@ function DashboardSidebar() {
 
                     {isPerencanaanItem && isPerencanaan && (
                       <div className="group-data-[collapsible=icon]:hidden">
-                        {perencanaanSubNav.map((sub) => {
+                        {perencanaanSubNav.map((sub, i) => {
+                          if (sub.type === "group") {
+                            return (
+                              <div key={`group-${i}`} className="px-5 pt-2.5 pb-0.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                                  {sub.label}
+                                </span>
+                              </div>
+                            );
+                          }
                           const isSubActive = location === sub.path;
                           return (
                             <SidebarMenuItem key={sub.path}>
@@ -188,7 +210,16 @@ function DashboardSidebar() {
 
                     {isProduksiItem && isProduksi && (
                       <div className="group-data-[collapsible=icon]:hidden">
-                        {produksiSubNav.map((sub) => {
+                        {produksiSubNav.map((sub, i) => {
+                          if (sub.type === "group") {
+                            return (
+                              <div key={`group-${i}`} className="px-5 pt-2.5 pb-0.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                                  {sub.label}
+                                </span>
+                              </div>
+                            );
+                          }
                           const isSubActive = location === sub.path;
                           return (
                             <SidebarMenuItem key={sub.path}>
