@@ -19,6 +19,18 @@ import LandBankPage from "@/pages/perencanaan/landbank";
 import Legal from "@/pages/legal";
 import Marketing from "@/pages/marketing";
 import Administrasi from "@/pages/administrasi";
+import CustomerList from "@/pages/administrasi/customer";
+import CustomerNew from "@/pages/administrasi/customer-new";
+import CustomerDetail from "@/pages/administrasi/customer-detail";
+import BankSubmission from "@/pages/administrasi/bank-submission";
+import OtsPage from "@/pages/administrasi/ots";
+import Sp3kPage from "@/pages/administrasi/sp3k";
+import AkadPage from "@/pages/administrasi/akad";
+import HtPage from "@/pages/administrasi/ht";
+import BankPerformancePage from "@/pages/administrasi/bank-performance";
+import AgingPage from "@/pages/administrasi/aging";
+import TargetPage from "@/pages/administrasi/target";
+import KomplainPage from "@/pages/administrasi/komplain";
 import Produksi from "@/pages/produksi";
 import SerahTerima from "@/pages/serah-terima";
 import Settings from "@/pages/settings";
@@ -75,6 +87,18 @@ function Router() {
         <Route path="/legal" component={Legal} />
         <Route path="/marketing" component={Marketing} />
         <Route path="/administrasi" component={Administrasi} />
+        <Route path="/administrasi/customer/new" component={CustomerNew} />
+        <Route path="/administrasi/customer/:id" component={CustomerDetail} />
+        <Route path="/administrasi/customer" component={CustomerList} />
+        <Route path="/administrasi/bank-submission" component={BankSubmission} />
+        <Route path="/administrasi/ots" component={OtsPage} />
+        <Route path="/administrasi/sp3k" component={Sp3kPage} />
+        <Route path="/administrasi/akad" component={AkadPage} />
+        <Route path="/administrasi/ht" component={HtPage} />
+        <Route path="/administrasi/bank-performance" component={BankPerformancePage} />
+        <Route path="/administrasi/aging" component={AgingPage} />
+        <Route path="/administrasi/target" component={TargetPage} />
+        <Route path="/administrasi/komplain" component={KomplainPage} />
         <Route path="/produksi" component={Produksi} />
         <Route path="/produksi/progress/proyek" component={ProgressProyek} />
         <Route path="/produksi/progress/tahap" component={ProgressTahap} />

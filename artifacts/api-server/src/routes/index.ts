@@ -33,6 +33,7 @@ import fasumRouter from "./fasum";
 import prodMaterialRouter from "./prod-material";
 import unitQcReworkRouter from "./unit-qc-rework";
 import prodDashboardRouter from "./prod-dashboard";
+import administrasiRouter from "./administrasi";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use(fasumRouter);
 router.use(prodMaterialRouter);
 router.use(unitQcReworkRouter);
 router.use(prodDashboardRouter);
+router.use(administrasiRouter);
 
 export default router;

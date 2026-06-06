@@ -92,6 +92,22 @@ const perencanaanSubNav: SubNavItem[] = [
   { type: "link", name: "SDM", path: "/perencanaan/sdm" },
 ];
 
+const administrasiSubNav: SubNavItem[] = [
+  { type: "link", name: "Command Center", path: "/administrasi" },
+  { type: "group", label: "Pipeline KPR" },
+  { type: "link", name: "Daftar Customer", path: "/administrasi/customer" },
+  { type: "link", name: "Bank Submission", path: "/administrasi/bank-submission" },
+  { type: "link", name: "OTS Tracker", path: "/administrasi/ots" },
+  { type: "link", name: "SP3K Tracker", path: "/administrasi/sp3k" },
+  { type: "link", name: "Akad Tracker", path: "/administrasi/akad" },
+  { type: "link", name: "HT Tracker", path: "/administrasi/ht" },
+  { type: "group", label: "Analitik & Monitoring" },
+  { type: "link", name: "Bank Performance", path: "/administrasi/bank-performance" },
+  { type: "link", name: "Aging Pipeline", path: "/administrasi/aging" },
+  { type: "link", name: "Target & Realisasi", path: "/administrasi/target" },
+  { type: "link", name: "Komplain", path: "/administrasi/komplain" },
+];
+
 const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Command Center", path: "/produksi" },
   { type: "group", label: "Subkontraktor" },
@@ -116,9 +132,43 @@ const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Analitik", path: "/produksi/analitik/velocity" },
 ];
 
+function renderSubNav(items: SubNavItem[], location: string) {
+  return (
+    <div className="group-data-[collapsible=icon]:hidden">
+      {items.map((sub, i) => {
+        if (sub.type === "group") {
+          return (
+            <div key={`group-${i}`} className="px-5 pt-2.5 pb-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {sub.label}
+              </span>
+            </div>
+          );
+        }
+        const isSubActive = location === sub.path || (sub.path !== "/administrasi" && sub.path !== "/perencanaan" && sub.path !== "/produksi" && location.startsWith(sub.path + "/"));
+        return (
+          <SidebarMenuItem key={sub.path}>
+            <SidebarMenuButton
+              asChild
+              isActive={isSubActive}
+              className="h-6 pl-5"
+            >
+              <Link href={sub.path}>
+                <span className={`size-1.5 rounded-full shrink-0 ${isSubActive ? "bg-foreground" : "bg-muted-foreground/50"}`} />
+                <span className="text-xs">{sub.name}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </div>
+  );
+}
+
 function DashboardSidebar() {
   const [location] = useLocation();
   const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/");
+  const isAdministrasi = location === "/administrasi" || location.startsWith("/administrasi/");
   const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
 
   return (
@@ -160,6 +210,7 @@ function DashboardSidebar() {
                   location === item.path ||
                   (item.path !== "/" && location.startsWith(item.path));
                 const isPerencanaanItem = item.path === "/perencanaan";
+                const isAdministrasiItem = item.path === "/administrasi";
                 const isProduksiItem = item.path === "/produksi";
 
                 return (
@@ -167,7 +218,7 @@ function DashboardSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={isActive && !isPerencanaanItem && !isProduksiItem}
+                        isActive={isActive && !isPerencanaanItem && !isAdministrasiItem && !isProduksiItem}
                         className="h-7"
                       >
                         <Link href={item.path}>
@@ -177,67 +228,9 @@ function DashboardSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
 
-                    {isPerencanaanItem && isPerencanaan && (
-                      <div className="group-data-[collapsible=icon]:hidden">
-                        {perencanaanSubNav.map((sub, i) => {
-                          if (sub.type === "group") {
-                            return (
-                              <div key={`group-${i}`} className="px-5 pt-2.5 pb-0.5">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                                  {sub.label}
-                                </span>
-                              </div>
-                            );
-                          }
-                          const isSubActive = location === sub.path;
-                          return (
-                            <SidebarMenuItem key={sub.path}>
-                              <SidebarMenuButton
-                                asChild
-                                isActive={isSubActive}
-                                className="h-6 pl-5"
-                              >
-                                <Link href={sub.path}>
-                                  <span className={`size-1.5 rounded-full shrink-0 ${isSubActive ? "bg-foreground" : "bg-muted-foreground/50"}`} />
-                                  <span className="text-xs">{sub.name}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {isProduksiItem && isProduksi && (
-                      <div className="group-data-[collapsible=icon]:hidden">
-                        {produksiSubNav.map((sub, i) => {
-                          if (sub.type === "group") {
-                            return (
-                              <div key={`group-${i}`} className="px-5 pt-2.5 pb-0.5">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                                  {sub.label}
-                                </span>
-                              </div>
-                            );
-                          }
-                          const isSubActive = location === sub.path;
-                          return (
-                            <SidebarMenuItem key={sub.path}>
-                              <SidebarMenuButton
-                                asChild
-                                isActive={isSubActive}
-                                className="h-6 pl-5"
-                              >
-                                <Link href={sub.path}>
-                                  <span className={`size-1.5 rounded-full shrink-0 ${isSubActive ? "bg-foreground" : "bg-muted-foreground/50"}`} />
-                                  <span className="text-xs">{sub.name}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {isPerencanaanItem && isPerencanaan && renderSubNav(perencanaanSubNav, location)}
+                    {isAdministrasiItem && isAdministrasi && renderSubNav(administrasiSubNav, location)}
+                    {isProduksiItem && isProduksi && renderSubNav(produksiSubNav, location)}
                   </React.Fragment>
                 );
               })}
@@ -258,61 +251,32 @@ function DashboardSidebar() {
   );
 }
 
-function DashboardHeader() {
-  const [location] = useLocation();
-  const currentNav = navItems.find(
-    (n) => n.path === location || (n.path !== "/" && location.startsWith(n.path))
-  );
-
+function MainContent({ children }: { children: React.ReactNode }) {
+  const { open } = useSidebar();
   return (
-    <header className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b bg-card sticky top-0 z-10 w-full">
-      <div className="flex items-center gap-3">
-        <SidebarTrigger className="-ml-2" />
-        <div className="hidden sm:flex items-center gap-2 text-muted-foreground">
-          {currentNav && <currentNav.icon className="size-4" />}
-          <span className="text-sm font-medium">{currentNav?.name ?? "Dashboard"}</span>
-        </div>
+    <main
+      className={cn(
+        "flex-1 overflow-auto transition-all duration-200",
+        open ? "lg:ml-0" : "lg:ml-0"
+      )}
+    >
+      <div className="p-4 sm:p-5 lg:p-6 max-w-screen-2xl mx-auto">
+        {children}
       </div>
-
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" className="h-7 gap-1.5 hidden sm:flex">
-          <Search className="size-3.5" />
-          <span className="text-sm">Cari</span>
-        </Button>
-        <Button variant="ghost" size="icon" className="size-7">
-          <Bell className="size-4" />
-        </Button>
-        <div className="h-5 w-px bg-border mx-1" />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <Avatar className="size-7">
-                <AvatarFallback className="text-xs bg-foreground text-background">AD</AvatarFallback>
-              </Avatar>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem>Profil</DropdownMenuItem>
-            <DropdownMenuItem>Pengaturan</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">Keluar</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </header>
+    </main>
   );
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider className="bg-sidebar">
-      <DashboardSidebar />
-      <div className="h-svh overflow-hidden lg:p-2 w-full">
-        <div className="lg:border lg:rounded-md overflow-hidden flex flex-col bg-background h-full w-full">
-          <DashboardHeader />
-          <main className="flex-1 overflow-auto p-4 sm:p-6">
-            {children}
-          </main>
+    <SidebarProvider defaultOpen={true}>
+      <div className="flex h-screen w-full overflow-hidden">
+        <DashboardSidebar />
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <header className="flex items-center gap-2 border-b px-4 py-2.5 shrink-0">
+            <SidebarTrigger className="size-7" />
+          </header>
+          <MainContent>{children}</MainContent>
         </div>
       </div>
     </SidebarProvider>
