@@ -4,24 +4,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Users } from "lucide-react";
+import { Save, Users, Building2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+
+type Project = { id: number; nama: string; lokasi: string; fase: string };
+
+const DEFAULT_FORM = {
+  siteManagers: 1,
+  supervisors: 2,
+  workers: 10,
+  workersPerUnit: 3,
+  unitsPerManager: 20,
+};
 
 export default function SDMPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [form, setForm] = useState({
-    siteManagers: 1,
-    supervisors: 2,
-    workers: 10,
-    workersPerUnit: 3,
-    unitsPerManager: 20,
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("global");
+  const [form, setForm] = useState(DEFAULT_FORM);
+
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then(r => r.json()),
   });
 
+  const queryKey = ["planning-sdm", selectedProjectId];
   const { data: sdmData } = useQuery({
-    queryKey: ["planning-sdm"],
-    queryFn: () => fetch("/api/planning/sdm").then(r => r.json()),
+    queryKey,
+    queryFn: () => {
+      const url = selectedProjectId === "global"
+        ? "/api/planning/sdm"
+        : `/api/planning/sdm?projectId=${selectedProjectId}`;
+      return fetch(url).then(r => r.json());
+    },
   });
 
   useEffect(() => {
@@ -34,25 +51,30 @@ export default function SDMPage() {
         workersPerUnit: d.workersPerUnit ?? 3,
         unitsPerManager: d.unitsPerManager ?? 20,
       });
+    } else {
+      setForm(DEFAULT_FORM);
     }
-  }, [sdmData]);
+  }, [sdmData, selectedProjectId]);
 
   const setF = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: parseFloat(v) || 0 }));
 
   const maxCapacityUnits = Math.floor(form.siteManagers * form.unitsPerManager);
-  const maxParallelWorkers = form.workers;
   const workerCapacityUnits = form.workersPerUnit > 0 ? Math.floor(form.workers / form.workersPerUnit) : 0;
   const effectiveCapacity = Math.min(maxCapacityUnits, workerCapacityUnits);
   const supervisorRatio = form.supervisors > 0 ? Math.floor(form.workers / form.supervisors) : 0;
 
   const save = async () => {
+    const body = {
+      ...form,
+      projectId: selectedProjectId === "global" ? null : Number(selectedProjectId),
+    };
     const resp = await fetch("/api/planning/sdm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(body),
     });
     if (!resp.ok) { toast({ title: "Gagal simpan", variant: "destructive" }); return; }
-    await qc.invalidateQueries({ queryKey: ["planning-sdm"] });
+    await qc.invalidateQueries({ queryKey });
     toast({ title: "Data SDM tersimpan" });
   };
 
@@ -68,15 +90,60 @@ export default function SDMPage() {
     { name: "Kapasitas Efektif", units: effectiveCapacity, fill: "#f59e0b" },
   ];
 
+  const selectedProject = projects.find(p => String(p.id) === selectedProjectId);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-semibold">Sumber Daya Manusia</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Kapasitas tim & perencanaan alokasi SDM proyek</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Kapasitas tim & perencanaan alokasi SDM per proyek</p>
         </div>
         <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
       </div>
+
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-3">
+            <Building2 className="size-4 text-muted-foreground shrink-0" />
+            <div className="flex-1 max-w-xs">
+              <Label className="text-xs text-muted-foreground mb-1 block">Pilih Proyek</Label>
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Pilih proyek..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="global">
+                    <span className="flex items-center gap-2">
+                      <Users className="size-3.5" />
+                      SDM Global (Semua Proyek)
+                    </span>
+                  </SelectItem>
+                  {projects.map(p => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      <span className="flex items-center gap-2">
+                        <span>{p.nama}</span>
+                        <span className="text-xs text-muted-foreground">— {p.fase}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedProject && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground border rounded px-2 py-1">
+                <span>{selectedProject.lokasi}</span>
+                <span className="px-1.5 py-0.5 rounded bg-muted font-medium">{selectedProject.fase}</span>
+              </div>
+            )}
+            {selectedProjectId === "global" && (
+              <div className="text-xs text-muted-foreground border rounded px-2 py-1">
+                Data SDM umum (tidak terikat proyek)
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
