@@ -99,16 +99,16 @@ const UNIT_STATUS_OPTIONS = [
 const LEGAL_DOC_TEMPLATES: { tipeDokumen: string; label: string }[] = [
   { tipeDokumen: "SHM",         label: "SHM / Sertifikat Hak Milik" },
   { tipeDokumen: "AJB",         label: "AJB — Akta Jual Beli" },
-  { tipeDokumen: "SITEPLAN",    label: "Siteplan (Disahkan)" },
+  { tipeDokumen: "balik_nama",  label: "Balik Nama Sertifikat" },
+  { tipeDokumen: "split",       label: "Pecah / Split Sertifikat" },
   { tipeDokumen: "PBG",         label: "PBG — Persetujuan Bangunan Gedung" },
   { tipeDokumen: "SLF",         label: "SLF — Sertifikat Laik Fungsi" },
-  { tipeDokumen: "HGB",         label: "HGB — Hak Guna Bangunan" },
-  { tipeDokumen: "SIPPT",       label: "SIPPT / KKPR (Kesesuaian Tata Ruang)" },
-  { tipeDokumen: "AMDAL",       label: "AMDAL / UKL-UPL" },
+  { tipeDokumen: "PKKPR",       label: "PKKPR / Kesesuaian Tata Ruang" },
+  { tipeDokumen: "SPPL",        label: "SPPL / UKL-UPL / AMDAL" },
+  { tipeDokumen: "PBB",         label: "PBB Lunas (Pajak Bumi & Bangunan)" },
   { tipeDokumen: "bank_ready",  label: "Bank Ready / Bankable" },
   { tipeDokumen: "sikumbang",   label: "Terdaftar di SIKUMBANG" },
-  { tipeDokumen: "BPJS",        label: "BPJS Ketenagakerjaan" },
-  { tipeDokumen: "IMB",         label: "IMB (lama / transisi)" },
+  { tipeDokumen: "lainnya",     label: "Dokumen Lainnya" },
 ];
 
 const LEGAL_STATUS_OPTIONS = [
