@@ -15,7 +15,7 @@ type Unit = { id: number; blok: string; nomor: string };
 type OutRow = { id: number; projectId: number; unitId: number | null; materialId: number; quantity: number; takenBy: string | null; subkonName: string | null; dateOut: string; material: Material | null };
 
 export default function MaterialKeluar() {
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(true);
   const [form, setForm] = useState({ projectId: "", unitId: "", materialId: "", quantity: "", takenBy: "", subkonName: "", dateOut: new Date().toISOString().split("T")[0] });
   const { toast } = useToast();
   const qc = useQueryClient();

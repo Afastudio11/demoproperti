@@ -14,7 +14,7 @@ type Project = { id: number; nama: string };
 type InRow = { id: number; projectId: number; materialId: number; quantity: number; supplier: string | null; documentNumber: string | null; dateIn: string; material: Material | null };
 
 export default function MaterialMasuk() {
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(true);
   const [form, setForm] = useState({ projectId: "", materialId: "", quantity: "", supplier: "", documentNumber: "", dateIn: new Date().toISOString().split("T")[0] });
   const { toast } = useToast();
   const qc = useQueryClient();

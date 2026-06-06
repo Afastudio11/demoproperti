@@ -54,9 +54,13 @@ export default function MaterialStok() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 h-8"><RefreshCw className="size-3.5" /></Button>
-          <Link href="/produksi/material/masuk"><Button size="sm" className="h-8 text-xs">Input Masuk</Button></Link>
-          <Link href="/produksi/material/keluar"><Button size="sm" variant="outline" className="h-8 text-xs">Input Keluar</Button></Link>
+          <Link href="/produksi/material/masuk"><Button size="sm" className="h-8 text-xs gap-1.5"><Package className="size-3.5" /> Catat Material Masuk</Button></Link>
+          <Link href="/produksi/material/keluar"><Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"><TrendingDown className="size-3.5" /> Catat Material Keluar</Button></Link>
         </div>
+      </div>
+
+      <div className="rounded-md border border-muted bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground flex items-center gap-3">
+        <span>Untuk menambah stok: klik <strong className="text-foreground">Catat Material Masuk</strong> (penerimaan dari supplier) atau <strong className="text-foreground">Catat Material Keluar</strong> (pemakaian ke lapangan).</span>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
