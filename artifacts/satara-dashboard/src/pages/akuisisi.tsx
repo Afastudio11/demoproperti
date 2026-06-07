@@ -279,9 +279,9 @@ function ProspectDetailPanel({
   const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "kompetitor" | "rekomendasi" | "simulasi">("ringkasan");
 
   const SIM_KEY = `satara_sim_${prospect.id}`;
-  const [simInputs, setSimInputs] = useState<{ modalAwal: string; hargaJual: string; biayaPerUnit: string; reinvestPct: string }>(() => {
-    try { const s = localStorage.getItem(SIM_KEY); if (s) return JSON.parse(s); } catch {}
-    return { modalAwal: "", hargaJual: "", biayaPerUnit: "", reinvestPct: "100" };
+  const [simInputs, setSimInputs] = useState<{ modalAwal: string; hargaJual: string; biayaPerUnit: string; reinvestPct: string; maxUnitLahan: string }>(() => {
+    try { const s = localStorage.getItem(SIM_KEY); if (s) return { maxUnitLahan: "", ...JSON.parse(s) }; } catch {}
+    return { modalAwal: "", hargaJual: "", biayaPerUnit: "", reinvestPct: "100", maxUnitLahan: "" };
   });
 
   const [survey, setSurvey] = useState<SurveyData>(() => loadSurvey(prospect.id));
@@ -1456,22 +1456,33 @@ function ProspectDetailPanel({
                   return `Rp ${n.toLocaleString("id-ID")}`;
                 };
 
-                const phases: { capital: number; units: number; revenue: number; cost: number; profit: number; reinvest: number }[] = [];
+                const maxUnitVal = parseInt(simInputs.maxUnitLahan) || 0;
+
+                const phases: { capital: number; units: number; revenue: number; cost: number; profit: number; reinvest: number; unusedCap: number }[] = [];
                 let cap = modalVal;
-                for (let i = 0; i < 4; i++) {
+                let totalBuilt = 0;
+                for (let i = 0; i < 20; i++) {
                   if (biayaVal <= 0 || cap < biayaVal) break;
-                  const units = Math.floor(cap / biayaVal);
+                  const remaining = maxUnitVal > 0 ? maxUnitVal - totalBuilt : Infinity;
+                  if (remaining <= 0) break;
+                  const unitsFromCap = Math.floor(cap / biayaVal);
+                  const units = maxUnitVal > 0 ? Math.min(unitsFromCap, remaining) : unitsFromCap;
+                  if (units <= 0) break;
+                  const usedCap = units * biayaVal;
+                  const unusedCap = cap - usedCap;
                   const revenue = units * hargaVal;
-                  const cost = units * biayaVal;
+                  const cost = usedCap;
                   const profit = revenue - cost;
-                  const reinvest = Math.round(profit * reinvestVal / 100);
-                  phases.push({ capital: cap, units, revenue, cost, profit, reinvest });
+                  const reinvest = Math.round(profit * reinvestVal / 100) + unusedCap;
+                  totalBuilt += units;
+                  phases.push({ capital: cap, units, revenue, cost, profit, reinvest, unusedCap });
                   cap = reinvest;
                 }
 
                 const totalUnits = phases.reduce((s, p) => s + p.units, 0);
                 const totalRevenue = phases.reduce((s, p) => s + p.revenue, 0);
                 const totalProfit = phases.reduce((s, p) => s + p.profit, 0);
+                const landFull = maxUnitVal > 0 && totalBuilt >= maxUnitVal;
 
                 const updateSim = (key: keyof typeof simInputs, val: string) => {
                   setSimInputs(prev => {
@@ -1494,9 +1505,9 @@ function ProspectDetailPanel({
                             <input
                               type="text"
                               inputMode="numeric"
-                              value={simInputs.modalAwal}
+                              value={simInputs.modalAwal ? parseInt(simInputs.modalAwal).toLocaleString("id-ID") : ""}
                               onChange={e => updateSim("modalAwal", e.target.value.replace(/\D/g, ""))}
-                              placeholder={`${Math.round(prospect.luas * prospect.hargaM2)}`}
+                              placeholder={`${Math.round(prospect.luas * prospect.hargaM2).toLocaleString("id-ID")}`}
                               className="flex-1 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 min-w-0"
                             />
                           </div>
@@ -1515,9 +1526,9 @@ function ProspectDetailPanel({
                             <input
                               type="text"
                               inputMode="numeric"
-                              value={simInputs.hargaJual}
+                              value={simInputs.hargaJual ? parseInt(simInputs.hargaJual).toLocaleString("id-ID") : ""}
                               onChange={e => updateSim("hargaJual", e.target.value.replace(/\D/g, ""))}
-                              placeholder="200000000"
+                              placeholder="200.000.000"
                               className="flex-1 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 min-w-0"
                             />
                           </div>
@@ -1536,9 +1547,9 @@ function ProspectDetailPanel({
                             <input
                               type="text"
                               inputMode="numeric"
-                              value={simInputs.biayaPerUnit}
+                              value={simInputs.biayaPerUnit ? parseInt(simInputs.biayaPerUnit).toLocaleString("id-ID") : ""}
                               onChange={e => updateSim("biayaPerUnit", e.target.value.replace(/\D/g, ""))}
-                              placeholder="130000000"
+                              placeholder="130.000.000"
                               className="flex-1 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30 min-w-0"
                             />
                           </div>
@@ -1558,6 +1569,35 @@ function ProspectDetailPanel({
                           </div>
                         </div>
                       </div>
+                      {/* Kapasitas lahan */}
+                      <div className="border-t border-border/40 pt-2">
+                        <div className="text-[9px] text-muted-foreground mb-1.5">
+                          Kapasitas Lahan (maks unit yang bisa dibangun)
+                          {up?.unitMax && !simInputs.maxUnitLahan && (
+                            <button className="ml-1 text-[8px] text-blue-600 underline" onClick={() => updateSim("maxUnitLahan", String(up.unitMax))}>
+                              Dari AI: {String(up.unitMax)} unit
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            max={9999}
+                            value={simInputs.maxUnitLahan}
+                            onChange={e => updateSim("maxUnitLahan", e.target.value.replace(/\D/g, ""))}
+                            placeholder={up?.unitMax ? String(up.unitMax) : "contoh: 500"}
+                            className="w-24 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30"
+                          />
+                          <span className="text-[10px] text-muted-foreground">unit</span>
+                          {simInputs.maxUnitLahan && (
+                            <button className="text-[9px] text-muted-foreground underline" onClick={() => updateSim("maxUnitLahan", "")}>hapus batas</button>
+                          )}
+                        </div>
+                        {!simInputs.maxUnitLahan && (
+                          <div className="text-[9px] text-amber-600 mt-1">Tanpa batas kapasitas — unit dihitung dari modal saja</div>
+                        )}
+                      </div>
                       {finSim?.hargaJualFinal && (!simInputs.modalAwal || !simInputs.hargaJual || !simInputs.biayaPerUnit) && (
                         <button
                           className="text-[10px] text-blue-600 underline"
@@ -1567,6 +1607,7 @@ function ProspectDetailPanel({
                               modalAwal: prev.modalAwal || String(Math.round(prospect.luas * prospect.hargaM2)),
                               hargaJual: prev.hargaJual || String(Math.round(finSim.hargaJualFinal)),
                               biayaPerUnit: prev.biayaPerUnit || String(Math.round(finSim.hppPerUnit ?? finSim.biayaBangunFinal ?? 0)),
+                              maxUnitLahan: prev.maxUnitLahan || (up?.unitMax ? String(up.unitMax) : ""),
                             };
                             try { localStorage.setItem(SIM_KEY, JSON.stringify(next)); } catch {}
                             return next;
@@ -1580,6 +1621,26 @@ function ProspectDetailPanel({
                     {/* Results */}
                     {phases.length > 0 ? (
                       <div className="space-y-1.5">
+                        {/* Progress bar kapasitas lahan */}
+                        {maxUnitVal > 0 && (
+                          <div className="border rounded-lg px-3 py-2 bg-background">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="text-[9px] text-muted-foreground">Utilisasi Kapasitas Lahan</div>
+                              <div className={cn("text-[9px] font-semibold", landFull ? "text-emerald-600" : "text-blue-600")}>
+                                {totalUnits} / {maxUnitVal} unit {landFull ? "— Lahan Penuh" : ""}
+                              </div>
+                            </div>
+                            <div className="h-2 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className={cn("h-full rounded-full transition-all", landFull ? "bg-emerald-500" : "bg-blue-500")}
+                                style={{ width: `${Math.min((totalUnits / maxUnitVal) * 100, 100)}%` }}
+                              />
+                            </div>
+                            <div className="text-[8px] text-muted-foreground mt-0.5">
+                              {Math.round((totalUnits / maxUnitVal) * 100)}% lahan terisi dalam {phases.length} tahap
+                            </div>
+                          </div>
+                        )}
                         {phases.map((p, i) => (
                           <div key={i} className="border rounded-lg px-3 py-2 bg-background space-y-1.5">
                             <div className="flex items-center justify-between">
@@ -1591,7 +1652,7 @@ function ProspectDetailPanel({
                                 { l: "Modal Masuk", v: fmtSimRp(p.capital) },
                                 { l: "Revenue", v: fmtSimRp(p.revenue) },
                                 { l: "Profit", v: fmtSimRp(p.profit) },
-                                { l: "Reinvestasi", v: fmtSimRp(p.reinvest) },
+                                { l: "Lanjut ke Tahap", v: fmtSimRp(p.reinvest) },
                               ].map(({ l, v }) => (
                                 <div key={l}>
                                   <div className="text-[8px] text-muted-foreground">{l}</div>
@@ -1599,18 +1660,28 @@ function ProspectDetailPanel({
                                 </div>
                               ))}
                             </div>
-                            {i < phases.length - 1 && (
+                            {p.unusedCap > 0 && (
+                              <div className="text-[8px] text-amber-600">
+                                Sisa modal tidak terpakai: {fmtSimRp(p.unusedCap)} (dibawa ke tahap berikutnya)
+                              </div>
+                            )}
+                            {i < phases.length - 1 && p.unusedCap === 0 && (
                               <div className="text-[8px] text-blue-600">
-                                Reinvestasi {fmtSimRp(p.reinvest)} cukup untuk {Math.floor(p.reinvest / biayaVal)} unit di Tahap {i + 2}
+                                Modal tahap {i + 2}: {fmtSimRp(p.reinvest)} → {Math.floor(p.reinvest / biayaVal)} unit potensial
                               </div>
                             )}
                           </div>
                         ))}
+                        {landFull && (
+                          <div className="border border-emerald-200 rounded-lg px-3 py-2 bg-emerald-50 text-center text-[10px] text-emerald-700 font-semibold">
+                            Seluruh kapasitas lahan ({maxUnitVal} unit) terisi dalam {phases.length} tahap
+                          </div>
+                        )}
                         <div className="border rounded-lg px-3 py-2 bg-muted/30">
                           <div className="text-[10px] font-bold mb-1.5">Total {phases.length} Tahap</div>
                           <div className="grid grid-cols-3 gap-2">
                             {[
-                              { l: "Total Unit", v: `${totalUnits} unit` },
+                              { l: "Total Unit", v: `${totalUnits.toLocaleString("id-ID")} unit` },
                               { l: "Total Revenue", v: fmtSimRp(totalRevenue) },
                               { l: "Total Profit", v: fmtSimRp(totalProfit) },
                             ].map(({ l, v }) => (
