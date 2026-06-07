@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { ArrowLeft, Save } from "lucide-react";
 import { Link } from "wouter";
 import BankSelect from "@/components/bank-select";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 const PEKERJAAN_OPTIONS = ["PNS/ASN", "P3K", "TNI/POLRI", "SPPG", "SPPI", "Karyawan Swasta", "Wiraswasta", "Guru", "Lain-lain"];
 const PIPELINE_STATUSES = [
@@ -126,10 +127,10 @@ export default function CustomerNew() {
             <Field label="Bank KPR">
               <BankSelect value={form.bank} onChange={v => setForm(f => ({ ...f, bank: v }))} />
             </Field>
-            <Field label="Harga Jual Unit (Rp)"><input className={inputCls} type="number" value={form.unitPrice} onChange={set("unitPrice")} /></Field>
-            <Field label="Nilai DP (Rp)"><input className={inputCls} type="number" value={form.dpAmount} onChange={set("dpAmount")} /></Field>
-            <Field label="Nilai Akad KPR (Rp)"><input className={inputCls} type="number" value={form.loanAmount} onChange={set("loanAmount")} /></Field>
-            <Field label="Nilai HT (Rp)"><input className={inputCls} type="number" value={form.htAmount} onChange={set("htAmount")} /></Field>
+            <Field label="Harga Jual Unit (Rp)"><CurrencyInput className={inputCls} value={form.unitPrice} onChange={raw => setForm(f => ({ ...f, unitPrice: raw }))} /></Field>
+            <Field label="Nilai DP (Rp)"><CurrencyInput className={inputCls} value={form.dpAmount} onChange={raw => setForm(f => ({ ...f, dpAmount: raw }))} /></Field>
+            <Field label="Nilai Akad KPR (Rp)"><CurrencyInput className={inputCls} value={form.loanAmount} onChange={raw => setForm(f => ({ ...f, loanAmount: raw }))} /></Field>
+            <Field label="Nilai HT (Rp)"><CurrencyInput className={inputCls} value={form.htAmount} onChange={raw => setForm(f => ({ ...f, htAmount: raw }))} /></Field>
             <Field label="Tanggal Booking"><input className={inputCls} type="date" value={form.bookingDate} onChange={set("bookingDate")} /></Field>
             <Field label="Tanggal Akad"><input className={inputCls} type="date" value={form.akadDate} onChange={set("akadDate")} /></Field>
             <Field label="Tanggal HT Cair"><input className={inputCls} type="date" value={form.htDate} onChange={set("htDate")} /></Field>

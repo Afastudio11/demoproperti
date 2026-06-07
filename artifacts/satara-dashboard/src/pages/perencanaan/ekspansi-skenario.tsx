@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { cn } from "@/lib/utils";
 
 function fmtRp(n: number) { return new Intl.NumberFormat("id-ID", { style:"currency", currency:"IDR", notation:"compact", maximumFractionDigits:1 }).format(n); }
@@ -69,19 +70,25 @@ export default function EkspansiSkenarioPage() {
         <CardHeader className="pb-3"><CardTitle className="text-sm">Parameter Dasar Proyek Ekspansi</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Total Unit Rencana</Label>
+              <Input type="number" className="h-8 text-xs" value={(base as any).totalUnit} onChange={e => set("totalUnit", e.target.value)} />
+            </div>
             {[
-              { k:"totalUnit", label:"Total Unit Rencana" },
               { k:"hargaRata", label:"Harga Rata-rata / Unit (Rp)" },
               { k:"hppPerUnit", label:"HPP / Unit (Rp)" },
               { k:"biayaLahan", label:"Biaya Lahan (Rp)" },
               { k:"biayaOps", label:"Biaya Operasional (Rp)" },
-              { k:"tenor", label:"Tenor Proyek (Bulan)" },
             ].map(({ k, label }) => (
               <div key={k} className="space-y-1">
                 <Label className="text-xs">{label}</Label>
-                <Input type="number" className="h-8 text-xs" value={(base as any)[k]} onChange={e => set(k, e.target.value)} />
+                <CurrencyInput className="h-8 text-xs" value={(base as any)[k]} onChange={raw => set(k, raw)} />
               </div>
             ))}
+            <div className="space-y-1">
+              <Label className="text-xs">Tenor Proyek (Bulan)</Label>
+              <Input type="number" className="h-8 text-xs" value={(base as any).tenor} onChange={e => set("tenor", e.target.value)} />
+            </div>
           </div>
         </CardContent>
       </Card>

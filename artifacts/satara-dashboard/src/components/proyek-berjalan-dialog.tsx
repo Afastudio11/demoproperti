@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -339,22 +340,20 @@ function Step2({ form, onChange }: {
       {/* Finansial */}
       <div className="grid grid-cols-2 gap-3">
         <Field label="Nilai Proyek (Rp)">
-          <Input
-            type="number" min={0}
+          <CurrencyInput
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
             placeholder="cth: 5000000000"
             value={form.nilaiProyek}
-            onChange={e => onChange("nilaiProyek", e.target.value)}
+            onChange={raw => onChange("nilaiProyek", raw)}
           />
-          {form.nilaiProyek && <p className="text-[10px] text-muted-foreground">{fmtRp(form.nilaiProyek)}</p>}
         </Field>
         <Field label="Modal Terpakai (Rp)">
-          <Input
-            type="number" min={0}
+          <CurrencyInput
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
             placeholder="cth: 2000000000"
             value={form.modalTerpakai}
-            onChange={e => onChange("modalTerpakai", e.target.value)}
+            onChange={raw => onChange("modalTerpakai", raw)}
           />
-          {form.modalTerpakai && <p className="text-[10px] text-muted-foreground">{fmtRp(form.modalTerpakai)}</p>}
         </Field>
       </div>
 

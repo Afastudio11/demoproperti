@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -80,8 +81,11 @@ export default function KppSimulasiPage() {
         <CardHeader className="pb-3"><CardTitle className="text-sm">Parameter KPP</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Nilai Kredit (Rp)</Label>
+              <CurrencyInput className="h-8 text-xs" value={form.nilaiKredit} onChange={raw => set("nilaiKredit", raw)} placeholder="5000000000" />
+            </div>
             {[
-              { k:"nilaiKredit", label:"Nilai Kredit (Rp)", type:"number", placeholder:"5000000000" },
               { k:"bungaTahunan", label:"Suku Bunga / Tahun (%)", type:"number", placeholder:"10.5" },
               { k:"tenorTahun", label:"Tenor (Tahun)", type:"number", placeholder:"24" },
               { k:"graceMonths", label:"Grace Period (Bulan)", type:"number", placeholder:"3" },

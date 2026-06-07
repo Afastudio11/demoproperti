@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import BankSelect from "@/components/bank-select";
+import { CurrencyInput } from "@/components/ui/currency-input";
 const AKAD_STATUS = ["terjadwal", "selesai", "batal", "reschedule"];
 const inputCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring";
 const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none";
@@ -130,7 +131,7 @@ export default function AkadPage() {
           <div><label className="text-xs font-medium text-muted-foreground">Tanggal Akad</label><input className={inputCls} type="date" value={form.akadDate} onChange={set("akadDate")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Nomor Akad</label><input className={inputCls} value={form.akadNumber} onChange={set("akadNumber")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Notaris</label><input className={inputCls} value={form.notary} onChange={set("notary")} /></div>
-          <div><label className="text-xs font-medium text-muted-foreground">Nilai Akad (Rp)</label><input className={inputCls} type="number" value={form.akadAmount} onChange={set("akadAmount")} /></div>
+          <div><label className="text-xs font-medium text-muted-foreground">Nilai Akad (Rp)</label><CurrencyInput className={inputCls} value={form.akadAmount} onChange={raw => setForm(p => ({ ...p, akadAmount: raw }))} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Estimasi HT Cair</label><input className={inputCls} type="date" value={form.estimatedHtDate} onChange={set("estimatedHtDate")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Status</label><select className={selectCls} value={form.status} onChange={set("status")}>{AKAD_STATUS.map(s => <option key={s}>{s}</option>)}</select></div>
           <div><label className="text-xs font-medium text-muted-foreground">Catatan</label><textarea className={inputCls} rows={2} value={form.notes} onChange={set("notes")} /></div>

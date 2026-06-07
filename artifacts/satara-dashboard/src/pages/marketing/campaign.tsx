@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, AlertTriangle, TrendingDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
@@ -121,11 +122,11 @@ export default function CampaignPage() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Anggaran (Rp)</Label>
-                  <Input type="number" className="h-8 text-xs" value={form.anggaran} onChange={e => set("anggaran", e.target.value)} placeholder="0" />
+                  <CurrencyInput className="h-8 text-xs" value={form.anggaran} onChange={raw => set("anggaran", raw)} placeholder="0" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Spend Aktual (Rp)</Label>
-                  <Input type="number" className="h-8 text-xs" value={form.spend} onChange={e => set("spend", e.target.value)} placeholder="0" />
+                  <CurrencyInput className="h-8 text-xs" value={form.spend} onChange={raw => set("spend", raw)} placeholder="0" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Impresi</Label>

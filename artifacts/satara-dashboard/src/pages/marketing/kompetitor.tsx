@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, AlertTriangle } from "lucide-react";
@@ -104,11 +105,11 @@ export default function KompetitorPage() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Harga Min (Rp)</Label>
-                  <Input type="number" className="h-8 text-xs" value={form.hargaMin} onChange={e => set("hargaMin", e.target.value)} />
+                  <CurrencyInput className="h-8 text-xs" value={form.hargaMin} onChange={raw => set("hargaMin", raw)} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Harga Max (Rp)</Label>
-                  <Input type="number" className="h-8 text-xs" value={form.hargaMax} onChange={e => set("hargaMax", e.target.value)} />
+                  <CurrencyInput className="h-8 text-xs" value={form.hargaMax} onChange={raw => set("hargaMax", raw)} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Total Unit</Label>

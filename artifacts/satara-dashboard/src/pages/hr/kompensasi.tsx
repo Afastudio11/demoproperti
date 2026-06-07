@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 const now = new Date();
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -162,7 +163,7 @@ export default function Kompensasi() {
                 { label: "THR (Rp)", field: "thr" },
                 { label: "Potongan (Rp)", field: "deduction" },
               ].map(({ label, field }) => (
-                <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><input type="number" value={form[field] ?? 0} onChange={e => setForm((f: any) => ({ ...f, [field]: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={0} /></div>
+                <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><CurrencyInput value={form[field] ?? 0} onChange={raw => setForm((f: any) => ({ ...f, [field]: raw ? Number(raw) : 0 }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               ))}
               <div className="bg-muted/50 border rounded-lg px-3 py-2 text-sm font-semibold">Total Take Home Pay: <span className="text-emerald-600">{fmtRp(total(form))}</span></div>
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Catatan</label><textarea value={form.notes ?? ""} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" rows={2} /></div>

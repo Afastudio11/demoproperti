@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 const TYPES = ["Training Internal", "Training Eksternal", "Coaching", "Sertifikasi", "Workshop"];
 const STATUSES = ["direncanakan", "berlangsung", "selesai"];
@@ -134,7 +135,7 @@ export default function Training() {
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label><select value={form.status} onChange={e => setForm((f: any) => ({ ...f, status: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Tanggal Pelaksanaan</label><input type="date" value={form.trainingDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, trainingDate: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Durasi (jam)</label><input type="number" value={form.durationHours ?? 0} onChange={e => setForm((f: any) => ({ ...f, durationHours: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={0} /></div>
-                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Biaya (Rp)</label><input type="number" value={form.cost ?? 0} onChange={e => setForm((f: any) => ({ ...f, cost: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={0} /></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Biaya (Rp)</label><CurrencyInput value={form.cost ?? 0} onChange={raw => setForm((f: any) => ({ ...f, cost: raw ? Number(raw) : 0 }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Skor Evaluasi (setelah selesai)</label><input type="number" value={form.evaluationScore ?? ""} onChange={e => setForm((f: any) => ({ ...f, evaluationScore: e.target.value ? Number(e.target.value) : null }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={0} max={100} placeholder="0-100" /></div>
               </div>
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Kompetensi yang Disasar</label>

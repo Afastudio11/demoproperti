@@ -1427,15 +1427,21 @@ function ProspectForm({ title, subLabel, form, setForm, onSave, onCancel, saving
           <input style={s} value={form.lokasi} onChange={e => setForm(f => ({ ...f, lokasi: e.target.value }))} placeholder="Desa / Kecamatan" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          {[
-            { label: "Luas (m²) *", key: "luas" as const, placeholder: "m²" },
-            { label: "Harga/m² (Rp) *", key: "hargaM2" as const, placeholder: "250.000" },
-          ].map(({ label, key, placeholder }) => (
-            <div key={key}>
-              <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>{label}</div>
-              <input style={s} value={form[key]} type="number" placeholder={placeholder} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
-            </div>
-          ))}
+          <div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Luas (m²) *</div>
+            <input style={s} value={form.luas} type="number" placeholder="m²" onChange={e => setForm(f => ({ ...f, luas: e.target.value }))} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Harga/m² (Rp) *</div>
+            <input
+              style={s}
+              type="text"
+              inputMode="numeric"
+              placeholder="250.000"
+              value={form.hargaM2 ? parseInt(form.hargaM2.replace(/\D/g, "") || "0", 10).toLocaleString("id-ID") : ""}
+              onChange={e => setForm(f => ({ ...f, hargaM2: e.target.value.replace(/\D/g, "") }))}
+            />
+          </div>
         </div>
         {form.luas && parseFloat(form.luas) > 0 && (
           <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "5px 8px", fontSize: 11, color: "#1e40af" }}>

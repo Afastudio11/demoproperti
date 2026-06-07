@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, DollarSign } from "lucide-react";
 import BankSelect from "@/components/bank-select";
+import { CurrencyInput } from "@/components/ui/currency-input";
 const inputCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring";
 const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none";
 
@@ -139,7 +140,7 @@ export default function HtPage() {
           </div>
           <div><label className="text-xs font-medium text-muted-foreground">Bank</label><BankSelect value={form.bank} onChange={v => setForm(p => ({ ...p, bank: v }))} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Tanggal HT Cair</label><input className={inputCls} type="date" value={form.htDate} onChange={set("htDate")} /></div>
-          <div><label className="text-xs font-medium text-muted-foreground">Nilai HT Diterima (Rp)</label><input className={inputCls} type="number" value={form.htAmount} onChange={set("htAmount")} /></div>
+          <div><label className="text-xs font-medium text-muted-foreground">Nilai HT Diterima (Rp)</label><CurrencyInput className={inputCls} value={form.htAmount} onChange={raw => setForm(p => ({ ...p, htAmount: raw }))} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Nomor Rekening Tujuan</label><input className={inputCls} value={form.accountNumber} onChange={set("accountNumber")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Keterangan</label><textarea className={inputCls} rows={2} value={form.notes} onChange={set("notes")} /></div>
           <div className="flex gap-2 pt-2">

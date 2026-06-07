@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import BankSelect from "@/components/bank-select";
+import { CurrencyInput } from "@/components/ui/currency-input";
 const SP3K_STATUS = ["pending", "approved", "revisi", "ditolak"];
 const inputCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring";
 const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none";
@@ -135,8 +136,8 @@ export default function Sp3kPage() {
           <div><label className="text-xs font-medium text-muted-foreground">Bank</label><BankSelect value={form.bank} onChange={v => setForm(p => ({ ...p, bank: v }))} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Tanggal SP3K</label><input className={inputCls} type="date" value={form.sp3kDate} onChange={set("sp3kDate")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Nomor SP3K</label><input className={inputCls} value={form.sp3kNumber} onChange={set("sp3kNumber")} /></div>
-          <div><label className="text-xs font-medium text-muted-foreground">Nilai KPR Disetujui (Rp)</label><input className={inputCls} type="number" value={form.approvedAmount} onChange={set("approvedAmount")} /></div>
-          <div><label className="text-xs font-medium text-muted-foreground">Plafon (Rp)</label><input className={inputCls} type="number" value={form.plafonAmount} onChange={set("plafonAmount")} /></div>
+          <div><label className="text-xs font-medium text-muted-foreground">Nilai KPR Disetujui (Rp)</label><CurrencyInput className={inputCls} value={form.approvedAmount} onChange={raw => setForm(p => ({ ...p, approvedAmount: raw }))} /></div>
+          <div><label className="text-xs font-medium text-muted-foreground">Plafon (Rp)</label><CurrencyInput className={inputCls} value={form.plafonAmount} onChange={raw => setForm(p => ({ ...p, plafonAmount: raw }))} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Masa Berlaku (Deadline Akad)</label><input className={inputCls} type="date" value={form.expiryDate} onChange={set("expiryDate")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Status</label><select className={selectCls} value={form.status} onChange={set("status")}>{SP3K_STATUS.map(s => <option key={s}>{s}</option>)}</select></div>
           <div><label className="text-xs font-medium text-muted-foreground">Catatan Revisi</label><textarea className={inputCls} rows={2} value={form.revisionNotes} onChange={set("revisionNotes")} /></div>
