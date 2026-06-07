@@ -1,0 +1,692 @@
+# REPLIT PROMPT — MENU ADMINISTRASI KPR
+## Satara Development Internal Dashboard
+
+---
+
+## KONTEKS
+
+Dashboard internal Satara Development sudah berjalan dengan sidebar utama:
+Executive Overview, Daftar Proyek, Akuisisi Lahan, Perencanaan, Legal & Perizinan,
+Marketing, **Administrasi KPR** (← ini yang dibangun), Produksi, Serah Terima, Settings.
+
+**Tugas:** Bangun seluruh halaman dan sub-menu untuk menu **Administrasi KPR**.
+Divisi ini adalah jantung operasional developer subsidi. Uang tidak masuk saat booking —
+uang masuk saat HT cair. Fungsi inti divisi adalah mengubah booking menjadi HT
+melalui pipeline: Booking → Berkas → Setor Bank → OTS → SP3K → Akad → HT Cair.
+
+---
+
+## STRUKTUR MENU ADMINISTRASI KPR
+
+```
+Administrasi KPR
+├── 1. Admin Dashboard (Command Center)
+├── 2. Customer Pipeline
+│   ├── Daftar Customer
+│   ├── Tambah / Edit Customer
+│   └── Detail Customer
+├── 3. Document Checklist
+├── 4. Bank Submission Tracker
+├── 5. OTS Tracker
+├── 6. SP3K Tracker
+├── 7. Akad Tracker
+├── 8. HT Tracker
+├── 9. Bank Performance
+├── 10. Aging Pipeline
+├── 11. Target & Realisasi
+└── 12. Komplain & Purna Jual
+```
+
+---
+
+## SPESIFIKASI DETAIL SETIAP HALAMAN
+
+---
+
+### 1. ADMIN DASHBOARD
+**Route:** `/administrasi`
+**Fungsi:** Halaman pertama yang dibuka. Ringkasan harian untuk CEO dan Admin Manager.
+
+**Komponen:**
+
+**Pipeline Funnel (tampilkan sebagai visual funnel atau kanban horizontal):**
+
+| Status | Jumlah Customer |
+|--------|----------------|
+| Booking / Minat | [count] |
+| Proses Berkas | [count] |
+| Berkas Lengkap | [count] |
+| Setor Bank | [count] |
+| OTS | [count] |
+| SP3K | [count] |
+| Akad | [count] |
+| HT Cair | [count] |
+
+Setiap kolom adalah count otomatis dari database. Klik angka → langsung ke halaman daftar customer dengan filter status tersebut.
+
+**Metric cards (baris atas):**
+- Total Customer Aktif (semua status sebelum HT)
+- Total HT Cair Bulan Ini (Rp)
+- Total HT Cair Tahun Ini (Rp)
+- Bank Terbaik Bulan Ini (bank dengan akad terbanyak)
+- Aging Warning (jumlah customer yang macet > threshold)
+- Administration Health Score (angka/100)
+
+**Panel Alerts:**
+- Customer yang progress-nya macet > 14 hari di satu status
+- Customer SP3K tapi bangunan belum ready (sinkron dari modul Produksi)
+- Target akad bulan ini: [target] terealisasi [aktual] ([%])
+
+**Data source:** Semua otomatis dari modul di bawah, tidak ada input manual.
+
+---
+
+### 2. CUSTOMER PIPELINE
+
+#### 2a. Daftar Customer
+**Route:** `/administrasi/customer`
+
+**Tampilan:**
+- Tabel dengan filter: Proyek (SN1/SN2/SN3/SN4/dst), Tahap, Status Pipeline, Bank, PIC
+- Kolom tabel:
+  - No, Blok/Unit, Nama Customer, Pekerjaan, Bank, PIC Admin, Status, Tanggal Status, Aging (hari di status ini), Flag
+- Color coding baris:
+  - Hijau: progress normal
+  - Kuning: >14 hari di status yang sama
+  - Merah: >30 hari di status yang sama, atau ada masalah flagged
+- Quick filter tombol: Semua / Booking / Berkas / Setor / OTS / SP3K / Akad / HT
+
+**Status yang valid (hardcode sebagai dropdown pilihan):**
+```
+MINAT
+PROSES BERKAS / KUMPUL BERKAS
+BERKAS LENGKAP
+SETOR BANK
+OTS
+REVISI
+SP3K
+AKAD / SUDAH AKAD
+HT CAIR / CAIR
+CASH (untuk pembelian tunai)
+DTBO (Ditolak Bank)
+BATAL
+BELUM LAKU
+FOR SALE
+```
+
+#### 2b. Tambah / Edit Customer
+**Route:** `/administrasi/customer/new` dan `/administrasi/customer/:id/edit`
+
+**Form fields — berdasarkan struktur aktual dari file RINGKASAN_KONSUMEN_SN_.xlsx:**
+
+**Data Identitas:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek | Select | SN1, SN2, SN3, SN4, Barru, Villa Sinoa, dll |
+| Tahap | Select | T1, T2, T3, T4, T5, dst (sesuai proyek) |
+| Blok / Nomor Unit | Text | Contoh: A.7, B.19, C.31, D1 |
+| Nama Customer | Text | |
+| Pekerjaan | Select | PNS/ASN, P3K, TNI/POLRI, SPPG, SPPI, Karyawan Swasta, Wiraswasta, Guru, Lain-lain |
+| Nomor Telepon | Text | |
+| Referensi / Sumber Leads | Text | Nama marketing yang refer (contoh: UMMU, DINDA, NIA, HIKMAH, EKKY, IRDA, ANTI, dll) |
+| PIC Admin | Select | Nama staf admin yang handle (contoh: UMMU, DINDA, NIA, HIKMAH) |
+
+**Data Transaksi:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Bank KPR | Select | BRI, BTN, Mandiri, BNI, BSI, CASH, dll. Bank bisa custom/tambah. |
+| Nilai DP | Number (Rp) | Nominal DP yang diterima |
+| Nilai Akad KPR | Number (Rp) | Nilai kredit yang disetujui bank |
+| Nilai HT | Number (Rp) | Dana yang akan cair ke developer |
+| Harga Jual Unit | Number (Rp) | |
+| Tanggal Booking | Date | |
+| Tanggal Akad | Date | Diisi saat akad selesai |
+| Tanggal HT Cair | Date | Diisi saat dana masuk |
+
+**Status & Tracking:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Status Pipeline | Select | Dari daftar status valid di atas |
+| Tanggal Status Terakhir Berubah | Date | Auto-update saat status diubah |
+| Masalah / Catatan | Textarea | |
+| Alternatif Solusi | Textarea | |
+| Tindak Lanjut | Textarea | Diambil dari kolom TINDAK LANJUT di Excel |
+
+**Catatan dari data aktual:**
+- Status di Excel sangat bervariasi penulisannya (contoh: "kumpul berkas", "KUMPUL BERKAS", "ON PROSES BERKAS", "Sudah Akad", "SUDAH AKAD"). Sistem harus menstandarisasi semua variasi ini ke status baku saat input. Tampilkan juga field "catatan bebas" agar staf bisa tulis narasi seperti sebelumnya.
+- Referensi di data aktual berisi nama marketing (UMMU, DINDA, IRDA, EKKY, ANTI, TAHIR, HIKMAH, SHINTA, NIA, ADMIN, ARYA, dll). Ini adalah sumber leads, bukan PIC admin.
+
+#### 2c. Detail Customer
+**Route:** `/administrasi/customer/:id`
+
+**Tampilan halaman detail per customer:**
+- Header: nama, blok, proyek, bank, PIC
+- Pipeline progress bar: visual tahapan dari Booking sampai HT Cair dengan status saat ini dihighlight
+- Aging indicator: sudah berapa hari di status saat ini
+- Tab navigasi: Dokumen / Riwayat Status / Catatan / Komplain
+
+**Tab Dokumen:** lihat dokumen checklist (dari Modul 3)
+**Tab Riwayat Status:** timeline perubahan status dengan tanggal dan catatan
+**Tab Catatan:** semua catatan masalah, tindak lanjut, dan solusi
+**Tab Komplain:** daftar komplain customer ini (dari Modul 12)
+
+---
+
+### 3. DOCUMENT CHECKLIST
+**Route:** `/administrasi/dokumen/:customer_id`
+
+**Fungsi:** Tracking kelengkapan berkas per customer.
+
+**Checklist dokumen standar Satara (hardcode sebagai default, bisa dikonfigurasi di Settings):**
+
+**A. Data Pribadi:**
+- KTP Pemohon
+- KTP Pasangan (jika menikah)
+- Kartu Keluarga (KK)
+- NPWP (jika ada)
+- Akta Nikah / Surat Cerai (jika berlaku)
+- Akta Lahir Anak (jika diperlukan bank)
+- Pas Foto 3x4 (2 lembar)
+
+**B. Data Pekerjaan:**
+- Slip Gaji 3 Bulan Terakhir
+- SK Pengangkatan / SK Kerja
+- Surat Keterangan Kerja dari Instansi
+- Kartu Pegawai / ID Card
+- SK Terakhir (untuk ASN, TNI, POLRI)
+
+**C. Data Keuangan:**
+- Rekening Koran / Buku Tabungan 3 Bulan
+- Surat Keterangan Penghasilan (untuk wiraswasta)
+- SIUP / NIB (untuk wiraswasta)
+
+**D. Dokumen Pendukung:**
+- Surat Pernyataan Belum Punya Rumah
+- Surat Permohonan KPR
+- Formulir Aplikasi Bank (tersedia dari bank)
+
+**Form per dokumen:**
+- Status: Belum Ada / Ada (Upload) / Sudah Disetor ke Bank
+- Upload file (PDF/JPG)
+- Catatan (jika ada masalah dokumen tertentu)
+
+**Output kalkulasi:**
+```
+Document Completeness = (jumlah dokumen berstatus Ada) ÷ (total dokumen wajib) × 100%
+```
+
+Tampilkan: persentase kelengkapan + daftar dokumen yang masih kurang.
+
+---
+
+### 4. BANK SUBMISSION TRACKER
+**Route:** `/administrasi/bank-submission`
+
+**Fungsi:** Tracking berkas yang sudah disetor ke bank.
+
+**Form input penyetoran:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Customer | Select | |
+| Bank tujuan | Select | |
+| Tanggal setor | Date | |
+| Nama petugas bank yang terima | Text | |
+| Nomor registrasi bank | Text | Jika ada |
+| Catatan | Textarea | |
+
+**Tampilan daftar:**
+- Tabel: customer, blok, bank, tanggal setor, hari berlalu, status saat ini (OTS/SP3K/Akad/Ditolak), aging
+- Filter: bank, PIC, bulan, status
+- Highlight kuning: >30 hari sejak setor tapi belum SP3K
+- Highlight merah: >60 hari sejak setor
+
+---
+
+### 5. OTS TRACKER
+**Route:** `/administrasi/ots`
+
+**Fungsi:** Tracking jadwal dan hasil On The Spot Survey bank. Ini sering menjadi bottleneck.
+
+**Form input OTS:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Customer | Select | |
+| Bank | Select | |
+| Tanggal jadwal OTS | Date | |
+| Nama surveyor bank | Text | |
+| Status OTS | Select | Scheduled / Done / Reschedule / Gagal |
+| Tanggal OTS aktual | Date | |
+| Hasil OTS | Select | Lolos / Perlu Revisi / Ditolak |
+| Catatan hasil | Textarea | |
+
+**Tampilan dashboard OTS:**
+- Tabel: customer, bank, jadwal OTS, status, hasil
+- Metric: OTS Success Rate = (lolos ÷ total OTS dilakukan) × 100%
+- Jadwal OTS minggu ini (kalender mini)
+- Alert: OTS terjadwal tapi belum ada konfirmasi hasil
+
+---
+
+### 6. SP3K TRACKER
+**Route:** `/administrasi/sp3k`
+
+**Fungsi:** Tracking Surat Persetujuan Pemberian Kredit. Ini KPI utama divisi admin.
+
+**Form input SP3K:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Customer | Select | |
+| Bank | Select | |
+| Tanggal SP3K diterima | Date | |
+| Nomor SP3K | Text | |
+| Nilai KPR disetujui (Rp) | Number | |
+| Plafon yang disetujui (Rp) | Number | |
+| Masa berlaku SP3K | Date | Deadline untuk akad |
+| Status | Select | Approved / Pending / Revisi / Ditolak |
+| Catatan revisi (jika ada) | Textarea | |
+
+**Tampilan:**
+- Tabel: customer, blok, bank, tanggal SP3K, nilai KPR, masa berlaku, hari tersisa, status
+- Alert merah: SP3K akan expired dalam <14 hari tapi belum akad
+- Alert: SP3K approved tapi bangunan belum ready (sinkron dari modul Produksi)
+- Metric: SP3K Rate = (SP3K approved ÷ total setor bank) × 100%
+
+---
+
+### 7. AKAD TRACKER
+**Route:** `/administrasi/akad`
+
+**Fungsi:** Tracking jadwal dan realisasi akad kredit.
+
+**Form input akad:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Customer | Select | |
+| Bank | Select | |
+| Tanggal akad | Date | |
+| Nomor akad | Text | |
+| Notaris | Text | |
+| Nilai akad (Rp) | Number | |
+| Estimasi HT cair | Date | Biasanya 7-14 hari setelah akad |
+| Status | Select | Terjadwal / Selesai / Batal / Reschedule |
+| Catatan | Textarea | |
+
+**Tampilan:**
+- Kalender akad bulan ini (tampilkan jadwal akad per tanggal)
+- Tabel: customer, blok, bank, tanggal akad, status, estimasi HT cair
+- Metric cards: Akad Bulan Ini, Akad Tahun Ini, Conversion Booking → Akad (%)
+- Chart: akad per bulan per tahun (bar chart)
+
+---
+
+### 8. HT TRACKER
+**Route:** `/administrasi/ht`
+
+**Fungsi:** Tracking pencairan Hak Tanggungan. Ini yang paling penting bagi CFO dan CEO karena langsung mempengaruhi cashflow dan pelunasan KPP.
+
+**Form input HT:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Customer | Select | |
+| Bank | Select | |
+| Tanggal HT cair | Date | |
+| Nilai HT diterima (Rp) | Number | |
+| Nomor rekening tujuan | Text | |
+| Keterangan | Textarea | |
+
+**Tampilan:**
+- Tabel: customer, blok, bank, tanggal akad, tanggal HT cair, nilai HT, lag hari (akad ke HT cair)
+- Metric cards:
+  - HT Cair Bulan Ini (Rp + jumlah unit)
+  - HT Cair Tahun Ini (Rp + jumlah unit)
+  - Rata-rata lag akad ke HT (hari)
+- Chart: HT per bulan (bar chart, Rp)
+- Chart: HT per bank (pie chart, proporsi)
+- Panel sinkron KPP: HT yang masuk langsung ditampilkan dampaknya ke sisa pokok KPP (sinkron dengan modul KPP di Produksi)
+
+---
+
+### 9. BANK PERFORMANCE
+**Route:** `/administrasi/bank-performance`
+
+**Fungsi:** Evaluasi performa masing-masing bank mitra.
+
+**Data otomatis dari semua modul:**
+- Tabel per bank:
+
+| Bank | Total Setor | Total OTS | OTS Success | Total SP3K | SP3K Rate | Total Akad | Akad Rate | Total HT | Avg Lag Akad-HT |
+|------|------------|-----------|-------------|------------|-----------|------------|-----------|----------|-----------------|
+| BRI | [auto] | [auto] | [auto] % | [auto] | [auto] % | [auto] | [auto] % | [auto] Rp | [auto] hari |
+| BTN | [auto] | [auto] | [auto] % | [auto] | [auto] % | [auto] | [auto] % | [auto] Rp | [auto] hari |
+| Mandiri | [auto] | [auto] | [auto] % | [auto] | [auto] % | [auto] | [auto] % | [auto] Rp | [auto] hari |
+| BNI | [auto] | [auto] | [auto] % | [auto] | [auto] % | [auto] | [auto] % | [auto] Rp | [auto] hari |
+| BSI | [auto] | [auto] | [auto] % | [auto] | [auto] % | [auto] | [auto] % | [auto] Rp | [auto] hari |
+
+- Highlight bank terbaik per kolom (hijau)
+- Bar chart: perbandingan conversion rate antar bank
+- Bar chart: total HT per bank
+
+**Output:** Rekomendasi bank prioritas berdasarkan success rate dan kecepatan proses.
+
+---
+
+### 10. AGING PIPELINE
+**Route:** `/administrasi/aging`
+
+**Fungsi:** Deteksi customer yang macet di satu status terlalu lama.
+
+**Threshold aging (configurable di Settings, default Satara):**
+
+| Status | Threshold Warning | Threshold Kritis |
+|--------|------------------|-----------------|
+| Proses Berkas | 14 hari | 30 hari |
+| Setor Bank | 7 hari | 14 hari |
+| OTS | 14 hari | 30 hari |
+| Revisi | 7 hari | 14 hari |
+| SP3K | 7 hari | 21 hari |
+| Akad | 14 hari | 30 hari |
+
+**Tampilan:**
+- Tabel aging: customer, blok, bank, PIC, status saat ini, tanggal masuk status, hari di status ini, level (Normal/Warning/Kritis)
+- Filter: tampilkan hanya Warning, hanya Kritis, atau Semua
+- Tombol aksi per baris: "Catat Tindak Lanjut" → buka modal input update
+- Metric: jumlah customer Warning, jumlah customer Kritis, total HT tertahan karena aging (Rp)
+
+---
+
+### 11. TARGET & REALISASI
+**Route:** `/administrasi/target`
+
+**Fungsi:** Tracking progress terhadap target bulanan dan tahunan. Berdasarkan sheet TARGET 2026 dan AKAD 2026 di file Excel.
+
+#### 11a. Input Target Bulanan
+**Route:** `/administrasi/target/input`
+
+**Form — input target per proyek per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Tahun | Number | |
+| Proyek | Select | |
+| Target akad per bulan | Number (per bulan) | Input 12 bulan sekaligus dalam tabel |
+| Target berkas per bulan | Number | |
+
+**Contoh dari sheet TARGET 2026:**
+- SN1: target 2026 total 40 akad
+- SN2: total 29 akad
+- SN3: total 97 akad
+- SN4: total 40 akad
+
+#### 11b. Dashboard Target vs Realisasi
+**Route:** `/administrasi/target/dashboard`
+
+**Tampilan:**
+- Tabel per proyek: target bulan ini, realisasi akad, realisasi SP3K, rasio akad/target (%)
+- Berdasarkan sheet TARGET OPERASIONAL BULAN INI dari file Excel, tampilkan juga:
+  - Rasio Akad/Target
+  - Rasio (Akad + SP3K)/Target
+  - Rasio (Setor + OTS + SP3K + Akad)/Target
+  - Rasio Total Pipeline/Target
+- Bar chart: target vs realisasi per bulan (year-to-date)
+- Tabel per PIC Admin: nama, customer ditangani, akad bulan ini, SP3K bulan ini, conversion rate
+
+---
+
+### 12. KOMPLAIN & PURNA JUAL
+**Route:** `/administrasi/komplain`
+
+**Fungsi:** Tracking komplain customer setelah serah terima. Berdasarkan sheet KOMPLAINAN USER SN di file Excel.
+
+**Form input komplain:**
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek | Select | |
+| Blok / Unit | Text | |
+| Nama Customer | Select atau Text | |
+| Keluhan | Textarea | |
+| Kategori | Select | Struktur / Finishing / Instalasi Listrik / Instalasi Air / Kusen & Pintu / Lain-lain |
+| Tingkat urgensi | Select | Kritis / Sedang / Ringan |
+| PIC penanggungjawab | Select | Nama subkon atau staf |
+| Deadline penyelesaian | Date | |
+| Status | Select | Belum / Proses / Selesai |
+| Tanggal selesai | Date | |
+| Foto | Upload | |
+
+**Contoh data aktual dari sheet KOMPLAINAN USER SN yang perlu bisa diinput:**
+- SN2 B20: Gagang tarikan pintu WC — Belum
+- SN2 C28: Banyak tembok retak dari dalam sampai luar rumah — Belum
+- SN2 B19: Lampu belum dipasang — Belum
+- SN2 B19: Gagang pintu WC, tembok retak, cat plafon tidak rata, pintu kamar tidak bisa dikunci — Belum
+- SN2 B22: Aliran listrik belum ada, air tidak ada — Belum
+- SN2 C27: Instalasi pipa belum sampai, bocor atap sudut ruang tamu — Belum
+- SN2 B21: Belum masuk PDAM, lampu teras belum ada — Belum
+- (dan seterusnya)
+
+**Tampilan dashboard komplain:**
+- Total komplain terbuka per proyek
+- Komplain kritis (belum selesai dan sudah melewati deadline)
+- Rata-rata hari penyelesaian
+- Tabel lengkap dengan filter: proyek, kategori, status, urgensi
+- KPI: semua komplain harus diselesaikan sebelum serah terima final
+
+---
+
+## DATABASE SCHEMA (SUPABASE)
+
+```sql
+-- Data customer / konsumen
+customers (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  stage_code text,              -- T1, T2, T3, T4, dst
+  unit_block text,              -- contoh: A.7, B.19, D1
+  name text,
+  occupation text,
+  phone text,
+  referral_source text,         -- nama marketing yang refer
+  pic_admin text,               -- nama staf admin yang handle
+  bank text,
+  dp_amount numeric,
+  loan_amount numeric,          -- nilai KPR disetujui
+  ht_amount numeric,            -- nilai HT yang akan cair
+  unit_price numeric,
+  booking_date date,
+  akad_date date,
+  ht_date date,
+  pipeline_status text,         -- status pipeline saat ini (baku)
+  status_updated_at timestamptz,-- auto-update saat status berubah
+  notes text,                   -- masalah / catatan
+  alternative_solution text,
+  follow_up text,
+  payment_type text,            -- KPR / CASH / CASH_BERTAHAP
+  created_at timestamptz
+)
+
+-- Riwayat perubahan status per customer
+customer_status_history (
+  id uuid PRIMARY KEY,
+  customer_id uuid REFERENCES customers(id),
+  from_status text,
+  to_status text,
+  changed_by text,
+  changed_at timestamptz,
+  notes text
+)
+
+-- Dokumen checklist per customer
+customer_documents (
+  id uuid PRIMARY KEY,
+  customer_id uuid REFERENCES customers(id),
+  document_name text,
+  category text,                -- data_pribadi, data_pekerjaan, data_keuangan, pendukung
+  is_required boolean DEFAULT true,
+  status text,                  -- belum_ada, ada, disetor_bank
+  file_url text,                -- URL file upload di Supabase Storage
+  notes text,
+  uploaded_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Bank submission
+bank_submissions (
+  id uuid PRIMARY KEY,
+  customer_id uuid REFERENCES customers(id),
+  bank text,
+  submitted_date date,
+  bank_officer text,
+  registration_number text,
+  notes text,
+  created_at timestamptz
+)
+
+-- OTS
+ots_records (
+  id uuid PRIMARY KEY,
+  customer_id uuid REFERENCES customers(id),
+  bank text,
+  scheduled_date date,
+  surveyor_name text,
+  actual_date date,
+  status text,                  -- scheduled, done, reschedule, gagal
+  result text,                  -- lolos, revisi, ditolak
+  notes text,
+  created_at timestamptz
+)
+
+-- SP3K
+sp3k_records (
+  id uuid PRIMARY KEY,
+  customer_id uuid REFERENCES customers(id),
+  bank text,
+  sp3k_date date,
+  sp3k_number text,
+  approved_amount numeric,
+  plafon_amount numeric,
+  expiry_date date,
+  status text,                  -- approved, pending, revisi, ditolak
+  revision_notes text,
+  created_at timestamptz
+)
+
+-- Akad
+akad_records (
+  id uuid PRIMARY KEY,
+  customer_id uuid REFERENCES customers(id),
+  bank text,
+  akad_date date,
+  akad_number text,
+  notary text,
+  akad_amount numeric,
+  estimated_ht_date date,
+  status text,                  -- terjadwal, selesai, batal, reschedule
+  notes text,
+  created_at timestamptz
+)
+
+-- HT Cair
+ht_records (
+  id uuid PRIMARY KEY,
+  customer_id uuid REFERENCES customers(id),
+  bank text,
+  ht_date date,
+  ht_amount numeric,
+  account_number text,
+  notes text,
+  created_at timestamptz
+)
+
+-- Target bulanan
+monthly_targets (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  year integer,
+  month integer,
+  target_akad integer,
+  target_berkas integer,
+  created_at timestamptz
+)
+
+-- Komplain customer
+customer_complaints (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  unit_block text,
+  customer_id uuid REFERENCES customers(id),
+  complaint text,
+  category text,
+  severity text,                -- kritis, sedang, ringan
+  pic text,
+  deadline date,
+  status text,                  -- belum, proses, selesai
+  completed_date date,
+  photo_urls text[],
+  created_at timestamptz
+)
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+1. **Pipeline Kanban:** Di Admin Dashboard, tampilkan pipeline sebagai kartu kanban horizontal. Setiap kolom = satu status. Customer card bisa di-drag ke kolom berikutnya untuk update status (dengan konfirmasi modal).
+
+2. **Status update cepat:** Di tabel Daftar Customer, setiap baris ada dropdown status yang bisa diubah langsung tanpa buka halaman detail. Setiap perubahan status otomatis tercatat di `customer_status_history`.
+
+3. **Aging indicator:** Tampilkan badge hari di setiap customer card dan baris tabel. Warna: hijau (<7 hari), kuning (7-14 hari), oranye (14-30 hari), merah (>30 hari).
+
+4. **Sinkron dengan Produksi:** Status bangunan dari modul Produksi harus muncul di halaman detail customer, terutama di SP3K Tracker. Tampilkan kolom "Progress Bangunan" dari data unit_progress_summary.
+
+5. **Search global:** Di halaman Daftar Customer, sediakan search bar yang bisa mencari berdasarkan nama, blok, nomor telepon, dan nama PIC.
+
+6. **Export Excel:** Halaman Daftar Customer harus bisa di-export ke Excel dengan format yang menyerupai struktur asli file RINGKASAN_KONSUMEN_SN_.xlsx (per sheet per proyek).
+
+7. **Notifikasi SP3K expired:** Jika SP3K akan expired dalam <14 hari dan belum ada akad, tampilkan banner warning di halaman detail customer dan di Admin Dashboard.
+
+8. **Mobile-friendly:** Halaman update status customer dan input catatan tindak lanjut harus bisa diakses dari HP oleh staf admin di lapangan.
+
+9. **Number format:** Semua rupiah: `Rp 70.000.000`. Semua tanggal: `15 Januari 2026`. Semua persentase: `75,0%`.
+
+10. **Status badge warna standar:**
+    - Abu-abu: Belum Laku / For Sale
+    - Biru muda: Minat / Berminat
+    - Biru: Proses Berkas
+    - Kuning: Setor Bank / OTS / Revisi
+    - Oranye: SP3K
+    - Hijau: Akad / HT Cair
+    - Merah: DTBO / Batal
+
+---
+
+## DATA AKTUAL UNTUK MIGRASI AWAL
+
+Saat pertama kali sistem dijalankan, data dari file RINGKASAN_KONSUMEN_SN_.xlsx harus bisa diimport.
+Struktur import per sheet:
+
+**Sheet SN 1, SN 2:** Kolom — NO, BLOK, STATUS, REFERENSI, NAMA, BANK, PIC, DP, AKAD, TINDAK LANJUT, MASALAH, ALTERNATIF SOLUSI
+**Sheet SN 3:** Kolom — NO, BLOK, STATUS RUMAH, REFERENSI, NAMA, PEKERJAAN, STATUS, BANK, PIC, NOMOR TELEPON, DP, AKAD, TANGGAL AKAD, MASALAH, TINDAK LANJUT
+**Sheet SN 4:** Kolom — NO, BLOK, STATUS, REFERENSI, NAMA, NOMOR, BANK, PIC, DP, AKAD, TINDAK LANJUT
+
+Buat halaman import di `/administrasi/import` dengan fitur:
+- Upload file Excel
+- Preview data sebelum import
+- Mapping kolom Excel ke field database
+- Validasi dan laporan error sebelum proses import final
+
+---
+
+## URUTAN PENGERJAAN
+
+1. Setup routing dan struktur folder semua halaman Administrasi KPR
+2. Buat semua tabel database di Supabase
+3. Halaman Tambah/Edit Customer dan Daftar Customer (ini yang paling sering dipakai)
+4. Customer Pipeline Dashboard (kanban + metric cards)
+5. Document Checklist
+6. Bank Submission Tracker + OTS Tracker
+7. SP3K Tracker (dengan integrasi status bangunan dari Produksi)
+8. Akad Tracker + HT Tracker
+9. Aging Pipeline (otomatis dari data yang sudah ada)
+10. Target & Realisasi
+11. Bank Performance
+12. Komplain & Purna Jual
+13. Halaman Import Excel untuk migrasi data awal
+```

@@ -1,0 +1,759 @@
+# REPLIT PROMPT — MENU MARKETING
+## Satara Development Internal Dashboard
+
+---
+
+## KONTEKS
+
+Dashboard internal Satara Development sudah berjalan dengan sidebar utama:
+Executive Overview, Daftar Proyek, Akuisisi Lahan, Perencanaan, Legal & Perizinan,
+**Marketing** (← ini yang dibangun), Administrasi KPR, Produksi, Serah Terima, Settings.
+
+**Tugas:** Bangun seluruh halaman dan sub-menu untuk menu **Marketing**.
+
+Divisi Marketing bertanggung jawab penuh pada satu pipeline:
+**Awareness → Interest → Lead → Follow Up → Survey → Booking → Berkas → Serah Terima ke Administrasi**
+
+Tanggung jawab divisi ini berhenti tepat saat berkas diserahkan ke Divisi Administrasi KPR.
+Divisi Marketing tidak mengurus SP3K, OTS, akad, atau HT. KPI divisi ini diukur
+sampai tahap Berkas Lengkap masuk ke administrasi.
+
+---
+
+## STRUKTUR MENU MARKETING
+
+```
+Marketing
+├── 1. Marketing Dashboard (Command Center)
+├── 2. Lead Management
+│   ├── Daftar Lead
+│   ├── Tambah / Edit Lead
+│   └── Detail Lead
+├── 3. Branding & Content
+├── 4. Digital Marketing & Campaign
+├── 5. Sales Performance
+├── 6. Project Absorption
+├── 7. Stock & Sales Coverage
+├── 8. Demand Forecasting
+├── 9. Project Demand Score
+├── 10. Competitor Monitoring
+└── 11. Marketing Health Score
+```
+
+---
+
+## SPESIFIKASI DETAIL SETIAP HALAMAN
+
+---
+
+### 1. MARKETING DASHBOARD (COMMAND CENTER)
+**Route:** `/marketing`
+**Fungsi:** Halaman ringkasan harian untuk CEO dan Marketing Manager.
+
+**Baris 1 — Metric Cards Utama (11 kartu):**
+
+| Metric | Kalkulasi | Sumber Data |
+|--------|-----------|-------------|
+| Branding Score | Dihitung dari Area Branding | Modul 3 |
+| Leads Bulan Ini | Count lead masuk bulan berjalan | Modul 2 |
+| CPL (Cost per Lead) | Total budget ÷ total lead | Modul 4 |
+| Survey | Count lead berstatus Survey bulan ini | Modul 2 |
+| Booking | Count lead berstatus Booking bulan ini | Modul 2 |
+| Berkas | Count lead berstatus Berkas bulan ini | Modul 2 |
+| Absorption Rate | Total unit terserap ÷ total unit tersedia (%) | Modul 6 |
+| Demand Score | Rata-rata Project Demand Score proyek aktif | Modul 9 |
+| Coverage Stock | Stok tersedia ÷ rata-rata booking per bulan (bulan) | Modul 7 |
+| Forecast Booking Bulan Depan | Proyeksi dari Demand Forecasting | Modul 8 |
+| Marketing Health Score | Dihitung berbobot dari semua KPI | Modul 11 |
+
+**Baris 2 — Lead Funnel Visual:**
+
+Tampilkan sebagai funnel vertikal atau kanban horizontal dengan jumlah per status:
+
+| Status | Jumlah |
+|--------|--------|
+| New Lead | [count] |
+| Contacted | [count] |
+| Interested | [count] |
+| Survey | [count] |
+| Booking | [count] |
+| Berkas | [count] |
+
+Klik angka → langsung ke halaman Daftar Lead dengan filter status tersebut.
+
+**Baris 3 — Sales Performance Ringkasan:**
+
+Tabel top 5 sales bulan ini: Nama, Lead, Survey, Booking, Berkas, Conversion Rate.
+
+**Baris 4 — Project Absorption Summary:**
+
+| Proyek | Tahap | Total Unit | Terserap | Stok | Absorption Rate |
+|--------|-------|-----------|---------|------|----------------|
+| SN3 | T4 | 32 | 17 | 15 | 53% |
+| SN3 | T5 | 44 | 0 | 44 | 0% |
+| SN3 | T6 | 38 | 0 | 38 | 0% |
+
+**Baris 5 — Alert & Rekomendasi:**
+- Lead berstatus New Lead yang belum dicontact lebih dari 10 menit (alert merah)
+- Lead yang stagnan di satu status lebih dari 7 hari (alert kuning)
+- Rekomendasi AI: contoh "Stok T4 menipis, pertimbangkan launching T5"
+- Coverage stock < 3 bulan: alert kritis
+
+---
+
+### 2. LEAD MANAGEMENT
+**Route:** `/marketing/lead`
+
+**Fungsi:** Pusat pengelolaan seluruh lead masuk dari semua channel.
+
+#### 2a. Daftar Lead
+**Route:** `/marketing/lead`
+
+**Tampilan tabel:**
+
+Kolom: No, Nama, No. HP, Sumber Lead, Proyek, Tahap, PIC Sales, Status, Tanggal Masuk, Aging (hari di status ini), Flag
+
+**Filter:**
+- Proyek (SN1/SN2/SN3/SN4/Barru/Villa Sinoa)
+- Status Lead
+- Sumber Lead
+- PIC Sales
+- Periode (bulan/tahun)
+
+**Quick filter tombol:** Semua / New Lead / Contacted / Interested / Survey / Booking / Berkas
+
+**Color coding baris:**
+- Hijau: progress normal
+- Kuning: stagnan 3-7 hari di status yang sama
+- Merah: stagnan > 7 hari di status yang sama, atau New Lead belum dicontact > 10 menit
+
+**Status lead yang valid (hardcode sebagai dropdown):**
+```
+NEW LEAD
+CONTACTED
+INTERESTED
+SURVEY DIJADWALKAN
+SURVEY DILAKUKAN
+BOOKING
+BERKAS LENGKAP
+DISERAHKAN KE ADMINISTRASI
+TIDAK JADI / BATAL
+PENDING
+```
+
+#### 2b. Tambah / Edit Lead
+**Route:** `/marketing/lead/new` dan `/marketing/lead/:id/edit`
+
+**Form fields:**
+
+**Data Identitas:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama | Text | |
+| Nomor HP | Text | |
+| Pekerjaan | Select | PNS/ASN, P3K, TNI/POLRI, SPPG, SPPI, Karyawan Swasta, Wiraswasta, Guru, Lain-lain |
+| Alamat | Textarea | |
+
+**Data Lead:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Sumber Lead | Select | Meta Ads, TikTok Ads, Google Ads, Instagram Organik, Facebook Organik, Referral, Walk In, WhatsApp Blast, Lainnya |
+| Nama Campaign | Select / Text | Campaign aktif dari Digital Marketing |
+| Proyek Diminati | Select | SN1, SN2, SN3, SN4, Barru, Villa Sinoa |
+| Tahap / Tipe Unit | Select | Sesuai proyek |
+| Budget Range | Select | < 150 juta, 150-200 juta, > 200 juta |
+| PIC Sales | Select | Nama sales / property consultant yang handle |
+| Tanggal Masuk Lead | Date | Auto-fill hari ini |
+
+**Status & Tracking:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Status Lead | Select | Dari daftar status valid di atas |
+| Tanggal Status Terakhir Berubah | Date | Auto-update saat status diubah |
+| Tanggal Survey Dijadwalkan | Date | Diisi saat lead setuju survey |
+| Tanggal Survey Dilakukan | Date | Diisi saat survey selesai |
+| Tanggal Booking | Date | Diisi saat booking terkonfirmasi |
+| Tanggal Berkas Masuk | Date | Diisi saat berkas diserahkan ke administrasi |
+| Catatan Follow Up | Textarea | |
+| Alasan Batal / Pending | Textarea | Wajib diisi jika status Batal atau Pending |
+
+#### 2c. Detail Lead
+**Route:** `/marketing/lead/:id`
+
+**Tampilan:**
+- Header: nama, HP, proyek, status badge, PIC, aging indicator
+- Pipeline progress bar: New Lead → Contacted → Interested → Survey → Booking → Berkas
+- Tab: Riwayat Status / Catatan Follow Up / Dokumen (jika ada)
+- Riwayat status: timeline perubahan status dengan tanggal, PIC, dan catatan
+- Tombol quick action: Update Status, Jadwalkan Survey, Input Booking
+
+---
+
+### 3. BRANDING & CONTENT
+**Route:** `/marketing/branding`
+
+**Fungsi:** Tracking KPI branding dan performa konten di semua platform.
+
+**Form input KPI bulanan per platform:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Periode (Bulan/Tahun) | Date | |
+| Platform | Select | Instagram, Facebook, TikTok, Website, Google Business |
+| Reach | Number | |
+| Impression | Number | |
+| Engagement | Number | |
+| Follower Baru | Number | Pertumbuhan follower bulan ini |
+| Total Followers | Number | Snapshot akhir bulan |
+| Jumlah Konten Publish | Number | |
+| Catatan | Textarea | |
+
+**KPI Target per Bulan (hardcode default, bisa dikonfigurasi di Settings):**
+
+| KPI | Target |
+|-----|--------|
+| Reach | 100.000 |
+| Engagement Rate | 5% |
+| Followers Baru | 500 |
+| Jumlah Konten | 30 |
+
+**Kalkulasi otomatis:**
+```
+Engagement Rate (%) = Total Engagement ÷ Total Reach × 100%
+
+Branding Score = rata-rata berbobot:
+  - Reach vs Target (25%)
+  - Engagement Rate vs Target (25%)
+  - Follower Growth vs Target (25%)
+  - Jumlah Konten vs Target (25%)
+```
+
+**Tampilan dashboard:**
+- Metric cards: Reach bulan ini, Engagement Rate, Followers Baru, Jumlah Konten, Branding Score
+- Bar chart: perbandingan target vs realisasi per KPI per bulan
+- Tabel Top Content: input manual judul konten terbaik bulan ini beserta metrik utamanya
+- Trend line: Branding Score per bulan (6 bulan terakhir)
+
+---
+
+### 4. DIGITAL MARKETING & CAMPAIGN
+**Route:** `/marketing/campaign`
+
+**Fungsi:** Tracking seluruh campaign berbayar dan organik beserta performa lead generation.
+
+**Form input campaign:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Campaign | Text | Contoh: "Tahap 4 Meta Ads Juni" |
+| Platform | Select | Meta Ads, TikTok Ads, Google Ads, Organik |
+| Proyek / Tahap | Select | |
+| Tanggal Mulai | Date | |
+| Tanggal Selesai | Date | |
+| Total Budget (Rp) | Number | |
+| Total Lead Dihasilkan | Number | |
+| Total Klik | Number | |
+| Total Impression | Number | |
+| Total Reach | Number | |
+| Status Campaign | Select | Aktif / Selesai / Dijeda |
+| Catatan | Textarea | |
+
+**Kalkulasi otomatis:**
+```
+CPL (Cost per Lead) = Total Budget ÷ Total Lead
+CTR (%) = Total Klik ÷ Total Impression × 100%
+CPM (Cost per 1000 Impression) = (Total Budget ÷ Total Impression) × 1000
+```
+
+**Tampilan dashboard:**
+
+- Tabel kampanye aktif dan selesai:
+
+| Campaign | Proyek | Platform | Budget | Lead | CPL | CTR | Status |
+|----------|--------|---------|--------|------|-----|-----|--------|
+| Tahap 4 Meta Ads | SN3 T4 | Meta Ads | Rp X | 120 | Rp 18.000 | X% | Aktif |
+| Tahap 5 TikTok | SN3 T5 | TikTok Ads | Rp X | 80 | Rp 22.000 | X% | Aktif |
+
+- Metric cards: Total Lead bulan ini, Total Budget bulan ini, CPL rata-rata, Campaign Aktif
+- Bar chart: Lead per campaign (perbandingan antar campaign)
+- Trend: CPL per bulan (apakah makin efisien atau tidak)
+- Alert: kampanye dengan CPL > Rp 25.000 (batas KPI) ditandai merah
+
+---
+
+### 5. SALES PERFORMANCE
+**Route:** `/marketing/sales`
+
+**Fungsi:** Mengukur kinerja individual setiap staf marketing / property consultant.
+
+**Data otomatis dari Lead Management (tidak ada input manual):**
+
+Tabel performa per PIC:
+
+| Nama | Lead | Contacted | Survey | Booking | Berkas | Survey Rate | Booking Rate | Berkas Rate |
+|------|------|-----------|--------|---------|--------|-------------|-------------|-------------|
+| Sales A | 50 | 48 | 20 | 10 | 8 | 40% | 20% | 80% |
+| Sales B | 40 | 38 | 15 | 8 | 6 | 38% | 20% | 75% |
+
+**Kalkulasi otomatis:**
+```
+Survey Rate (%) = Jumlah Survey ÷ Jumlah Lead × 100%
+Booking Rate (%) = Jumlah Booking ÷ Jumlah Survey × 100%
+Berkas Rate (%) = Jumlah Berkas ÷ Jumlah Booking × 100%
+
+Productivity Score = rata-rata berbobot:
+  - Survey Rate vs target 40% (33%)
+  - Booking Rate vs target 15% (33%)
+  - Berkas Rate vs target 80% (34%)
+```
+
+**Tampilan:**
+- Filter: periode (bulan/tahun), proyek
+- Tabel lengkap dengan semua metric di atas
+- Kolom Productivity Score dengan warna: Hijau (>80), Kuning (60-80), Merah (<60)
+- Bar chart: perbandingan Booking per sales (ranking visual)
+- Sales Ranking: urutan berdasarkan Productivity Score
+
+**KPI Target per Bulan (hardcode default):**
+
+| KPI | Target |
+|-----|--------|
+| Survey Rate | > 40% |
+| Booking Rate | > 15% |
+| Berkas Rate (Booking → Berkas) | > 80% |
+
+---
+
+### 6. PROJECT ABSORPTION
+**Route:** `/marketing/absorption`
+
+**Fungsi:** Mengukur daya serap pasar untuk setiap tahap proyek.
+
+**Form input per tahap:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek | Select | |
+| Tahap | Select | |
+| Total Unit Tersedia | Number | |
+| Tanggal Launching | Date | |
+
+Data Booking dan Berkas diambil otomatis dari Lead Management.
+Stok dihitung otomatis: Total Unit - (Booking + Berkas).
+
+**Kalkulasi otomatis:**
+```
+Unit Terserap = Booking + Berkas
+Absorption Rate (%) = Unit Terserap ÷ Total Unit × 100%
+```
+
+**Tampilan:**
+
+| Proyek | Tahap | Total Unit | Booking | Berkas | Terserap | Stok | Absorption Rate |
+|--------|-------|-----------|---------|--------|---------|------|----------------|
+| SN3 | T4 | 32 | 10 | 7 | 17 | 15 | 53% |
+| SN3 | T5 | 44 | 0 | 0 | 0 | 44 | 0% |
+| SN3 | T6 | 38 | 0 | 0 | 0 | 38 | 0% |
+
+- Metric cards: Total Unit Aktif, Total Terserap, Total Stok, Absorption Rate Keseluruhan
+- Bar chart: Absorption Rate per tahap
+- Color coding: Hijau (>70%), Kuning (40-70%), Merah (<40%)
+
+---
+
+### 7. STOCK & SALES COVERAGE
+**Route:** `/marketing/stock`
+
+**Fungsi:** Menghubungkan kondisi stok dengan kecepatan penjualan untuk perencanaan launching.
+
+**Data otomatis dari Lead Management dan Project Absorption:**
+
+```
+Total Stok Tersedia    = jumlah unit belum Booking/Berkas (dari semua proyek aktif)
+Rata-rata Booking/Bulan = rata-rata booking 3 bulan terakhir
+Coverage (Bulan)       = Total Stok ÷ Rata-rata Booking per Bulan
+```
+
+**Tampilan:**
+
+- Metric cards besar: Stok (97 unit), Booking/Bulan (8 unit), Coverage (12 Bulan)
+- Tabel per proyek: stok, booking bulan ini, coverage bulan
+- Alert kritis: jika Coverage < 3 bulan → "Stok kritis, segera launching tahap baru"
+- Alert sedang: jika Coverage 3-6 bulan → "Pertimbangkan persiapan launching"
+- Rekomendasi AI (teks otomatis):
+  - Jika Coverage > 12 bulan: "Fokus pada percepatan penjualan stok existing"
+  - Jika Coverage 6-12 bulan: "Mulai persiapan soft launching tahap berikutnya"
+  - Jika Coverage < 6 bulan: "Segera lakukan hard launching tahap baru"
+- Bar chart: stok per proyek per tahap
+
+---
+
+### 8. DEMAND FORECASTING
+**Route:** `/marketing/forecast`
+
+**Fungsi:** Proyeksi booking untuk 1, 3, 6, dan 12 bulan ke depan.
+
+**Metode kalkulasi (berbasis data historis Lead Management):**
+```
+Dasar forecast = rata-rata booking 3 bulan terakhir
+
+Penyesuaian faktor:
+  + jika ada campaign aktif dengan budget meningkat
+  + jika ada promo / event launching
+  - jika stok menipis
+  - jika CPL meningkat (demand melambat)
+
+Forecast bulan N = dasar × faktor penyesuaian
+```
+
+**Form input faktor penyesuaian manual (opsional):**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Bulan Target | Date | |
+| Ada Campaign Besar | Checkbox | Tambah 20% ke forecast |
+| Ada Promo Khusus | Checkbox | Tambah 10% ke forecast |
+| Catatan Analis | Textarea | |
+
+**Tampilan:**
+
+- Tabel forecast:
+
+| Bulan | Forecast Booking | Basis | Faktor |
+|-------|-----------------|-------|--------|
+| Juli 2026 | 10 | 8,3 rata-rata | +20% campaign |
+| Agustus 2026 | 12 | 8,3 rata-rata | +20% campaign, +10% promo |
+| September 2026 | 11 | 8,3 rata-rata | +20% campaign |
+
+- Line chart: aktual booking 6 bulan lalu + forecast 6 bulan ke depan (satu garis kontinyu)
+- Catatan: tampilkan label "Aktual" dan "Forecast" dengan warna berbeda
+
+---
+
+### 9. PROJECT DEMAND SCORE
+**Route:** `/marketing/demand-score`
+
+**Fungsi:** Skor komposit per proyek yang mencerminkan tingkat demand pasar.
+
+**Komponen dan bobot:**
+
+| Komponen | Bobot | Sumber Data |
+|---------|-------|-------------|
+| Jumlah Lead | 20% | Lead Management |
+| Survey Rate | 20% | Lead Management |
+| Booking Rate | 20% | Lead Management |
+| Market Response (kecepatan contact) | 20% | Lead Management |
+| Conversion Berkas Rate | 20% | Lead Management |
+
+**Kalkulasi:**
+```
+Skor per komponen = (realisasi ÷ target) × 100, maksimum 100
+
+Project Demand Score = rata-rata berbobot semua komponen
+```
+
+**Target per komponen (hardcode default):**
+
+| Komponen | Target |
+|---------|--------|
+| Lead per bulan | 100 lead per tahap |
+| Survey Rate | 40% |
+| Booking Rate | 15% |
+| Response Time | < 10 menit (inverted: semakin cepat = skor lebih tinggi) |
+| Berkas Rate | 80% |
+
+**Tampilan:**
+
+| Proyek | Tahap | Lead | Survey Rate | Booking Rate | Market Response | Berkas Rate | Demand Score |
+|--------|-------|------|-------------|-------------|-----------------|-------------|-------------|
+| SN3 | T4 | 90 | 45% | 18% | 8 mnt | 82% | 95 |
+| SN3 | T5 | 75 | 38% | 12% | 12 mnt | 78% | 87 |
+| SN3 | T6 | 60 | 30% | 8% | 15 mnt | 70% | 75 |
+
+- Warna Demand Score: Hijau (>80), Kuning (60-80), Merah (<60)
+- Bar chart: perbandingan Demand Score antar tahap/proyek
+
+---
+
+### 10. COMPETITOR MONITORING
+**Route:** `/marketing/kompetitor`
+
+**Fungsi:** Memantau kondisi pasar dan posisi kompetitor.
+
+**Form input per kompetitor:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Perumahan | Text | |
+| Developer | Text | |
+| Lokasi | Text | |
+| Tipe Rumah | Text | Contoh: 36/72, 45/90 |
+| Harga (Rp) | Number | |
+| Promo Aktif | Textarea | Promo atau insentif yang sedang berjalan |
+| Progress Pembangunan | Select | Belum Mulai / Fondasi / Struktur / Finishing / Siap Huni |
+| Unit Tersisa | Number | |
+| Sumber Informasi | Text | Siapa yang memantau / kapan |
+| Tanggal Update | Date | |
+| Catatan | Textarea | |
+
+**Tampilan:**
+
+- Tabel kompetitor dengan semua field di atas
+- Filter: lokasi, tipe rumah, harga, progress
+- Kalkulasi Competitor Score (komparatif terhadap Satara):
+  ```
+  Competitor Score = nilai komposit dari: harga lebih murah/mahal, progress lebih maju/lambat,
+                     promo lebih agresif/tidak, unit tersisa lebih banyak/sedikit
+  ```
+- Market Position: visualisasi bubble chart dengan sumbu X = harga dan sumbu Y = progress pembangunan.
+  Setiap bubble = satu proyek (termasuk proyek Satara sendiri untuk perbandingan).
+- Highlight jika ada kompetitor dengan harga < Satara dan progress lebih maju (alert merah)
+
+---
+
+### 11. MARKETING HEALTH SCORE
+**Route:** `/marketing/health`
+
+**Fungsi:** Skor kesehatan divisi marketing secara keseluruhan untuk CEO.
+
+**Komponen dan bobot (sesuai brief):**
+
+| Komponen | Bobot | Kalkulasi |
+|---------|-------|-----------|
+| Branding Score | 20% | Dari Modul 3 |
+| Lead (volume vs target) | 20% | Lead bulan ini ÷ target lead × 100 |
+| CPL (efisiensi vs target) | 15% | (Target CPL ÷ CPL aktual) × 100, maks 100 |
+| Survey Rate vs target | 15% | Survey Rate ÷ 40% × 100, maks 100 |
+| Booking Rate vs target | 20% | Booking Rate ÷ 15% × 100, maks 100 |
+| Berkas Rate vs target | 10% | Berkas Rate ÷ 80% × 100, maks 100 |
+
+**Kalkulasi total:**
+```
+Marketing Health Score = (Branding×0.20) + (Lead×0.20) + (CPL×0.15)
+                        + (Survey×0.15) + (Booking×0.20) + (Berkas×0.10)
+
+Status:
+  >80 = SEHAT (hijau)
+  60-80 = WASPADA (kuning)
+  <60 = KRITIS (merah)
+```
+
+**Tampilan:**
+
+- Angka besar Marketing Health Score dengan label status (SEHAT / WASPADA / KRITIS)
+- Gauge chart atau speedometer visual
+- Breakdown per komponen: nilai aktual, target, skor komponen, bobot
+- Trend: Health Score 6 bulan terakhir (line chart)
+- Rekomendasi otomatis: komponen dengan skor paling rendah ditampilkan sebagai prioritas perbaikan
+
+---
+
+## DATABASE SCHEMA (SUPABASE)
+
+```sql
+-- Data lead
+leads (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  stage_code text,              -- T1, T2, T3, dst
+  name text,
+  phone text,
+  occupation text,
+  address text,
+  lead_source text,             -- meta_ads, tiktok_ads, google_ads, ig_organik, fb_organik, referral, walk_in, wa_blast, lainnya
+  campaign_id uuid REFERENCES campaigns(id),
+  budget_range text,
+  pic_sales text,
+  status text,                  -- new_lead, contacted, interested, survey_dijadwalkan, survey_dilakukan, booking, berkas_lengkap, diserahkan_administrasi, batal, pending
+  status_updated_at timestamptz,
+  survey_scheduled_date date,
+  survey_done_date date,
+  booking_date date,
+  berkas_date date,
+  follow_up_notes text,
+  cancel_reason text,
+  created_at timestamptz
+)
+
+-- Riwayat perubahan status lead
+lead_status_history (
+  id uuid PRIMARY KEY,
+  lead_id uuid REFERENCES leads(id),
+  from_status text,
+  to_status text,
+  changed_by text,
+  changed_at timestamptz,
+  notes text
+)
+
+-- KPI branding per platform per bulan
+branding_kpi (
+  id uuid PRIMARY KEY,
+  period_year integer,
+  period_month integer,
+  platform text,                -- instagram, facebook, tiktok, website, google_business
+  reach integer,
+  impression integer,
+  engagement integer,
+  new_followers integer,
+  total_followers integer,
+  content_count integer,
+  notes text,
+  created_at timestamptz
+)
+
+-- Campaign digital marketing
+campaigns (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  stage_code text,
+  name text,
+  platform text,                -- meta_ads, tiktok_ads, google_ads, organik
+  start_date date,
+  end_date date,
+  budget numeric,
+  total_leads integer,
+  total_clicks integer,
+  total_impressions integer,
+  total_reach integer,
+  status text,                  -- aktif, selesai, dijeda
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Stok unit per tahap
+project_stock (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  stage_code text,
+  total_units integer,
+  launch_date date,
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Faktor penyesuaian forecast bulanan
+forecast_adjustments (
+  id uuid PRIMARY KEY,
+  period_year integer,
+  period_month integer,
+  has_major_campaign boolean DEFAULT false,
+  has_promo boolean DEFAULT false,
+  analyst_notes text,
+  created_at timestamptz
+)
+
+-- Data kompetitor
+competitors (
+  id uuid PRIMARY KEY,
+  name text,
+  developer text,
+  location text,
+  house_type text,
+  price numeric,
+  active_promo text,
+  construction_progress text,   -- belum_mulai, fondasi, struktur, finishing, siap_huni
+  remaining_units integer,
+  info_source text,
+  update_date date,
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Target KPI marketing bulanan
+marketing_targets (
+  id uuid PRIMARY KEY,
+  period_year integer,
+  period_month integer,
+  target_lead integer,
+  target_cpl numeric,           -- CPL maksimum (Rp)
+  target_survey_rate numeric,   -- dalam persen, default 40
+  target_booking_rate numeric,  -- dalam persen, default 15
+  target_berkas_rate numeric,   -- dalam persen, default 80
+  target_reach integer,         -- default 100000
+  target_engagement_rate numeric, -- dalam persen, default 5
+  target_new_followers integer, -- default 500
+  target_content_count integer, -- default 30
+  created_at timestamptz
+)
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+1. **Lead funnel interaktif:** Di Marketing Dashboard, funnel menampilkan jumlah lead
+   di setiap tahap. Klik angka → filter otomatis ke Daftar Lead dengan status tersebut.
+   Tampilkan juga persentase konversi antar tahap (contoh: Lead → Survey = 33%).
+
+2. **Response time alert:** Lead berstatus New Lead yang belum berubah menjadi Contacted
+   dalam 10 menit tampilkan badge merah di Daftar Lead dan di Marketing Dashboard.
+   Ini adalah KPI kritis divisi marketing.
+
+3. **Quick status update:** Di tabel Daftar Lead, setiap baris memiliki dropdown status
+   yang bisa diubah langsung tanpa membuka halaman detail. Setiap perubahan tercatat
+   otomatis di `lead_status_history` dengan timestamp.
+
+4. **Integrasi dengan Administrasi KPR:** Saat lead berstatus "Diserahkan ke Administrasi",
+   sistem otomatis membuat draft customer baru di modul Administrasi KPR dengan data
+   dari lead yang diserahkan (nama, HP, proyek, tahap, booking date). Staf admin tinggal
+   melengkapi data yang kurang.
+
+5. **Integrasi dengan Project Absorption:** Data Booking dan Berkas di modul Project Absorption
+   diambil langsung dari status lead, bukan input manual. Stok dihitung otomatis dari
+   `project_stock.total_units` dikurangi jumlah lead berstatus Booking dan Berkas.
+
+6. **Mobile-friendly:** Halaman Tambah Lead, Update Status Lead, dan input Follow Up Notes
+   harus bisa diakses dari HP oleh sales di lapangan.
+
+7. **Search global:** Di Daftar Lead, sediakan search bar yang bisa mencari berdasarkan
+   nama, nomor HP, nama campaign, dan nama PIC.
+
+8. **Export Excel:** Daftar Lead bisa di-export ke Excel dengan semua field termasuk
+   riwayat status singkat.
+
+9. **Number format:** Semua rupiah: `Rp 18.000`. Semua tanggal: `15 Januari 2026`.
+   Semua persentase: `53,0%`. Semua skor: `88/100`.
+
+10. **Status badge warna standar:**
+    - Abu-abu: New Lead
+    - Biru muda: Contacted
+    - Biru: Interested
+    - Kuning: Survey Dijadwalkan / Survey Dilakukan
+    - Oranye: Booking
+    - Hijau: Berkas Lengkap / Diserahkan ke Administrasi
+    - Merah: Batal
+    - Ungu: Pending
+
+11. **KPI threshold alerts:**
+    - CPL > Rp 25.000: badge merah di campaign tersebut
+    - Survey Rate < 40%: alert di Sales Performance
+    - Booking Rate < 15%: alert di Sales Performance
+    - Berkas Rate < 80%: alert di Sales Performance
+    - Coverage < 3 bulan: alert kritis di Stock & Coverage
+    - Marketing Health Score < 60: banner merah di Marketing Dashboard
+
+---
+
+## URUTAN PENGERJAAN
+
+1. Setup routing dan struktur folder semua halaman Marketing
+2. Buat semua tabel database di Supabase beserta seed data awal
+3. Lead Management: Tambah/Edit Lead + Daftar Lead (modul paling sering dipakai harian)
+4. Digital Marketing & Campaign: form input + kalkulasi CPL/CTR/CPM otomatis
+5. Branding & Content: form input KPI bulanan + kalkulasi Branding Score
+6. Sales Performance: agregasi otomatis dari Lead Management (tidak ada input tambahan)
+7. Project Absorption: input total unit per tahap + sinkron otomatis dari Lead
+8. Stock & Sales Coverage: kalkulasi otomatis + rekomendasi AI teks
+9. Demand Forecasting: kalkulasi dari data historis + form faktor penyesuaian
+10. Project Demand Score: kalkulasi otomatis dari Lead Management
+11. Competitor Monitoring: form input + visualisasi bubble chart
+12. Marketing Health Score: kalkulasi berbobot otomatis dari semua modul
+13. Marketing Dashboard: agregasi semua metric dari modul 3-12
+14. Integrasi dengan Administrasi KPR: trigger pembuatan draft customer saat lead diserahkan
