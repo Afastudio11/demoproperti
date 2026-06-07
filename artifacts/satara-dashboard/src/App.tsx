@@ -16,7 +16,12 @@ import TimelinePage from "@/pages/perencanaan/timeline";
 import CashflowPage from "@/pages/perencanaan/cashflow";
 import SDMPage from "@/pages/perencanaan/sdm";
 import LandBankPage from "@/pages/perencanaan/landbank";
-import Legal from "@/pages/legal";
+import Legal from "@/pages/legal/index";
+import LegalPermit from "@/pages/legal/permit";
+import LegalLahan from "@/pages/legal/lahan";
+import LegalShm from "@/pages/legal/shm";
+import LegalIssue from "@/pages/legal/issue";
+import LegalArsip from "@/pages/legal/arsip";
 import Marketing from "@/pages/marketing";
 import Administrasi from "@/pages/administrasi";
 import CustomerList from "@/pages/administrasi/customer";
@@ -86,6 +91,11 @@ function Router() {
         <Route path="/perencanaan/sdm" component={SDMPage} />
         <Route path="/perencanaan/landbank" component={LandBankPage} />
         <Route path="/legal" component={Legal} />
+        <Route path="/legal/permit" component={LegalPermit} />
+        <Route path="/legal/lahan" component={LegalLahan} />
+        <Route path="/legal/shm" component={LegalShm} />
+        <Route path="/legal/issue" component={LegalIssue} />
+        <Route path="/legal/arsip" component={LegalArsip} />
         <Route path="/marketing" component={Marketing} />
         <Route path="/administrasi" component={Administrasi} />
         <Route path="/administrasi/customer/new" component={CustomerNew} />

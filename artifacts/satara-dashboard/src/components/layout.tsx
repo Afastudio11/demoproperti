@@ -109,6 +109,15 @@ const administrasiSubNav: SubNavItem[] = [
   { type: "link", name: "Komplain", path: "/administrasi/komplain" },
 ];
 
+const legalSubNav: SubNavItem[] = [
+  { type: "link", name: "Legal Dashboard", path: "/legal" },
+  { type: "link", name: "Permit Tracker", path: "/legal/permit" },
+  { type: "link", name: "Land Legal Tracker", path: "/legal/lahan" },
+  { type: "link", name: "SHM Split Tracker", path: "/legal/shm" },
+  { type: "link", name: "Legal Issue Tracker", path: "/legal/issue" },
+  { type: "link", name: "Arsip Dokumen", path: "/legal/arsip" },
+];
+
 const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Command Center", path: "/produksi" },
   { type: "group", label: "Subkontraktor" },
@@ -146,7 +155,7 @@ function renderSubNav(items: SubNavItem[], location: string) {
             </div>
           );
         }
-        const isSubActive = location === sub.path || (sub.path !== "/administrasi" && sub.path !== "/perencanaan" && sub.path !== "/produksi" && location.startsWith(sub.path + "/"));
+        const isSubActive = location === sub.path || (sub.path !== "/administrasi" && sub.path !== "/perencanaan" && sub.path !== "/produksi" && sub.path !== "/legal" && location.startsWith(sub.path + "/"));
         return (
           <SidebarMenuItem key={sub.path}>
             <SidebarMenuButton
@@ -170,6 +179,7 @@ function DashboardSidebar() {
   const [location] = useLocation();
   const isAkuisisi = location === "/akuisisi" || location === "/ekspansi" || location.startsWith("/akuisisi/");
   const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/");
+  const isLegal = location === "/legal" || location.startsWith("/legal/");
   const isAdministrasi = location === "/administrasi" || location.startsWith("/administrasi/");
   const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
 
@@ -213,6 +223,7 @@ function DashboardSidebar() {
                   (item.path !== "/" && location.startsWith(item.path));
                 const isAkuisisiItem = item.path === "/akuisisi";
                 const isPerencanaanItem = item.path === "/perencanaan";
+                const isLegalItem = item.path === "/legal";
                 const isAdministrasiItem = item.path === "/administrasi";
                 const isProduksiItem = item.path === "/produksi";
 
@@ -221,7 +232,7 @@ function DashboardSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={isActive && !isAkuisisiItem && !isPerencanaanItem && !isAdministrasiItem && !isProduksiItem}
+                        isActive={isActive && !isAkuisisiItem && !isPerencanaanItem && !isLegalItem && !isAdministrasiItem && !isProduksiItem}
                         className="h-7"
                       >
                         <Link href={item.path}>
@@ -233,6 +244,7 @@ function DashboardSidebar() {
 
                     {isAkuisisiItem && isAkuisisi && renderSubNav(akuisisiSubNav, location)}
                     {isPerencanaanItem && isPerencanaan && renderSubNav(perencanaanSubNav, location)}
+                    {isLegalItem && isLegal && renderSubNav(legalSubNav, location)}
                     {isAdministrasiItem && isAdministrasi && renderSubNav(administrasiSubNav, location)}
                     {isProduksiItem && isProduksi && renderSubNav(produksiSubNav, location)}
                   </React.Fragment>

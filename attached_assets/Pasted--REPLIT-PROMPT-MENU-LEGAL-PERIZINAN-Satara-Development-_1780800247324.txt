@@ -1,0 +1,629 @@
+# REPLIT PROMPT — MENU LEGAL & PERIZINAN
+## Satara Development Internal Dashboard
+
+---
+
+## KONTEKS
+
+Dashboard internal Satara Development sudah berjalan dengan sidebar utama:
+Executive Overview, Daftar Proyek, Akuisisi Lahan, Perencanaan, **Legal & Perizinan**
+(← ini yang dibangun), Marketing, Administrasi KPR, Produksi, Serah Terima, Settings.
+
+**Tugas:** Bangun seluruh halaman dan sub-menu untuk menu **Legal & Perizinan**.
+
+Divisi ini adalah penjaga legalitas seluruh siklus proyek. Tidak ada unit yang bisa diakadkan
+tanpa SHM pecah. Tidak ada konstruksi yang bisa dimulai tanpa PBG. Tidak ada serah
+terima tanpa SLF. Fungsi inti divisi adalah memastikan setiap proyek memiliki legalitas
+yang lengkap di setiap tahapan: Lahan → Perizinan → Sertifikasi → Serah Terima.
+
+Pipeline legalitas proyek mengikuti alur berikut:
+**Lahan & KKPR → Lingkungan → Siteplan & PBG → Infrastruktur → Pembangunan → Sertifikasi → Serah Terima**
+
+---
+
+## STRUKTUR MENU LEGAL & PERIZINAN
+
+```
+Legal & Perizinan
+├── 1. Legal Dashboard (Command Center)
+├── 2. Permit Tracker
+│   ├── Daftar Izin per Proyek
+│   ├── Tambah / Edit Izin
+│   └── Detail Izin
+├── 3. Land Legal Tracker
+│   ├── Daftar Lahan per Tahap
+│   ├── Tambah / Edit Lahan
+│   └── Detail Lahan
+├── 4. SHM Split Tracker
+├── 5. Legal Issue Tracker
+└── 6. Legal Document Archive
+```
+
+---
+
+## SPESIFIKASI DETAIL SETIAP HALAMAN
+
+---
+
+### 1. LEGAL DASHBOARD (COMMAND CENTER)
+**Route:** `/legal`
+**Fungsi:** Halaman pertama yang dibuka. Dirancang untuk tiga level pengguna dengan
+tampilan yang berbeda namun bersumber dari data yang sama.
+
+#### Panel A — Legal Readiness per Proyek
+Tampilkan sebagai card grid, satu card per proyek:
+
+| Proyek | Legal Readiness | Warna |
+|--------|----------------|-------|
+| SN Residence 1 | [%] | Hijau (>80%) / Kuning (60-80%) / Merah (<60%) |
+| SN Residence 2 | [%] | |
+| SN Residence 3 | [%] | |
+| SN Residence 4 | [%] | |
+| Barru | [%] | |
+| Villa Sinoa | [%] | |
+
+Legal Readiness dihitung otomatis dari:
+```
+Legal Readiness (%) = rata-rata dari:
+  - Permit Readiness (%) dari Permit Tracker
+  - Land Readiness (%) dari Land Legal Tracker
+  - SHM Split Readiness (%) dari SHM Split Tracker
+```
+
+#### Panel B — Empat Angka Utama CEO
+Tampilkan sebagai 4 metric card besar di baris paling atas:
+
+| Metric | Kalkulasi |
+|--------|-----------|
+| Legal Readiness | Rata-rata legal readiness seluruh proyek aktif (%) |
+| Permit Readiness | Rata-rata kelengkapan izin seluruh proyek aktif (%) |
+| SHM Split Readiness | Total SHM sudah pecah ÷ total target pecah (%) |
+| Legal Risk Score | Dihitung dari Legal Issue Tracker (100 - (bobot isu aktif)) |
+
+#### Panel C — Permit Readiness Matrix
+Tabel ringkasan status izin utama per proyek:
+
+| Dokumen | SN1 | SN2 | SN3 | SN4 | Barru | Villa Sinoa |
+|---------|-----|-----|-----|-----|-------|------------|
+| KKPR | ✅/⬜ | | | | | |
+| SPPL/UKL-UPL/AMDAL | | | | | | |
+| Persetujuan Siteplan | | | | | | |
+| PBG | | | | | | |
+| SLF | | | | | | |
+| Sikumbang | | | | | | |
+| Andalalin | | | | | | |
+| SIPA | | | | | | |
+
+Klik sel → buka detail izin tersebut.
+
+#### Panel D — Land Readiness per Tahap (seluruh proyek)
+Tabel ringkasan progress legal lahan:
+
+| Proyek | Tahap | Status Tahap | Progress (%) | Bottleneck |
+|--------|-------|--------------|--------------|-----------|
+| SN3 | T1 | Selesai | 100% | - |
+| SN3 | T2 | Selesai | 100% | - |
+| SN3 | T3 | Siap Bangun | 90% | Pisah PBB |
+| SN3 | T4 | AJB | 75% | Pemecahan SHM |
+| SN3 | T5 | Negosiasi | 43% | AJB |
+| dst. | | | | |
+
+#### Panel E — SHM Split Summary
+Tabel per proyek:
+
+| Proyek | Tahap | Target Split | Realisasi | Sisa | Progress |
+|--------|-------|-------------|-----------|------|---------|
+| SN3 | T1 | 48 | 48 | 0 | 100% |
+| SN3 | T2 | 29 | 29 | 0 | 100% |
+| SN3 | T3 | 36 | 20 | 16 | 56% |
+| SN3 | T4 | 32 | 0 | 32 | 0% |
+| SN3 | T5 | 44 | 0 | 44 | 0% |
+| **Total** | | **189** | **97** | **92** | **51%** |
+
+#### Panel F — Legal Bottleneck Alerts
+Sistem otomatis menampilkan item yang terlambat dari target:
+
+```
+⚠ SN3 Tahap 5 — AJB belum selesai (terlambat X hari dari target)
+⚠ SN3 Tahap 4 — Pemecahan SHM tertinggal 32 bidang
+⚠ Barru — KKPR belum diajukan
+```
+
+Alert diurutkan berdasarkan tingkat urgensi (kritis → sedang → ringan).
+
+#### Panel G — Legal Risk Summary
+| Proyek | Risk Level | Jumlah Isu Aktif |
+|--------|-----------|-----------------|
+| SN3 | Low | [count] |
+| Barru | Medium | [count] |
+| Kasus Rumah Bernyanyi | High | [count] |
+
+---
+
+### 2. PERMIT TRACKER
+**Route:** `/legal/permit`
+
+**Fungsi:** Tracking kelengkapan seluruh dokumen perizinan per proyek.
+Izin bersifat per proyek/siteplan, bukan per unit atau per tahap.
+
+#### Daftar Izin per Proyek
+**Route:** `/legal/permit`
+
+Tampilan tab per proyek (SN1 / SN2 / SN3 / SN4 / Barru / Villa Sinoa).
+
+Untuk setiap proyek, tampilkan tabel checklist izin:
+
+**Izin yang ditracking (hardcode sebagai default, bisa dikonfigurasi di Settings):**
+
+Kelompok A — Perizinan Dasar:
+- KKPR (Kesesuaian Kegiatan Pemanfaatan Ruang) — via Dinas PUPR / OSS
+- Persetujuan Lingkungan: SPPL (skala kecil) / UKL-UPL (skala menengah) / AMDAL (skala besar) — via Dinas Lingkungan Hidup
+
+Kelompok B — Perizinan Bangunan:
+- Persetujuan Siteplan — via Dinas PUPR
+- PBG (Persetujuan Bangunan Gedung, pengganti IMB) — via aplikasi SIMBG
+- SLF (Sertifikat Laik Fungsi)
+- Sikumbang (register perumahan subsidi)
+
+Kelompok C — Izin Teknis Khusus:
+- Andalalin (Analisis Dampak Lalu Lintas) — via Dinas Perhubungan, untuk perumahan skala besar
+- SIPA (Surat Izin Pengambilan Air Tanah) — via Balai Wilayah Sungai (BWS)
+
+**Kolom tabel per izin:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Dokumen | Text | Nama izin |
+| Status | Select | Belum Diajukan / Dalam Proses / Selesai / Tidak Diperlukan |
+| Tanggal Pengajuan | Date | |
+| Target Selesai | Date | |
+| Tanggal Aktual Selesai | Date | |
+| Nomor Dokumen | Text | Nomor surat / registrasi resmi |
+| PIC | Select | Nama staf legal yang handle |
+| Instansi | Text | Nama instansi penerbit |
+| File Dokumen | Upload | PDF scan dokumen resmi |
+| Catatan | Textarea | |
+
+**Kalkulasi otomatis:**
+```
+Permit Readiness (%) = jumlah izin berstatus "Selesai"
+                       ÷ jumlah izin berstatus selain "Tidak Diperlukan"
+                       × 100%
+```
+
+Tampilkan progress bar Permit Readiness di header setiap tab proyek.
+
+#### Tambah / Edit Izin
+**Route:** `/legal/permit/new` dan `/legal/permit/:id/edit`
+
+Form mengikuti field tabel di atas, dengan tambahan:
+- Pilih Proyek (Select)
+- Pilih Kelompok Izin (Select: Perizinan Dasar / Perizinan Bangunan / Izin Teknis Khusus)
+
+#### Detail Izin
+**Route:** `/legal/permit/:id`
+
+Tampilan detail satu dokumen izin:
+- Header: nama izin, proyek, status badge, PIC
+- Timeline riwayat perubahan status
+- Preview / download file dokumen
+- Catatan dan tindak lanjut
+
+---
+
+### 3. LAND LEGAL TRACKER
+**Route:** `/legal/lahan`
+
+**Fungsi:** Tracking progress legal setiap bidang lahan per tahap pengembangan.
+Ini adalah modul yang paling sering dipakai staf legal setiap hari.
+
+#### Daftar Lahan per Tahap
+**Route:** `/legal/lahan`
+
+Tampilan hierarkis: Proyek → Tahap → Checklist item.
+
+Navigasi: pilih Proyek (tab atau dropdown), lalu pilih Tahap (sub-tab atau accordion).
+
+Untuk setiap tahap, tampilkan:
+- Nama pemilik lahan / identitas tahap (contoh: "Tahap 5 — Dg. Ari")
+- Progress bar: X% (dihitung otomatis dari checklist)
+- Status Tahap (Select):
+  - Belum Mulai
+  - Negosiasi
+  - AJB
+  - Balik Nama
+  - Pemecahan SHM
+  - Pisah PBB
+  - Siap Bangun
+  - Selesai
+- Tabel checklist item:
+
+**Checklist item standar per tahap (hardcode sebagai default, bisa dikonfigurasi di Settings):**
+
+| No | Item | Keterangan |
+|----|------|-----------|
+| 1 | Survey Legal | Verifikasi status hukum lahan |
+| 2 | Cek SHM | Verifikasi keaslian dan keabsahan sertifikat |
+| 3 | Negosiasi | Kesepakatan harga dan syarat jual beli |
+| 4 | AJB (Akta Jual Beli) | Penandatanganan di hadapan PPAT |
+| 5 | Balik Nama | Proses balik nama ke nama pengembang di BPN |
+| 6 | Pemecahan SHM | Pemecahan sertifikat induk menjadi per kavling |
+| 7 | Pisah PBB | Pemisahan objek PBB per kavling |
+
+**Kolom checklist per item:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Status | Checkbox / Select | Belum / Proses / Selesai |
+| Tanggal Pengajuan | Date | |
+| Target Selesai | Date | |
+| Tanggal Aktual Selesai | Date | |
+| PIC | Select | Nama staf legal |
+| Catatan | Textarea | |
+| File Dokumen | Upload | |
+
+**Kalkulasi otomatis:**
+```
+Land Readiness per Tahap (%) = jumlah item "Selesai" ÷ total item × 100%
+
+Land Readiness per Proyek (%) = rata-rata Land Readiness semua tahap aktif
+```
+
+**Status Tahap** dapat diperbarui manual oleh PIC atau diset otomatis mengikuti
+item checklist terakhir yang selesai.
+
+**Data aktual yang sudah ada (seed data awal):**
+
+SN Residence 3:
+- T1 (H. Ani): Survey Legal ✅, Cek SHM ✅, Negosiasi ✅, AJB ✅, Balik Nama ✅, Pemecahan SHM ✅, Pisah PBB ✅ → 100%
+- T2 (Pak Anas): Survey Legal ✅, Cek SHM ✅, AJB ✅, Balik Nama ✅, Pemecahan SHM ⬜, Pisah PBB ⬜ → 70%
+- T5 (Dg. Ari): Survey Legal ✅, Cek SHM ✅, Negosiasi ✅, AJB ⬜, Balik Nama ⬜, Pemecahan SHM ⬜, Pisah PBB ⬜ → 43%
+
+SN Residence 1:
+- Status sertifikat induk: 5 sertifikat hapus (Proses Penghapusan), 1 Pengoperan Hak (Penguasaan Fisik)
+
+SN Residence 4:
+- 1 sertifikat hapus (Proses Penghapusan), 1 Pengoperan Hak (Penguasaan Fisik)
+
+SN Hills Mangngarabe:
+- 2 sertifikat hapus (Proses Penghapusan), 3 Pengoperan Hak (Penguasaan Fisik)
+
+#### Tambah / Edit Lahan
+**Route:** `/legal/lahan/new` dan `/legal/lahan/:id/edit`
+
+Form fields:
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek | Select | SN1, SN2, SN3, SN4, Barru, Villa Sinoa, dll |
+| Kode Tahap | Text | T1, T2, T3, T4, T5, dst |
+| Nama / Identitas Tahap | Text | Contoh: "Dg. Ari", "H. Ani", "Pak Anas" |
+| Luas Lahan (m²) | Number | |
+| Jumlah Kavling Target | Number | |
+| Nomor Sertifikat Induk | Text | |
+| Catatan Khusus | Textarea | |
+
+#### Detail Lahan
+**Route:** `/legal/lahan/:id`
+
+Tampilan detail satu tahap:
+- Header: proyek, kode tahap, nama/identitas, luas lahan, progress bar
+- Checklist item lengkap dengan status, tanggal, PIC, dan file
+- Timeline riwayat perubahan status
+- Tab Dokumen: preview semua file yang diupload
+
+---
+
+### 4. SHM SPLIT TRACKER
+**Route:** `/legal/shm`
+
+**Fungsi:** Tracking khusus progress pemecahan SHM (sertifikat) per kavling.
+Modul ini sangat kritis karena SHM yang belum pecah = unit tidak bisa diakadkan.
+
+**Tampilan utama:**
+
+Tab per Proyek. Untuk setiap proyek tampilkan tabel per tahap:
+
+| Tahap | Target Split | Realisasi Split | Sisa | Progress | Status |
+|-------|-------------|-----------------|------|---------|--------|
+| T1 | 48 | 48 | 0 | 100% | Selesai |
+| T2 | 29 | 29 | 0 | 100% | Selesai |
+| T3 | 36 | 20 | 16 | 56% | Proses |
+| T4 | 32 | 0 | 32 | 0% | Menunggu AJB |
+| T5 | 44 | 0 | 44 | 0% | Negosiasi |
+| **Total** | **189** | **97** | **92** | **51%** | |
+
+**Form input / update per tahap:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek | Select | |
+| Tahap | Select | |
+| Target Split | Number | Total kavling yang harus dipecah |
+| Jumlah SHM Sudah Pecah | Number | Update saat ada pecahan baru |
+| Tanggal Update | Date | |
+| Catatan | Textarea | |
+| PIC | Select | |
+
+**Metric cards:**
+
+- Total Target Split (seluruh proyek)
+- Total Sudah Split
+- Total Sisa
+- Overall Progress (%)
+
+**Alert kritis:**
+
+Jika ada customer dengan status SP3K tapi SHM unit bersangkutan belum pecah,
+tampilkan warning merah: "Unit [blok] di [proyek] [tahap] belum memiliki SHM pecah.
+Akad tidak dapat dilaksanakan." Sinkron dengan data dari modul Administrasi KPR.
+
+---
+
+### 5. LEGAL ISSUE TRACKER
+**Route:** `/legal/issue`
+
+**Fungsi:** Tracking seluruh masalah hukum aktif lintas proyek.
+
+**Form input isu:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Judul Isu | Text | Contoh: "Sengketa Batas Tahap 5", "Kasus Rumah Bernyanyi" |
+| Proyek | Select | |
+| Objek Sengketa | Text | Contoh: "SHM No. 1234", "Kavling A.7" |
+| Kategori | Select | Sengketa Batas / Klaim Kepemilikan / Masalah SHM / Perizinan / Lainnya |
+| Tingkat Risiko | Select | Kritis (High) / Sedang (Medium) / Ringan (Low) |
+| Deskripsi | Textarea | |
+| Status | Select | Aktif / Mediasi / Sidang / Selesai / Ditutup |
+| PIC Legal | Select | |
+| Tanggal Mulai | Date | |
+| Target Resolusi | Date | |
+| Tanggal Selesai | Date | Diisi saat isu ditutup |
+| Dokumen Terkait | Upload | |
+
+**Tampilan daftar:**
+
+- Tabel: judul, proyek, objek, kategori, risiko, status, PIC, hari berjalan
+- Filter: proyek, kategori, tingkat risiko, status
+- Color coding: Merah = High, Kuning = Medium, Hijau = Low
+- Klik baris → buka detail isu
+
+**Kalkulasi Legal Risk Score (digunakan di Legal Dashboard):**
+```
+Legal Risk Score = 100 - (jumlah isu High × 15) - (jumlah isu Medium × 5) - (jumlah isu Low × 1)
+Minimum score = 0, maksimum = 100.
+```
+
+**Data aktual seed:**
+- Kasus: Rumah Bernyanyi — Objek: SHM — Status: Sidang — Risiko: High
+- Kasus: Sengketa Batas Tahap 5 — Objek: Tahap 5 — Status: Mediasi — Risiko: Medium
+
+---
+
+### 6. LEGAL DOCUMENT ARCHIVE
+**Route:** `/legal/arsip`
+
+**Fungsi:** Repositori terpusat semua dokumen legal yang sudah diupload dari modul-modul di atas,
+dilengkapi dengan fitur pencarian dan filter.
+
+**Tampilan:**
+
+- Search bar: cari berdasarkan nama dokumen, nomor dokumen, atau proyek
+- Filter: Proyek, Jenis Dokumen (Izin / Lahan / SHM / Lainnya), Status, Tahun
+- Tabel: nama dokumen, proyek, jenis, nomor, tanggal, PIC, tombol download
+
+Dokumen diambil otomatis dari semua file yang diupload di Permit Tracker, Land Legal Tracker,
+SHM Split Tracker, dan Legal Issue Tracker. Tidak ada input manual khusus di halaman ini.
+
+---
+
+## DATABASE SCHEMA (SUPABASE)
+
+```sql
+-- Dokumen perizinan per proyek
+permit_documents (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  permit_group text,          -- perizinan_dasar, perizinan_bangunan, izin_teknis
+  permit_name text,           -- nama izin: KKPR, PBG, SLF, dll
+  institution text,           -- instansi penerbit
+  status text,                -- belum_diajukan, dalam_proses, selesai, tidak_diperlukan
+  submission_date date,
+  target_date date,
+  actual_date date,
+  document_number text,       -- nomor surat / registrasi resmi
+  pic text,
+  file_url text,              -- URL file upload di Supabase Storage
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Riwayat perubahan status izin
+permit_status_history (
+  id uuid PRIMARY KEY,
+  permit_id uuid REFERENCES permit_documents(id),
+  from_status text,
+  to_status text,
+  changed_by text,
+  changed_at timestamptz,
+  notes text
+)
+
+-- Data lahan per tahap
+land_stages (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  stage_code text,            -- T1, T2, T3, dst
+  stage_identity text,        -- nama pemilik / identitas: "Dg. Ari", "H. Ani"
+  land_area numeric,          -- luas dalam m²
+  target_kavlings integer,    -- jumlah kavling target
+  certificate_number text,    -- nomor sertifikat induk
+  stage_status text,          -- belum_mulai, negosiasi, ajb, balik_nama, pemecahan_shm, pisah_pbb, siap_bangun, selesai
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Checklist item legal per tahap lahan
+land_legal_checklist (
+  id uuid PRIMARY KEY,
+  land_stage_id uuid REFERENCES land_stages(id),
+  item_name text,             -- Survey Legal, Cek SHM, Negosiasi, AJB, Balik Nama, Pemecahan SHM, Pisah PBB
+  item_order integer,         -- urutan tampil
+  status text,                -- belum, proses, selesai
+  submission_date date,
+  target_date date,
+  actual_date date,
+  pic text,
+  file_url text,
+  notes text,
+  updated_at timestamptz
+)
+
+-- SHM Split Tracker
+shm_split_records (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  land_stage_id uuid REFERENCES land_stages(id),
+  target_split integer,       -- total kavling yang harus dipecah
+  realized_split integer,     -- jumlah SHM yang sudah pecah
+  last_updated date,
+  pic text,
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Legal Issue Tracker
+legal_issues (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  title text,
+  object_description text,    -- objek sengketa
+  category text,              -- sengketa_batas, klaim_kepemilikan, masalah_shm, perizinan, lainnya
+  risk_level text,            -- high, medium, low
+  description text,
+  status text,                -- aktif, mediasi, sidang, selesai, ditutup
+  pic text,
+  start_date date,
+  target_resolution date,
+  completed_date date,
+  document_urls text[],
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Riwayat perubahan status isu
+legal_issue_history (
+  id uuid PRIMARY KEY,
+  issue_id uuid REFERENCES legal_issues(id),
+  from_status text,
+  to_status text,
+  changed_by text,
+  changed_at timestamptz,
+  notes text
+)
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+1. **Hierarki tiga level pengguna:** Dashboard Legal menampilkan tiga tampilan berbeda
+   yang bisa diakses via toggle:
+   - Staff Legal: detail checklist per tahap per item (untuk update harian)
+   - Head Legal: ringkasan progress per tahap dengan bottleneck highlights
+   - CEO: empat metric utama + matrix ringkasan + alert bottleneck
+
+2. **Quick update checklist:** Staf legal bisa mengubah status item checklist langsung
+   dari tampilan daftar tanpa membuka halaman detail. Setiap perubahan tercatat otomatis
+   dengan timestamp dan nama pengguna.
+
+3. **Progress bar visual:** Setiap tahap lahan dan setiap proyek menampilkan progress bar
+   dengan persentase yang dihitung otomatis dari data checklist.
+
+4. **Color coding status:**
+   - Hijau: Selesai / Legal Readiness >80%
+   - Kuning: Proses / Legal Readiness 60-80%
+   - Merah: Belum Mulai / Legal Readiness <60% / Isu High Risk
+   - Abu-abu: Tidak Diperlukan
+
+5. **Alert SHM ke Administrasi KPR:** Jika SHM unit belum pecah dan customer sudah
+   mencapai status SP3K, tampilkan warning di Legal Dashboard dan di halaman detail
+   customer di modul Administrasi KPR.
+
+6. **Mobile-friendly:** Halaman update checklist Land Legal Tracker harus bisa diakses
+   dari HP oleh staf legal yang sedang di lapangan atau di kantor BPN.
+
+7. **Upload dokumen:** Setiap item checklist mendukung upload file (PDF/JPG/PNG,
+   maksimum 10MB per file). File disimpan di Supabase Storage dengan penamaan terstruktur:
+   `[project_code]/[module]/[stage_code]/[item_name]_[timestamp].[ext]`
+
+8. **Search global:** Di Legal Document Archive, sediakan search bar yang bisa
+   mencari berdasarkan nama dokumen, nomor dokumen, proyek, dan PIC.
+
+9. **Export:** Halaman Permit Tracker dan Land Legal Tracker bisa di-export ke Excel
+   dalam format ringkasan status per proyek.
+
+10. **Number format:** Semua tanggal: `15 Januari 2026`. Semua persentase: `82,0%`.
+    Luas lahan: `1.250 m²`.
+
+11. **Status badge warna standar:**
+    - Abu-abu: Belum Diajukan / Belum Mulai
+    - Biru: Dalam Proses / Negosiasi
+    - Kuning: Menunggu Persetujuan / AJB / Balik Nama
+    - Oranye: Pemecahan SHM / Pisah PBB
+    - Hijau: Selesai / Siap Bangun
+    - Merah: Terlambat / High Risk / Ditolak
+
+---
+
+## DATA AKTUAL UNTUK SEED AWAL
+
+Data berikut harus diinput sebagai seed data saat sistem pertama kali dijalankan:
+
+**SHM Split — SN Residence 3:**
+| Tahap | Target | Realisasi |
+|-------|--------|-----------|
+| T1 | 48 | 48 |
+| T2 | 29 | 29 |
+| T3 | 36 | 20 |
+| T4 | 32 | 0 |
+| T5 | 44 | 0 |
+| Total | 189 | 97 |
+
+**Status Sertifikat Induk:**
+
+| Proyek | Keterangan Proses | Status Terkini |
+|--------|------------------|----------------|
+| SN Residence 1 | 5 Sertifikat Hapus | Proses Penghapusan |
+| SN Residence 1 | 1 Pengoperan Hak | Penguasaan Fisik |
+| SN Residence 3 | 2 Sertifikat Hapus | Proses Penghapusan |
+| SN Residence 3 | 1 Pemisahan, 1 Pelepasan | Proses Pemisahan & Pelepasan |
+| SN Residence 4 | 1 Sertifikat Hapus | Proses Penghapusan |
+| SN Residence 4 | 1 Pengoperan Hak | Penguasaan Fisik |
+| SN Hills Mangngarabe | 2 Sertifikat Hapus | Proses Penghapusan |
+| SN Hills Mangngarabe | 3 Pengoperan Hak | Penguasaan Fisik |
+
+**Legal Issues Aktif:**
+| Kasus | Objek | Status | Risiko |
+|-------|-------|--------|--------|
+| Rumah Bernyanyi | SHM | Sidang | High |
+| Sengketa Batas Tahap 5 | Tahap 5 | Mediasi | Medium |
+
+---
+
+## URUTAN PENGERJAAN
+
+1. Setup routing dan struktur folder semua halaman Legal & Perizinan
+2. Buat semua tabel database di Supabase beserta seed data awal
+3. Land Legal Tracker: halaman daftar + checklist per tahap (modul paling sering dipakai staf)
+4. Permit Tracker: halaman daftar + form input per proyek
+5. SHM Split Tracker: tabel input + kalkulasi otomatis
+6. Legal Issue Tracker: form + daftar isu
+7. Legal Dashboard: kalkulasi semua metric dari modul 3-6 + alert bottleneck
+8. Legal Document Archive: agregasi semua file dari seluruh modul
+9. Integrasi dengan modul Administrasi KPR: alert SHM belum pecah untuk customer SP3K
+10. Export Excel untuk Permit Tracker dan Land Legal Tracker
