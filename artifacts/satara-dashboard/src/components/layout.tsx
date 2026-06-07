@@ -35,8 +35,6 @@ import {
   Calendar,
   DollarSign,
   TrendingUp,
-  Map,
-  Compass,
   CheckSquare,
   Activity,
   Shield,
@@ -67,14 +65,17 @@ const navItems = [
   { name: "Administrasi KPR", path: "/administrasi", icon: Users },
   { name: "Produksi", path: "/produksi", icon: HardHat },
   { name: "Serah Terima", path: "/serah-terima", icon: Key },
-  { name: "Potensi Ekspansi", path: "/ekspansi", icon: Compass },
-  { name: "SLIS — Riset Wilayah", path: "/slis", icon: Map },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
 type SubNavItem =
   | { type: "link"; name: string; path: string }
   | { type: "group"; label: string };
+
+const akuisisiSubNav: SubNavItem[] = [
+  { type: "link", name: "Pipeline Prospek", path: "/akuisisi" },
+  { type: "link", name: "Potensi Ekspansi", path: "/ekspansi" },
+];
 
 const perencanaanSubNav: SubNavItem[] = [
   { type: "link", name: "Command Center", path: "/perencanaan" },
@@ -167,6 +168,7 @@ function renderSubNav(items: SubNavItem[], location: string) {
 
 function DashboardSidebar() {
   const [location] = useLocation();
+  const isAkuisisi = location === "/akuisisi" || location === "/ekspansi" || location.startsWith("/akuisisi/");
   const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/");
   const isAdministrasi = location === "/administrasi" || location.startsWith("/administrasi/");
   const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
@@ -209,6 +211,7 @@ function DashboardSidebar() {
                 const isActive =
                   location === item.path ||
                   (item.path !== "/" && location.startsWith(item.path));
+                const isAkuisisiItem = item.path === "/akuisisi";
                 const isPerencanaanItem = item.path === "/perencanaan";
                 const isAdministrasiItem = item.path === "/administrasi";
                 const isProduksiItem = item.path === "/produksi";
@@ -218,7 +221,7 @@ function DashboardSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={isActive && !isPerencanaanItem && !isAdministrasiItem && !isProduksiItem}
+                        isActive={isActive && !isAkuisisiItem && !isPerencanaanItem && !isAdministrasiItem && !isProduksiItem}
                         className="h-7"
                       >
                         <Link href={item.path}>
@@ -228,6 +231,7 @@ function DashboardSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
 
+                    {isAkuisisiItem && isAkuisisi && renderSubNav(akuisisiSubNav, location)}
                     {isPerencanaanItem && isPerencanaan && renderSubNav(perencanaanSubNav, location)}
                     {isAdministrasiItem && isAdministrasi && renderSubNav(administrasiSubNav, location)}
                     {isProduksiItem && isProduksi && renderSubNav(produksiSubNav, location)}
