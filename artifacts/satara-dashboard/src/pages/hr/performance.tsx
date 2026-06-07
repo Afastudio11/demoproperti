@@ -7,10 +7,10 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "
 const now = new Date();
 
 function getCategory(score: number) {
-  if (score >= 90) return { label: "Excellent", color: "bg-emerald-100 text-emerald-700" };
-  if (score >= 75) return { label: "Good", color: "bg-amber-100 text-amber-700" };
-  if (score >= 60) return { label: "Needs Improvement", color: "bg-orange-100 text-orange-700" };
-  return { label: "Poor", color: "bg-red-100 text-red-700" };
+  if (score >= 90) return { label: "Sangat Baik", color: "bg-emerald-100 text-emerald-700" };
+  if (score >= 75) return { label: "Baik", color: "bg-amber-100 text-amber-700" };
+  if (score >= 60) return { label: "Perlu Perbaikan", color: "bg-orange-100 text-orange-700" };
+  return { label: "Kurang", color: "bg-red-100 text-red-700" };
 }
 
 export default function Performance() {
@@ -49,7 +49,7 @@ export default function Performance() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Performance Dashboard</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Dashboard Performa</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Kinerja individual karyawan berdasarkan KPI Achievement</p>
       </div>
 
@@ -66,19 +66,19 @@ export default function Performance() {
         </select>
         <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="">Semua Kategori</option>
-          {["Excellent", "Good", "Needs Improvement", "Poor"].map(c => <option key={c} value={c}>{c}</option>)}
+          {["Sangat Baik", "Baik", "Perlu Perbaikan", "Kurang"].map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
 
       {/* Ranking Chart */}
       <div className="bg-card border rounded-xl p-4">
-        <h3 className="font-medium text-sm mb-4">Ranking Performance Score</h3>
+        <h3 className="font-medium text-sm mb-4">Peringkat Skor Performa</h3>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={filtered.slice(0, 15)} layout="vertical" margin={{ left: 80, right: 20 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
             <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
             <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
-            <Tooltip formatter={(v: any) => [`${v}/100`, "Score"]} />
+            <Tooltip formatter={(v: any) => [`${v}/100`, "Skor"]} />
             <Bar dataKey="performanceScore" fill="#6366f1" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -94,10 +94,10 @@ export default function Performance() {
                 <th className="text-left px-4 py-3 font-medium">Nama</th>
                 <th className="text-left px-3 py-3 font-medium">Divisi</th>
                 <th className="text-left px-3 py-3 font-medium">Jabatan</th>
-                <th className="text-center px-3 py-3 font-medium">KPI Achievement</th>
-                <th className="text-center px-3 py-3 font-medium">Performance Score</th>
+                <th className="text-center px-3 py-3 font-medium">Pencapaian KPI</th>
+                <th className="text-center px-3 py-3 font-medium">Skor Performa</th>
                 <th className="text-center px-3 py-3 font-medium">Kategori</th>
-                <th className="text-center px-3 py-3 font-medium">Data KPI</th>
+                <th className="text-center px-3 py-3 font-medium">Jumlah KPI</th>
               </tr>
             </thead>
             <tbody>

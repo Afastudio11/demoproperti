@@ -6,7 +6,7 @@ export default function Settings() {
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-          Settings
+          Pengaturan
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Kelola pengaturan aplikasi dan role pengguna
@@ -17,7 +17,7 @@ export default function Settings() {
         {[
           {
             icon: Users,
-            title: "User Management",
+            title: "Manajemen Pengguna",
             desc: "Tambah pengguna, assign role, dan kelola hak akses dari panel ini.",
             action: "Tambah User",
           },

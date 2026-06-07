@@ -34,10 +34,13 @@ export default function MarketingHealthPage() {
   const branding = dashboard?.brandingScore ?? 0;
   const healthScore = dashboard?.healthScore ?? 0;
 
+  const hasMarketingData = !!dashboard;
   const compScores = {
     branding: Math.min(100, Math.round(branding)),
     leads: Math.min(100, Math.round(leads / 20 * 100)),
-    cpl: Math.max(0, Math.round(100 - cpl / 250)),
+    cpl: hasMarketingData && (dashboard?.totalCampaigns ?? 0) > 0
+      ? Math.max(0, Math.round(100 - cpl / 250))
+      : 0,
     survey: Math.round(dashboard?.surveyCount ? Math.min(dashboard.surveyCount / Math.max(leads, 1) * 100 * 5, 100) : 0),
     booking: Math.round(dashboard?.bookingCount ? Math.min(dashboard.bookingCount / Math.max(leads, 1) * 100 * 5, 100) : 0),
     berkas: Math.round(dashboard?.berkasCount ? Math.min(dashboard.berkasCount / Math.max(dashboard?.bookingCount ?? 1, 1) * 100, 100) : 0),
@@ -55,7 +58,7 @@ export default function MarketingHealthPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-lg font-semibold">Marketing Health Score</h1>
+        <h1 className="text-lg font-semibold">Skor Kesehatan Marketing</h1>
         <p className="text-xs text-muted-foreground">Kesehatan keseluruhan aktivitas marketing berdasarkan 6 komponen berbobot</p>
       </div>
 
@@ -97,7 +100,7 @@ export default function MarketingHealthPage() {
         </Card>
       </div>
 
-      {healthScore < 60 && (
+      {hasMarketingData && healthScore < 60 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex items-start gap-2">
           <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs">

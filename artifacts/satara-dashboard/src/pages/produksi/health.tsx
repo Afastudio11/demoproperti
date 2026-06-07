@@ -44,12 +44,13 @@ export default function ProduksiHealth() {
     ? data!.subkonSnapshot.reduce((sum, s) => sum + s.velocity, 0) / data!.subkonSnapshot.length
     : 0;
 
+  const hasData = !!s;
   const dims = [
     { name: "Progress Konstruksi", score: Math.round(s?.avgProgress ?? 0), bobot: "25%", desc: "Rata-rata progress semua unit", target: 100 },
-    { name: "QC Score", score: 75, bobot: "20%", desc: "Rata-rata skor QC checklist", target: 90 },
+    { name: "Skor QC", score: hasData ? 75 : 0, bobot: "20%", desc: "Rata-rata skor QC checklist", target: 90 },
     { name: "Fasum", score: Math.round(s?.fasumAvg ?? 0), bobot: "10%", desc: "Progress fasilitas umum", target: 100 },
-    { name: "Termin Lancar", score: (s?.pendingTotal ?? 0) > 0 ? 70 : 95, bobot: "10%", desc: "Kelancaran pembayaran subkon", target: 95 },
-    { name: "Material Siap", score: 80, bobot: "20%", desc: "Kesiapan material logistik", target: 90 },
+    { name: "Termin Lancar", score: hasData ? ((s?.pendingTotal ?? 0) > 0 ? 70 : 95) : 0, bobot: "10%", desc: "Kelancaran pembayaran subkon", target: 95 },
+    { name: "Material Siap", score: hasData ? 80 : 0, bobot: "20%", desc: "Kesiapan material logistik", target: 90 },
     { name: "Subkon Performa", score: Math.min(100, Math.round(avgVelocity * 5)), bobot: "15%", desc: "Kinerja subkontraktor", target: 85 },
   ];
 
@@ -58,7 +59,7 @@ export default function ProduksiHealth() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-lg font-bold">Construction Health Score</h1>
+        <h1 className="text-lg font-bold">Skor Kesehatan Konstruksi</h1>
         <p className="text-sm text-muted-foreground">Skor komprehensif kesehatan konstruksi dari 6 dimensi</p>
       </div>
 
@@ -67,7 +68,7 @@ export default function ProduksiHealth() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <Card>
-            <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm">Overall Health Score</CardTitle></CardHeader>
+            <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm">Skor Kesehatan Keseluruhan</CardTitle></CardHeader>
             <CardContent>
               <ScoreRing score={s?.healthScore ?? 0} />
               <div className="text-center text-xs text-muted-foreground mt-2">
@@ -77,7 +78,7 @@ export default function ProduksiHealth() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm">Radar Dimensi</CardTitle></CardHeader>
+            <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm">Peta Radar Dimensi</CardTitle></CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={220}>
                 <RadarChart data={radarData}>

@@ -54,7 +54,7 @@ export default function Organisasi() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Organization & Headcount</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Organisasi & Headcount</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Struktur dan komposisi SDM Satara Development</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">

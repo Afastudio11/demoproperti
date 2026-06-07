@@ -14,7 +14,6 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard,
@@ -75,28 +74,29 @@ type SubNavItem =
   | { type: "group"; label: string };
 
 const hrSubNav: SubNavItem[] = [
-  { type: "link", name: "HC Dashboard", path: "/hr" },
+  { type: "link", name: "Dashboard SDM", path: "/hr" },
   { type: "group", label: "Organisasi" },
   { type: "link", name: "Data Karyawan", path: "/hr/organisasi" },
   { type: "link", name: "Rekrutmen", path: "/hr/rekrutmen" },
-  { type: "group", label: "KPI & Performance" },
+  { type: "group", label: "KPI & Performa" },
   { type: "link", name: "Definisi KPI", path: "/hr/kpi/definisi" },
   { type: "link", name: "Input Realisasi", path: "/hr/kpi/input" },
-  { type: "link", name: "Performance", path: "/hr/performance" },
+  { type: "link", name: "Performa Karyawan", path: "/hr/performance" },
   { type: "group", label: "Pengembangan" },
   { type: "link", name: "Kompetensi", path: "/hr/kompetensi" },
-  { type: "link", name: "Training", path: "/hr/training" },
-  { type: "link", name: "Career Path", path: "/hr/karir" },
+  { type: "link", name: "Pelatihan", path: "/hr/training" },
+  { type: "link", name: "Jalur Karir", path: "/hr/karir" },
   { type: "link", name: "Kompensasi", path: "/hr/kompensasi" },
-  { type: "group", label: "Analitik" },
+  { type: "group", label: "Analitik SDM" },
   { type: "link", name: "Produktivitas", path: "/hr/produktivitas" },
-  { type: "link", name: "Kultur", path: "/hr/kultur" },
-  { type: "link", name: "Workload", path: "/hr/workload" },
-  { type: "link", name: "Succession", path: "/hr/suksesi" },
-  { type: "link", name: "Ekspansi SDM", path: "/hr/ekspansi" },
-  { type: "link", name: "Talent Map", path: "/hr/talent-map" },
-  { type: "link", name: "Flight Risk", path: "/hr/flight-risk" },
-  { type: "link", name: "HC Score", path: "/hr/hc-score" },
+  { type: "link", name: "Budaya Kerja", path: "/hr/kultur" },
+  { type: "link", name: "Beban Kerja", path: "/hr/workload" },
+  { type: "group", label: "Talent Management" },
+  { type: "link", name: "Suksesi", path: "/hr/suksesi" },
+  { type: "link", name: "Kebutuhan Ekspansi", path: "/hr/ekspansi" },
+  { type: "link", name: "Peta Talent", path: "/hr/talent-map" },
+  { type: "link", name: "Risiko Resign", path: "/hr/flight-risk" },
+  { type: "link", name: "Skor SDM", path: "/hr/hc-score" },
 ];
 
 const akuisisiSubNav: SubNavItem[] = [
@@ -110,6 +110,7 @@ const perencanaanSubNav: SubNavItem[] = [
   { type: "link", name: "Analisis Pasar", path: "/perencanaan/pasar" },
   { type: "link", name: "Analisis Lahan", path: "/perencanaan/lahan" },
   { type: "link", name: "Land Bank", path: "/perencanaan/landbank" },
+  { type: "link", name: "Skor Lokasi (SLIS)", path: "/slis" },
   { type: "group", label: "Produk & Kelayakan" },
   { type: "link", name: "Produk", path: "/perencanaan/produk" },
   { type: "link", name: "Feasibility", path: "/perencanaan/feasibility" },
@@ -139,34 +140,33 @@ const administrasiSubNav: SubNavItem[] = [
   { type: "link", name: "Target & Realisasi", path: "/administrasi/target" },
   { type: "link", name: "Komplain", path: "/administrasi/komplain" },
   { type: "group", label: "Dokumen & Import" },
-  { type: "link", name: "Checklist Dokumen", path: "/administrasi/customer" },
   { type: "link", name: "Import Data Excel", path: "/administrasi/import" },
 ];
 
 const legalSubNav: SubNavItem[] = [
-  { type: "link", name: "Legal Dashboard", path: "/legal" },
-  { type: "link", name: "Permit Tracker", path: "/legal/permit" },
-  { type: "link", name: "Land Legal Tracker", path: "/legal/lahan" },
-  { type: "link", name: "SHM Split Tracker", path: "/legal/shm" },
-  { type: "link", name: "Legal Issue Tracker", path: "/legal/issue" },
+  { type: "link", name: "Dashboard Legal", path: "/legal" },
+  { type: "link", name: "Perizinan", path: "/legal/permit" },
+  { type: "link", name: "Legalitas Lahan", path: "/legal/lahan" },
+  { type: "link", name: "Pemecahan SHM", path: "/legal/shm" },
+  { type: "link", name: "Isu Legal", path: "/legal/issue" },
   { type: "link", name: "Arsip Dokumen", path: "/legal/arsip" },
 ];
 
 const marketingSubNav: SubNavItem[] = [
   { type: "link", name: "Command Center", path: "/marketing" },
-  { type: "group", label: "Lead Management" },
+  { type: "group", label: "Manajemen Lead" },
   { type: "link", name: "Daftar Lead", path: "/marketing/lead" },
   { type: "group", label: "Marketing" },
   { type: "link", name: "Branding & Konten", path: "/marketing/branding" },
   { type: "link", name: "Campaign Digital", path: "/marketing/campaign" },
-  { type: "link", name: "Sales Performance", path: "/marketing/sales" },
+  { type: "link", name: "Performa Sales", path: "/marketing/sales" },
   { type: "group", label: "Analitik" },
   { type: "link", name: "Absorpsi Proyek", path: "/marketing/absorption" },
   { type: "link", name: "Stok & Coverage", path: "/marketing/stock" },
   { type: "link", name: "Demand Forecast", path: "/marketing/forecast" },
   { type: "link", name: "Demand Score", path: "/marketing/demand-score" },
   { type: "link", name: "Kompetitor", path: "/marketing/kompetitor" },
-  { type: "link", name: "Health Score", path: "/marketing/health" },
+  { type: "link", name: "Skor Kesehatan", path: "/marketing/health" },
 ];
 
 const produksiSubNav: SubNavItem[] = [
@@ -193,9 +193,9 @@ const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "QC Checklist", path: "/produksi/qc/checklist" },
   { type: "link", name: "Defect & Garansi", path: "/produksi/qc/defect" },
   { type: "link", name: "Rework", path: "/produksi/qc/rework" },
-  { type: "group", label: "Milestone & Analitik" },
+  { type: "group", label: "Milestone" },
   { type: "link", name: "Ready Akad", path: "/produksi/ready-akad" },
-  { type: "link", name: "Health Score", path: "/produksi/health" },
+  { type: "link", name: "Skor Kesehatan", path: "/produksi/health" },
   { type: "group", label: "Analitik" },
   { type: "link", name: "Velocity", path: "/produksi/analitik/velocity" },
   { type: "link", name: "Baseline", path: "/produksi/analitik/baseline" },
@@ -240,9 +240,9 @@ function renderSubNav(items: SubNavItem[], location: string) {
 }
 
 function DashboardSidebar() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const isAkuisisi = location === "/akuisisi" || location === "/ekspansi" || location.startsWith("/akuisisi/");
-  const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/");
+  const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/") || location === "/slis";
   const isLegal = location === "/legal" || location.startsWith("/legal/");
   const isAdministrasi = location === "/administrasi" || location.startsWith("/administrasi/");
   const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
@@ -255,7 +255,7 @@ function DashboardSidebar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2.5 w-full hover:bg-sidebar-accent rounded-md p-1 -m-1 transition-colors shrink-0">
-              <img src="/satara-logo.png" alt="Satara" className="size-10 object-contain shrink-0" />
+              <div className="size-10 rounded-lg bg-foreground text-background flex items-center justify-center text-sm font-bold tracking-tight shrink-0">SD</div>
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
                 <span className="text-sm font-medium">Satara Dev.</span>
                 <ChevronsUpDown className="size-3 text-muted-foreground" />
@@ -263,16 +263,21 @@ function DashboardSidebar() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/settings")}>
               <Settings className="size-4" />
-              <span>Settings</span>
+              <span>Pengaturan</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/settings")}>
               <Users className="size-4" />
               <span>Kelola Pengguna</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => {
+                if (confirm("Keluar dari dashboard?")) window.location.href = "/";
+              }}
+            >
               <span>Keluar</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -284,9 +289,6 @@ function DashboardSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                const isActive =
-                  location === item.path ||
-                  (item.path !== "/" && location.startsWith(item.path));
                 const isAkuisisiItem = item.path === "/akuisisi";
                 const isPerencanaanItem = item.path === "/perencanaan";
                 const isLegalItem = item.path === "/legal";
@@ -294,13 +296,23 @@ function DashboardSidebar() {
                 const isProduksiItem = item.path === "/produksi";
                 const isMarketingItem = item.path === "/marketing";
                 const isHRItem = item.path === "/hr";
+                const isActive =
+                  location === item.path ||
+                  (item.path !== "/" && location.startsWith(item.path)) ||
+                  (isAkuisisiItem && isAkuisisi) ||
+                  (isPerencanaanItem && isPerencanaan) ||
+                  (isLegalItem && isLegal) ||
+                  (isAdministrasiItem && isAdministrasi) ||
+                  (isProduksiItem && isProduksi) ||
+                  (isMarketingItem && isMarketing) ||
+                  (isHRItem && isHR);
 
                 return (
                   <React.Fragment key={item.path}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={isActive && !isAkuisisiItem && !isPerencanaanItem && !isLegalItem && !isAdministrasiItem && !isProduksiItem && !isMarketingItem && !isHRItem}
+                        isActive={isActive}
                         className="h-7"
                       >
                         <Link href={item.path}>
@@ -338,14 +350,8 @@ function DashboardSidebar() {
 }
 
 function MainContent({ children }: { children: React.ReactNode }) {
-  const { open } = useSidebar();
   return (
-    <main
-      className={cn(
-        "flex-1 overflow-auto transition-all duration-200",
-        open ? "lg:ml-0" : "lg:ml-0"
-      )}
-    >
+    <main className="flex-1 overflow-auto transition-all duration-200">
       <div className="p-4 sm:p-5 lg:p-6 max-w-screen-2xl mx-auto">
         {children}
       </div>

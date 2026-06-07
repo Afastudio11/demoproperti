@@ -19,7 +19,6 @@ import {
   Search,
   Target,
   BarChart3,
-  BrainCircuit,
 } from "lucide-react";
 import {
   AreaChart,
@@ -33,7 +32,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { KABUPATEN_DATA, getGradeLabel, getGradeBg, getGradeColor } from "@/data/slis-scoring";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 const LEVEL_COLOR: Record<string, string> = {
   red: "bg-red-500",
@@ -104,6 +103,7 @@ function CustomTooltip({ active, payload, label }: {
 const TOP_KAB = [...KABUPATEN_DATA].sort((a, b) => b.score - a.score).slice(0, 8);
 
 export default function Dashboard() {
+  const [, navigate] = useLocation();
   const { data: summary } = useGetDashboardSummary();
   const { data: alerts } = useGetDashboardAlerts();
   const { data: cashflow } = useGetDashboardCashflow();
@@ -132,11 +132,11 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground mt-0.5">Ringkasan operasional Satara Development</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="h-9 gap-1.5 bg-card hover:bg-card/80 border-border/50">
+          <Button variant="outline" className="h-9 gap-1.5 bg-card hover:bg-card/80 border-border/50" onClick={() => navigate("/projects")}>
             <FilePlus className="size-4" />
             <span className="hidden sm:inline">Proyek Baru</span>
           </Button>
-          <Button className="h-9 gap-1.5 bg-foreground hover:bg-foreground/90 text-background border border-border/50">
+          <Button className="h-9 gap-1.5 bg-foreground hover:bg-foreground/90 text-background border border-border/50" onClick={() => navigate("/marketing/lead/new")}>
             <UserPlus className="size-4" />
             <span className="hidden sm:inline">Tambah Lead</span>
           </Button>
@@ -144,10 +144,10 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Proyek" value={summary?.totalProjects ?? "-"} icon={Building} trend="up" change={5} />
-        <StatCard title="Total Leads" value={summary?.totalLeads ?? "-"} icon={Users} trend="up" change={12} />
+        <StatCard title="Total Proyek" value={summary?.totalProjects ?? "-"} icon={Building} />
+        <StatCard title="Total Leads" value={summary?.totalLeads ?? "-"} icon={Users} />
         <StatCard title="Overall Progress" value={summary?.overallProgress ? `${Math.round(summary.overallProgress)}%` : "-"} icon={Activity} sub="Konstruksi" />
-        <StatCard title="Projects at Risk" value={summary?.projectsAtRisk ?? 0} icon={AlertCircle} trend="down" change={2} />
+        <StatCard title="Projects at Risk" value={summary?.projectsAtRisk ?? 0} icon={AlertCircle} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -225,7 +225,7 @@ export default function Dashboard() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <BrainCircuit className="size-5 text-foreground" />
+            <Activity className="size-5 text-foreground" />
             <h2 className="text-base font-semibold">CEO Land Intelligence — Modul 7</h2>
           </div>
           <Link href="/slis">

@@ -52,8 +52,8 @@ export default function SerahTerima() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: "Total Handover", value: total, color: "text-foreground", icon: Key },
-          { label: "BAST Generated", value: bast, color: "text-emerald-600", icon: CheckCircle2 },
-          { label: "Avg. Kepuasan", value: `${avgScore}/5`, color: "text-amber-600", icon: Star },
+          { label: "BAST Terbit", value: bast, color: "text-emerald-600", icon: CheckCircle2 },
+          { label: "Rata-rata Kepuasan", value: avgScore !== "-" ? `${avgScore}/5` : "–", color: "text-amber-600", icon: Star },
         ].map(({ label, value, color, icon: Icon }) => (
           <div key={label} className="bg-card text-card-foreground rounded-xl border p-4">
             <div className="flex items-center justify-between mb-3">
@@ -72,7 +72,7 @@ export default function SerahTerima() {
       <div className="bg-card text-card-foreground rounded-xl border overflow-hidden">
         <div className="flex items-center gap-2 p-4 border-b border-border/50">
           <Key className="size-4 text-muted-foreground" />
-          <h3 className="font-medium text-sm">Handover List</h3>
+          <h3 className="font-medium text-sm">Daftar Serah Terima</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
