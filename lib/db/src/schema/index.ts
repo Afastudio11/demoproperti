@@ -46,3 +46,4 @@ export * from "./campaigns";
 export * from "./branding-kpi";
 export * from "./competitors";
 export * from "./marketing-absorption";
+export * from "./hr";

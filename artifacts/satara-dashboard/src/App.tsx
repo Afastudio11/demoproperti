@@ -89,6 +89,24 @@ import AnalitikProduktivitas from "@/pages/produksi/analitik/produktivitas";
 import AnalitikEligibilitas from "@/pages/produksi/analitik/eligibilitas";
 import AnalitikForecast from "@/pages/produksi/analitik/forecast";
 import ProduksiHealth from "@/pages/produksi/health";
+import HRDashboard from "@/pages/hr/index";
+import HROrganisasi from "@/pages/hr/organisasi";
+import HRRekrutmen from "@/pages/hr/rekrutmen";
+import HRKpiDefinisi from "@/pages/hr/kpi/definisi";
+import HRKpiInput from "@/pages/hr/kpi/input";
+import HRPerformance from "@/pages/hr/performance";
+import HRKompetensi from "@/pages/hr/kompetensi";
+import HRTraining from "@/pages/hr/training";
+import HRKarir from "@/pages/hr/karir";
+import HRKompensasi from "@/pages/hr/kompensasi";
+import HRProduktivitas from "@/pages/hr/produktivitas";
+import HRSuksesi from "@/pages/hr/suksesi";
+import HRKultur from "@/pages/hr/kultur";
+import HRWorkload from "@/pages/hr/workload";
+import HREkspansi from "@/pages/hr/ekspansi";
+import HRTalentMap from "@/pages/hr/talent-map";
+import HRFlightRisk from "@/pages/hr/flight-risk";
+import HRHcScore from "@/pages/hr/hc-score";
 
 const queryClient = new QueryClient();
 
@@ -181,6 +199,24 @@ function Router() {
         <Route path="/settings" component={Settings} />
         <Route path="/ekspansi" component={Ekspansi} />
         <Route path="/slis" component={SLIS} />
+        <Route path="/hr" component={HRDashboard} />
+        <Route path="/hr/organisasi" component={HROrganisasi} />
+        <Route path="/hr/rekrutmen" component={HRRekrutmen} />
+        <Route path="/hr/kpi/definisi" component={HRKpiDefinisi} />
+        <Route path="/hr/kpi/input" component={HRKpiInput} />
+        <Route path="/hr/performance" component={HRPerformance} />
+        <Route path="/hr/kompetensi" component={HRKompetensi} />
+        <Route path="/hr/training" component={HRTraining} />
+        <Route path="/hr/karir" component={HRKarir} />
+        <Route path="/hr/kompensasi" component={HRKompensasi} />
+        <Route path="/hr/produktivitas" component={HRProduktivitas} />
+        <Route path="/hr/suksesi" component={HRSuksesi} />
+        <Route path="/hr/kultur" component={HRKultur} />
+        <Route path="/hr/workload" component={HRWorkload} />
+        <Route path="/hr/ekspansi" component={HREkspansi} />
+        <Route path="/hr/talent-map" component={HRTalentMap} />
+        <Route path="/hr/flight-risk" component={HRFlightRisk} />
+        <Route path="/hr/hc-score" component={HRHcScore} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

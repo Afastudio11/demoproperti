@@ -44,6 +44,7 @@ import {
   FileCheck,
   AlertTriangle,
   Truck,
+  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -64,6 +65,7 @@ const navItems = [
   { name: "Marketing", path: "/marketing", icon: Magnet },
   { name: "Administrasi KPR", path: "/administrasi", icon: Users },
   { name: "Produksi", path: "/produksi", icon: HardHat },
+  { name: "Human Capital", path: "/hr", icon: UserCog },
   { name: "Serah Terima", path: "/serah-terima", icon: Key },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
@@ -71,6 +73,31 @@ const navItems = [
 type SubNavItem =
   | { type: "link"; name: string; path: string }
   | { type: "group"; label: string };
+
+const hrSubNav: SubNavItem[] = [
+  { type: "link", name: "HC Dashboard", path: "/hr" },
+  { type: "group", label: "Organisasi" },
+  { type: "link", name: "Data Karyawan", path: "/hr/organisasi" },
+  { type: "link", name: "Rekrutmen", path: "/hr/rekrutmen" },
+  { type: "group", label: "KPI & Performance" },
+  { type: "link", name: "Definisi KPI", path: "/hr/kpi/definisi" },
+  { type: "link", name: "Input Realisasi", path: "/hr/kpi/input" },
+  { type: "link", name: "Performance", path: "/hr/performance" },
+  { type: "group", label: "Pengembangan" },
+  { type: "link", name: "Kompetensi", path: "/hr/kompetensi" },
+  { type: "link", name: "Training", path: "/hr/training" },
+  { type: "link", name: "Career Path", path: "/hr/karir" },
+  { type: "link", name: "Kompensasi", path: "/hr/kompensasi" },
+  { type: "group", label: "Analitik" },
+  { type: "link", name: "Produktivitas", path: "/hr/produktivitas" },
+  { type: "link", name: "Kultur", path: "/hr/kultur" },
+  { type: "link", name: "Workload", path: "/hr/workload" },
+  { type: "link", name: "Succession", path: "/hr/suksesi" },
+  { type: "link", name: "Ekspansi SDM", path: "/hr/ekspansi" },
+  { type: "link", name: "Talent Map", path: "/hr/talent-map" },
+  { type: "link", name: "Flight Risk", path: "/hr/flight-risk" },
+  { type: "link", name: "HC Score", path: "/hr/hc-score" },
+];
 
 const akuisisiSubNav: SubNavItem[] = [
   { type: "link", name: "Pipeline Prospek", path: "/akuisisi" },
@@ -220,6 +247,7 @@ function DashboardSidebar() {
   const isAdministrasi = location === "/administrasi" || location.startsWith("/administrasi/");
   const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
   const isMarketing = location === "/marketing" || location.startsWith("/marketing/");
+  const isHR = location === "/hr" || location.startsWith("/hr/");
 
   return (
     <Sidebar className="lg:border-r-0!" collapsible="icon">
@@ -265,13 +293,14 @@ function DashboardSidebar() {
                 const isAdministrasiItem = item.path === "/administrasi";
                 const isProduksiItem = item.path === "/produksi";
                 const isMarketingItem = item.path === "/marketing";
+                const isHRItem = item.path === "/hr";
 
                 return (
                   <React.Fragment key={item.path}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={isActive && !isAkuisisiItem && !isPerencanaanItem && !isLegalItem && !isAdministrasiItem && !isProduksiItem && !isMarketingItem}
+                        isActive={isActive && !isAkuisisiItem && !isPerencanaanItem && !isLegalItem && !isAdministrasiItem && !isProduksiItem && !isMarketingItem && !isHRItem}
                         className="h-7"
                       >
                         <Link href={item.path}>
@@ -287,6 +316,7 @@ function DashboardSidebar() {
                     {isAdministrasiItem && isAdministrasi && renderSubNav(administrasiSubNav, location)}
                     {isProduksiItem && isProduksi && renderSubNav(produksiSubNav, location)}
                     {isMarketingItem && isMarketing && renderSubNav(marketingSubNav, location)}
+                    {isHRItem && isHR && renderSubNav(hrSubNav, location)}
                   </React.Fragment>
                 );
               })}

@@ -1,0 +1,989 @@
+# REPLIT PROMPT — MENU HR (HUMAN CAPITAL)
+## Satara Development Internal Dashboard
+
+---
+
+## KONTEKS
+
+Dashboard internal Satara Development sudah berjalan dengan sidebar utama:
+Executive Overview, Daftar Proyek, Akuisisi Lahan, Perencanaan, Legal & Perizinan,
+Marketing, Administrasi KPR, Produksi, Serah Terima, **HR** (← ini yang dibangun), Settings.
+
+**Tugas:** Bangun seluruh halaman dan sub-menu untuk menu **HR**.
+
+Sistem ini bukan HR System konvensional yang hanya mengurus absensi, cuti, dan payroll.
+Ini adalah **Satara Human Capital Management System (SHCMS)**: sistem pengelolaan aset
+manusia yang dirancang untuk mendukung ekspansi Satara ke proyek-proyek baru.
+
+Tujuan inti sistem ini adalah memastikan orang yang tepat, di posisi yang tepat,
+dengan KPI yang tepat, dengan budaya yang tepat, dan dengan kompensasi yang tepat.
+
+---
+
+## STRUKTUR MENU HR
+
+```
+HR
+├── 1. HR Dashboard (Command Center)
+├── 2. Organization & Headcount
+├── 3. Recruitment System
+├── 4. KPI Management
+│   ├── Definisi KPI per Jabatan
+│   └── Input Realisasi KPI
+├── 5. Performance Dashboard
+├── 6. Competency Matrix
+├── 7. Training & Development
+├── 8. Career Path
+├── 9. Compensation & Benefit
+├── 10. Employee Productivity
+├── 11. Succession Planning
+├── 12. Culture Dashboard
+├── 13. Workload Analysis
+├── 14. Expansion Readiness
+└── 15. Human Capital Score
+```
+
+---
+
+## SPESIFIKASI DETAIL SETIAP HALAMAN
+
+---
+
+### 1. HR DASHBOARD (COMMAND CENTER)
+**Route:** `/hr`
+**Fungsi:** Halaman ringkasan untuk CEO. Semua angka dihitung otomatis dari modul di bawah.
+
+**Baris 1 — Human Capital Score (kartu utama, tampil paling besar):**
+- Angka skor (contoh: 87/100) dengan label status (SEHAT / WASPADA / KRITIS)
+- Breakdown komponen: KPI Achievement, Productivity, Competency, Culture, Recruitment
+
+**Baris 2 — Metric Cards:**
+
+| Metric | Sumber |
+|--------|--------|
+| Total Karyawan Aktif | Modul 2 |
+| KPI Achievement Rata-rata (%) | Modul 4 |
+| Top Performer (nama + skor) | Modul 5 |
+| Bottom Performer (nama + skor) | Modul 5 |
+| Posisi Lowong Belum Terisi | Modul 3 |
+| Total Payroll Bulan Ini (Rp) | Modul 9 |
+| Revenue per Employee (Rp) | Modul 10 |
+| Expansion Readiness (%) | Modul 14 |
+
+**Baris 3 — Talent Map:**
+Scatter chart dengan sumbu X = Performance Score dan sumbu Y = Potential Score.
+Setiap titik = satu karyawan (nama ditampilkan saat hover).
+Kuadran:
+- Kanan atas (High Potential + High Performance): Rising Star
+- Kanan bawah (Low Potential + High Performance): Solid Performer
+- Kiri atas (High Potential + Low Performance): Needs Development
+- Kiri bawah (Low Potential + Low Performance): Underperformer
+
+**Baris 4 — Workload Summary:**
+Tabel ringkasan beban kerja per divisi (kapasitas vs beban aktual).
+Highlight merah jika beban > 100% kapasitas.
+
+**Baris 5 — Expansion Readiness per Proyek Baru:**
+| Proyek | SDM Siap (%) | Kekurangan |
+|--------|-------------|-----------|
+| Barru | 78% | 1 Site Manager, 2 Marketing, 1 Admin |
+| Villa Sinoa | 55% | ... |
+
+**Baris 6 — Flight Risk Alerts:**
+Daftar karyawan dengan Flight Risk Score Medium atau High.
+
+---
+
+### 2. ORGANIZATION & HEADCOUNT
+**Route:** `/hr/organisasi`
+
+**Fungsi:** Peta seluruh struktur dan komposisi SDM Satara.
+
+**Form input data karyawan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Lengkap | Text | |
+| NIK / ID Karyawan | Text | Auto-generate jika kosong |
+| Jabatan | Text | |
+| Divisi | Select | CEO Office, Planning, Legal, Marketing, Administrasi, Produksi, Finance, HR |
+| Atasan Langsung | Select | Nama karyawan lain |
+| Status Karyawan | Select | Aktif, Probasi, Kontrak, Tetap, Resign, Nonaktif |
+| Tanggal Bergabung | Date | |
+| Lokasi Penugasan | Select | Makassar (HQ), Barru, Villa Sinoa, Lapangan, Remote |
+| Nomor HP | Text | |
+| Email | Text | |
+| Catatan | Textarea | |
+
+**Tampilan:**
+
+- Org Chart visual (pohon hierarki): CEO di atas, branch ke bawah per divisi
+- Tabel Headcount per divisi:
+
+| Divisi | Headcount | Target | Gap |
+|--------|-----------|--------|-----|
+| CEO Office | 2 | 2 | 0 |
+| Planning | 3 | 3 | 0 |
+| Legal | 2 | 3 | -1 |
+| Marketing | 5 | 6 | -1 |
+| Administrasi | 4 | 4 | 0 |
+| Produksi | 6 | 6 | 0 |
+| Finance | 3 | 3 | 0 |
+| **Total** | **25** | **27** | **-2** |
+
+- Metric cards: Total Karyawan, Headcount Growth (bulan ini vs bulan lalu), Posisi Kosong
+
+---
+
+### 3. RECRUITMENT SYSTEM
+**Route:** `/hr/rekrutmen`
+
+**Fungsi:** Tracking pipeline rekrutmen dari kebutuhan posisi hingga karyawan hired.
+
+**Form input kebutuhan posisi:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Posisi | Text | Contoh: Site Manager Barru |
+| Divisi | Select | |
+| Lokasi | Select | |
+| Jumlah Kebutuhan | Number | |
+| Tanggal Target Hire | Date | |
+| Deskripsi Pekerjaan | Textarea | |
+| Kualifikasi Minimum | Textarea | |
+| PIC Recruiter | Select | |
+| Status Posisi | Select | Dibuka / Ditutup / On Hold |
+
+**Form input kandidat per posisi:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Posisi | Select | dari daftar kebutuhan aktif |
+| Nama Kandidat | Text | |
+| Nomor HP | Text | |
+| Sumber | Select | Referral Internal, Job Portal, LinkedIn, Walk In, Headhunter |
+| Tahap | Select | Screening CV / Interview HRD / Interview User / Offering / Hired / Ditolak |
+| Tanggal Tahap Terakhir | Date | |
+| Catatan Recruiter | Textarea | |
+
+**Tampilan dashboard:**
+
+Tabel per posisi aktif:
+
+| Posisi | Kebutuhan | Terisi | Kandidat Pipeline | Status |
+|--------|-----------|--------|------------------|--------|
+| Site Manager Barru | 1 | 0 | 3 kandidat | Buka |
+| Marketing Barru | 2 | 1 | 2 kandidat | Buka |
+
+- Funnel rekrutmen: Screening → Interview HRD → Interview User → Offering → Hired
+- Metric cards: Posisi Terbuka, Total Kandidat Aktif, Hired Bulan Ini, Time-to-Hire Rata-rata
+
+**Kalkulasi:**
+```
+Recruitment Readiness (%) = Posisi Terisi ÷ Total Kebutuhan × 100%
+Time-to-Hire = tanggal Hired - tanggal posisi dibuka (hari)
+```
+
+---
+
+### 4. KPI MANAGEMENT
+**Route:** `/hr/kpi`
+
+**Fungsi:** Mendefinisikan KPI per jabatan dan menginput realisasi bulanan.
+
+#### 4a. Definisi KPI per Jabatan
+**Route:** `/hr/kpi/definisi`
+
+**Form input definisi KPI:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Jabatan | Text | |
+| Divisi | Select | |
+| Nama KPI | Text | |
+| Deskripsi KPI | Textarea | |
+| Satuan | Text | Contoh: unit, %, Rp, hari |
+| Target per Bulan | Number | |
+| Bobot KPI (%) | Number | Total bobot semua KPI per jabatan harus = 100% |
+| Sumber Data | Select | Manual, Otomatis dari Sistem (sinkron modul lain) |
+| Modul Sumber | Select | Marketing / Administrasi KPR / Legal / Produksi / Finance |
+
+**KPI standar per divisi (seed data awal, bisa diedit):**
+
+Marketing:
+- Lead per bulan (bobot 30%, sumber: Modul Marketing)
+- Survey Rate % (bobot 25%, sumber: Modul Marketing)
+- Booking per bulan (bobot 30%, sumber: Modul Marketing)
+- Berkas per bulan (bobot 15%, sumber: Modul Marketing)
+
+Administrasi KPR:
+- SP3K per bulan (bobot 30%, sumber: Modul Administrasi KPR)
+- Akad per bulan (bobot 40%, sumber: Modul Administrasi KPR)
+- HT Cair per bulan (Rp) (bobot 30%, sumber: Modul Administrasi KPR)
+
+Legal:
+- Permit Readiness % (bobot 40%, sumber: Modul Legal)
+- SHM Split Readiness % (bobot 40%, sumber: Modul Legal)
+- Penyelesaian Legal Issue (bobot 20%, manual)
+
+Produksi:
+- Progress Pembangunan % (bobot 35%, sumber: Modul Produksi)
+- QC Score (bobot 35%, manual)
+- Velocity (unit/bulan) (bobot 30%, sumber: Modul Produksi)
+
+#### 4b. Input Realisasi KPI
+**Route:** `/hr/kpi/input`
+
+**Form input realisasi per karyawan per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Karyawan | Select | |
+| Periode (Bulan/Tahun) | Date | |
+| KPI | Select | dari definisi KPI jabatan karyawan tersebut |
+| Realisasi | Number | |
+| Catatan | Textarea | |
+
+KPI yang bertanda "Otomatis dari Sistem" tidak bisa diinput manual. Nilainya
+ditarik otomatis dari modul yang bersangkutan (Marketing, Administrasi KPR, Legal, Produksi).
+
+**Kalkulasi:**
+```
+KPI Achievement per item = (Realisasi ÷ Target) × 100%, maksimum 100%
+KPI Achievement per karyawan = rata-rata berbobot semua KPI item
+```
+
+---
+
+### 5. PERFORMANCE DASHBOARD
+**Route:** `/hr/performance`
+
+**Fungsi:** Tampilan kinerja individual setiap karyawan berdasarkan KPI Achievement.
+
+**Tabel utama:**
+
+| Nama | Divisi | Jabatan | KPI Achievement | Performance Score | Kategori |
+|------|--------|---------|----------------|------------------|---------|
+| Mahdi | Produksi | Site Manager | 92% | 92 | Excellent |
+| Kahfi | Produksi | Site Manager | 90% | 90 | Excellent |
+| Kia | Marketing | Sales | 88% | 88 | Good |
+| Resky | Marketing | Sales | 85% | 85 | Good |
+
+**Kategori Performance (hardcode):**
+- Excellent: skor >= 90 (hijau)
+- Good: skor 75-89 (kuning)
+- Needs Improvement: skor 60-74 (oranye)
+- Poor: skor < 60 (merah)
+
+**Filter:** Divisi, Periode, Kategori
+
+**Tampilan tambahan:**
+- Bar chart: ranking karyawan berdasarkan Performance Score
+- Trend per karyawan: garis Performance Score 6 bulan terakhir
+- Klik nama karyawan → buka halaman detail karyawan (Profile + KPI history + Competency + Training)
+
+---
+
+### 6. COMPETENCY MATRIX
+**Route:** `/hr/kompetensi`
+
+**Fungsi:** Mendefinisikan kompetensi yang dibutuhkan per jabatan dan mengukur gap per karyawan.
+
+**Form input definisi kompetensi per jabatan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Jabatan | Text | |
+| Divisi | Select | |
+| Nama Kompetensi | Text | Contoh: Excel, Site Management, QC, Akuntansi |
+| Deskripsi | Textarea | |
+| Target Skor (1-100) | Number | Standar minimum untuk jabatan tersebut |
+
+**Form input skor kompetensi per karyawan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Karyawan | Select | |
+| Kompetensi | Select | dari definisi kompetensi jabatan karyawan tersebut |
+| Skor Aktual (1-100) | Number | Hasil assessment |
+| Tanggal Assessment | Date | |
+| Assessor | Text | |
+| Catatan | Textarea | |
+
+**Kompetensi standar per divisi (seed data awal):**
+
+Finance: Excel, Akuntansi, Cashflow, Budgeting
+Produksi: Site Management, QC, Material Control, K3
+Legal: Analisis Hukum, Administrasi BPN, Perizinan OSS
+Marketing: Komunikasi, Digital Marketing, Negosiasi, CRM
+Administrasi: Administrasi KPR, Komunikasi Bank, Pengarsipan
+
+**Kalkulasi:**
+```
+Skill Gap per kompetensi = Target Skor - Skor Aktual
+  Positif = gap (butuh development)
+  Nol atau negatif = sudah memenuhi standar
+
+Competency Score per karyawan = rata-rata (Skor Aktual ÷ Target Skor) × 100%
+```
+
+**Tampilan:**
+- Radar chart per karyawan: menampilkan skor aktual vs target per kompetensi
+- Tabel skill gap: daftar kompetensi yang masih di bawah target, diurutkan dari gap terbesar
+- Highlight merah: gap > 20 poin
+
+---
+
+### 7. TRAINING & DEVELOPMENT
+**Route:** `/hr/training`
+
+**Fungsi:** Tracking program pelatihan, coaching, dan sertifikasi karyawan.
+
+**Form input program training:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Program | Text | |
+| Jenis | Select | Training Internal, Training Eksternal, Coaching, Sertifikasi, Workshop |
+| Kompetensi yang Disasar | Select | dari daftar kompetensi |
+| Peserta | Multi-select | Nama karyawan |
+| Tanggal Pelaksanaan | Date | |
+| Durasi (jam) | Number | |
+| Penyelenggara / Trainer | Text | |
+| Biaya (Rp) | Number | |
+| Status | Select | Direncanakan / Berlangsung / Selesai |
+| Skor Evaluasi Pasca Training | Number | Diisi setelah training selesai |
+| Catatan | Textarea | |
+
+**Tampilan:**
+
+- Tabel program training: nama, jenis, peserta, tanggal, status, skor evaluasi
+- Per karyawan: riwayat training yang pernah diikuti + total jam training
+- Metric cards: Training bulan ini, Total peserta, Rata-rata skor evaluasi, Total biaya training
+
+**Kalkulasi:**
+```
+Development Progress per karyawan = jumlah kompetensi yang gapnya membaik
+                                     setelah training ÷ total kompetensi gap × 100%
+```
+
+---
+
+### 8. CAREER PATH
+**Route:** `/hr/karir`
+
+**Fungsi:** Mendefinisikan jalur karir per divisi dan mengukur kesiapan promosi per karyawan.
+
+**Form input definisi jalur karir:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Divisi | Select | |
+| Level | Number | 1 = entry, angka semakin besar = semakin senior |
+| Nama Jabatan | Text | |
+| Jabatan Sebelumnya | Select | Jabatan level di bawahnya |
+| Minimum Masa Kerja di Level Ini (bulan) | Number | |
+| Minimum KPI Achievement (%) | Number | |
+| Minimum Competency Score (%) | Number | |
+
+**Jalur karir standar (seed data awal):**
+
+Marketing:
+Staff Marketing → Senior Marketing → Marketing Supervisor → Marketing Manager → CMO
+
+Produksi:
+Staff Lapangan → Mandor → Site Supervisor → Site Manager → Project Manager
+
+Legal:
+Staff Legal → Senior Legal → Legal Supervisor → Legal Manager
+
+Administrasi:
+Staff Admin → Senior Admin → Admin Supervisor → Admin Manager
+
+**Kalkulasi Promotion Readiness per karyawan:**
+```
+Promotion Readiness = memenuhi semua syarat promosi (masa kerja, KPI, kompetensi) = Siap / Belum
+
+Jika Belum: tampilkan syarat mana yang belum terpenuhi
+```
+
+**Tampilan:**
+- Visualisasi pohon jalur karir per divisi (flowchart vertikal)
+- Tabel per karyawan: posisi saat ini, posisi berikutnya, masa kerja saat ini, KPI saat ini, status Promotion Readiness
+- Alert hijau: karyawan yang sudah memenuhi semua syarat promosi
+
+---
+
+### 9. COMPENSATION & BENEFIT
+**Route:** `/hr/kompensasi`
+
+**Form input data kompensasi per karyawan per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Karyawan | Select | |
+| Periode (Bulan/Tahun) | Date | |
+| Gaji Pokok (Rp) | Number | |
+| Tunjangan Tetap (Rp) | Number | Transport, makan, dll |
+| Bonus Kinerja (Rp) | Number | Berdasarkan KPI Achievement |
+| Insentif (Rp) | Number | Komisi, insentif proyek, dll |
+| THR (Rp) | Number | Diisi bulan yang relevan |
+| Potongan (Rp) | Number | BPJS, absensi, dll |
+| Total Take Home Pay (Rp) | Number | Auto-hitung |
+| Catatan | Textarea | |
+
+**Kalkulasi:**
+```
+Total Take Home Pay = Gaji Pokok + Tunjangan + Bonus + Insentif + THR - Potongan
+```
+
+**Tampilan:**
+- Tabel payroll bulan ini: per karyawan dengan semua komponen
+- Metric cards: Total Payroll Bulan Ini (Rp), Rata-rata Gaji, Total Bonus, Total Insentif
+- Bar chart: distribusi kompensasi per divisi
+- Export Excel untuk keperluan transfer gaji
+
+---
+
+### 10. EMPLOYEE PRODUCTIVITY
+**Route:** `/hr/produktivitas`
+
+**Fungsi:** Mengukur kontribusi per karyawan terhadap revenue dan output perusahaan.
+
+**Data yang dibutuhkan (diinput manual per bulan atau diambil dari modul Finance):**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Periode | Date | |
+| Total Revenue Perusahaan (Rp) | Number | Dari modul Finance / HT Cair |
+| Total Laba Perusahaan (Rp) | Number | Dari modul Finance |
+| Total Unit Terjual (akad) | Number | Dari modul Administrasi KPR |
+| Total Karyawan Aktif | Number | Auto dari Modul 2 |
+
+**Kalkulasi otomatis:**
+```
+Revenue per Employee = Total Revenue ÷ Total Karyawan
+Laba per Employee = Total Laba ÷ Total Karyawan
+Unit per Employee = Total Unit Terjual ÷ Total Karyawan
+```
+
+**Tampilan:**
+- Metric cards besar: Revenue per Employee, Laba per Employee, Unit per Employee
+- Trend: ketiga metric di atas selama 12 bulan terakhir (line chart)
+- Benchmark sederhana: apakah angka naik atau turun dibanding bulan sebelumnya
+
+---
+
+### 11. SUCCESSION PLANNING
+**Route:** `/hr/suksesi`
+
+**Fungsi:** Mendefinisikan backup untuk setiap posisi kritis agar ekspansi tidak terhambat
+oleh kekosongan jabatan.
+
+**Form input rencana suksesi:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Posisi Kritis | Select | dari daftar jabatan |
+| Pemegang Jabatan Saat Ini | Select | |
+| Kandidat Backup 1 | Select | karyawan lain |
+| Readiness Backup 1 | Select | Siap Sekarang / 6 Bulan Lagi / 12 Bulan Lagi |
+| Kandidat Backup 2 | Select | |
+| Readiness Backup 2 | Select | |
+| Catatan | Textarea | |
+
+**Tampilan:**
+- Tabel posisi kritis: posisi, pemegang saat ini, backup 1 + readiness, backup 2 + readiness
+- Alert merah: posisi kritis yang belum memiliki backup sama sekali
+- Alert kuning: backup hanya tersedia 1 orang
+
+**Skenario ekspansi:** Fitur simulasi "Jika [nama karyawan] dipindahkan ke [lokasi baru],
+tampilkan posisi mana yang kehilangan backup dan perlu segera diisi."
+
+---
+
+### 12. CULTURE DASHBOARD
+**Route:** `/hr/kultur`
+
+**Fungsi:** Monitoring disiplin, kepatuhan SOP, dan kesehatan budaya kerja.
+
+**Form input data kultur per karyawan per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Karyawan | Select | |
+| Periode | Date | |
+| Hari Hadir | Number | |
+| Hari Kerja Aktif | Number | Hari kerja efektif bulan tersebut |
+| Jumlah Keterlambatan | Number | |
+| Jumlah Pelanggaran Disiplin | Number | |
+| Skor Kepatuhan SOP (1-100) | Number | Penilaian atasan |
+| Skor Penyelesaian Tugas (1-100) | Number | % tugas yang selesai tepat waktu |
+| Catatan | Textarea | |
+
+**Kalkulasi:**
+```
+Attendance Rate (%) = Hari Hadir ÷ Hari Kerja Aktif × 100%
+
+Culture Score per karyawan = rata-rata berbobot:
+  - Attendance Rate (30%)
+  - Skor Kepatuhan SOP (35%)
+  - Skor Penyelesaian Tugas (35%)
+
+Culture Score perusahaan = rata-rata Culture Score semua karyawan aktif
+```
+
+**Tampilan:**
+- Tabel: nama, attendance rate, kepatuhan SOP, penyelesaian tugas, Culture Score
+- Metric cards: Culture Score perusahaan, Rata-rata Attendance Rate, Jumlah Pelanggaran Bulan Ini
+- Alert: karyawan dengan Culture Score < 70 ditandai merah
+
+---
+
+### 13. WORKLOAD ANALYSIS
+**Route:** `/hr/workload`
+
+**Fungsi:** Mengukur apakah beban kerja setiap divisi seimbang dengan kapasitas SDM yang ada.
+
+**Form input beban kerja per divisi per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Divisi | Select | |
+| Periode | Date | |
+| Kapasitas (poin) | Number | Default 100 per divisi, bisa disesuaikan |
+| Beban Aktual (poin) | Number | Estimasi oleh HR Manager / Division Head |
+| Catatan Beban | Textarea | Deskripsi pekerjaan yang menyebabkan overload |
+
+**Kalkulasi:**
+```
+Workload Ratio = Beban Aktual ÷ Kapasitas × 100%
+
+Status:
+  < 80%  = Underloaded (biru)
+  80-100% = Normal (hijau)
+  100-120% = Overloaded (kuning, alert sedang)
+  > 120%  = Critical Overload (merah, alert kritis)
+```
+
+**Tampilan:**
+
+| Divisi | Kapasitas | Beban | Workload Ratio | Status |
+|--------|-----------|-------|---------------|--------|
+| Marketing | 100 | 80 | 80% | Normal |
+| Administrasi | 100 | 120 | 120% | Overloaded |
+| Legal | 100 | 140 | 140% | Critical Overload |
+
+- Bar chart: perbandingan kapasitas vs beban per divisi
+- Alert kritis: Legal Overload 40%, Admin Overload 20%
+- Rekomendasi teks otomatis: "Legal overload 40%. Pertimbangkan penambahan 1 staf legal
+  atau redistribusi tugas dari proyek yang less urgent."
+
+---
+
+### 14. EXPANSION READINESS
+**Route:** `/hr/ekspansi`
+
+**Fungsi:** Menghitung kesiapan SDM untuk ekspansi ke proyek atau lokasi baru.
+
+**Form input kebutuhan SDM per proyek ekspansi:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Proyek Ekspansi | Text | Contoh: Barru, Villa Sinoa, Loka Resort |
+| Posisi yang Dibutuhkan | Text | |
+| Jumlah | Number | |
+| Minimal Competency Score | Number | |
+| Minimal KPI Achievement | Number | |
+
+**Kalkulasi Expansion Readiness:**
+```
+Untuk setiap posisi yang dibutuhkan:
+  Kandidat tersedia = karyawan yang memenuhi syarat competency dan KPI
+                      DAN tidak sedang di posisi kritis tanpa backup
+
+Expansion Readiness (%) = posisi yang sudah ada kandidat tersedia
+                          ÷ total posisi yang dibutuhkan × 100%
+```
+
+**Tampilan:**
+
+| Proyek | Posisi Dibutuhkan | Kandidat Tersedia | SDM Siap (%) | Status |
+|--------|-----------------|------------------|-------------|--------|
+| Barru | Site Manager (1) | 0 | 78% | Butuh rekrut |
+| Barru | Marketing (2) | 1 | | Butuh 1 lagi |
+| Barru | Admin (1) | 1 | | Siap |
+| Villa Sinoa | Site Manager (1) | 0 | 55% | Butuh rekrut |
+
+- Alert: posisi yang tidak ada kandidatnya → otomatis masuk ke Recruitment System sebagai
+  kebutuhan baru
+- Tombol: "Buka Rekrutmen untuk Posisi Ini" → langsung create kebutuhan di Modul 3
+
+**Expansion Talent Pool:**
+Daftar karyawan yang dinilai siap memimpin proyek baru berdasarkan:
+- KPI Achievement > 85%
+- Competency Score > 80%
+- Promotion Readiness: Siap
+- Culture Score > 80%
+- Flight Risk Score: Low
+
+---
+
+### 15. HUMAN CAPITAL SCORE
+**Route:** `/hr/hc-score`
+
+**Fungsi:** Skor kesehatan SDM perusahaan secara keseluruhan untuk CEO.
+
+**Komponen dan bobot:**
+
+| Komponen | Bobot | Kalkulasi |
+|---------|-------|-----------|
+| KPI Achievement | 30% | Rata-rata KPI Achievement semua karyawan aktif |
+| Productivity | 20% | Revenue per Employee vs target (dari Modul 10) |
+| Competency | 20% | Rata-rata Competency Score semua karyawan |
+| Culture | 15% | Culture Score perusahaan (dari Modul 12) |
+| Recruitment | 15% | Recruitment Readiness (posisi terisi ÷ kebutuhan) |
+
+**Kalkulasi total:**
+```
+Human Capital Score = (KPI×0.30) + (Productivity×0.20) + (Competency×0.20)
+                    + (Culture×0.15) + (Recruitment×0.15)
+
+Status:
+  > 80 = SEHAT (hijau)
+  60-80 = WASPADA (kuning)
+  < 60 = KRITIS (merah)
+```
+
+**Tampilan:**
+- Angka besar dengan gauge chart dan label status
+- Breakdown per komponen: skor aktual, bobot, kontribusi ke total
+- Trend: Human Capital Score 6 bulan terakhir
+
+---
+
+## TIGA FITUR KHUSUS SATARA
+
+### A. Talent Map
+Terintegrasi di HR Dashboard (Baris 3) dan tersedia sebagai halaman penuh di `/hr/talent-map`.
+
+Setiap karyawan memiliki dua dimensi:
+- **Performance Score** = KPI Achievement bulan terakhir
+- **Potential Score** = rata-rata berbobot: Competency Score (40%) + Career Readiness (30%) + Culture Score (30%)
+
+Scatter chart dengan label nama per titik. Hover = tooltip detail.
+
+### B. Flight Risk Score
+**Route:** `/hr/flight-risk`
+
+Form input per karyawan per kuartal (diisi HR Manager):
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Karyawan | Select | |
+| Periode | Date | |
+| Lama Tidak Naik Jabatan (bulan) | Number | |
+| Selisih Gaji vs Pasar (%) | Number | Negatif = di bawah pasar |
+| Skor Kepuasan Kerja (1-10) | Number | Hasil 1-on-1 atau survei internal |
+| Ada Tawaran Luar | Select | Tidak / Mungkin / Ya |
+| Catatan | Textarea | |
+
+**Kalkulasi:**
+```
+Flight Risk Score = rata-rata berbobot:
+  - Lama tidak naik jabatan (semakin lama = skor lebih tinggi) (25%)
+  - Selisih gaji vs pasar (semakin negatif = skor lebih tinggi) (35%)
+  - Skor kepuasan kerja (inverted: semakin rendah = skor lebih tinggi) (25%)
+  - Ada tawaran luar (Tidak=0, Mungkin=50, Ya=100) (15%)
+
+Status:
+  < 40 = Low (hijau)
+  40-70 = Medium (kuning)
+  > 70 = High (merah)
+```
+
+### C. Expansion Talent Pool
+Terintegrasi di Modul 14. Menampilkan daftar karyawan yang lolos semua kriteria
+kesiapan untuk memimpin proyek baru, dilengkapi dengan skor komposit dan lokasi
+penugasan yang direkomendasikan.
+
+---
+
+## DATABASE SCHEMA (SUPABASE)
+
+```sql
+-- Data karyawan
+employees (
+  id uuid PRIMARY KEY,
+  employee_code text,           -- auto-generate
+  name text,
+  division text,
+  position text,
+  direct_manager_id uuid REFERENCES employees(id),
+  employment_status text,       -- aktif, probasi, kontrak, tetap, resign, nonaktif
+  join_date date,
+  location text,
+  phone text,
+  email text,
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Kebutuhan rekrutmen
+recruitment_needs (
+  id uuid PRIMARY KEY,
+  position_name text,
+  division text,
+  location text,
+  headcount_needed integer,
+  headcount_filled integer DEFAULT 0,
+  target_hire_date date,
+  job_description text,
+  minimum_qualification text,
+  pic_recruiter text,
+  status text,                  -- dibuka, ditutup, on_hold
+  created_at timestamptz
+)
+
+-- Kandidat rekrutmen
+recruitment_candidates (
+  id uuid PRIMARY KEY,
+  need_id uuid REFERENCES recruitment_needs(id),
+  name text,
+  phone text,
+  source text,
+  stage text,                   -- screening_cv, interview_hrd, interview_user, offering, hired, ditolak
+  stage_date date,
+  recruiter_notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Definisi KPI per jabatan
+kpi_definitions (
+  id uuid PRIMARY KEY,
+  position text,
+  division text,
+  kpi_name text,
+  description text,
+  unit text,
+  monthly_target numeric,
+  weight numeric,               -- bobot dalam persen, total per jabatan = 100
+  data_source text,             -- manual, otomatis
+  source_module text,           -- nama modul sumber jika otomatis
+  created_at timestamptz
+)
+
+-- Realisasi KPI per karyawan per bulan
+kpi_records (
+  id uuid PRIMARY KEY,
+  employee_id uuid REFERENCES employees(id),
+  kpi_definition_id uuid REFERENCES kpi_definitions(id),
+  period_year integer,
+  period_month integer,
+  target numeric,
+  actual numeric,
+  achievement_pct numeric,      -- auto-hitung
+  notes text,
+  created_at timestamptz
+)
+
+-- Definisi kompetensi per jabatan
+competency_definitions (
+  id uuid PRIMARY KEY,
+  position text,
+  division text,
+  competency_name text,
+  description text,
+  target_score numeric,
+  created_at timestamptz
+)
+
+-- Skor kompetensi per karyawan
+competency_scores (
+  id uuid PRIMARY KEY,
+  employee_id uuid REFERENCES employees(id),
+  competency_definition_id uuid REFERENCES competency_definitions(id),
+  actual_score numeric,
+  assessment_date date,
+  assessor text,
+  notes text,
+  created_at timestamptz
+)
+
+-- Program training
+training_programs (
+  id uuid PRIMARY KEY,
+  name text,
+  type text,                    -- training_internal, training_eksternal, coaching, sertifikasi, workshop
+  competency_id uuid REFERENCES competency_definitions(id),
+  date date,
+  duration_hours numeric,
+  organizer text,
+  cost numeric,
+  status text,                  -- direncanakan, berlangsung, selesai
+  evaluation_score numeric,
+  notes text,
+  created_at timestamptz
+)
+
+-- Peserta training
+training_participants (
+  id uuid PRIMARY KEY,
+  training_id uuid REFERENCES training_programs(id),
+  employee_id uuid REFERENCES employees(id),
+  created_at timestamptz
+)
+
+-- Data kompensasi per karyawan per bulan
+compensation_records (
+  id uuid PRIMARY KEY,
+  employee_id uuid REFERENCES employees(id),
+  period_year integer,
+  period_month integer,
+  base_salary numeric,
+  fixed_allowance numeric,
+  performance_bonus numeric,
+  incentive numeric,
+  thr numeric,
+  deduction numeric,
+  total_take_home numeric,      -- auto-hitung
+  notes text,
+  created_at timestamptz
+)
+
+-- Data kultur per karyawan per bulan
+culture_records (
+  id uuid PRIMARY KEY,
+  employee_id uuid REFERENCES employees(id),
+  period_year integer,
+  period_month integer,
+  days_present integer,
+  working_days integer,
+  late_count integer,
+  discipline_violations integer,
+  sop_compliance_score numeric,
+  task_completion_score numeric,
+  notes text,
+  created_at timestamptz
+)
+
+-- Beban kerja per divisi per bulan
+workload_records (
+  id uuid PRIMARY KEY,
+  division text,
+  period_year integer,
+  period_month integer,
+  capacity numeric DEFAULT 100,
+  actual_load numeric,
+  load_description text,
+  created_at timestamptz
+)
+
+-- Rencana suksesi
+succession_plans (
+  id uuid PRIMARY KEY,
+  critical_position text,
+  current_holder_id uuid REFERENCES employees(id),
+  backup1_id uuid REFERENCES employees(id),
+  backup1_readiness text,       -- siap_sekarang, 6_bulan, 12_bulan
+  backup2_id uuid REFERENCES employees(id),
+  backup2_readiness text,
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Kebutuhan SDM ekspansi
+expansion_needs (
+  id uuid PRIMARY KEY,
+  project_name text,
+  position_name text,
+  headcount integer,
+  min_competency_score numeric,
+  min_kpi_achievement numeric,
+  created_at timestamptz
+)
+
+-- Flight Risk per karyawan per kuartal
+flight_risk_records (
+  id uuid PRIMARY KEY,
+  employee_id uuid REFERENCES employees(id),
+  period_year integer,
+  period_quarter integer,
+  months_without_promotion integer,
+  salary_market_gap_pct numeric,
+  job_satisfaction_score numeric,
+  has_external_offer text,      -- tidak, mungkin, ya
+  flight_risk_score numeric,    -- auto-hitung
+  risk_level text,              -- low, medium, high
+  notes text,
+  created_at timestamptz
+)
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+1. **Org Chart interaktif:** Di Modul 2, tampilkan org chart sebagai pohon hierarki yang
+   bisa di-zoom dan di-pan. Klik node karyawan → buka popup ringkasan: foto (opsional),
+   jabatan, KPI Achievement, Performance Score, Competency Score.
+
+2. **Radar chart kompetensi:** Di Modul 6, setiap karyawan memiliki radar chart yang
+   menampilkan skor aktual vs target per kompetensi secara visual.
+
+3. **Scatter chart Talent Map:** Di HR Dashboard dan Modul Talent Map, gunakan scatter
+   chart interaktif. Hover per titik menampilkan nama, divisi, Performance Score,
+   dan Potential Score.
+
+4. **Quick KPI input:** Staf HR bisa menginput realisasi KPI bulanan semua karyawan
+   dalam satu tabel (seperti spreadsheet inline) tanpa harus buka form satu per satu.
+
+5. **Integrasi data otomatis:** KPI yang bersumber dari modul lain (Marketing, Administrasi
+   KPR, Legal, Produksi) ditarik otomatis setiap awal bulan. HR tidak perlu input manual
+   untuk data yang sudah tercatat di modul operasional.
+
+6. **Alert Expansion → Recruitment:** Saat Expansion Readiness mendeteksi posisi tanpa
+   kandidat, tombol "Buka Rekrutmen" otomatis membuat record kebutuhan baru di Modul 3
+   dengan data posisi yang sudah terisi.
+
+7. **Export payroll:** Halaman Compensation bisa di-export ke Excel dengan format yang
+   siap digunakan untuk transfer gaji (nama, rekening, nominal).
+
+8. **Mobile-friendly:** Halaman yang perlu diakses dari lapangan: input kultur harian
+   (jika ada), dan lihat performance ringkasan personal (karyawan melihat KPI sendiri).
+
+9. **Number format:** Semua rupiah: `Rp 750.000.000`. Semua tanggal: `15 Januari 2026`.
+   Semua persentase: `87,0%`. Semua skor: `87/100`.
+
+10. **Status badge warna standar:**
+    - Hijau: Excellent / SEHAT / Low Risk / Siap
+    - Kuning: Good / WASPADA / Medium Risk / Perlu Development
+    - Oranye: Needs Improvement / Overloaded
+    - Merah: Poor / KRITIS / High Risk / Critical Overload
+    - Abu-abu: Data belum diisi
+
+---
+
+## URUTAN PENGERJAAN
+
+1. Setup routing dan struktur folder semua halaman HR
+2. Buat semua tabel database di Supabase beserta seed data karyawan awal
+3. Organization & Headcount: form karyawan + org chart + tabel headcount
+4. KPI Management: definisi KPI per jabatan + form input realisasi + integrasi modul lain
+5. Performance Dashboard: tabel ranking + trend + kategori otomatis
+6. Competency Matrix: definisi kompetensi + form assessment + radar chart + skill gap
+7. Recruitment System: form kebutuhan + kandidat pipeline + funnel rekrutmen
+8. Compensation & Benefit: form payroll + export Excel
+9. Culture Dashboard: form input kultur + kalkulasi Culture Score
+10. Training & Development: form program + peserta + evaluasi
+11. Career Path: definisi jalur + kalkulasi Promotion Readiness
+12. Workload Analysis: form beban kerja + alert overload + rekomendasi
+13. Succession Planning: form backup + alert posisi tanpa backup + simulasi ekspansi
+14. Employee Productivity: input revenue + kalkulasi otomatis + trend
+15. Expansion Readiness: form kebutuhan ekspansi + matching kandidat + Talent Pool
+16. Fitur khusus: Talent Map scatter chart + Flight Risk Score
+17. Human Capital Score: kalkulasi berbobot dari semua modul
+18. HR Dashboard: agregasi semua metric + Talent Map + alert Flight Risk
