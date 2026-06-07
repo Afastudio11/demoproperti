@@ -89,8 +89,12 @@ const perencanaanSubNav: SubNavItem[] = [
   { type: "group", label: "Finansial & Jadwal" },
   { type: "link", name: "Cashflow & KPP", path: "/perencanaan/cashflow" },
   { type: "link", name: "Timeline SPTIS", path: "/perencanaan/timeline" },
+  { type: "link", name: "Early Warning", path: "/perencanaan/timeline/warning" },
   { type: "group", label: "Sumber Daya" },
   { type: "link", name: "SDM", path: "/perencanaan/sdm" },
+  { type: "group", label: "Ekspansi" },
+  { type: "link", name: "Kesiapan Ekspansi", path: "/perencanaan/ekspansi/kesiapan" },
+  { type: "link", name: "Skenario Ekspansi", path: "/perencanaan/ekspansi/skenario" },
 ];
 
 const administrasiSubNav: SubNavItem[] = [
@@ -107,6 +111,9 @@ const administrasiSubNav: SubNavItem[] = [
   { type: "link", name: "Aging Pipeline", path: "/administrasi/aging" },
   { type: "link", name: "Target & Realisasi", path: "/administrasi/target" },
   { type: "link", name: "Komplain", path: "/administrasi/komplain" },
+  { type: "group", label: "Dokumen & Import" },
+  { type: "link", name: "Checklist Dokumen", path: "/administrasi/customer" },
+  { type: "link", name: "Import Data Excel", path: "/administrasi/import" },
 ];
 
 const legalSubNav: SubNavItem[] = [
@@ -118,16 +125,38 @@ const legalSubNav: SubNavItem[] = [
   { type: "link", name: "Arsip Dokumen", path: "/legal/arsip" },
 ];
 
+const marketingSubNav: SubNavItem[] = [
+  { type: "link", name: "Command Center", path: "/marketing" },
+  { type: "group", label: "Lead Management" },
+  { type: "link", name: "Daftar Lead", path: "/marketing/lead" },
+  { type: "group", label: "Marketing" },
+  { type: "link", name: "Branding & Konten", path: "/marketing/branding" },
+  { type: "link", name: "Campaign Digital", path: "/marketing/campaign" },
+  { type: "link", name: "Sales Performance", path: "/marketing/sales" },
+  { type: "group", label: "Analitik" },
+  { type: "link", name: "Absorpsi Proyek", path: "/marketing/absorption" },
+  { type: "link", name: "Stok & Coverage", path: "/marketing/stock" },
+  { type: "link", name: "Demand Forecast", path: "/marketing/forecast" },
+  { type: "link", name: "Demand Score", path: "/marketing/demand-score" },
+  { type: "link", name: "Kompetitor", path: "/marketing/kompetitor" },
+  { type: "link", name: "Health Score", path: "/marketing/health" },
+];
+
 const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Command Center", path: "/produksi" },
   { type: "group", label: "Subkontraktor" },
   { type: "link", name: "Kontrak Subkon", path: "/produksi/subkon/kontrak" },
   { type: "link", name: "Approval", path: "/produksi/subkon/approval" },
   { type: "link", name: "Termin Bayar", path: "/produksi/subkon/termin" },
+  { type: "link", name: "Performa Subkon", path: "/produksi/subkon/performa" },
   { type: "group", label: "Material" },
+  { type: "link", name: "Master Material", path: "/produksi/material/master" },
   { type: "link", name: "Stok Material", path: "/produksi/material/stok" },
   { type: "link", name: "Input Masuk", path: "/produksi/material/masuk" },
   { type: "link", name: "Input Keluar", path: "/produksi/material/keluar" },
+  { type: "link", name: "Konsumsi", path: "/produksi/material/konsumsi" },
+  { type: "link", name: "Variance", path: "/produksi/material/variance" },
+  { type: "link", name: "Forecast", path: "/produksi/material/forecast" },
   { type: "group", label: "Progress" },
   { type: "link", name: "Progress Proyek", path: "/produksi/progress/proyek" },
   { type: "link", name: "Progress Tahap", path: "/produksi/progress/tahap" },
@@ -135,11 +164,19 @@ const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Fasum", path: "/produksi/fasum" },
   { type: "group", label: "Quality Control" },
   { type: "link", name: "QC Checklist", path: "/produksi/qc/checklist" },
+  { type: "link", name: "Defect & Garansi", path: "/produksi/qc/defect" },
   { type: "link", name: "Rework", path: "/produksi/qc/rework" },
   { type: "group", label: "Milestone & Analitik" },
   { type: "link", name: "Ready Akad", path: "/produksi/ready-akad" },
   { type: "link", name: "Health Score", path: "/produksi/health" },
-  { type: "link", name: "Analitik", path: "/produksi/analitik/velocity" },
+  { type: "group", label: "Analitik" },
+  { type: "link", name: "Velocity", path: "/produksi/analitik/velocity" },
+  { type: "link", name: "Baseline", path: "/produksi/analitik/baseline" },
+  { type: "link", name: "Cost to Complete", path: "/produksi/analitik/cost-to-complete" },
+  { type: "link", name: "Cashflow Impact", path: "/produksi/analitik/cashflow-impact" },
+  { type: "link", name: "Produktivitas", path: "/produksi/analitik/produktivitas" },
+  { type: "link", name: "Eligibilitas", path: "/produksi/analitik/eligibilitas" },
+  { type: "link", name: "Forecast", path: "/produksi/analitik/forecast" },
 ];
 
 function renderSubNav(items: SubNavItem[], location: string) {
@@ -182,6 +219,7 @@ function DashboardSidebar() {
   const isLegal = location === "/legal" || location.startsWith("/legal/");
   const isAdministrasi = location === "/administrasi" || location.startsWith("/administrasi/");
   const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
+  const isMarketing = location === "/marketing" || location.startsWith("/marketing/");
 
   return (
     <Sidebar className="lg:border-r-0!" collapsible="icon">
@@ -226,13 +264,14 @@ function DashboardSidebar() {
                 const isLegalItem = item.path === "/legal";
                 const isAdministrasiItem = item.path === "/administrasi";
                 const isProduksiItem = item.path === "/produksi";
+                const isMarketingItem = item.path === "/marketing";
 
                 return (
                   <React.Fragment key={item.path}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={isActive && !isAkuisisiItem && !isPerencanaanItem && !isLegalItem && !isAdministrasiItem && !isProduksiItem}
+                        isActive={isActive && !isAkuisisiItem && !isPerencanaanItem && !isLegalItem && !isAdministrasiItem && !isProduksiItem && !isMarketingItem}
                         className="h-7"
                       >
                         <Link href={item.path}>
@@ -247,6 +286,7 @@ function DashboardSidebar() {
                     {isLegalItem && isLegal && renderSubNav(legalSubNav, location)}
                     {isAdministrasiItem && isAdministrasi && renderSubNav(administrasiSubNav, location)}
                     {isProduksiItem && isProduksi && renderSubNav(produksiSubNav, location)}
+                    {isMarketingItem && isMarketing && renderSubNav(marketingSubNav, location)}
                   </React.Fragment>
                 );
               })}

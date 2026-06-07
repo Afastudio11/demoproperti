@@ -42,3 +42,7 @@ export * from "./akad-records";
 export * from "./ht-records";
 export * from "./monthly-targets";
 export * from "./customer-complaints";
+export * from "./campaigns";
+export * from "./branding-kpi";
+export * from "./competitors";
+export * from "./marketing-absorption";

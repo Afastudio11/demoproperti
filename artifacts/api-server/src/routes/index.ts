@@ -34,6 +34,7 @@ import prodMaterialRouter from "./prod-material";
 import unitQcReworkRouter from "./unit-qc-rework";
 import prodDashboardRouter from "./prod-dashboard";
 import administrasiRouter from "./administrasi";
+import marketingRouter from "./marketing";
 
 const router: IRouter = Router();
 
@@ -72,5 +73,6 @@ router.use(prodMaterialRouter);
 router.use(unitQcReworkRouter);
 router.use(prodDashboardRouter);
 router.use(administrasiRouter);
+router.use(marketingRouter);
 
 export default router;

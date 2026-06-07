@@ -23,6 +23,25 @@ import LegalShm from "@/pages/legal/shm";
 import LegalIssue from "@/pages/legal/issue";
 import LegalArsip from "@/pages/legal/arsip";
 import Marketing from "@/pages/marketing";
+import MarketingLead from "@/pages/marketing/lead";
+import MarketingLeadNew from "@/pages/marketing/lead-new";
+import MarketingLeadEdit from "@/pages/marketing/lead-edit";
+import MarketingLeadDetail from "@/pages/marketing/lead-detail";
+import MarketingBranding from "@/pages/marketing/branding";
+import MarketingCampaign from "@/pages/marketing/campaign";
+import MarketingSales from "@/pages/marketing/sales";
+import MarketingAbsorption from "@/pages/marketing/absorption";
+import MarketingStock from "@/pages/marketing/stock";
+import MarketingForecast from "@/pages/marketing/forecast";
+import MarketingDemandScore from "@/pages/marketing/demand-score";
+import MarketingKompetitor from "@/pages/marketing/kompetitor";
+import MarketingHealth from "@/pages/marketing/health";
+import AdminDokumen from "@/pages/administrasi/dokumen";
+import AdminImport from "@/pages/administrasi/import";
+import PerencanaanKppSimulasi from "@/pages/perencanaan/kpp-simulasi";
+import PerencanaanEkspansiKesiapan from "@/pages/perencanaan/ekspansi-kesiapan";
+import PerencanaanEkspansiSkenario from "@/pages/perencanaan/ekspansi-skenario";
+import PerencanaanTimelineWarning from "@/pages/perencanaan/timeline-warning";
 import Administrasi from "@/pages/administrasi";
 import CustomerList from "@/pages/administrasi/customer";
 import CustomerNew from "@/pages/administrasi/customer-new";
@@ -90,6 +109,10 @@ function Router() {
         <Route path="/perencanaan/cashflow" component={CashflowPage} />
         <Route path="/perencanaan/sdm" component={SDMPage} />
         <Route path="/perencanaan/landbank" component={LandBankPage} />
+        <Route path="/perencanaan/kpp/:id/simulasi" component={PerencanaanKppSimulasi} />
+        <Route path="/perencanaan/ekspansi/kesiapan" component={PerencanaanEkspansiKesiapan} />
+        <Route path="/perencanaan/ekspansi/skenario" component={PerencanaanEkspansiSkenario} />
+        <Route path="/perencanaan/timeline/warning" component={PerencanaanTimelineWarning} />
         <Route path="/legal" component={Legal} />
         <Route path="/legal/permit" component={LegalPermit} />
         <Route path="/legal/lahan" component={LegalLahan} />
@@ -97,6 +120,19 @@ function Router() {
         <Route path="/legal/issue" component={LegalIssue} />
         <Route path="/legal/arsip" component={LegalArsip} />
         <Route path="/marketing" component={Marketing} />
+        <Route path="/marketing/lead/new" component={MarketingLeadNew} />
+        <Route path="/marketing/lead/:id/edit" component={MarketingLeadEdit} />
+        <Route path="/marketing/lead/:id" component={MarketingLeadDetail} />
+        <Route path="/marketing/lead" component={MarketingLead} />
+        <Route path="/marketing/branding" component={MarketingBranding} />
+        <Route path="/marketing/campaign" component={MarketingCampaign} />
+        <Route path="/marketing/sales" component={MarketingSales} />
+        <Route path="/marketing/absorption" component={MarketingAbsorption} />
+        <Route path="/marketing/stock" component={MarketingStock} />
+        <Route path="/marketing/forecast" component={MarketingForecast} />
+        <Route path="/marketing/demand-score" component={MarketingDemandScore} />
+        <Route path="/marketing/kompetitor" component={MarketingKompetitor} />
+        <Route path="/marketing/health" component={MarketingHealth} />
         <Route path="/administrasi" component={Administrasi} />
         <Route path="/administrasi/customer/new" component={CustomerNew} />
         <Route path="/administrasi/customer/:id/edit" component={CustomerEdit} />
@@ -111,6 +147,8 @@ function Router() {
         <Route path="/administrasi/aging" component={AgingPage} />
         <Route path="/administrasi/target" component={TargetPage} />
         <Route path="/administrasi/komplain" component={KomplainPage} />
+        <Route path="/administrasi/dokumen/:customerId" component={AdminDokumen} />
+        <Route path="/administrasi/import" component={AdminImport} />
         <Route path="/produksi" component={Produksi} />
         <Route path="/produksi/progress/proyek" component={ProgressProyek} />
         <Route path="/produksi/progress/tahap" component={ProgressTahap} />
