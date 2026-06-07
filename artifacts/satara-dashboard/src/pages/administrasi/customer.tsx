@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Search, Plus, Filter, Download } from "lucide-react";
+import { Search, Plus, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PIPELINE_STATUSES = [
@@ -11,6 +11,7 @@ const PIPELINE_STATUSES = [
   { key: "BERKAS_LENGKAP", label: "Berkas Lengkap" },
   { key: "SETOR_BANK", label: "Setor Bank" },
   { key: "OTS", label: "OTS" },
+  { key: "REVISI", label: "Revisi" },
   { key: "SP3K", label: "SP3K" },
   { key: "AKAD", label: "Akad" },
   { key: "HT_CAIR", label: "HT Cair" },
@@ -24,10 +25,10 @@ const STATUS_BADGE: Record<string, string> = {
   BERKAS_LENGKAP: "bg-cyan-50 text-cyan-700 border-cyan-200",
   SETOR_BANK: "bg-yellow-50 text-yellow-700 border-yellow-200",
   OTS: "bg-amber-50 text-amber-700 border-amber-200",
-  REVISI: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  REVISI: "bg-yellow-100 text-yellow-800 border-yellow-300",
   SP3K: "bg-orange-50 text-orange-700 border-orange-200",
   AKAD: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  HT_CAIR: "bg-green-50 text-green-700 border-green-200",
+  HT_CAIR: "bg-green-100 text-green-800 border-green-300",
   CASH: "bg-emerald-50 text-emerald-700 border-emerald-200",
   DTBO: "bg-red-50 text-red-600 border-red-200",
   BATAL: "bg-zinc-100 text-zinc-600 border-zinc-200",
@@ -38,12 +39,23 @@ const STATUS_BADGE: Record<string, string> = {
 const AGING_ROW: Record<string, string> = {
   normal: "",
   warning: "bg-yellow-50/50",
+  oranye: "bg-orange-50/50",
   kritis: "bg-red-50/50",
 };
 
-function AgingBadge({ days, level }: { days: number; level: string }) {
-  const cls = level === "kritis" ? "bg-red-100 text-red-700" : level === "warning" ? "bg-yellow-100 text-yellow-700" : "bg-muted text-muted-foreground";
-  return <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md", cls)}>{days}h</span>;
+function agingColor(days: number) {
+  if (days < 7) return "bg-emerald-100 text-emerald-700";
+  if (days < 14) return "bg-yellow-100 text-yellow-700";
+  if (days < 30) return "bg-orange-100 text-orange-700";
+  return "bg-red-100 text-red-700";
+}
+
+function AgingBadge({ days }: { days: number }) {
+  return (
+    <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md", agingColor(days))}>
+      {days}h
+    </span>
+  );
 }
 
 const ALL_STATUS_OPTIONS = [
@@ -56,6 +68,30 @@ const STATUS_LABELS: Record<string, string> = {
   AKAD: "Akad", HT_CAIR: "HT Cair", CASH: "Cash", DTBO: "DTBO",
   BATAL: "Batal", BELUM_LAKU: "Belum Laku", FOR_SALE: "For Sale",
 };
+
+function exportCsv(customers: any[]) {
+  const headers = ["No", "Blok/Unit", "Nama", "Pekerjaan", "Bank", "PIC", "Status", "Tanggal Status", "Aging (hari)", "Telepon"];
+  const rows = customers.map((c, i) => [
+    i + 1,
+    c.unitBlock ?? "",
+    c.nama ?? "",
+    c.pekerjaan ?? "",
+    c.bank ?? "",
+    c.picAdmin ?? "",
+    STATUS_LABELS[c.pipelineStatus ?? ""] ?? c.pipelineStatus ?? "",
+    c.statusUpdatedAt ? new Date(c.statusUpdatedAt).toLocaleDateString("id-ID") : "",
+    c.aging ?? 0,
+    c.phone ?? "",
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `customer-kpr-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function CustomerList() {
   const [search, setSearch] = useState("");
@@ -81,6 +117,8 @@ export default function CustomerList() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["administrasi-customers"] }),
   });
 
+  const QUICK_FILTERS = ["", "MINAT", "PROSES_BERKAS", "SETOR_BANK", "OTS", "REVISI", "SP3K", "AKAD", "HT_CAIR", "DTBO", "BATAL"];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -88,12 +126,21 @@ export default function CustomerList() {
           <h1 className="text-xl font-semibold">Daftar Customer</h1>
           <p className="text-sm text-muted-foreground">{customers.length} customer ditemukan</p>
         </div>
-        <Link href="/administrasi/customer/new">
-          <button className="flex items-center gap-1.5 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
-            <Plus className="size-3.5" />
-            Tambah Customer
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => exportCsv(customers)}
+            className="flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-muted"
+          >
+            <Download className="size-3.5" />
+            Export CSV
           </button>
-        </Link>
+          <Link href="/administrasi/customer/new">
+            <button className="flex items-center gap-1.5 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
+              <Plus className="size-3.5" />
+              Tambah Customer
+            </button>
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -117,9 +164,8 @@ export default function CustomerList() {
         </select>
       </div>
 
-      {/* Quick filter pills */}
       <div className="flex flex-wrap gap-1.5">
-        {["", "MINAT", "PROSES_BERKAS", "SETOR_BANK", "OTS", "SP3K", "AKAD", "HT_CAIR", "DTBO", "BATAL"].map(s => (
+        {QUICK_FILTERS.map(s => (
           <button
             key={s}
             onClick={() => setFilterStatus(s)}
@@ -174,12 +220,15 @@ export default function CustomerList() {
                     </select>
                   </td>
                   <td className="px-3 py-2.5">
-                    <AgingBadge days={c.aging ?? 0} level={c.agingLevel ?? "normal"} />
+                    <AgingBadge days={c.aging ?? 0} />
                   </td>
                   <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       <Link href={`/administrasi/customer/${c.id}`}>
                         <button className="text-xs text-muted-foreground hover:text-foreground underline">Detail</button>
+                      </Link>
+                      <Link href={`/administrasi/customer/${c.id}/edit`}>
+                        <button className="text-xs text-blue-600 hover:text-blue-700 underline">Edit</button>
                       </Link>
                     </div>
                   </td>

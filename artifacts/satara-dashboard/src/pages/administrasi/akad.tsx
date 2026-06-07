@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const BANK_OPTIONS = ["BRI", "BTN", "Mandiri", "BNI", "BSI", "Bank Sulselbar"];
+import BankSelect from "@/components/bank-select";
 const AKAD_STATUS = ["terjadwal", "selesai", "batal", "reschedule"];
 const inputCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring";
 const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none";
@@ -26,7 +25,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 
 export default function AkadPage() {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ customerId: "", bank: "BRI", akadDate: "", akadNumber: "", notary: "", akadAmount: "", estimatedHtDate: "", status: "selesai", notes: "" });
+  const [form, setForm] = useState({ customerId: "", bank: "", akadDate: "", akadNumber: "", notary: "", akadAmount: "", estimatedHtDate: "", status: "selesai", notes: "" });
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -127,7 +126,7 @@ export default function AkadPage() {
               {customers.map((c: any) => <option key={c.id} value={c.id}>{c.nama} — {c.unitBlock ?? c.id}</option>)}
             </select>
           </div>
-          <div><label className="text-xs font-medium text-muted-foreground">Bank</label><select className={selectCls} value={form.bank} onChange={set("bank")}>{BANK_OPTIONS.map(b => <option key={b}>{b}</option>)}</select></div>
+          <div><label className="text-xs font-medium text-muted-foreground">Bank</label><BankSelect value={form.bank} onChange={v => setForm(p => ({ ...p, bank: v }))} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Tanggal Akad</label><input className={inputCls} type="date" value={form.akadDate} onChange={set("akadDate")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Nomor Akad</label><input className={inputCls} value={form.akadNumber} onChange={set("akadNumber")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Notaris</label><input className={inputCls} value={form.notary} onChange={set("notary")} /></div>

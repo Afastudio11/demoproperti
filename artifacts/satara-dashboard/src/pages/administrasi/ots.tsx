@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const BANK_OPTIONS = ["BRI", "BTN", "Mandiri", "BNI", "BSI", "Bank Sulselbar"];
+import BankSelect from "@/components/bank-select";
 const OTS_STATUS = ["scheduled", "done", "reschedule", "gagal"];
 const OTS_RESULT = ["lolos", "revisi", "ditolak"];
 const inputCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring";
@@ -22,7 +21,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 
 export default function OtsPage() {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ customerId: "", bank: "BRI", scheduledDate: "", surveyorName: "", actualDate: "", status: "scheduled", result: "", notes: "" });
+  const [form, setForm] = useState({ customerId: "", bank: "", scheduledDate: "", surveyorName: "", actualDate: "", status: "scheduled", result: "", notes: "" });
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -123,7 +122,7 @@ export default function OtsPage() {
             </select>
           </div>
           <div><label className="text-xs font-medium text-muted-foreground">Bank</label>
-            <select className={selectCls} value={form.bank} onChange={set("bank")}>{BANK_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}</select>
+            <BankSelect value={form.bank} onChange={v => setForm(p => ({ ...p, bank: v }))} />
           </div>
           <div><label className="text-xs font-medium text-muted-foreground">Jadwal OTS</label>
             <input className={inputCls} type="date" value={form.scheduledDate} onChange={set("scheduledDate")} />

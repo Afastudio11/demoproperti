@@ -11,6 +11,7 @@ import {
   htRecordsTable,
   monthlyTargetsTable,
   customerComplaintsTable,
+  banksTable,
 } from "@workspace/db";
 import { eq, and, desc, or, like, sql } from "drizzle-orm";
 
@@ -36,11 +37,11 @@ function calcAging(statusUpdatedAt: Date | null): number {
   return Math.floor((Date.now() - statusUpdatedAt.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function agingLevel(status: string | null, days: number): "normal" | "warning" | "kritis" {
-  const threshold = AGING_THRESHOLDS[status ?? ""] ?? { warning: 14, kritis: 30 };
-  if (days >= threshold.kritis) return "kritis";
-  if (days >= threshold.warning) return "warning";
-  return "normal";
+function agingLevel(status: string | null, days: number): "normal" | "warning" | "oranye" | "kritis" {
+  if (days < 7) return "normal";
+  if (days < 14) return "warning";
+  if (days < 30) return "oranye";
+  return "kritis";
 }
 
 function serializeCustomer(c: typeof customersTable.$inferSelect) {
@@ -80,6 +81,45 @@ const DEFAULT_DOCUMENTS = [
   { name: "Formulir Aplikasi Bank", category: "pendukung", isRequired: true },
 ];
 
+// ─── BANKS ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_BANKS = [
+  { name: "BRI", code: "BRI" },
+  { name: "BTN", code: "BTN" },
+  { name: "Mandiri", code: "MANDIRI" },
+  { name: "BNI", code: "BNI" },
+  { name: "BSI", code: "BSI" },
+  { name: "Bank Sulselbar", code: "SULSELBAR" },
+  { name: "CASH", code: "CASH" },
+];
+
+router.get("/administrasi/banks", async (req, res) => {
+  try {
+    let banks = await db.select().from(banksTable).orderBy(banksTable.id);
+    if (banks.length === 0) {
+      await db.insert(banksTable).values(DEFAULT_BANKS.map(b => ({ ...b, isCustom: false })));
+      banks = await db.select().from(banksTable).orderBy(banksTable.id);
+    }
+    res.json(banks.filter(b => b.isActive));
+  } catch (err) {
+    req.log.error({ err }, "Failed to list banks");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/administrasi/banks", async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Name required" });
+    const code = name.toUpperCase().replace(/[\s-]/g, "_").replace(/[^A-Z0-9_]/g, "");
+    const [bank] = await db.insert(banksTable).values({ name, code, isCustom: true }).returning();
+    res.status(201).json(bank);
+  } catch (err) {
+    req.log.error({ err }, "Failed to create bank");
+    res.status(400).json({ error: "Bank sudah ada atau request tidak valid" });
+  }
+});
+
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────
 
 router.get("/administrasi/dashboard", async (req, res) => {
@@ -98,7 +138,7 @@ router.get("/administrasi/dashboard", async (req, res) => {
       pipelineCounts[status] = (pipelineCounts[status] || 0) + 1;
       const aging = calcAging(c.statusUpdatedAt);
       const level = agingLevel(status, aging);
-      if (level === "warning") agingWarning++;
+      if (level === "warning" || level === "oranye") agingWarning++;
       if (level === "kritis") agingKritis++;
     }
 

@@ -14,8 +14,15 @@ function fmtRp(n: number) {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
+function agingDayColor(days: number) {
+  if (days < 7) return "bg-emerald-100 text-emerald-700";
+  if (days < 14) return "bg-yellow-100 text-yellow-700";
+  if (days < 30) return "bg-orange-100 text-orange-700";
+  return "bg-red-100 text-red-700";
+}
+
 export default function AgingPage() {
-  const [filter, setFilter] = useState<"all" | "warning" | "kritis">("all");
+  const [filter, setFilter] = useState<"all" | "warning" | "oranye" | "kritis">("all");
 
   const { data, isLoading } = useQuery({
     queryKey: ["aging-pipeline"],
@@ -29,14 +36,25 @@ export default function AgingPage() {
   const AGING_ROW: Record<string, string> = {
     normal: "",
     warning: "bg-yellow-50/60 border-l-2 border-l-yellow-400",
+    oranye: "bg-orange-50/60 border-l-2 border-l-orange-400",
     kritis: "bg-red-50/60 border-l-2 border-l-red-500",
   };
 
   const AGING_BADGE: Record<string, string> = {
     normal: "bg-emerald-100 text-emerald-700",
     warning: "bg-yellow-100 text-yellow-700",
+    oranye: "bg-orange-100 text-orange-700",
     kritis: "bg-red-100 text-red-700",
   };
+
+  const AGING_LABEL: Record<string, string> = {
+    normal: "Normal",
+    warning: "Warning",
+    oranye: "Waspada",
+    kritis: "Kritis",
+  };
+
+  const totalOranye = all.filter(c => c.agingLevel === "oranye").length;
 
   return (
     <div className="space-y-4">
@@ -47,9 +65,10 @@ export default function AgingPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Warning", value: data?.totalWarning ?? 0, color: "text-yellow-600", desc: "macet 7–30 hari" },
+          { label: "Warning", value: data?.totalWarning ?? 0, color: "text-yellow-600", desc: "macet 7–14 hari" },
+          { label: "Waspada", value: totalOranye, color: "text-orange-600", desc: "macet 14–30 hari" },
           { label: "Kritis", value: data?.totalKritis ?? 0, color: "text-red-600", desc: "macet >30 hari" },
           { label: "HT Tertahan", value: fmtRp(data?.totalHtTertahan ?? 0), color: "text-amber-600", desc: "total nilai HT macet" },
         ].map(({ label, value, color, desc }) => (
@@ -58,22 +77,36 @@ export default function AgingPage() {
               <AlertTriangle className="size-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">{label}</span>
             </div>
-            <div className={cn("text-xl font-semibold", color)}>{value}</div>
+            <div className={cn("text-xl font-bold", color)}>{value}</div>
             <div className="text-[10px] text-muted-foreground">{desc}</div>
           </div>
         ))}
       </div>
 
-      <div className="flex gap-1.5">
+      {/* Legend */}
+      <div className="flex flex-wrap gap-2 text-xs">
+        <span className="text-muted-foreground">Warna aging:</span>
         {[
-          { key: "all", label: "Semua" },
-          { key: "warning", label: "Warning" },
-          { key: "kritis", label: "Kritis" },
-        ].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key as any)}
-            className={cn("text-xs px-3 py-1 rounded-full border transition-colors",
-              filter === f.key ? "bg-foreground text-background border-foreground" : "bg-muted hover:bg-muted/80")}>
-            {f.label}
+          { color: "bg-emerald-100 text-emerald-700", label: "Hijau: <7 hari" },
+          { color: "bg-yellow-100 text-yellow-700", label: "Kuning: 7–14 hari" },
+          { color: "bg-orange-100 text-orange-700", label: "Oranye: 14–30 hari" },
+          { color: "bg-red-100 text-red-700", label: "Merah: >30 hari" },
+        ].map(({ color, label }) => (
+          <span key={label} className={cn("px-2 py-0.5 rounded-md font-medium", color)}>{label}</span>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        {(["all", "warning", "oranye", "kritis"] as const).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={cn(
+              "text-xs px-3 py-1 rounded-full border transition-colors",
+              filter === f ? "bg-foreground text-background border-foreground" : "hover:bg-muted"
+            )}
+          >
+            {f === "all" ? "Semua" : f === "warning" ? "Warning" : f === "oranye" ? "Waspada" : "Kritis"}
           </button>
         ))}
       </div>
@@ -92,23 +125,25 @@ export default function AgingPage() {
               {isLoading ? (
                 <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">Memuat...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                  {filter === "all" ? "Tidak ada customer dalam pipeline aktif." : `Tidak ada customer dengan level ${filter}.`}
-                </td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">Tidak ada customer dalam pipeline aktif.</td></tr>
               ) : filtered.map((c: any) => (
-                <tr key={c.id} className={cn("border-b last:border-0", AGING_ROW[c.agingLevel ?? "normal"])}>
-                  <td className="px-3 py-2.5 font-medium">{c.nama}</td>
-                  <td className="px-3 py-2.5 font-mono text-xs">{c.unitBlock ?? "-"}</td>
-                  <td className="px-3 py-2.5 text-xs font-semibold">{c.bank ?? "-"}</td>
+                <tr key={c.id} className={cn("border-b last:border-0 hover:bg-muted/20 transition-colors", AGING_ROW[c.agingLevel ?? "normal"])}>
+                  <td className="px-3 py-2.5 font-medium text-sm">{c.nama}</td>
+                  <td className="px-3 py-2.5 text-xs font-mono">{c.unitBlock ?? "-"}</td>
+                  <td className="px-3 py-2.5 text-xs">{c.bank ?? "-"}</td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground">{c.picAdmin ?? "-"}</td>
-                  <td className="px-3 py-2.5 text-xs">{STATUS_LABELS[c.pipelineStatus ?? ""] ?? c.pipelineStatus ?? "-"}</td>
+                  <td className="px-3 py-2.5 text-xs">{STATUS_LABELS[c.pipelineStatus ?? ""] ?? c.pipelineStatus}</td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                    {c.statusUpdatedAt ? new Date(c.statusUpdatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "-"}
+                    {c.statusUpdatedAt ? new Date(c.statusUpdatedAt).toLocaleDateString("id-ID") : "-"}
                   </td>
-                  <td className="px-3 py-2.5 text-xs font-semibold">{c.aging} hari</td>
                   <td className="px-3 py-2.5">
-                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-md uppercase", AGING_BADGE[c.agingLevel ?? "normal"])}>
-                      {c.agingLevel}
+                    <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded-md", agingDayColor(c.aging ?? 0))}>
+                      {c.aging ?? 0} hari
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md border", AGING_BADGE[c.agingLevel ?? "normal"])}>
+                      {AGING_LABEL[c.agingLevel ?? "normal"]}
                     </span>
                   </td>
                   <td className="px-3 py-2.5">

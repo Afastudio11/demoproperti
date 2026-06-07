@@ -21,6 +21,7 @@ import Marketing from "@/pages/marketing";
 import Administrasi from "@/pages/administrasi";
 import CustomerList from "@/pages/administrasi/customer";
 import CustomerNew from "@/pages/administrasi/customer-new";
+import CustomerEdit from "@/pages/administrasi/customer-edit";
 import CustomerDetail from "@/pages/administrasi/customer-detail";
 import BankSubmission from "@/pages/administrasi/bank-submission";
 import OtsPage from "@/pages/administrasi/ots";
@@ -88,6 +89,7 @@ function Router() {
         <Route path="/marketing" component={Marketing} />
         <Route path="/administrasi" component={Administrasi} />
         <Route path="/administrasi/customer/new" component={CustomerNew} />
+        <Route path="/administrasi/customer/:id/edit" component={CustomerEdit} />
         <Route path="/administrasi/customer/:id" component={CustomerDetail} />
         <Route path="/administrasi/customer" component={CustomerList} />
         <Route path="/administrasi/bank-submission" component={BankSubmission} />

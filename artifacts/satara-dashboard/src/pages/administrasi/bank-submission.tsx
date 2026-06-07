@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const BANK_OPTIONS = ["BRI", "BTN", "Mandiri", "BNI", "BSI", "Bank Sulselbar", "CASH"];
+import BankSelect from "@/components/bank-select";
 
 function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   if (!open) return null;
@@ -21,7 +20,7 @@ const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background fo
 
 export default function BankSubmissionPage() {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ customerId: "", bank: "BRI", submittedDate: "", bankOfficer: "", registrationNumber: "", notes: "" });
+  const [form, setForm] = useState({ customerId: "", bank: "", submittedDate: "", bankOfficer: "", registrationNumber: "", notes: "" });
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -40,7 +39,7 @@ export default function BankSubmissionPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...data, customerId: parseInt(data.customerId) }),
     }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-submissions"] }); setShowForm(false); setForm({ customerId: "", bank: "BRI", submittedDate: "", bankOfficer: "", registrationNumber: "", notes: "" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-submissions"] }); setShowForm(false); setForm({ customerId: "", bank: "", submittedDate: "", bankOfficer: "", registrationNumber: "", notes: "" }); },
   });
 
   const submissions: any[] = data ?? [];
@@ -110,9 +109,7 @@ export default function BankSubmissionPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Bank *</label>
-            <select className={selectCls} value={form.bank} onChange={set("bank")}>
-              {BANK_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <BankSelect value={form.bank} onChange={v => setForm(p => ({ ...p, bank: v }))} required />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Tanggal Setor</label>

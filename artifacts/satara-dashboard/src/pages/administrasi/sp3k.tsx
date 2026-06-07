@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const BANK_OPTIONS = ["BRI", "BTN", "Mandiri", "BNI", "BSI", "Bank Sulselbar"];
+import BankSelect from "@/components/bank-select";
 const SP3K_STATUS = ["pending", "approved", "revisi", "ditolak"];
 const inputCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring";
 const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none";
@@ -26,7 +25,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 
 export default function Sp3kPage() {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ customerId: "", bank: "BRI", sp3kDate: "", sp3kNumber: "", approvedAmount: "", plafonAmount: "", expiryDate: "", status: "approved", revisionNotes: "" });
+  const [form, setForm] = useState({ customerId: "", bank: "", sp3kDate: "", sp3kNumber: "", approvedAmount: "", plafonAmount: "", expiryDate: "", status: "approved", revisionNotes: "" });
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -133,7 +132,7 @@ export default function Sp3kPage() {
               {customers.map((c: any) => <option key={c.id} value={c.id}>{c.nama} — {c.unitBlock ?? c.id}</option>)}
             </select>
           </div>
-          <div><label className="text-xs font-medium text-muted-foreground">Bank</label><select className={selectCls} value={form.bank} onChange={set("bank")}>{BANK_OPTIONS.map(b => <option key={b}>{b}</option>)}</select></div>
+          <div><label className="text-xs font-medium text-muted-foreground">Bank</label><BankSelect value={form.bank} onChange={v => setForm(p => ({ ...p, bank: v }))} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Tanggal SP3K</label><input className={inputCls} type="date" value={form.sp3kDate} onChange={set("sp3kDate")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Nomor SP3K</label><input className={inputCls} value={form.sp3kNumber} onChange={set("sp3kNumber")} /></div>
           <div><label className="text-xs font-medium text-muted-foreground">Nilai KPR Disetujui (Rp)</label><input className={inputCls} type="number" value={form.approvedAmount} onChange={set("approvedAmount")} /></div>

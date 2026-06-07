@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Save } from "lucide-react";
 import { Link } from "wouter";
 import BankSelect from "@/components/bank-select";
@@ -32,16 +32,23 @@ function Field({ label, required, children }: { label: string; required?: boolea
 const inputCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring";
 const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none";
 
-export default function CustomerNew() {
+export default function CustomerEdit() {
+  const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const [form, setForm] = useState({
     nama: "", nik: "", kontak: "", phone: "", pekerjaan: "",
     unitBlock: "", stageCode: "", projectId: "", referralSource: "", picAdmin: "",
-    bank: "", paymentType: "KPR", pipelineStatus: "MINAT",
+    bank: "BRI", paymentType: "KPR", pipelineStatus: "MINAT",
     dpAmount: "", loanAmount: "", htAmount: "", unitPrice: "",
     bookingDate: "", akadDate: "", htDate: "",
     catatan: "", alternativeSolution: "", followUp: "",
+  });
+  const [loaded, setLoaded] = useState(false);
+
+  const { data: customer, isLoading } = useQuery({
+    queryKey: ["administrasi-customer", id],
+    queryFn: () => fetch(`/api/administrasi/customers/${id}`).then(r => r.json()),
   });
 
   const { data: projects = [] } = useQuery({
@@ -49,9 +56,40 @@ export default function CustomerNew() {
     queryFn: () => fetch("/api/projects").then(r => r.json()),
   });
 
+  useEffect(() => {
+    if (customer && !loaded && !customer.error) {
+      setForm({
+        nama: customer.nama ?? "",
+        nik: customer.nik ?? "",
+        kontak: customer.kontak ?? "",
+        phone: customer.phone ?? "",
+        pekerjaan: customer.pekerjaan ?? "",
+        unitBlock: customer.unitBlock ?? "",
+        stageCode: customer.stageCode ?? "",
+        projectId: customer.projectId ? String(customer.projectId) : "",
+        referralSource: customer.referralSource ?? "",
+        picAdmin: customer.picAdmin ?? "",
+        bank: customer.bank ?? "BRI",
+        paymentType: customer.paymentType ?? "KPR",
+        pipelineStatus: customer.pipelineStatus ?? "MINAT",
+        dpAmount: customer.dpAmount ? String(customer.dpAmount) : "",
+        loanAmount: customer.loanAmount ? String(customer.loanAmount) : "",
+        htAmount: customer.htAmount ? String(customer.htAmount) : "",
+        unitPrice: customer.unitPrice ? String(customer.unitPrice) : "",
+        bookingDate: customer.bookingDate ?? "",
+        akadDate: customer.akadDate ?? "",
+        htDate: customer.htDate ?? "",
+        catatan: customer.catatan ?? "",
+        alternativeSolution: customer.alternativeSolution ?? "",
+        followUp: customer.followUp ?? "",
+      });
+      setLoaded(true);
+    }
+  }, [customer, loaded]);
+
   const save = useMutation({
-    mutationFn: (data: typeof form) => fetch("/api/administrasi/customers", {
-      method: "POST",
+    mutationFn: (data: typeof form) => fetch(`/api/administrasi/customers/${id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...data,
@@ -62,24 +100,28 @@ export default function CustomerNew() {
         unitPrice: data.unitPrice || null,
       }),
     }).then(r => r.json()),
-    onSuccess: (data) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["administrasi-customers"] });
-      setLocation(`/administrasi/customer/${data.id}`);
+      qc.invalidateQueries({ queryKey: ["administrasi-customer", id] });
+      setLocation(`/administrasi/customer/${id}`);
     },
   });
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
 
+  if (isLoading) return <div className="p-8 text-center text-sm text-muted-foreground">Memuat data customer...</div>;
+  if (!customer || customer.error) return <div className="p-8 text-center text-sm text-muted-foreground">Customer tidak ditemukan.</div>;
+
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-center gap-3">
-        <Link href="/administrasi/customer">
+        <Link href={`/administrasi/customer/${id}`}>
           <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-4" /> Kembali
+            <ArrowLeft className="size-4" /> Kembali ke Detail
           </button>
         </Link>
-        <h1 className="text-xl font-semibold">Tambah Customer Baru</h1>
+        <h1 className="text-xl font-semibold">Edit Customer: {customer.nama}</h1>
       </div>
 
       <form onSubmit={e => { e.preventDefault(); save.mutate(form); }} className="space-y-5">
@@ -157,12 +199,12 @@ export default function CustomerNew() {
         </div>
 
         <div className="flex justify-end gap-3">
-          <Link href="/administrasi/customer">
+          <Link href={`/administrasi/customer/${id}`}>
             <button type="button" className="text-sm border rounded-md px-4 py-1.5 hover:bg-muted">Batal</button>
           </Link>
           <button type="submit" disabled={save.isPending} className="flex items-center gap-1.5 bg-foreground text-background text-sm font-medium px-4 py-1.5 rounded-md hover:opacity-90 disabled:opacity-50">
             <Save className="size-3.5" />
-            {save.isPending ? "Menyimpan..." : "Simpan Customer"}
+            {save.isPending ? "Menyimpan..." : "Simpan Perubahan"}
           </button>
         </div>
       </form>

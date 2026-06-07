@@ -87,10 +87,15 @@ export default function CustomerDetail() {
 
   return (
     <div className="space-y-4 max-w-4xl">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
         <Link href="/administrasi/customer">
           <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" /> Kembali
+          </button>
+        </Link>
+        <Link href={`/administrasi/customer/${id}/edit`}>
+          <button className="flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-muted">
+            Edit Customer
           </button>
         </Link>
       </div>

@@ -28,6 +28,7 @@ export * from "./prod-material-in";
 export * from "./prod-material-out";
 export * from "./reworks";
 export * from "./unit-qc";
+export * from "./banks";
 export * from "./customer-status-history";
 export * from "./customer-documents";
 export * from "./bank-submissions";
