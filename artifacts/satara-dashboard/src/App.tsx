@@ -59,7 +59,6 @@ import KomplainPage from "@/pages/administrasi/komplain";
 import Produksi from "@/pages/produksi";
 import SerahTerima from "@/pages/serah-terima";
 import Settings from "@/pages/settings";
-import Ekspansi from "@/pages/ekspansi";
 import SLIS from "@/pages/slis";
 import Layout from "@/components/layout";
 import ProgressProyek from "@/pages/produksi/progress/proyek";
@@ -197,7 +196,6 @@ function Router() {
         <Route path="/produksi/health" component={ProduksiHealth} />
         <Route path="/serah-terima" component={SerahTerima} />
         <Route path="/settings" component={Settings} />
-        <Route path="/ekspansi" component={Ekspansi} />
         <Route path="/slis" component={SLIS} />
         <Route path="/hr" component={HRDashboard} />
         <Route path="/hr/organisasi" component={HROrganisasi} />

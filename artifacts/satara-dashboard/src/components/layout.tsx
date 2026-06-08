@@ -101,7 +101,6 @@ const hrSubNav: SubNavItem[] = [
 
 const akuisisiSubNav: SubNavItem[] = [
   { type: "link", name: "Pipeline Prospek", path: "/akuisisi" },
-  { type: "link", name: "Potensi Ekspansi", path: "/ekspansi" },
 ];
 
 const perencanaanSubNav: SubNavItem[] = [
@@ -241,7 +240,7 @@ function renderSubNav(items: SubNavItem[], location: string) {
 
 function DashboardSidebar() {
   const [location, navigate] = useLocation();
-  const isAkuisisi = location === "/akuisisi" || location === "/ekspansi" || location.startsWith("/akuisisi/");
+  const isAkuisisi = location === "/akuisisi" || location.startsWith("/akuisisi/");
   const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/") || location === "/slis";
   const isLegal = location === "/legal" || location.startsWith("/legal/");
   const isAdministrasi = location === "/administrasi" || location.startsWith("/administrasi/");
