@@ -48,6 +48,7 @@ export default function PasarPage() {
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
   const { data: landProspects } = useQuery({ queryKey: ["land-prospects"], queryFn: () => fetch("/api/land-prospects").then(r => r.json()) });
+  const { data: marketingCompetitors } = useQuery({ queryKey: ["marketing-competitors"], queryFn: () => fetch("/api/marketing/competitors").then(r => r.json()) });
   const { data: existing } = useQuery({
     queryKey: ["planning-market", form.projectId],
     enabled: form.projectId > 0,
@@ -68,9 +69,11 @@ export default function PasarPage() {
         kabupaten: (ex.kabupaten as string) || prev.kabupaten,
       }));
       setSavedId((existing as Record<string, number>).id);
-      if (Array.isArray((existing as Record<string, unknown>).competitors)) {
-        setCompetitors((existing as Record<string, unknown>).competitors as Competitor[]);
+      const savedComps = (existing as Record<string, unknown>).competitors;
+      if (Array.isArray(savedComps) && savedComps.length > 0) {
+        setCompetitors(savedComps as Competitor[]);
       }
+      // If no saved competitors, keep the auto-filled ones from marketing
     }
   }, [existing]);
 
@@ -85,6 +88,20 @@ export default function PasarPage() {
       kecamatan: (lp.kecamatan as string) ?? "",
       kabupaten: (lp.kabupaten as string) ?? "",
     };
+  };
+
+  const getCompetitorsFromMarketing = (pid: number): Competitor[] => {
+    if (!Array.isArray(marketingCompetitors)) return [];
+    return (marketingCompetitors as Record<string, unknown>[])
+      .filter(c => c.projectId === pid)
+      .map(c => ({
+        name: (c.namaKompetitor as string) ?? "",
+        type: (c.tipeUnit as string) || "tapak",
+        price: c.hargaMin ? Math.round((c.hargaMin as number) / 1_000_000) : 0,
+        units: (c.totalUnit as number) ?? 0,
+        absorption: 0,
+        distance: (c.jarak as number) ?? 0,
+      }));
   };
 
   const demandScore = calcDemandScore({
@@ -130,8 +147,9 @@ export default function PasarPage() {
         <Select onValueChange={v => {
           const pid = parseInt(v);
           const loc = getLocationFromProspect(pid);
+          const comps = getCompetitorsFromMarketing(pid);
           setForm({ ...defaultForm, projectId: pid, ...loc });
-          setCompetitors([]);
+          setCompetitors(comps);
           setSavedId(null);
         }}>
           <SelectTrigger className="h-8 w-64">
