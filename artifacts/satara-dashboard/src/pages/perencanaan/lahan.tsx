@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
 import { Save, Download, MapPin } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 function num(v: string) { return parseFloat(v) || 0; }
@@ -235,7 +236,7 @@ export default function LahanPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Total Harga Lahan (Rp)</Label>
-              <NumericInput className="h-8 text-sm" value={form.landPriceTotal} onChange={v => setF("landPriceTotal", v)} />
+              <CurrencyInput className="h-8 text-sm" value={form.landPriceTotal} onChange={raw => setF("landPriceTotal", raw ? Number(raw) : 0)} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Lebar Jalan Utama (m)</Label>

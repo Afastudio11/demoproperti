@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { calcFeasibility, fmtCurrency, fmtPct, type FeasibilityInputs } from "@/lib/planning-calc";
 import { Save, CheckCircle2, XCircle, AlertTriangle, Brain, Zap, FileDown, ArrowRight } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const SATARA = { roi: 35, irr: 20, payback: 24, margin: 25 };
@@ -31,15 +32,18 @@ function StatusBadge({ pass }: { pass: boolean }) {
     : <Badge className="bg-red-100 text-red-700 border-red-200 gap-1"><XCircle className="size-3" />FAIL</Badge>;
 }
 
-function NumField({ label, value, onChange, unit, prefix, hint, decimals }: {
-  label: string; value: number; onChange: (v: number) => void; unit?: string; prefix?: string; hint?: string; decimals?: number;
+function NumField({ label, value, onChange, unit, prefix, hint, decimals, currency }: {
+  label: string; value: number; onChange: (v: number) => void; unit?: string; prefix?: string; hint?: string; decimals?: number; currency?: boolean;
 }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       <div className="flex items-center gap-1">
         {prefix && <span className="text-xs text-muted-foreground">{prefix}</span>}
-        <NumericInput className="h-8 text-sm" value={value} onChange={onChange} decimals={decimals} />
+        {currency
+          ? <CurrencyInput className="h-8 text-sm" value={value} onChange={raw => onChange(raw ? Number(raw) : 0)} />
+          : <NumericInput className="h-8 text-sm" value={value} onChange={onChange} decimals={decimals} />
+        }
         {unit && <span className="text-xs text-muted-foreground shrink-0">{unit}</span>}
       </div>
       {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
@@ -268,13 +272,13 @@ export default function FeasibilityPage() {
           <Card>
             <CardHeader><CardTitle className="text-sm">Komponen Biaya (HPP)</CardTitle></CardHeader>
             <CardContent className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <NumField label="Biaya Lahan (Rp)" value={inputs.landCost} onChange={v => setI("landCost", v)} prefix="Rp" hint="Auto-fill dari Analisis Lahan" />
-              <NumField label="Pematangan Lahan (Rp)" value={inputs.landPrepCost} onChange={v => setI("landPrepCost", v)} prefix="Rp" />
-              <NumField label="Biaya Konstruksi/Unit (Rp)" value={inputs.constructionCostPerUnit} onChange={v => setI("constructionCostPerUnit", v)} prefix="Rp" />
-              <NumField label="Jalan & Fasum (Rp)" value={inputs.fasumRoadCost} onChange={v => setI("fasumRoadCost", v)} prefix="Rp" />
-              <NumField label="PKKPR/PBG/Perizinan (Rp)" value={inputs.permitCost} onChange={v => setI("permitCost", v)} prefix="Rp" />
-              <NumField label="Biaya Pemasaran (Rp)" value={inputs.marketingCost} onChange={v => setI("marketingCost", v)} prefix="Rp" />
-              <NumField label="Overhead & Operasional (Rp)" value={inputs.overheadCost} onChange={v => setI("overheadCost", v)} prefix="Rp" />
+              <NumField label="Biaya Lahan (Rp)" value={inputs.landCost} onChange={v => setI("landCost", v)} prefix="Rp" hint="Auto-fill dari Analisis Lahan" currency />
+              <NumField label="Pematangan Lahan (Rp)" value={inputs.landPrepCost} onChange={v => setI("landPrepCost", v)} prefix="Rp" currency />
+              <NumField label="Biaya Konstruksi/Unit (Rp)" value={inputs.constructionCostPerUnit} onChange={v => setI("constructionCostPerUnit", v)} prefix="Rp" currency />
+              <NumField label="Jalan & Fasum (Rp)" value={inputs.fasumRoadCost} onChange={v => setI("fasumRoadCost", v)} prefix="Rp" currency />
+              <NumField label="PKKPR/PBG/Perizinan (Rp)" value={inputs.permitCost} onChange={v => setI("permitCost", v)} prefix="Rp" currency />
+              <NumField label="Biaya Pemasaran (Rp)" value={inputs.marketingCost} onChange={v => setI("marketingCost", v)} prefix="Rp" currency />
+              <NumField label="Overhead & Operasional (Rp)" value={inputs.overheadCost} onChange={v => setI("overheadCost", v)} prefix="Rp" currency />
               <NumField label="Contingency (%)" value={inputs.contingencyPct} onChange={v => setI("contingencyPct", v)} unit="%" hint="Umumnya 5-10%" />
               {result && (
                 <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t">
@@ -301,9 +305,9 @@ export default function FeasibilityPage() {
           <Card>
             <CardHeader><CardTitle className="text-sm">Asumsi Revenue</CardTitle></CardHeader>
             <CardContent className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <NumField label="Harga Jual/Unit (Rp)" value={inputs.sellingPricePerUnit} onChange={v => setI("sellingPricePerUnit", v)} prefix="Rp" hint="Auto-fill dari Perencanaan Produk" />
+              <NumField label="Harga Jual/Unit (Rp)" value={inputs.sellingPricePerUnit} onChange={v => setI("sellingPricePerUnit", v)} prefix="Rp" hint="Auto-fill dari Perencanaan Produk" currency />
               <NumField label="Total Unit" value={inputs.totalUnits} onChange={v => setI("totalUnits", v)} unit="unit" hint="Auto-fill dari Analisis Lahan" />
-              <NumField label="Booking Fee/Unit (Rp)" value={inputs.bookingFeePerUnit} onChange={v => setI("bookingFeePerUnit", v)} prefix="Rp" />
+              <NumField label="Booking Fee/Unit (Rp)" value={inputs.bookingFeePerUnit} onChange={v => setI("bookingFeePerUnit", v)} prefix="Rp" currency />
               <NumField label="Sales/Bulan" value={inputs.salesPerMonth} onChange={v => setI("salesPerMonth", v)} unit="unit/bln" />
               <NumField label="Porsi KPR (%)" value={inputs.kprPct} onChange={v => setI("kprPct", v)} unit="%" />
               <NumField label="Porsi Cash Keras (%)" value={inputs.cashHardPct} onChange={v => setI("cashHardPct", v)} unit="%" />

@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fmtCurrency } from "@/lib/planning-calc";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 
 const DEFAULT_MONTHS = 24;
@@ -204,7 +205,7 @@ export default function CashflowPage() {
                         <td className="px-2 py-1 font-medium">{e.monthLabel}</td>
                         {["landCostOut","constructionCostOut","marketingCostOut","operationalCostOut","kppInstallmentOut","bookingFeeIn","htKprIn","downPaymentIn","kppDisbursementIn"].map(k => (
                           <td key={k} className="px-1 py-1">
-                            <NumericInput className="h-6 w-24 text-xs" value={(e as Record<string, unknown>)[k] as number ?? 0} onChange={v => setEntry(i, k, v)} />
+                            <CurrencyInput className="h-6 w-28 text-xs" value={(e as Record<string, unknown>)[k] as number ?? 0} onChange={raw => setEntry(i, k, raw ? Number(raw) : 0)} />
                           </td>
                         ))}
                       </tr>
@@ -225,14 +226,16 @@ export default function CashflowPage() {
             <CardContent className="grid sm:grid-cols-2 gap-4">
               {[
                 ["bankName", "Nama Bank", "text"],
-                ["approvedAmount", "Plafon Disetujui (Rp)", "number"],
+                ["approvedAmount", "Plafon Disetujui (Rp)", "currency"],
                 ["interestRate", "Suku Bunga (%/thn)", "number"],
                 ["tenureMonths", "Jangka Waktu (Bulan)", "number"],
-                ["adminFee", "Biaya Admin (Rp)", "number"],
+                ["adminFee", "Biaya Admin (Rp)", "currency"],
               ].map(([k, label, type]) => (
                 <div key={k} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
-                  {type === "number"
+                  {type === "currency"
+                  ? <CurrencyInput className="h-8 text-sm" value={(kpp as Record<string, unknown>)[k] as number ?? 0} onChange={raw => setKpp(prev => ({ ...prev, [k]: raw ? Number(raw) : 0 }))} />
+                  : type === "number"
                   ? <NumericInput className="h-8 text-sm" value={(kpp as Record<string, unknown>)[k] as number ?? 0} onChange={v => setKpp(prev => ({ ...prev, [k]: v }))} />
                   : <Input className="h-8 text-sm" value={(kpp as Record<string, unknown>)[k] as string ?? ""} onChange={e => setKpp(prev => ({ ...prev, [k]: e.target.value }))} />
                 }
@@ -272,7 +275,7 @@ export default function CashflowPage() {
                           <Input className="h-7 text-xs w-28" type="date" value={ht.akadDate} onChange={e => { const next = [...htRows]; next[i].akadDate = e.target.value; setHtRows(next); }} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <NumericInput className="h-7 text-xs w-28" value={ht.htAmount} onChange={v => { const next = [...htRows]; next[i].htAmount = v; setHtRows(next); }} />
+                          <CurrencyInput className="h-7 text-xs w-28" value={ht.htAmount} onChange={raw => { const next = [...htRows]; next[i].htAmount = raw ? Number(raw) : 0; setHtRows(next); }} />
                         </td>
                         <td className="px-2 py-1.5">
                           <Input className="h-7 text-xs w-20" value={ht.kprBank} onChange={e => { const next = [...htRows]; next[i].kprBank = e.target.value; setHtRows(next); }} />

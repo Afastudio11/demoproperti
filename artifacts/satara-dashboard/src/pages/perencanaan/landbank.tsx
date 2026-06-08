@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fmtCurrency } from "@/lib/planning-calc";
 import { Plus, Trash2, Save, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   LineChart, Line, ReferenceLine, Legend,
@@ -228,7 +229,7 @@ export default function LandBankPage() {
                           <NumericInput className="h-7 w-16 text-xs" value={land.availableUnits ?? 0} onChange={v => setLand(i, "availableUnits", v)} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <NumericInput className="h-7 w-32 text-xs" value={land.acquisitionPrice ?? 0} onChange={v => setLand(i, "acquisitionPrice", v)} />
+                          <CurrencyInput className="h-7 w-36 text-xs" value={land.acquisitionPrice ?? 0} onChange={raw => setLand(i, "acquisitionPrice", raw ? Number(raw) : 0)} />
                         </td>
                         <td className="px-2 py-1.5">
                           <Input className="h-7 w-28 text-xs" type="date" value={land.targetStartDate} onChange={e => setLand(i, "targetStartDate", e.target.value)} />

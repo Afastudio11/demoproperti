@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileCheck, Trash2 } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { useToast } from "@/hooks/use-toast";
 
 const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
@@ -126,11 +127,11 @@ export default function SubkonKontrak() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Nilai per Unit (Rp)</Label>
-                <NumericInput value={parseFloat(form.valuePerUnit) || 0} onChange={v => setForm(p => ({ ...p, valuePerUnit: String(v) }))} className="h-8 text-sm" />
+                <CurrencyInput value={form.valuePerUnit} onChange={raw => setForm(p => ({ ...p, valuePerUnit: raw }))} className="h-8 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Retensi per Unit (Rp)</Label>
-                <NumericInput value={parseFloat(form.retentionPerUnit) || 0} onChange={v => setForm(p => ({ ...p, retentionPerUnit: String(v) }))} className="h-8 text-sm" />
+                <CurrencyInput value={form.retentionPerUnit} onChange={raw => setForm(p => ({ ...p, retentionPerUnit: raw }))} className="h-8 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Masa Pemeliharaan (bln)</Label>

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { useToast } from "@/hooks/use-toast";
 import { fmtCurrency } from "@/lib/planning-calc";
 import { Save, Plus, Trash2 } from "lucide-react";
@@ -146,7 +147,7 @@ export default function ProdukPage() {
                       <NumericInput className="h-7 w-16 text-xs" decimals={1} value={row.kavlingArea} onChange={v => setRowField(i, "kavlingArea", v)} />
                     </td>
                     <td className="px-2 py-1.5">
-                      <NumericInput className="h-7 w-32 text-xs" value={row.sellingPrice} onChange={v => setRowField(i, "sellingPrice", v)} />
+                      <CurrencyInput className="h-7 w-36 text-xs" value={row.sellingPrice} onChange={raw => setRowField(i, "sellingPrice", raw ? Number(raw) : 0)} />
                     </td>
                     <td className="px-2 py-1.5">
                       <NumericInput className="h-7 w-16 text-xs" value={row.unitCount} onChange={v => setRowField(i, "unitCount", v)} />
@@ -158,7 +159,7 @@ export default function ProdukPage() {
                       </Select>
                     </td>
                     <td className="px-2 py-1.5">
-                      <NumericInput className="h-7 w-32 text-xs" value={row.competitorPrice} onChange={v => setRowField(i, "competitorPrice", v)} />
+                      <CurrencyInput className="h-7 w-36 text-xs" value={row.competitorPrice} onChange={raw => setRowField(i, "competitorPrice", raw ? Number(raw) : 0)} />
                     </td>
                     <td className="px-2 py-1.5">
                       <Button variant="ghost" size="icon" className="size-7" onClick={() => removeRow(i)}>

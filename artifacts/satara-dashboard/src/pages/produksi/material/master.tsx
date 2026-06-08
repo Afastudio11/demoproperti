@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Package } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { useToast } from "@/hooks/use-toast";
 
 type Material = { id: number; name: string; category: string; satuan: string; standardPerUnit: number | null; unitPrice: number | null; minimumStock: number };
@@ -84,7 +85,7 @@ export default function MaterialMaster() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Harga Satuan (Rp)</Label>
-              <NumericInput value={parseFloat(form.unitPrice) || 0} onChange={v => setForm(p => ({ ...p, unitPrice: String(v) }))} className="h-8 text-sm" />
+              <CurrencyInput value={form.unitPrice} onChange={raw => setForm(p => ({ ...p, unitPrice: raw }))} className="h-8 text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Minimum Stok</Label>
