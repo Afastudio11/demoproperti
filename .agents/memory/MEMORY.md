@@ -2,3 +2,5 @@
 - [sulsel_desa GeoJSON coordinate normalization](sulsel-geojson-normalization.md) — 95 features have extra nesting level in Polygon coordinates; must be normalized before passing to Leaflet.
 - [React Leaflet HMR effect issue](react-leaflet-hmr.md) — Leaflet layers inside MapContainer: use conditional mount ({cond && <Layer />}) not visible prop, so HMR resets effect properly.
 - [SLIS Calculation Engine separation](slis-calc-engine.md) — AI must not generate financial numbers; Calculation Engine computes all metrics, AI writes narrative only. Key pattern for all future AI analysis features.
+- [Satara Dashboard API route prefix bug](satara-api-routes.md) — app.use("/api", router) pattern means route files must NOT include /api/ prefix. HR routes had "/api/hr/" causing double-prefix 404s.
+- [Satara Dashboard seed/schema mismatches](satara-seed-schema.md) — OTS checked status==="done" but seed uses "completed"; productivity table has no employee_count column; competency table uses "competency_name" not "name"; employees use "employment_status" not "is_active". Always verify enum values match between seed and API.

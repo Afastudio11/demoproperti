@@ -41,30 +41,30 @@ function calcFlightRisk(r: {
 }
 
 // ─── EMPLOYEES ────────────────────────────────────────────────────────────────
-router.get("/api/hr/employees", async (_req, res) => {
+router.get("/hr/employees", async (_req, res) => {
   const rows = await db.select().from(employeesTable).orderBy(employeesTable.name);
   res.json(rows);
 });
 
-router.post("/api/hr/employees", async (req, res) => {
+router.post("/hr/employees", async (req, res) => {
   const body = req.body;
   const code = body.employeeCode || `EMP-${Date.now().toString().slice(-5)}`;
   const [row] = await db.insert(employeesTable).values({ ...body, employeeCode: code }).returning();
   res.json(row);
 });
 
-router.put("/api/hr/employees/:id", async (req, res) => {
+router.put("/hr/employees/:id", async (req, res) => {
   const [row] = await db.update(employeesTable).set(req.body).where(eq(employeesTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/employees/:id", async (req, res) => {
+router.delete("/hr/employees/:id", async (req, res) => {
   await db.delete(employeesTable).where(eq(employeesTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── RECRUITMENT ──────────────────────────────────────────────────────────────
-router.get("/api/hr/recruitment/needs", async (_req, res) => {
+router.get("/hr/recruitment/needs", async (_req, res) => {
   const needs = await db.select().from(recruitmentNeedsTable).orderBy(desc(recruitmentNeedsTable.createdAt));
   const candidates = await db.select().from(recruitmentCandidatesTable);
   const result = needs.map(n => ({
@@ -74,69 +74,69 @@ router.get("/api/hr/recruitment/needs", async (_req, res) => {
   res.json(result);
 });
 
-router.post("/api/hr/recruitment/needs", async (req, res) => {
+router.post("/hr/recruitment/needs", async (req, res) => {
   const [row] = await db.insert(recruitmentNeedsTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/recruitment/needs/:id", async (req, res) => {
+router.put("/hr/recruitment/needs/:id", async (req, res) => {
   const [row] = await db.update(recruitmentNeedsTable).set(req.body).where(eq(recruitmentNeedsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/recruitment/needs/:id", async (req, res) => {
+router.delete("/hr/recruitment/needs/:id", async (req, res) => {
   await db.delete(recruitmentCandidatesTable).where(eq(recruitmentCandidatesTable.needId, Number(req.params.id)));
   await db.delete(recruitmentNeedsTable).where(eq(recruitmentNeedsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
-router.get("/api/hr/recruitment/candidates", async (_req, res) => {
+router.get("/hr/recruitment/candidates", async (_req, res) => {
   const rows = await db.select().from(recruitmentCandidatesTable).orderBy(desc(recruitmentCandidatesTable.createdAt));
   res.json(rows);
 });
 
-router.post("/api/hr/recruitment/candidates", async (req, res) => {
+router.post("/hr/recruitment/candidates", async (req, res) => {
   const [row] = await db.insert(recruitmentCandidatesTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/recruitment/candidates/:id", async (req, res) => {
+router.put("/hr/recruitment/candidates/:id", async (req, res) => {
   const [row] = await db.update(recruitmentCandidatesTable).set(req.body).where(eq(recruitmentCandidatesTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/recruitment/candidates/:id", async (req, res) => {
+router.delete("/hr/recruitment/candidates/:id", async (req, res) => {
   await db.delete(recruitmentCandidatesTable).where(eq(recruitmentCandidatesTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── KPI ─────────────────────────────────────────────────────────────────────
-router.get("/api/hr/kpi/definitions", async (_req, res) => {
+router.get("/hr/kpi/definitions", async (_req, res) => {
   const rows = await db.select().from(kpiDefinitionsTable).orderBy(kpiDefinitionsTable.division, kpiDefinitionsTable.position);
   res.json(rows);
 });
 
-router.post("/api/hr/kpi/definitions", async (req, res) => {
+router.post("/hr/kpi/definitions", async (req, res) => {
   const [row] = await db.insert(kpiDefinitionsTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/kpi/definitions/:id", async (req, res) => {
+router.put("/hr/kpi/definitions/:id", async (req, res) => {
   const [row] = await db.update(kpiDefinitionsTable).set(req.body).where(eq(kpiDefinitionsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/kpi/definitions/:id", async (req, res) => {
+router.delete("/hr/kpi/definitions/:id", async (req, res) => {
   await db.delete(kpiDefinitionsTable).where(eq(kpiDefinitionsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
-router.get("/api/hr/kpi/records", async (_req, res) => {
+router.get("/hr/kpi/records", async (_req, res) => {
   const rows = await db.select().from(kpiRecordsTable).orderBy(desc(kpiRecordsTable.periodYear), desc(kpiRecordsTable.periodMonth));
   res.json(rows);
 });
 
-router.post("/api/hr/kpi/records", async (req, res) => {
+router.post("/hr/kpi/records", async (req, res) => {
   const body = req.body;
   const target = Number(body.target) || 0;
   const actual = Number(body.actual) || 0;
@@ -145,7 +145,7 @@ router.post("/api/hr/kpi/records", async (req, res) => {
   res.json(row);
 });
 
-router.put("/api/hr/kpi/records/:id", async (req, res) => {
+router.put("/hr/kpi/records/:id", async (req, res) => {
   const body = req.body;
   const target = Number(body.target) || 0;
   const actual = Number(body.actual) || 0;
@@ -154,54 +154,54 @@ router.put("/api/hr/kpi/records/:id", async (req, res) => {
   res.json(row);
 });
 
-router.delete("/api/hr/kpi/records/:id", async (req, res) => {
+router.delete("/hr/kpi/records/:id", async (req, res) => {
   await db.delete(kpiRecordsTable).where(eq(kpiRecordsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── COMPETENCY ───────────────────────────────────────────────────────────────
-router.get("/api/hr/competency/definitions", async (_req, res) => {
+router.get("/hr/competency/definitions", async (_req, res) => {
   const rows = await db.select().from(competencyDefinitionsTable).orderBy(competencyDefinitionsTable.division);
   res.json(rows);
 });
 
-router.post("/api/hr/competency/definitions", async (req, res) => {
+router.post("/hr/competency/definitions", async (req, res) => {
   const [row] = await db.insert(competencyDefinitionsTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/competency/definitions/:id", async (req, res) => {
+router.put("/hr/competency/definitions/:id", async (req, res) => {
   const [row] = await db.update(competencyDefinitionsTable).set(req.body).where(eq(competencyDefinitionsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/competency/definitions/:id", async (req, res) => {
+router.delete("/hr/competency/definitions/:id", async (req, res) => {
   await db.delete(competencyDefinitionsTable).where(eq(competencyDefinitionsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
-router.get("/api/hr/competency/scores", async (_req, res) => {
+router.get("/hr/competency/scores", async (_req, res) => {
   const rows = await db.select().from(competencyScoresTable).orderBy(desc(competencyScoresTable.createdAt));
   res.json(rows);
 });
 
-router.post("/api/hr/competency/scores", async (req, res) => {
+router.post("/hr/competency/scores", async (req, res) => {
   const [row] = await db.insert(competencyScoresTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/competency/scores/:id", async (req, res) => {
+router.put("/hr/competency/scores/:id", async (req, res) => {
   const [row] = await db.update(competencyScoresTable).set(req.body).where(eq(competencyScoresTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/competency/scores/:id", async (req, res) => {
+router.delete("/hr/competency/scores/:id", async (req, res) => {
   await db.delete(competencyScoresTable).where(eq(competencyScoresTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── TRAINING ────────────────────────────────────────────────────────────────
-router.get("/api/hr/training/programs", async (_req, res) => {
+router.get("/hr/training/programs", async (_req, res) => {
   const programs = await db.select().from(trainingProgramsTable).orderBy(desc(trainingProgramsTable.createdAt));
   const participants = await db.select().from(trainingParticipantsTable);
   const result = programs.map(p => ({
@@ -211,7 +211,7 @@ router.get("/api/hr/training/programs", async (_req, res) => {
   res.json(result);
 });
 
-router.post("/api/hr/training/programs", async (req, res) => {
+router.post("/hr/training/programs", async (req, res) => {
   const { participantIds, ...body } = req.body;
   const [prog] = await db.insert(trainingProgramsTable).values(body).returning();
   if (participantIds?.length) {
@@ -220,7 +220,7 @@ router.post("/api/hr/training/programs", async (req, res) => {
   res.json(prog);
 });
 
-router.put("/api/hr/training/programs/:id", async (req, res) => {
+router.put("/hr/training/programs/:id", async (req, res) => {
   const { participantIds, ...body } = req.body;
   const id = Number(req.params.id);
   const [prog] = await db.update(trainingProgramsTable).set(body).where(eq(trainingProgramsTable.id, id)).returning();
@@ -233,7 +233,7 @@ router.put("/api/hr/training/programs/:id", async (req, res) => {
   res.json(prog);
 });
 
-router.delete("/api/hr/training/programs/:id", async (req, res) => {
+router.delete("/hr/training/programs/:id", async (req, res) => {
   const id = Number(req.params.id);
   await db.delete(trainingParticipantsTable).where(eq(trainingParticipantsTable.trainingId, id));
   await db.delete(trainingProgramsTable).where(eq(trainingProgramsTable.id, id));
@@ -241,183 +241,183 @@ router.delete("/api/hr/training/programs/:id", async (req, res) => {
 });
 
 // ─── COMPENSATION ────────────────────────────────────────────────────────────
-router.get("/api/hr/compensation", async (_req, res) => {
+router.get("/hr/compensation", async (_req, res) => {
   const rows = await db.select().from(compensationRecordsTable).orderBy(desc(compensationRecordsTable.periodYear), desc(compensationRecordsTable.periodMonth));
   res.json(rows);
 });
 
-router.post("/api/hr/compensation", async (req, res) => {
+router.post("/hr/compensation", async (req, res) => {
   const body = req.body;
   const total = (Number(body.baseSalary) || 0) + (Number(body.fixedAllowance) || 0) + (Number(body.performanceBonus) || 0) + (Number(body.incentive) || 0) + (Number(body.thr) || 0) - (Number(body.deduction) || 0);
   const [row] = await db.insert(compensationRecordsTable).values({ ...body, totalTakeHome: total.toString() }).returning();
   res.json(row);
 });
 
-router.put("/api/hr/compensation/:id", async (req, res) => {
+router.put("/hr/compensation/:id", async (req, res) => {
   const body = req.body;
   const total = (Number(body.baseSalary) || 0) + (Number(body.fixedAllowance) || 0) + (Number(body.performanceBonus) || 0) + (Number(body.incentive) || 0) + (Number(body.thr) || 0) - (Number(body.deduction) || 0);
   const [row] = await db.update(compensationRecordsTable).set({ ...body, totalTakeHome: total.toString() }).where(eq(compensationRecordsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/compensation/:id", async (req, res) => {
+router.delete("/hr/compensation/:id", async (req, res) => {
   await db.delete(compensationRecordsTable).where(eq(compensationRecordsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── CULTURE ─────────────────────────────────────────────────────────────────
-router.get("/api/hr/culture", async (_req, res) => {
+router.get("/hr/culture", async (_req, res) => {
   const rows = await db.select().from(cultureRecordsTable).orderBy(desc(cultureRecordsTable.periodYear), desc(cultureRecordsTable.periodMonth));
   res.json(rows);
 });
 
-router.post("/api/hr/culture", async (req, res) => {
+router.post("/hr/culture", async (req, res) => {
   const [row] = await db.insert(cultureRecordsTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/culture/:id", async (req, res) => {
+router.put("/hr/culture/:id", async (req, res) => {
   const [row] = await db.update(cultureRecordsTable).set(req.body).where(eq(cultureRecordsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/culture/:id", async (req, res) => {
+router.delete("/hr/culture/:id", async (req, res) => {
   await db.delete(cultureRecordsTable).where(eq(cultureRecordsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── WORKLOAD ────────────────────────────────────────────────────────────────
-router.get("/api/hr/workload", async (_req, res) => {
+router.get("/hr/workload", async (_req, res) => {
   const rows = await db.select().from(workloadRecordsTable).orderBy(desc(workloadRecordsTable.periodYear), desc(workloadRecordsTable.periodMonth), workloadRecordsTable.division);
   res.json(rows);
 });
 
-router.post("/api/hr/workload", async (req, res) => {
+router.post("/hr/workload", async (req, res) => {
   const [row] = await db.insert(workloadRecordsTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/workload/:id", async (req, res) => {
+router.put("/hr/workload/:id", async (req, res) => {
   const [row] = await db.update(workloadRecordsTable).set(req.body).where(eq(workloadRecordsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/workload/:id", async (req, res) => {
+router.delete("/hr/workload/:id", async (req, res) => {
   await db.delete(workloadRecordsTable).where(eq(workloadRecordsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── SUCCESSION ───────────────────────────────────────────────────────────────
-router.get("/api/hr/succession", async (_req, res) => {
+router.get("/hr/succession", async (_req, res) => {
   const rows = await db.select().from(successionPlansTable).orderBy(successionPlansTable.criticalPosition);
   res.json(rows);
 });
 
-router.post("/api/hr/succession", async (req, res) => {
+router.post("/hr/succession", async (req, res) => {
   const [row] = await db.insert(successionPlansTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/succession/:id", async (req, res) => {
+router.put("/hr/succession/:id", async (req, res) => {
   const [row] = await db.update(successionPlansTable).set(req.body).where(eq(successionPlansTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/succession/:id", async (req, res) => {
+router.delete("/hr/succession/:id", async (req, res) => {
   await db.delete(successionPlansTable).where(eq(successionPlansTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── EXPANSION NEEDS ─────────────────────────────────────────────────────────
-router.get("/api/hr/expansion", async (_req, res) => {
+router.get("/hr/expansion", async (_req, res) => {
   const rows = await db.select().from(expansionNeedsTable).orderBy(expansionNeedsTable.projectName, expansionNeedsTable.positionName);
   res.json(rows);
 });
 
-router.post("/api/hr/expansion", async (req, res) => {
+router.post("/hr/expansion", async (req, res) => {
   const [row] = await db.insert(expansionNeedsTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/expansion/:id", async (req, res) => {
+router.put("/hr/expansion/:id", async (req, res) => {
   const [row] = await db.update(expansionNeedsTable).set(req.body).where(eq(expansionNeedsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/expansion/:id", async (req, res) => {
+router.delete("/hr/expansion/:id", async (req, res) => {
   await db.delete(expansionNeedsTable).where(eq(expansionNeedsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── FLIGHT RISK ──────────────────────────────────────────────────────────────
-router.get("/api/hr/flight-risk", async (_req, res) => {
+router.get("/hr/flight-risk", async (_req, res) => {
   const rows = await db.select().from(flightRiskRecordsTable).orderBy(desc(flightRiskRecordsTable.periodYear), desc(flightRiskRecordsTable.periodQuarter));
   res.json(rows);
 });
 
-router.post("/api/hr/flight-risk", async (req, res) => {
+router.post("/hr/flight-risk", async (req, res) => {
   const body = req.body;
   const { score, level } = calcFlightRisk(body);
   const [row] = await db.insert(flightRiskRecordsTable).values({ ...body, flightRiskScore: score.toString(), riskLevel: level }).returning();
   res.json(row);
 });
 
-router.put("/api/hr/flight-risk/:id", async (req, res) => {
+router.put("/hr/flight-risk/:id", async (req, res) => {
   const body = req.body;
   const { score, level } = calcFlightRisk(body);
   const [row] = await db.update(flightRiskRecordsTable).set({ ...body, flightRiskScore: score.toString(), riskLevel: level }).where(eq(flightRiskRecordsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/flight-risk/:id", async (req, res) => {
+router.delete("/hr/flight-risk/:id", async (req, res) => {
   await db.delete(flightRiskRecordsTable).where(eq(flightRiskRecordsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── CAREER PATHS ────────────────────────────────────────────────────────────
-router.get("/api/hr/career-paths", async (_req, res) => {
+router.get("/hr/career-paths", async (_req, res) => {
   const rows = await db.select().from(careerPathsTable).orderBy(careerPathsTable.division, careerPathsTable.level);
   res.json(rows);
 });
 
-router.post("/api/hr/career-paths", async (req, res) => {
+router.post("/hr/career-paths", async (req, res) => {
   const [row] = await db.insert(careerPathsTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/career-paths/:id", async (req, res) => {
+router.put("/hr/career-paths/:id", async (req, res) => {
   const [row] = await db.update(careerPathsTable).set(req.body).where(eq(careerPathsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/career-paths/:id", async (req, res) => {
+router.delete("/hr/career-paths/:id", async (req, res) => {
   await db.delete(careerPathsTable).where(eq(careerPathsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── PRODUCTIVITY ─────────────────────────────────────────────────────────────
-router.get("/api/hr/productivity", async (_req, res) => {
+router.get("/hr/productivity", async (_req, res) => {
   const rows = await db.select().from(productivityRecordsTable).orderBy(desc(productivityRecordsTable.periodYear), desc(productivityRecordsTable.periodMonth));
   res.json(rows);
 });
 
-router.post("/api/hr/productivity", async (req, res) => {
+router.post("/hr/productivity", async (req, res) => {
   const [row] = await db.insert(productivityRecordsTable).values(req.body).returning();
   res.json(row);
 });
 
-router.put("/api/hr/productivity/:id", async (req, res) => {
+router.put("/hr/productivity/:id", async (req, res) => {
   const [row] = await db.update(productivityRecordsTable).set(req.body).where(eq(productivityRecordsTable.id, Number(req.params.id))).returning();
   res.json(row);
 });
 
-router.delete("/api/hr/productivity/:id", async (req, res) => {
+router.delete("/hr/productivity/:id", async (req, res) => {
   await db.delete(productivityRecordsTable).where(eq(productivityRecordsTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 
 // ─── HR DASHBOARD ─────────────────────────────────────────────────────────────
-router.get("/api/hr/dashboard", async (_req, res) => {
+router.get("/hr/dashboard", async (_req, res) => {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;

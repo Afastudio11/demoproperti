@@ -186,7 +186,7 @@ async function seedUnits(projectIds: number[]) {
 async function seedLeadsAndCustomers(projectIds: number[], unitIds: { id: number; projectId: number }[]) {
   console.log("👥 Seed: Leads & Customers...");
   const sources = ["instagram","facebook","referral","pameran","whatsapp","tiktok","brosur","walk_in"];
-  const statusesLead = ["lead_masuk","survey_dijadwalkan","survey_dilakukan","booking","berkas_masuk","batal"];
+  const statusesLead = ["NEW_LEAD","CONTACTED","INTERESTED","SURVEY_DIJADWALKAN","SURVEY_DILAKUKAN","BOOKING","BERKAS_LENGKAP","BATAL"];
   const pekerjaan = ["PNS","TNI/POLRI","Karyawan Swasta","Wirausaha","Dokter","Guru","Petani"];
   const namaList = ["Andi Kurniawan","Budi Setiawan","Sari Dewi","Hasan Basri","Nur Hidayah","Rahmat Saleh","Fatima Zahra","Ibrahim Ali","Dewi Sartika","Muhammad Ridwan","Yusuf Prasetyo","Aminah Boru","Bahar Lahuddin","Zulkifli Rahman","Hasna Wati","Irfan Gunawan","Maryam Salim","Syahrul Ramadhan","Kartini Budi","Faisal Akbar"];
 
@@ -234,7 +234,7 @@ async function seedKprPipeline(customerIds: number[]) {
     if (i < 15) {
       // OTS
       await run(`INSERT INTO ots_records (customer_id,bank,scheduled_date,surveyor_name,actual_date,status,result) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [cid, bank, "2024-10-15", surveyors[i%surveyors.length], i<12?"2024-10-16":null, i<12?"completed":"scheduled", i<12?(i%5===0?"tidak_layak":"layak"):null]);
+        [cid, bank, "2024-10-15", surveyors[i%surveyors.length], i<12?"2024-10-16":null, i<12?"completed":"scheduled", i<12?(i%5===0?"tidak_lolos":"lolos"):null]);
     }
     if (i < 12) {
       // SP3K
@@ -242,14 +242,19 @@ async function seedKprPipeline(customerIds: number[]) {
         [cid, bank, "2024-11-01", `SP3K-${String(i+1).padStart(4,'0')}`, 148000000, 148000000, "2025-05-01", i%4===0?"revision":"approved"]);
     }
     if (i < 8) {
-      // Akad
+      // Akad - gunakan tahun ini agar "tahun ini" berfungsi
+      const now = new Date();
+      const akadMonth = String(now.getMonth()+1).padStart(2,'0');
+      const akadYear = now.getFullYear();
       await run(`INSERT INTO akad_records (customer_id,bank,akad_date,akad_number,notary,akad_amount,estimated_ht_date,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [cid, bank, "2024-11-15", `AKAD-2024-${String(i+1).padStart(4,'0')}`, notaries[i%notaries.length], 148000000, "2024-12-15", i%3===0?"selesai":"terjadwal"]);
+        [cid, bank, `${akadYear}-${akadMonth}-10`, `AKAD-${akadYear}-${String(i+1).padStart(4,'0')}`, notaries[i%notaries.length], 148000000, `${akadYear}-${akadMonth}-25`, "selesai"]);
     }
     if (i < 5) {
-      // HT
+      // HT - gunakan tanggal bulan ini agar agregasi "bulan ini" berfungsi
+      const now = new Date();
+      const htDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String((i+1)*4).padStart(2,'0')}`;
       await run(`INSERT INTO ht_records (customer_id,bank,ht_date,ht_amount,account_number,notes) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [cid, bank, "2024-12-01", 148000000, `ACC-${String(i+1).padStart(6,'0')}`, "Proses HT berjalan lancar"]);
+        [cid, bank, htDate, 148000000, `ACC-${String(i+1).padStart(6,'0')}`, "Proses HT berjalan lancar"]);
     }
   }
 }
@@ -435,15 +440,22 @@ async function seedMarketing(projectIds: number[]) {
 
 async function seedPlanning(projectIds: number[]) {
   console.log("📊 Seed: Planning (Cashflow, Market, Product, Feasibility, Milestones)...");
-  for (const pid of projectIds) {
-    // Cashflow per bulan (24 bulan)
+  const nowP = new Date();
+  const baseYear = nowP.getFullYear();
+  const baseMonth = nowP.getMonth() + 1;
+
+  for (let pi = 0; pi < projectIds.length; pi++) {
+    const pid = projectIds[pi];
+
+    // Cashflow per bulan (24 bulan dari bulan ini)
     for (let m = 1; m <= 24; m++) {
-      const month = new Date(2024, m-1, 1).toLocaleDateString("id-ID", { month: "long", year:"numeric" });
-      const constructionOut = m >= 3 ? Math.floor(Math.random()*800000000+200000000) : 0;
-      const htIn = m >= 6 ? Math.floor(Math.random()*500000000+100000000) : 0;
+      const d = new Date(baseYear, baseMonth - 1 + m - 1, 1);
+      const monthLabel = d.toLocaleDateString("id-ID", { month: "long", year:"numeric" });
+      const constructionOut = m >= 2 ? Math.floor(Math.random()*800000000+200000000) : 0;
+      const htIn = m >= 4 ? Math.floor(Math.random()*500000000+100000000) : 0;
       await run(
         `INSERT INTO planning_cashflow (project_id,month_number,month_label,land_cost_out,construction_cost_out,marketing_cost_out,operational_cost_out,booking_fee_in,ht_kpr_in,conservative_units,moderate_units,aggressive_units) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [pid, m, month, m===1?2500000000:0, constructionOut, 50000000, 80000000, m>=2?185000000*Math.floor(Math.random()*3):0, htIn, Math.floor(Math.random()*2), Math.floor(Math.random()*3+1), Math.floor(Math.random()*5+2)]
+        [pid, m, monthLabel, m===1?2500000000:0, constructionOut, 50000000, 80000000, m>=2?185000000*Math.floor(Math.random()*3+1):0, htIn, Math.floor(Math.random()*2), Math.floor(Math.random()*3+1), Math.floor(Math.random()*5+2)]
       );
     }
 
@@ -452,9 +464,9 @@ async function seedPlanning(projectIds: number[]) {
       { phase:"Persiapan", task:"Groundbreaking Ceremony", target:"2024-02-01", actual:"2024-02-05", status:"selesai", pct:100 },
       { phase:"Konstruksi", task:"Selesai Pondasi Unit Pertama", target:"2024-04-01", actual:"2024-04-10", status:"selesai", pct:100 },
       { phase:"Marketing", task:"Launching Marketing Phase 1", target:"2024-03-01", actual:"2024-03-01", status:"selesai", pct:100 },
-      { phase:"Konstruksi", task:"Selesai 50% Unit Tahap 1", target:"2024-09-01", actual:null, status:"berjalan", pct:65 },
-      { phase:"Serah Terima", task:"Serah Terima Pertama", target:"2025-01-01", actual:null, status:"belum_mulai", pct:0 },
-      { phase:"Konstruksi", task:"Selesai Seluruh Unit Tahap 1", target:"2025-06-01", actual:null, status:"belum_mulai", pct:0 },
+      { phase:"Konstruksi", task:"Selesai 50% Unit Tahap 1", target:"2025-09-01", actual:null, status:"berjalan", pct:65 },
+      { phase:"Serah Terima", task:"Serah Terima Pertama", target:"2026-01-01", actual:null, status:"belum_mulai", pct:0 },
+      { phase:"Konstruksi", task:"Selesai Seluruh Unit Tahap 1", target:"2026-12-01", actual:null, status:"belum_mulai", pct:0 },
     ];
     for (const ms of milestones) {
       await run(
@@ -462,6 +474,45 @@ async function seedPlanning(projectIds: number[]) {
         [pid, ms.phase, ms.task, ms.target, ms.actual, ms.status, ms.pct]
       ).catch(() => {});
     }
+
+    // Planning Feasibility - isi agar health score tidak "Data belum lengkap"
+    const hargaJual = [185000000, 210000000, 195000000, 225000000, 175000000][pi] || 200000000;
+    const hargaTanah = [850000, 650000, 720000, 590000, 480000][pi] || 700000;
+    const totalUnit  = [120, 80, 60, 100, 150][pi] || 80;
+    const luasLahan  = [12500, 8200, 6000, 9500, 15000][pi] || 8000;
+    const kabupatens = ["Gowa","Maros","Takalar","Pangkajene dan Kepulauan","Bone"];
+    const totalRevenue = hargaJual * totalUnit;
+    const biayaLahan = hargaTanah * luasLahan;
+    const biayaKonstruksi = totalUnit * 75000000;
+    const biayaMarketing  = totalRevenue * 0.03;
+    const biayaOverhead = totalRevenue * 0.02;
+    const totalCost = biayaLahan + biayaKonstruksi + biayaMarketing + biayaOverhead;
+    const grossProfit = totalRevenue - totalCost;
+    const margin = (grossProfit / totalRevenue) * 100;
+    const roi = (grossProfit / totalCost) * 100;
+    const irr = 18 + Math.random() * 10;
+    const npv = grossProfit * 0.75;
+    await run(
+      `INSERT INTO planning_feasibility (project_id,land_cost,construction_cost_per_unit,marketing_cost,overhead_cost,selling_price_per_unit,total_units,total_revenue,total_cost,gross_profit,margin,roi,irr,npv,payback_period,is_approved,recommendation) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      [pid, biayaLahan, 75000000, biayaMarketing, biayaOverhead, hargaJual, totalUnit, totalRevenue, totalCost, grossProfit, margin.toFixed(2), roi.toFixed(2), irr.toFixed(2), npv, Math.floor(18 + Math.random()*12), true, "Layak dikembangkan berdasarkan analisis pasar dan finansial"]
+    ).catch(e => console.warn("planning_feasibility skip:", e.message));
+
+    // Planning Product - pakai kolom yang benar sesuai schema
+    await run(
+      `INSERT INTO planning_product (project_id,house_type,building_area,kavling_area,selling_price,unit_count,target_segment,competitor_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [pid, "Tipe 36/72", 36, 72, hargaJual, Math.floor(totalUnit*0.6), "PNS, TNI/POLRI, Karyawan Swasta", Math.round(hargaJual*1.08)]
+    ).catch(e => console.warn("planning_product skip:", e.message));
+    await run(
+      `INSERT INTO planning_product (project_id,house_type,building_area,kavling_area,selling_price,unit_count,target_segment,competitor_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [pid, "Tipe 45/90", 45, 90, Math.round(hargaJual*1.3), Math.floor(totalUnit*0.4), "Wirausaha, Dokter, Guru", Math.round(hargaJual*1.35)]
+    ).catch(e => console.warn("planning_product skip:", e.message));
+
+    // Planning Market - pakai kolom yang benar sesuai schema
+    const pop = Math.floor(Math.random()*200000+300000);
+    await run(
+      `INSERT INTO planning_market (project_id,kabupaten,population,population_growth,kk_count,umk,avg_income,asn_count,private_employees,umkm_count,unemployment_rate,active_developers,active_banks,target_price,demand_score,market_potential_score,market_recommendation) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      [pid, kabupatens[pi] || "Gowa", pop, 1.8 + Math.random()*1.5, Math.floor(pop/4), 3200000 + Math.random()*1000000, 4500000 + Math.random()*2000000, Math.floor(pop*0.04), Math.floor(pop*0.12), Math.floor(pop*0.08), 3.5 + Math.random()*3, Math.floor(Math.random()*5+3), Math.floor(Math.random()*4+4), hargaJual, 72 + Math.floor(Math.random()*20), 68 + Math.floor(Math.random()*25), "Potensi pasar tinggi, permintaan rumah subsidi dan komersial kuat"]
+    ).catch(e => console.warn("planning_market skip:", e.message));
   }
 }
 
@@ -525,48 +576,70 @@ async function seedHR() {
     kpiDefIds.push(r.rows[0].id);
   }
 
-  // KPI Records for last 6 months
-  for (const empId of empIds.slice(7,10)) {
-    for (let m = 7; m <= 12; m++) {
-      for (const kpiId of kpiDefIds.slice(0,3)) {
-        const target = [30,3,10][kpiDefIds.indexOf(kpiId)%3];
+  // KPI Records - 6 bulan terakhir termasuk bulan ini
+  const nowKpi = new Date();
+  const curYear = nowKpi.getFullYear();
+  const curMonth = nowKpi.getMonth() + 1;
+  const kpiMonths: Array<{ year: number; month: number }> = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(curYear, curMonth - 1 - i, 1);
+    kpiMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+  }
+
+  for (const empId of empIds) {
+    for (const { year, month } of kpiMonths) {
+      for (const kpiId of kpiDefIds) {
+        const target = 30;
         const actual = Math.floor(target * (0.7 + Math.random()*0.6));
         await run(
           `INSERT INTO hr_kpi_records (employee_id,kpi_definition_id,period_year,period_month,target,actual,achievement_pct) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [empId, kpiId, 2024, m, target, actual, Math.round(actual/target*100)]
+          [empId, kpiId, year, month, target, actual, Math.round(actual/target*100)]
         );
       }
     }
   }
 
-  // Compensation Records
+  // Compensation Records - 6 bulan terakhir termasuk bulan ini
+  const nowComp = new Date();
+  const compMonths: Array<{ year: number; month: number }> = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(nowComp.getFullYear(), nowComp.getMonth() - i, 1);
+    compMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+  }
   const salaries = [12000000, 8000000, 9000000, 8500000, 9500000, 8000000, 7000000, 5500000, 5500000, 6000000, 6500000, 5500000, 5500000, 8000000, 6000000];
   for (let i = 0; i < empIds.length; i++) {
-    for (let m = 10; m <= 12; m++) {
+    for (const { year, month } of compMonths) {
       const base = salaries[i] || 5000000;
       await run(
         `INSERT INTO hr_compensation_records (employee_id,period_year,period_month,base_salary,fixed_allowance,performance_bonus,incentive,total_take_home) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [empIds[i], 2024, m, base, base*0.2, Math.random()>0.5?base*0.15:0, Math.random()>0.7?1000000:0, base*1.2]
+        [empIds[i], year, month, base, base*0.2, Math.random()>0.5?base*0.15:0, Math.random()>0.7?1000000:0, base*1.2]
       );
     }
   }
 
-  // Culture Records
+  // Productivity Records - bulan ini
+  const nowProd = new Date();
+  await run(
+    `INSERT INTO hr_productivity_records (period_year,period_month,total_revenue,revenue_target,employee_count,revenue_per_employee,project_completion_rate) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [nowProd.getFullYear(), nowProd.getMonth()+1, 7500000000, 10000000000, empIds.length, Math.round(7500000000/empIds.length), 72]
+  ).catch(() => {});
+
+  // Culture Records - 6 bulan terakhir termasuk bulan ini
   for (let i = 0; i < empIds.length; i++) {
-    for (let m = 10; m <= 12; m++) {
+    for (const { year, month } of compMonths) {
       await run(
         `INSERT INTO hr_culture_records (employee_id,period_year,period_month,days_present,working_days,late_count,discipline_violations,sop_compliance_score,task_completion_score) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [empIds[i], 2024, m, Math.floor(Math.random()*4+19), 22, Math.floor(Math.random()*3), 0, Math.floor(Math.random()*20+80), Math.floor(Math.random()*15+85)]
+        [empIds[i], year, month, Math.floor(Math.random()*4+19), 22, Math.floor(Math.random()*3), 0, Math.floor(Math.random()*20+80), Math.floor(Math.random()*15+85)]
       );
     }
   }
 
-  // Workload Records
+  // Workload Records - 6 bulan terakhir termasuk bulan ini
   for (const div of divisi) {
-    for (let m = 10; m <= 12; m++) {
+    for (const { year, month } of compMonths) {
       await run(
         `INSERT INTO hr_workload_records (division,period_year,period_month,capacity,actual_load,load_description) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [div, 2024, m, 100, Math.floor(Math.random()*50+70), `Beban kerja ${div} bulan ke-${m}`]
+        [div, year, month, 100, Math.floor(Math.random()*50+70), `Beban kerja ${div} bulan ke-${month}`]
       );
     }
   }
@@ -599,12 +672,13 @@ async function seedHR() {
     }
   }
 
-  // Flight Risk
+  // Flight Risk - gunakan tahun sekarang agar dashboard bisa filter
+  const nowFR = new Date();
   for (let i = 0; i < empIds.length; i++) {
     const riskScore = Math.floor(Math.random()*60+10);
     await run(
       `INSERT INTO hr_flight_risk_records (employee_id,period_year,period_quarter,months_without_promotion,salary_market_gap_pct,job_satisfaction_score,has_external_offer,flight_risk_score,risk_level) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [empIds[i], 2024, 4, Math.floor(Math.random()*24), Math.floor(Math.random()*30-10), Math.floor(Math.random()*40+60)/10, Math.random()>0.8?"ya":"tidak", riskScore, riskScore>70?"tinggi":riskScore>40?"sedang":"rendah"]
+      [empIds[i], nowFR.getFullYear(), Math.ceil((nowFR.getMonth()+1)/3), Math.floor(Math.random()*24), Math.floor(Math.random()*30-10), Math.floor(Math.random()*40+60)/10, Math.random()>0.8?"ya":"tidak", riskScore, riskScore>70?"tinggi":riskScore>40?"sedang":"rendah"]
     );
   }
 

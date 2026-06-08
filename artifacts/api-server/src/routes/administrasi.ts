@@ -381,7 +381,7 @@ router.get("/administrasi/ots", async (req, res) => {
     const customers = await db.select({ id: customersTable.id, nama: customersTable.nama, unitBlock: customersTable.unitBlock }).from(customersTable);
     const custMap = Object.fromEntries(customers.map(c => [c.id, c]));
 
-    const total = records.filter(r => r.status === "done").length;
+    const total = records.filter(r => r.status === "completed" || r.status === "done").length;
     const lolos = records.filter(r => r.result === "lolos").length;
     const successRate = total > 0 ? Math.round((lolos / total) * 100) : 0;
 
@@ -550,7 +550,7 @@ router.get("/administrasi/ht", async (req, res) => {
     const bulanIni = records.filter(r => {
       if (!r.htDate) return false;
       const d = new Date(r.htDate);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return d.getMonth() + 1 === now.getMonth() + 1 && d.getFullYear() === now.getFullYear();
     });
     const tahunIni = records.filter(r => r.htDate && new Date(r.htDate).getFullYear() === now.getFullYear());
 
