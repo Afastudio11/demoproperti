@@ -217,18 +217,6 @@ export interface LandProspect {
   riskLevel?: LandProspectRiskLevel;
   /** @nullable */
   catatan?: string | null;
-  /** @nullable */
-  lat?: number | null;
-  /** @nullable */
-  lng?: number | null;
-  /** @nullable */
-  kelurahan?: string | null;
-  /** @nullable */
-  kecamatan?: string | null;
-  /** @nullable */
-  kabupaten?: string | null;
-  /** @nullable */
-  polygonCoords?: string | null;
   createdAt: string;
 }
 
@@ -423,12 +411,6 @@ export interface LandProspectUpdate {
   margin?: number;
   aksesJalan?: number;
   catatan?: string;
-  lat?: number;
-  lng?: number;
-  kelurahan?: string;
-  kecamatan?: string;
-  kabupaten?: string;
-  polygonCoords?: string;
 }
 
 export interface PipelineCount {
@@ -807,6 +789,9 @@ export interface UnitUpdate {
   customerId?: number;
   status?: UnitUpdateStatus;
   readyAkad?: boolean;
+  progress?: number;
+  weekStarted?: number;
+  subkonName?: string;
 }
 
 export type ConstructionTaskStatus = typeof ConstructionTaskStatus[keyof typeof ConstructionTaskStatus];

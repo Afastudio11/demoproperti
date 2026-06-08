@@ -1549,6 +1549,9 @@ components:
           type: string
           enum: [available, booked, kpr_process, ready_akad, akad, serah_terima]
         readyAkad: { type: boolean }
+        progress: { type: integer }
+        weekStarted: { type: integer }
+        subkonName: { type: string }
 
     # ─── CONSTRUCTION ─────────────────────────────────────────────
     ConstructionTask:

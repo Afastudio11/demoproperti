@@ -291,12 +291,6 @@ export const ListLandProspectsResponseItem = zod.object({
   "aksesJalan": zod.number().nullish(),
   "riskLevel": zod.union([zod.literal('green'),zod.literal('yellow'),zod.literal('red'),zod.literal(null)]).nullish(),
   "catatan": zod.string().nullish(),
-  "lat": zod.number().nullish(),
-  "lng": zod.number().nullish(),
-  "kelurahan": zod.string().nullish(),
-  "kecamatan": zod.string().nullish(),
-  "kabupaten": zod.string().nullish(),
-  "polygonCoords": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListLandProspectsResponse = zod.array(ListLandProspectsResponseItem)
@@ -314,13 +308,7 @@ export const CreateLandProspectBody = zod.object({
   "roi": zod.number().optional(),
   "margin": zod.number().optional(),
   "aksesJalan": zod.number().optional(),
-  "catatan": zod.string().optional(),
-  "lat": zod.number().optional(),
-  "lng": zod.number().optional(),
-  "kelurahan": zod.string().optional(),
-  "kecamatan": zod.string().optional(),
-  "kabupaten": zod.string().optional(),
-  "polygonCoords": zod.string().optional()
+  "catatan": zod.string().optional()
 })
 
 
@@ -343,12 +331,6 @@ export const GetLandProspectResponse = zod.object({
   "aksesJalan": zod.number().nullish(),
   "riskLevel": zod.union([zod.literal('green'),zod.literal('yellow'),zod.literal('red'),zod.literal(null)]).nullish(),
   "catatan": zod.string().nullish(),
-  "lat": zod.number().nullish(),
-  "lng": zod.number().nullish(),
-  "kelurahan": zod.string().nullish(),
-  "kecamatan": zod.string().nullish(),
-  "kabupaten": zod.string().nullish(),
-  "polygonCoords": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -365,13 +347,7 @@ export const UpdateLandProspectBody = zod.object({
   "roi": zod.number().optional(),
   "margin": zod.number().optional(),
   "aksesJalan": zod.number().optional(),
-  "catatan": zod.string().optional(),
-  "lat": zod.number().optional(),
-  "lng": zod.number().optional(),
-  "kelurahan": zod.string().optional(),
-  "kecamatan": zod.string().optional(),
-  "kabupaten": zod.string().optional(),
-  "polygonCoords": zod.string().optional()
+  "catatan": zod.string().optional()
 })
 
 export const UpdateLandProspectResponse = zod.object({
@@ -386,12 +362,6 @@ export const UpdateLandProspectResponse = zod.object({
   "aksesJalan": zod.number().nullish(),
   "riskLevel": zod.union([zod.literal('green'),zod.literal('yellow'),zod.literal('red'),zod.literal(null)]).nullish(),
   "catatan": zod.string().nullish(),
-  "lat": zod.number().nullish(),
-  "lng": zod.number().nullish(),
-  "kelurahan": zod.string().nullish(),
-  "kecamatan": zod.string().nullish(),
-  "kabupaten": zod.string().nullish(),
-  "polygonCoords": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -853,7 +823,10 @@ export const UpdateUnitParams = zod.object({
 export const UpdateUnitBody = zod.object({
   "customerId": zod.number().optional(),
   "status": zod.enum(['available', 'booked', 'kpr_process', 'ready_akad', 'akad', 'serah_terima']).optional(),
-  "readyAkad": zod.boolean().optional()
+  "readyAkad": zod.boolean().optional(),
+  "progress": zod.number().optional(),
+  "weekStarted": zod.number().optional(),
+  "subkonName": zod.string().optional()
 })
 
 export const UpdateUnitResponse = zod.object({

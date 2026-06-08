@@ -11,4 +11,7 @@ export interface UnitUpdate {
   customerId?: number;
   status?: UnitUpdateStatus;
   readyAkad?: boolean;
+  progress?: number;
+  weekStarted?: number;
+  subkonName?: string;
 }
