@@ -90,10 +90,16 @@ KRITERIA SATARA DEVELOPMENT:
 - Target segmen: MBR & MBM di kota/kabupaten dengan pertumbuhan ekonomi jelas
 - Kemampuan modal: bisa masuk proyek 2–5 Ha dengan lahan <Rp5M/kavling
 
+DEFINISI TIER (WAJIB diikuti — JANGAN tentukan tier di luar kriteria ini):
+- tier1 (Prioritas): expansionScore ≥ 73 DAN harga lahan pinggir memungkinkan HPP <Rp166jt untuk FLPP. Kabupaten yang sudah siap masuk pipeline akuisisi aktif.
+- tier2 (Pipeline): expansionScore 50–72, ATAU FLPP layak tapi pertumbuhan ekonomi/daya serap pasar masih tanda tanya. Perlu riset lebih lanjut sebelum komit.
+- tier3 (Watchlist): expansionScore <50, ATAU harga lahan terlalu tinggi untuk FLPP manapun, ATAU risiko fundamental terlalu besar.
+PENTING: Skor heuristik awal sudah mempertimbangkan affordability dan strategi lokasi. Gunakan sebagai anchor — koreksi maksimal ±10 poin kecuali ada faktor kritis yang jelas terlewat.
+
 Berikan analisis ekspansi komprehensif. Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
 {
   "expansionScore": <integer 0-100, final score setelah AI analisis>,
-  "tier": "<tier1|tier2|tier3>",
+  "tier": "<tier1|tier2|tier3 — WAJIB sesuai definisi di atas>",
   "ringkasan": "<2-3 kalimat ringkasan posisi ${row.kabupaten} untuk Satara>",
   "keunggulan": ["<keunggulan 1>", "<keunggulan 2>", "<keunggulan 3>"],
   "risiko": ["<risiko 1>", "<risiko 2>"],
