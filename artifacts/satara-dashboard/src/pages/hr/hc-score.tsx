@@ -44,7 +44,7 @@ function HCGaugeLarge({ score, status }: { score: number; status: string }) {
       </svg>
       <div className="text-center">
         <div className={cn("text-2xl font-bold", color)}>{status}</div>
-        <div className="text-sm text-muted-foreground">Human Capital Score</div>
+        <div className="text-sm text-muted-foreground">Human Resource Score</div>
         <div className="text-xs text-muted-foreground mt-1">
           {status === "SEHAT" ? "Organisasi berjalan dengan SDM yang optimal" : status === "WASPADA" ? "Perlu perhatian pada beberapa dimensi HC" : "Intervensi mendesak dibutuhkan pada SDM"}
         </div>
@@ -90,7 +90,7 @@ export default function HCScore() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Human Capital Score</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Human Resource Score</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Skor komposit kesehatan SDM organisasi Satara Development</p>
       </div>
 
@@ -123,7 +123,7 @@ export default function HCScore() {
           {scoreItems.map(item => <ScoreBar key={item.label} {...item} />)}
         </div>
         <div className="mt-4 pt-3 border-t flex items-center justify-between">
-          <span className="text-sm font-semibold text-muted-foreground">Human Capital Score (Weighted)</span>
+          <span className="text-sm font-semibold text-muted-foreground">Human Resource Score (Weighted)</span>
           <span className={cn("text-xl font-bold", hcScore >= 80 ? "text-emerald-600" : hcScore >= 60 ? "text-amber-600" : "text-red-500")}>{hcScore.toFixed(1)}/100</span>
         </div>
       </div>
@@ -147,13 +147,13 @@ export default function HCScore() {
 
       {recommendations.length === 0 && !isLoading && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-700 text-center">
-          ✓ Semua dimensi Human Capital dalam kondisi baik. Pertahankan dan tingkatkan!
+          ✓ Semua dimensi Human Resource dalam kondisi baik. Pertahankan dan tingkatkan!
         </div>
       )}
 
       {/* Formula Explanation */}
       <div className="bg-card border rounded-xl p-4">
-        <h3 className="font-medium text-sm mb-3">Formula Human Capital Score</h3>
+        <h3 className="font-medium text-sm mb-3">Formula Human Resource Score</h3>
         <div className="text-sm font-mono bg-muted/50 rounded-lg p-3 text-center">HC Score = (KPI × 30%) + (Produktivitas × 20%) + (Kompetensi × 20%) + (Kultur × 15%) + (Rekrutmen × 15%)</div>
         <div className="grid grid-cols-5 gap-2 mt-3 text-xs text-center text-muted-foreground">
           {scoreItems.map(item => (

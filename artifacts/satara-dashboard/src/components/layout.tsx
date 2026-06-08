@@ -64,7 +64,7 @@ const navItems = [
   { name: "Marketing", path: "/marketing", icon: Magnet },
   { name: "Administrasi KPR", path: "/administrasi", icon: Users },
   { name: "Produksi", path: "/produksi", icon: HardHat },
-  { name: "Human Capital", path: "/hr", icon: UserCog },
+  { name: "Human Resource", path: "/hr", icon: UserCog },
   { name: "Serah Terima", path: "/serah-terima", icon: Key },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
@@ -97,6 +97,10 @@ const hrSubNav: SubNavItem[] = [
   { type: "link", name: "Peta Talent", path: "/hr/talent-map" },
   { type: "link", name: "Risiko Resign", path: "/hr/flight-risk" },
   { type: "link", name: "Skor SDM", path: "/hr/hc-score" },
+  { type: "group", label: "Data Kehadiran" },
+  { type: "link", name: "Absensi", path: "/hr/absensi" },
+  { type: "link", name: "Lembur & Keterlambatan", path: "/hr/lembur" },
+  { type: "link", name: "Masalah Individu", path: "/hr/masalah" },
 ];
 
 const akuisisiSubNav: SubNavItem[] = [

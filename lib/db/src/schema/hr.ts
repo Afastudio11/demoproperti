@@ -240,3 +240,43 @@ export const insertExpansionNeedSchema = createInsertSchema(expansionNeedsTable)
 export const insertFlightRiskRecordSchema = createInsertSchema(flightRiskRecordsTable).omit({ id: true, createdAt: true });
 export const insertCareerPathSchema = createInsertSchema(careerPathsTable).omit({ id: true, createdAt: true });
 export const insertProductivityRecordSchema = createInsertSchema(productivityRecordsTable).omit({ id: true, createdAt: true });
+
+export const attendanceRecordsTable = pgTable("hr_attendance_records", {
+  id: serial("id").primaryKey(),
+  employeeName: text("employee_name").notNull(),
+  project: text("project"),
+  month: text("month"),
+  year: integer("year"),
+  day: integer("day").notNull(),
+  status: text("status"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const overtimeRecordsTable = pgTable("hr_overtime_records", {
+  id: serial("id").primaryKey(),
+  employeeName: text("employee_name").notNull(),
+  project: text("project"),
+  month: text("month"),
+  year: integer("year"),
+  day: integer("day").notNull(),
+  terlambatMenit: integer("terlambat_menit").notNull().default(0),
+  lemburJam: numeric("lembur_jam").notNull().default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const individualIssuesTable = pgTable("hr_individual_issues", {
+  id: serial("id").primaryKey(),
+  project: text("project"),
+  tanggal: text("tanggal"),
+  divisi: text("divisi"),
+  nama: text("nama"),
+  masalah: text("masalah"),
+  solusi: text("solusi"),
+  deadline: text("deadline"),
+  keterangan: text("keterangan"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecordsTable).omit({ id: true, createdAt: true });
+export const insertOvertimeRecordSchema = createInsertSchema(overtimeRecordsTable).omit({ id: true, createdAt: true });
+export const insertIndividualIssueSchema = createInsertSchema(individualIssuesTable).omit({ id: true, createdAt: true });

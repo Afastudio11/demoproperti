@@ -18,6 +18,9 @@ import {
   flightRiskRecordsTable,
   careerPathsTable,
   productivityRecordsTable,
+  attendanceRecordsTable,
+  overtimeRecordsTable,
+  individualIssuesTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 
@@ -413,6 +416,106 @@ router.put("/hr/productivity/:id", async (req, res) => {
 
 router.delete("/hr/productivity/:id", async (req, res) => {
   await db.delete(productivityRecordsTable).where(eq(productivityRecordsTable.id, Number(req.params.id)));
+  res.json({ ok: true });
+});
+
+// ─── ATTENDANCE ───────────────────────────────────────────────────────────────
+router.get("/hr/attendance", async (req, res) => {
+  const { employeeName, project, month, year } = req.query as Record<string, string>;
+  let q = db.select().from(attendanceRecordsTable).$dynamic();
+  if (employeeName) q = q.where(eq(attendanceRecordsTable.employeeName, employeeName));
+  if (project) q = q.where(eq(attendanceRecordsTable.project, project));
+  if (month) q = q.where(eq(attendanceRecordsTable.month, month));
+  if (year) q = q.where(eq(attendanceRecordsTable.year, Number(year)));
+  const rows = await q.orderBy(attendanceRecordsTable.employeeName, attendanceRecordsTable.day);
+  res.json(rows);
+});
+
+router.post("/hr/attendance", async (req, res) => {
+  const body = Array.isArray(req.body) ? req.body : [req.body];
+  const rows = await db.insert(attendanceRecordsTable).values(body).returning();
+  res.json(rows);
+});
+
+router.post("/hr/attendance/bulk", async (req, res) => {
+  const { records } = req.body;
+  if (!Array.isArray(records) || records.length === 0) {
+    res.status(400).json({ error: "records array required" });
+    return;
+  }
+  const rows = await db.insert(attendanceRecordsTable).values(records).returning();
+  res.json({ inserted: rows.length });
+});
+
+router.put("/hr/attendance/:id", async (req, res) => {
+  const [row] = await db.update(attendanceRecordsTable).set(req.body).where(eq(attendanceRecordsTable.id, Number(req.params.id))).returning();
+  res.json(row);
+});
+
+router.delete("/hr/attendance/:id", async (req, res) => {
+  await db.delete(attendanceRecordsTable).where(eq(attendanceRecordsTable.id, Number(req.params.id)));
+  res.json({ ok: true });
+});
+
+// ─── OVERTIME ────────────────────────────────────────────────────────────────
+router.get("/hr/overtime", async (req, res) => {
+  const { employeeName, project, month, year } = req.query as Record<string, string>;
+  let q = db.select().from(overtimeRecordsTable).$dynamic();
+  if (employeeName) q = q.where(eq(overtimeRecordsTable.employeeName, employeeName));
+  if (project) q = q.where(eq(overtimeRecordsTable.project, project));
+  if (month) q = q.where(eq(overtimeRecordsTable.month, month));
+  if (year) q = q.where(eq(overtimeRecordsTable.year, Number(year)));
+  const rows = await q.orderBy(overtimeRecordsTable.employeeName, overtimeRecordsTable.day);
+  res.json(rows);
+});
+
+router.post("/hr/overtime", async (req, res) => {
+  const body = Array.isArray(req.body) ? req.body : [req.body];
+  const rows = await db.insert(overtimeRecordsTable).values(body).returning();
+  res.json(rows);
+});
+
+router.post("/hr/overtime/bulk", async (req, res) => {
+  const { records } = req.body;
+  if (!Array.isArray(records) || records.length === 0) {
+    res.status(400).json({ error: "records array required" });
+    return;
+  }
+  const rows = await db.insert(overtimeRecordsTable).values(records).returning();
+  res.json({ inserted: rows.length });
+});
+
+router.put("/hr/overtime/:id", async (req, res) => {
+  const [row] = await db.update(overtimeRecordsTable).set(req.body).where(eq(overtimeRecordsTable.id, Number(req.params.id))).returning();
+  res.json(row);
+});
+
+router.delete("/hr/overtime/:id", async (req, res) => {
+  await db.delete(overtimeRecordsTable).where(eq(overtimeRecordsTable.id, Number(req.params.id)));
+  res.json({ ok: true });
+});
+
+// ─── INDIVIDUAL ISSUES ────────────────────────────────────────────────────────
+router.get("/hr/individual-issues", async (req, res) => {
+  const { project } = req.query as Record<string, string>;
+  let q = db.select().from(individualIssuesTable).$dynamic();
+  if (project) q = q.where(eq(individualIssuesTable.project, project));
+  const rows = await q.orderBy(desc(individualIssuesTable.createdAt));
+  res.json(rows);
+});
+
+router.post("/hr/individual-issues", async (req, res) => {
+  const [row] = await db.insert(individualIssuesTable).values(req.body).returning();
+  res.json(row);
+});
+
+router.put("/hr/individual-issues/:id", async (req, res) => {
+  const [row] = await db.update(individualIssuesTable).set(req.body).where(eq(individualIssuesTable.id, Number(req.params.id))).returning();
+  res.json(row);
+});
+
+router.delete("/hr/individual-issues/:id", async (req, res) => {
+  await db.delete(individualIssuesTable).where(eq(individualIssuesTable.id, Number(req.params.id)));
   res.json({ ok: true });
 });
 

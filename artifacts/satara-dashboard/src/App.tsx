@@ -106,6 +106,9 @@ import HREkspansi from "@/pages/hr/ekspansi";
 import HRTalentMap from "@/pages/hr/talent-map";
 import HRFlightRisk from "@/pages/hr/flight-risk";
 import HRHcScore from "@/pages/hr/hc-score";
+import HRAbsensi from "@/pages/hr/absensi";
+import HRLembur from "@/pages/hr/lembur";
+import HRMasalah from "@/pages/hr/masalah";
 
 const queryClient = new QueryClient();
 
@@ -215,6 +218,9 @@ function Router() {
         <Route path="/hr/talent-map" component={HRTalentMap} />
         <Route path="/hr/flight-risk" component={HRFlightRisk} />
         <Route path="/hr/hc-score" component={HRHcScore} />
+        <Route path="/hr/absensi" component={HRAbsensi} />
+        <Route path="/hr/lembur" component={HRLembur} />
+        <Route path="/hr/masalah" component={HRMasalah} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

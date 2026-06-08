@@ -23,7 +23,7 @@ function HCGauge({ score, status }: { score: number; status: string }) {
       </div>
       <div>
         <span className={cn("text-lg font-semibold", color)}>{status}</span>
-        <p className="text-xs text-muted-foreground mt-1">Human Capital Score</p>
+        <p className="text-xs text-muted-foreground mt-1">Human Resource Score</p>
       </div>
     </div>
   );
@@ -61,7 +61,7 @@ export default function HRDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">HR — Command Center</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Satara Human Capital Management System</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Satara Human Resource Management System</p>
         </div>
         <Link href="/hr/organisasi">
           <button className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">
@@ -260,6 +260,9 @@ export default function HRDashboard() {
             { label: "Talent Map", path: "/hr/talent-map" },
             { label: "Flight Risk", path: "/hr/flight-risk" },
             { label: "HC Score", path: "/hr/hc-score" },
+            { label: "Absensi", path: "/hr/absensi" },
+            { label: "Lembur", path: "/hr/lembur" },
+            { label: "Masalah Individu", path: "/hr/masalah" },
           ].map(({ label, path }) => (
             <Link key={path} href={path}>
               <div className="flex items-center justify-center p-2 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer text-xs font-medium text-center leading-tight h-10">{label}</div>
