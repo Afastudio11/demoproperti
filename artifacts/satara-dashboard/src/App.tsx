@@ -109,6 +109,21 @@ import HRHcScore from "@/pages/hr/hc-score";
 import HRAbsensi from "@/pages/hr/absensi";
 import HRLembur from "@/pages/hr/lembur";
 import HRMasalah from "@/pages/hr/masalah";
+import BrandingDashboard from "@/pages/branding/index";
+import BrandingKorporat from "@/pages/branding/korporat";
+import BrandingFounder from "@/pages/branding/founder";
+import BrandingKonten from "@/pages/branding/konten/index";
+import BrandingKalender from "@/pages/branding/konten/kalender";
+import BrandingProduksi from "@/pages/branding/konten/produksi";
+import BrandingKontenNew from "@/pages/branding/konten/new";
+import BrandingSosmed from "@/pages/branding/sosmed";
+import BrandingPerformaKonten from "@/pages/branding/performa-konten";
+import BrandingProyek from "@/pages/branding/proyek";
+import BrandingPR from "@/pages/branding/pr";
+import BrandingSentimen from "@/pages/branding/sentimen";
+import BrandingROI from "@/pages/branding/roi";
+import BrandingTrust from "@/pages/branding/trust";
+import BrandingHealth from "@/pages/branding/health";
 
 const queryClient = new QueryClient();
 
@@ -221,6 +236,21 @@ function Router() {
         <Route path="/hr/absensi" component={HRAbsensi} />
         <Route path="/hr/lembur" component={HRLembur} />
         <Route path="/hr/masalah" component={HRMasalah} />
+        <Route path="/branding" component={BrandingDashboard} />
+        <Route path="/branding/korporat" component={BrandingKorporat} />
+        <Route path="/branding/founder" component={BrandingFounder} />
+        <Route path="/branding/konten/kalender" component={BrandingKalender} />
+        <Route path="/branding/konten/produksi" component={BrandingProduksi} />
+        <Route path="/branding/konten/new" component={BrandingKontenNew} />
+        <Route path="/branding/konten" component={BrandingKonten} />
+        <Route path="/branding/sosmed" component={BrandingSosmed} />
+        <Route path="/branding/performa-konten" component={BrandingPerformaKonten} />
+        <Route path="/branding/proyek" component={BrandingProyek} />
+        <Route path="/branding/pr" component={BrandingPR} />
+        <Route path="/branding/sentimen" component={BrandingSentimen} />
+        <Route path="/branding/roi" component={BrandingROI} />
+        <Route path="/branding/trust" component={BrandingTrust} />
+        <Route path="/branding/health" component={BrandingHealth} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

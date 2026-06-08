@@ -44,6 +44,7 @@ import {
   AlertTriangle,
   Truck,
   UserCog,
+  Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -62,6 +63,7 @@ const navItems = [
   { name: "Perencanaan", path: "/perencanaan", icon: Calculator },
   { name: "Legal & Perizinan", path: "/legal", icon: FileText },
   { name: "Marketing", path: "/marketing", icon: Magnet },
+  { name: "Branding", path: "/branding", icon: Megaphone },
   { name: "Administrasi KPR", path: "/administrasi", icon: Users },
   { name: "Produksi", path: "/produksi", icon: HardHat },
   { name: "Human Resource", path: "/hr", icon: UserCog },
@@ -100,6 +102,28 @@ const hrSubNav: SubNavItem[] = [
   { type: "link", name: "Peta Talent", path: "/hr/talent-map" },
   { type: "link", name: "Risiko Resign", path: "/hr/flight-risk" },
   { type: "link", name: "Skor SDM", path: "/hr/hc-score" },
+];
+
+const brandingSubNav: SubNavItem[] = [
+  { type: "link", name: "Dashboard Branding", path: "/branding" },
+  { type: "group", label: "Content Management" },
+  { type: "link", name: "Kalender Konten", path: "/branding/konten/kalender" },
+  { type: "link", name: "Production Tracker", path: "/branding/konten/produksi" },
+  { type: "link", name: "Tambah Konten", path: "/branding/konten/new" },
+  { type: "link", name: "Semua Konten", path: "/branding/konten" },
+  { type: "group", label: "Performa" },
+  { type: "link", name: "Social Media Performance", path: "/branding/sosmed" },
+  { type: "link", name: "Content Performance", path: "/branding/performa-konten" },
+  { type: "group", label: "Brand Identity" },
+  { type: "link", name: "Personal Branding Founder", path: "/branding/founder" },
+  { type: "link", name: "Corporate Branding", path: "/branding/korporat" },
+  { type: "link", name: "Project Branding Score", path: "/branding/proyek" },
+  { type: "group", label: "Analitik" },
+  { type: "link", name: "Public Relations", path: "/branding/pr" },
+  { type: "link", name: "Brand Sentiment", path: "/branding/sentimen" },
+  { type: "link", name: "Content ROI", path: "/branding/roi" },
+  { type: "link", name: "Trust Score", path: "/branding/trust" },
+  { type: "link", name: "Brand Health Score", path: "/branding/health" },
 ];
 
 const akuisisiSubNav: SubNavItem[] = [
@@ -250,6 +274,7 @@ function DashboardSidebar() {
   const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
   const isMarketing = location === "/marketing" || location.startsWith("/marketing/");
   const isHR = location === "/hr" || location.startsWith("/hr/");
+  const isBranding = location === "/branding" || location.startsWith("/branding/");
 
   return (
     <Sidebar className="lg:border-r-0!" collapsible="icon">
@@ -298,6 +323,7 @@ function DashboardSidebar() {
                 const isProduksiItem = item.path === "/produksi";
                 const isMarketingItem = item.path === "/marketing";
                 const isHRItem = item.path === "/hr";
+                const isBrandingItem = item.path === "/branding";
                 const isActive =
                   location === item.path ||
                   (item.path !== "/" && location.startsWith(item.path)) ||
@@ -307,7 +333,8 @@ function DashboardSidebar() {
                   (isAdministrasiItem && isAdministrasi) ||
                   (isProduksiItem && isProduksi) ||
                   (isMarketingItem && isMarketing) ||
-                  (isHRItem && isHR);
+                  (isHRItem && isHR) ||
+                  (isBrandingItem && isBranding);
 
                 return (
                   <React.Fragment key={item.path}>
@@ -331,6 +358,7 @@ function DashboardSidebar() {
                     {isProduksiItem && isProduksi && renderSubNav(produksiSubNav, location)}
                     {isMarketingItem && isMarketing && renderSubNav(marketingSubNav, location)}
                     {isHRItem && isHR && renderSubNav(hrSubNav, location)}
+                    {isBrandingItem && isBranding && renderSubNav(brandingSubNav, location)}
                   </React.Fragment>
                 );
               })}

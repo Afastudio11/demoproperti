@@ -1,0 +1,892 @@
+# REPLIT PROMPT — MENU BRANDING
+## Satara Development Internal Dashboard
+
+---
+
+## KONTEKS
+
+Dashboard internal Satara Development sudah berjalan dengan sidebar utama:
+Executive Overview, Daftar Proyek, Akuisisi Lahan, Perencanaan, Legal & Perizinan,
+Marketing, **Branding** (← ini yang dibangun), Administrasi KPR, Produksi, Serah Terima,
+HR, Settings.
+
+**Tugas:** Bangun seluruh halaman dan sub-menu untuk menu **Branding**.
+
+Divisi Branding adalah media company internal Satara. Tugasnya berbeda secara fundamental
+dari Marketing. Marketing mengubah kepercayaan menjadi lead dan booking. Branding
+membangun kepercayaan itu terlebih dahulu melalui:
+**Awareness → Trust → Authority → Preference**
+
+Divisi Branding tidak diukur dari lead langsung, tetapi dari kualitas citra perusahaan,
+konsistensi konten, jangkauan audiens, dan sentimen pasar terhadap brand Satara dan
+seluruh proyek di bawahnya.
+
+---
+
+## STRUKTUR MENU BRANDING
+
+```
+Branding
+├── 1. Branding Dashboard (Command Center)
+├── 2. Corporate Branding
+├── 3. Personal Branding (Founder)
+├── 4. Content Management
+│   ├── Kalender Konten
+│   ├── Tambah / Edit Konten
+│   └── Content Production Tracker
+├── 5. Social Media Performance
+├── 6. Content Performance
+├── 7. Project Branding Score
+├── 8. Public Relations
+├── 9. Brand Sentiment Analysis
+├── 10. Content ROI
+├── 11. Trust Score
+└── 12. Brand Health Score
+```
+
+---
+
+## SPESIFIKASI DETAIL SETIAP HALAMAN
+
+---
+
+### 1. BRANDING DASHBOARD (COMMAND CENTER)
+**Route:** `/branding`
+**Fungsi:** Halaman ringkasan harian untuk CEO dan Head of Branding.
+
+**Baris 1 — Brand Health Score (kartu utama, tampil paling besar):**
+- Angka skor (contoh: 89/100) dengan label status (SEHAT / WASPADA / KRITIS)
+- Gauge chart visual
+- Breakdown 5 komponen dengan kontribusi masing-masing
+
+**Baris 2 — Metric Cards Utama:**
+
+| Metric | Kalkulasi | Sumber |
+|--------|-----------|--------|
+| Brand Health Score | Berbobot dari 5 komponen | Modul 12 |
+| Reach Bulanan | Total reach semua platform | Modul 5 |
+| Engagement Rate | Total engagement ÷ total reach (%) | Modul 5 |
+| Top Content Bulan Ini | Konten dengan reach tertinggi | Modul 6 |
+| Content Pipeline | Jumlah konten dalam proses produksi | Modul 4 |
+| Founder Influence Score | Skor personal branding founder | Modul 3 |
+| Sentiment Score | Persentase komentar positif (%) | Modul 9 |
+| Organic Lead Contribution | % lead berasal dari channel organik | Modul 10 |
+
+**Baris 3 — Project Branding Score:**
+Card per proyek dengan skor dan warna status.
+
+| Proyek | Branding Score | Status |
+|--------|---------------|--------|
+| SN Residence 3 | 92 | Hijau |
+| Barru | 45 | Kuning |
+| Loka Resort | 20 | Merah |
+
+**Baris 4 — Content Pipeline Summary:**
+Kanban mini: jumlah konten di setiap tahap produksi (Idea / Script / Shooting / Editing / Review / Posting).
+
+**Baris 5 — Fitur Khusus Satara:**
+- Trust Score: angka + label
+- Project Exposure Score: bar chart per proyek/tahap
+- Founder Content Contribution: pie chart lead dari Arya vs lead dari Brand SN Residence
+
+---
+
+### 2. CORPORATE BRANDING
+**Route:** `/branding/korporat`
+
+**Fungsi:** Tracking kesehatan brand untuk setiap entitas di bawah Satara Group.
+
+**Brand yang ditracking:**
+
+| Brand | Deskripsi |
+|-------|-----------|
+| Satara Group | Holding / umbrella brand |
+| SN Residence | Brand perumahan subsidi |
+| Sekala Industry | Brand properti industri / komersial |
+| Loka Resort | Brand properti resort / pariwisata |
+| Proyek Baru | Placeholder untuk brand yang belum dilaunching |
+
+**Form input data brand per periode:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Brand | Select | dari daftar di atas |
+| Periode (Bulan/Tahun) | Date | |
+| Brand Awareness Score (1-100) | Number | Hasil survei / estimasi internal |
+| Brand Consistency Score (1-100) | Number | Apakah visual dan pesan konsisten di semua channel |
+| Total Brand Reach | Number | Agregat dari semua platform |
+| Catatan | Textarea | |
+
+**Kalkulasi:**
+```
+Brand Awareness Score = input manual (hasil riset atau estimasi)
+Brand Consistency Score = input manual (penilaian Head of Branding)
+```
+
+**Tampilan:**
+- Card per brand dengan tiga metric utama
+- Trend: Brand Awareness Score per brand selama 6 bulan terakhir (line chart)
+- Alert: brand dengan konsistensi rendah (skor < 70) ditandai kuning
+
+---
+
+### 3. PERSONAL BRANDING (FOUNDER)
+**Route:** `/branding/founder`
+
+**Fungsi:** Tracking performa personal branding CEO / Founder (Arya) di semua platform.
+
+**Form input KPI founder per platform per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Periode | Date | |
+| Platform | Select | Instagram Arya, Facebook Arya, LinkedIn Arya, Media Exposure |
+| Reach | Number | |
+| Impression | Number | |
+| Engagement | Number | |
+| Followers Baru | Number | |
+| Total Followers | Number | |
+| Jumlah Konten Founder | Number | Konten yang dibuat/dibagikan oleh Arya langsung |
+| Leads dari Founder | Number | Lead yang masuk dan menyebut nama Arya atau konten Arya |
+| Booking dari Founder Leads | Number | Dari leads di atas yang konversi booking |
+| Catatan | Textarea | |
+
+**Kalkulasi:**
+```
+Engagement Rate (%) = Total Engagement ÷ Total Reach × 100%
+
+Founder Influence Score = rata-rata berbobot:
+  - Reach vs Target 50.000/bulan (25%)
+  - Engagement Rate vs target 5% (25%)
+  - Follower Growth (25%)
+  - Conversion Lead dari Founder (Leads ÷ total lead perusahaan) (25%)
+```
+
+**Tampilan:**
+- Metric cards: Reach Founder, Engagement Rate, Followers Baru, Leads dari Founder, Founder Influence Score
+- Trend: Founder Influence Score 6 bulan terakhir
+- Pie chart Founder Content Contribution: lead dari Arya vs lead dari brand SN Residence
+  (data diambil dari Modul Marketing berdasarkan sumber lead)
+- Catatan strategis: semakin besar Satara, target adalah menurunkan ketergantungan pada
+  founder. Tampilkan tren rasio ini per bulan sebagai indikator brand independence.
+
+**Media Exposure:**
+Form input terpisah untuk liputan media:
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Media | Text | Contoh: Tribun Timur, Fajar, Makassar Terkini |
+| Jenis | Select | Artikel, Wawancara, Feature, Podcast, Radio |
+| Judul / Topik | Text | |
+| Tanggal Tayang | Date | |
+| URL / Link | Text | |
+| Estimasi Reach | Number | |
+| Catatan | Textarea | |
+
+---
+
+### 4. CONTENT MANAGEMENT
+**Route:** `/branding/konten`
+
+**Fungsi:** Perencanaan, produksi, dan tracking seluruh konten brand Satara.
+
+#### 4a. Kalender Konten
+**Route:** `/branding/konten/kalender`
+
+Tampilan kalender bulanan. Setiap tanggal menampilkan konten yang dijadwalkan posting.
+Warna per kategori konten:
+- Biru: Edukasi
+- Hijau: Progress Proyek
+- Kuning: Testimoni
+- Merah muda: CSR
+- Ungu: Company Culture
+- Oranye: Founder Story
+- Abu-abu: Behind The Scene
+
+Klik tanggal → tampilkan daftar konten di hari tersebut.
+Klik konten → buka detail / edit konten.
+
+#### 4b. Tambah / Edit Konten
+**Route:** `/branding/konten/new` dan `/branding/konten/:id/edit`
+
+**Form fields:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Judul Konten | Text | |
+| Kategori | Select | Edukasi, Progress Proyek, Testimoni, CSR, Company Culture, Founder Story, Behind The Scene |
+| Proyek Terkait | Select | SN1, SN2, SN3, SN4, Barru, Loka Resort, Satara Group, Tidak Spesifik |
+| Platform | Multi-select | Instagram, Facebook, TikTok, YouTube, Website |
+| Format | Select | Foto, Video Pendek, Video Panjang, Reels, Story, Carousel, Blog Post |
+| PIC Produksi | Select | Content Creator, Graphic Designer, Videographer, Copywriter |
+| Tanggal Deadline Produksi | Date | |
+| Tanggal Rencana Posting | Date | |
+| Tanggal Aktual Posting | Date | Diisi saat konten tayang |
+| Status Produksi | Select | Idea, Script, Shooting, Editing, Review, Approved, Posted |
+| Caption / Script | Textarea | |
+| Link Konten (URL) | Text | Diisi setelah posting |
+| Catatan | Textarea | |
+
+**Target konten per kategori per bulan (hardcode default, bisa dikonfigurasi di Settings):**
+
+| Kategori | Target per Bulan |
+|---------|-----------------|
+| Edukasi | 8 |
+| Progress Proyek | 8 |
+| Testimoni | 4 |
+| CSR | 2 |
+| Company Culture | 4 |
+| Founder Story | 2 |
+| Behind The Scene | 2 |
+| Total | 30 |
+
+#### 4c. Content Production Tracker
+**Route:** `/branding/konten/produksi`
+
+**Tampilan kanban board:** 6 kolom sesuai tahap produksi.
+
+```
+IDEA | SCRIPT | SHOOTING | EDITING | REVIEW | POSTED
+```
+
+Setiap kartu menampilkan: judul konten, kategori (warna), platform, PIC, deadline.
+Drag and drop kartu ke kolom berikutnya untuk update status (dengan konfirmasi modal).
+Setiap perpindahan status tercatat otomatis dengan timestamp.
+
+**Tampilan tabel alternatif:**
+
+| Konten | Kategori | Platform | PIC | Deadline | Status | Aging |
+|--------|----------|---------|-----|----------|--------|-------|
+| Progress T4 | Progress | Instagram, TikTok | Videographer | 10 Jan | Editing | 3 hari |
+| Edukasi KPR | Edukasi | Instagram | Copywriter | 12 Jan | Review | 1 hari |
+| Testimoni B20 | Testimoni | Instagram | Content Creator | 15 Jan | Posted | - |
+
+Alert merah: konten yang melewati deadline produksi tapi belum berstatus Posted.
+
+**Kalkulasi:**
+```
+Content Completion Rate (%) = konten berstatus Posted ÷ target konten bulan ini × 100%
+```
+
+---
+
+### 5. SOCIAL MEDIA PERFORMANCE
+**Route:** `/branding/sosmed`
+
+**Fungsi:** Tracking KPI performa semua platform media sosial brand Satara
+(bukan personal Arya, itu di Modul 3).
+
+**Form input KPI per platform per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Periode | Date | |
+| Platform | Select | Instagram, Facebook, TikTok, YouTube, Website |
+| Reach | Number | |
+| Impression | Number | |
+| Engagement | Number | Likes + komentar + share + save |
+| Save | Number | |
+| Share | Number | |
+| Followers Baru | Number | |
+| Total Followers | Number | |
+| Jumlah Konten Publish | Number | |
+| Catatan | Textarea | |
+
+**KPI Target per Bulan (hardcode default, bisa dikonfigurasi di Settings):**
+
+| KPI | Target |
+|-----|--------|
+| Total Reach | 100.000 |
+| Engagement Rate | 5% |
+| Followers Baru | 500 |
+| Jumlah Konten | 30 |
+
+**Kalkulasi:**
+```
+Engagement Rate (%) = Total Engagement ÷ Total Reach × 100%
+```
+
+**Tampilan:**
+
+- Tabel perbandingan antar platform:
+
+| Platform | Reach | Impression | Engagement | Followers | Eng. Rate |
+|----------|-------|------------|------------|----------|-----------|
+| Instagram | 120.000 | 180.000 | 6.000 | 250 | 5,0% |
+| Facebook | 90.000 | 130.000 | 3.600 | 180 | 4,0% |
+| TikTok | 250.000 | 400.000 | 15.000 | 620 | 6,0% |
+| YouTube | 40.000 | 60.000 | 1.200 | 50 | 3,0% |
+| Website | 15.000 | 22.000 | - | - | - |
+
+- Highlight platform terbaik per kolom (hijau)
+- Bar chart: total reach per platform per bulan
+- Trend: followers growth per platform selama 6 bulan terakhir
+- Alert merah: platform yang Engagement Rate-nya di bawah target 5%
+
+---
+
+### 6. CONTENT PERFORMANCE
+**Route:** `/branding/performa-konten`
+
+**Fungsi:** Mengukur performa setiap konten yang sudah diposting.
+
+**Form input performa per konten:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Konten | Select | dari daftar konten berstatus Posted |
+| Platform | Select | |
+| Reach | Number | |
+| Impression | Number | |
+| Engagement | Number | |
+| Save | Number | |
+| Share | Number | |
+| Komentar | Number | |
+| Catatan | Textarea | |
+
+Data performa bisa diinput manual atau diinput oleh Social Media Specialist setelah
+mengambil data dari insight platform masing-masing.
+
+**Kalkulasi:**
+```
+Engagement Rate per Konten (%) = Total Engagement ÷ Reach × 100%
+
+Content Score = rata-rata berbobot:
+  - Reach (40%)
+  - Engagement Rate (40%)
+  - Save + Share (20%)
+```
+
+**Tampilan:**
+
+- Tabel semua konten yang sudah posted, diurutkan berdasarkan Content Score:
+
+| Konten | Kategori | Platform | Reach | Eng. Rate | Score | Label |
+|--------|----------|---------|-------|-----------|-------|-------|
+| Progress T4 | Progress | TikTok | 35.000 | 8,2% | 91 | Top |
+| Edukasi KPR | Edukasi | Instagram | 22.000 | 6,1% | 78 | Normal |
+| Testimoni B20 | Testimoni | Instagram | 18.000 | 5,4% | 72 | Normal |
+
+- Label otomatis:
+  - Top Content: skor >= 85
+  - Viral Content: reach >= 3x rata-rata reach konten bulan ini
+  - Worst Content: skor < 50
+
+- Filter: periode, kategori, platform
+- Insight: tampilkan kategori konten mana yang rata-rata score-nya paling tinggi
+  sebagai rekomendasi fokus konten bulan berikutnya
+
+---
+
+### 7. PROJECT BRANDING SCORE
+**Route:** `/branding/proyek`
+
+**Fungsi:** Skor brand awareness dan engagement khusus per proyek.
+
+**Form input per proyek per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek | Select | |
+| Periode | Date | |
+| Skor Awareness (1-100) | Number | Estimasi: seberapa dikenal proyek ini di pasar |
+| Skor Engagement (1-100) | Number | Engagement konten yang terkait proyek ini |
+| Skor Inquiry (1-100) | Number | Banyaknya pertanyaan / DM terkait proyek ini |
+| Skor Sentiment (1-100) | Number | Dari Sentiment Analysis, khusus konten proyek ini |
+| Catatan | Textarea | |
+
+**Kalkulasi:**
+```
+Project Branding Score = rata-rata berbobot:
+  - Awareness (25%)
+  - Engagement (25%)
+  - Inquiry (25%)
+  - Sentiment (25%)
+```
+
+**Tampilan:**
+
+| Proyek | Awareness | Engagement | Inquiry | Sentiment | Branding Score | Status |
+|--------|-----------|------------|---------|-----------|---------------|--------|
+| SN Residence 3 | 95 | 90 | 88 | 95 | 92 | Hijau |
+| Barru | 50 | 40 | 42 | 50 | 45 | Kuning |
+| Loka Resort | 25 | 15 | 18 | 22 | 20 | Merah |
+
+**Project Exposure Score (fitur khusus Satara):**
+```
+Project Exposure Score (%) = jumlah konten terkait proyek ini ÷ total konten bulan ini × 100%
+```
+
+| Proyek/Tahap | Konten Bulan Ini | Exposure Score | Rekomendasi AI |
+|-------------|-----------------|---------------|----------------|
+| SN3 Tahap 4 | 18 dari 30 | 60% | Kurangi, fokus ke T5 |
+| SN3 Tahap 5 | 3 dari 30 | 10% | Tingkatkan, masih rendah |
+| Barru | 1 dari 30 | 3% | Perlu segera dibangun |
+
+Rekomendasi teks otomatis: jika Exposure Score proyek yang stoknya masih banyak
+(dari Modul Marketing: Stock & Coverage) lebih rendah dari proyek yang stoknya menipis,
+tampilkan alert: "Tahap 5 memiliki 44 unit stok tetapi hanya 10% exposure konten.
+Rekomendasikan fokus konten ke Tahap 5 selama 30 hari ke depan."
+
+---
+
+### 8. PUBLIC RELATIONS
+**Route:** `/branding/pr`
+
+**Fungsi:** Tracking aktivitas PR: media, komunitas, pemerintah, dan event.
+
+**Form input kegiatan PR:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Judul Kegiatan | Text | |
+| Jenis | Select | Media Coverage, Komunitas, Pemerintah, Event, Sponsorship, CSR |
+| Nama Pihak / Media / Instansi | Text | |
+| Tanggal | Date | |
+| Deskripsi | Textarea | |
+| Estimasi Reach / Dampak | Number | |
+| Biaya (Rp) | Number | |
+| Output / Hasil | Textarea | |
+| Link / Dokumentasi | Text | |
+| PR Score Kegiatan (1-10) | Number | Penilaian Head of Branding |
+| Catatan | Textarea | |
+
+**Tampilan:**
+- Tabel semua kegiatan PR: judul, jenis, tanggal, reach, PR Score
+- Metric cards: Total Kegiatan PR Bulan Ini, Total Reach PR, Rata-rata PR Score, Total Biaya PR
+- Bar chart: kegiatan PR per jenis per bulan
+- Tabel Media Exposure: semua liputan media yang masuk (dari input di Modul 3 Personal Branding
+  dan dari form PR ini)
+
+**Kalkulasi:**
+```
+PR Score = rata-rata PR Score semua kegiatan PR bulan ini
+Media Exposure Score = jumlah liputan media × rata-rata reach per liputan
+```
+
+---
+
+### 9. BRAND SENTIMENT ANALYSIS
+**Route:** `/branding/sentimen`
+
+**Fungsi:** Mengukur sentimen pasar terhadap brand Satara dari komentar dan respons publik.
+
+**Form input data sentimen per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Periode | Date | |
+| Platform | Select | Instagram, Facebook, TikTok, Google Review, WhatsApp (sampel), Lainnya |
+| Total Komentar / Ulasan Dianalisis | Number | |
+| Komentar Positif | Number | |
+| Komentar Netral | Number | |
+| Komentar Negatif | Number | |
+| Tema Positif Utama | Textarea | Contoh: progress cepat, admin responsif, kualitas bagus |
+| Tema Negatif Utama | Textarea | Contoh: respons lambat, proses akad lama |
+| Catatan | Textarea | |
+
+Catatan implementasi: saat ini input manual. Jika di masa depan tersedia integrasi API
+platform, data bisa ditarik otomatis. Catatan ini cukup ditampilkan sebagai teks kecil
+di bawah form.
+
+**Kalkulasi:**
+```
+Sentiment Positif (%) = Komentar Positif ÷ Total Komentar × 100%
+Sentiment Netral (%) = Komentar Netral ÷ Total Komentar × 100%
+Sentiment Negatif (%) = Komentar Negatif ÷ Total Komentar × 100%
+
+Sentiment Score = Sentiment Positif (%) — target: >= 80%
+```
+
+**Tampilan:**
+- Donut chart: proporsi Positif / Netral / Negatif (contoh: 82% / 15% / 3%)
+- Metric cards: Sentiment Score bulan ini, perubahan vs bulan lalu
+- Tabel tema: tema positif dan negatif utama per platform
+- Trend: Sentiment Score 6 bulan terakhir (line chart)
+- Alert: jika Sentiment Negatif > 10%, tampilkan banner kuning.
+  Jika > 20%, tampilkan banner merah dengan rekomendasi: "Evaluasi tema negatif dan
+  buat respons konten yang menangani isu tersebut."
+
+---
+
+### 10. CONTENT ROI
+**Route:** `/branding/roi`
+
+**Fungsi:** Mengukur kontribusi konten branding terhadap lead, booking, dan akad.
+Ini membuktikan bahwa branding bukan sekadar likes, tetapi berkontribusi langsung
+pada pendapatan perusahaan.
+
+**Form input per konten (diisi oleh Branding bersama Marketing):**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Konten | Select | dari daftar konten Posted |
+| Leads yang Masuk via Konten Ini | Number | Lead yang menyebut konten ini atau datang dari link konten |
+| Booking dari Lead Tersebut | Number | |
+| Akad dari Lead Tersebut | Number | |
+| Estimasi Nilai Akad (Rp) | Number | |
+| Catatan | Textarea | |
+
+**Kalkulasi:**
+```
+Content ROI = Estimasi Nilai Akad ÷ Biaya Produksi Konten (dari form konten)
+
+Lead Conversion dari Konten (%) = Booking ÷ Lead dari Konten × 100%
+
+Organic Lead Contribution (%) = Total Lead dari semua konten organik
+                                 ÷ Total Lead Marketing bulan ini × 100%
+                                 Target: >= 30%
+```
+
+**Tampilan:**
+
+Tabel Content ROI per konten:
+
+| Konten | Reach | Lead | Booking | Akad | Nilai Akad (Rp) | Biaya Produksi (Rp) | ROI |
+|--------|-------|------|---------|------|----------------|--------------------|----|
+| Progress T4 | 35.000 | 40 | 4 | 2 | Rp 140.000.000 | Rp 500.000 | 280x |
+| Edukasi KPR | 22.000 | 15 | 1 | 0 | Rp 0 | Rp 200.000 | 0x |
+
+- Metric cards: Total Lead dari Konten Organik, Organic Lead Contribution (%),
+  Total Akad dari Konten, Total Nilai dari Konten (Rp)
+- Alert: jika Organic Lead Contribution < 30% (batas KPI), tampilkan rekomendasi
+  untuk meningkatkan frekuensi atau kualitas konten organik
+
+---
+
+### 11. TRUST SCORE
+**Route:** `/branding/trust`
+
+**Fungsi:** Mengukur tingkat kepercayaan pasar terhadap Satara sebagai developer.
+
+**Form input komponen Trust Score per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Periode | Date | |
+| Jumlah Testimoni Baru | Number | Testimoni customer yang diterima bulan ini |
+| Skor Testimoni Rata-rata (1-10) | Number | Rata-rata rating dari testimoni |
+| Jumlah Konten Progress Proyek Diposting | Number | Sinkron dari Content Management |
+| Rata-rata Response Time DM/Komentar (menit) | Number | Kecepatan respon tim branding/marketing |
+| Komentar Positif (%) | Number | Sinkron dari Modul 9 |
+| Catatan | Textarea | |
+
+**Kalkulasi:**
+```
+Trust Score = rata-rata berbobot:
+  - Skor Testimoni rata-rata ÷ 10 × 100 (30%)
+  - Konten Progress Proyek vs target 8/bulan (20%)
+  - Response Time: (target 10 menit ÷ aktual) × 100, maks 100 (25%)
+  - Sentiment Positif vs target 80% (25%)
+```
+
+**Tampilan:**
+- Angka besar Trust Score dengan label (TINGGI / SEDANG / RENDAH)
+- Breakdown per komponen
+- Trend: Trust Score 6 bulan terakhir
+- Rekomendasi teks: komponen dengan skor terendah ditampilkan sebagai prioritas perbaikan
+
+---
+
+### 12. BRAND HEALTH SCORE
+**Route:** `/branding/health`
+
+**Fungsi:** Skor kesehatan brand secara keseluruhan untuk CEO.
+
+**Komponen dan bobot:**
+
+| Komponen | Bobot | Kalkulasi |
+|---------|-------|-----------|
+| Reach | 20% | Total Reach vs target 100.000/bulan |
+| Engagement | 20% | Engagement Rate vs target 5% |
+| Content Consistency | 20% | Content Completion Rate (konten posted ÷ target 30) |
+| Sentiment | 20% | Sentiment Score (% positif) vs target 80% |
+| Lead Contribution | 20% | Organic Lead Contribution vs target 30% |
+
+**Kalkulasi total:**
+```
+Skor per komponen = (realisasi ÷ target) × 100, maksimum 100
+
+Brand Health Score = rata-rata berbobot semua komponen
+
+Status:
+  > 80 = SEHAT (hijau)
+  60-80 = WASPADA (kuning)
+  < 60 = KRITIS (merah)
+```
+
+**Tampilan:**
+- Angka besar dengan gauge chart dan label status
+- Breakdown per komponen: nilai aktual, target, skor komponen, bobot
+- Trend: Brand Health Score 6 bulan terakhir (line chart)
+- Rekomendasi otomatis: komponen dengan skor paling rendah ditampilkan sebagai
+  prioritas perbaikan bulan ini
+
+---
+
+## DATABASE SCHEMA (SUPABASE)
+
+```sql
+-- Data brand korporat per periode
+corporate_brand_records (
+  id uuid PRIMARY KEY,
+  brand_name text,              -- satara_group, sn_residence, sekala_industry, loka_resort, lainnya
+  period_year integer,
+  period_month integer,
+  awareness_score numeric,
+  consistency_score numeric,
+  total_reach integer,
+  notes text,
+  created_at timestamptz
+)
+
+-- KPI personal branding founder per platform per periode
+founder_branding_records (
+  id uuid PRIMARY KEY,
+  period_year integer,
+  period_month integer,
+  platform text,                -- instagram_arya, facebook_arya, linkedin_arya, media_exposure
+  reach integer,
+  impression integer,
+  engagement integer,
+  new_followers integer,
+  total_followers integer,
+  content_count integer,
+  leads_from_founder integer,
+  bookings_from_founder integer,
+  notes text,
+  created_at timestamptz
+)
+
+-- Liputan media
+media_exposures (
+  id uuid PRIMARY KEY,
+  media_name text,
+  type text,                    -- artikel, wawancara, feature, podcast, radio
+  title text,
+  publish_date date,
+  url text,
+  estimated_reach integer,
+  notes text,
+  created_at timestamptz
+)
+
+-- Konten branding
+content_items (
+  id uuid PRIMARY KEY,
+  title text,
+  category text,                -- edukasi, progress_proyek, testimoni, csr, company_culture, founder_story, behind_the_scene
+  project_id uuid REFERENCES projects(id),
+  platforms text[],             -- array: instagram, facebook, tiktok, youtube, website
+  format text,                  -- foto, video_pendek, video_panjang, reels, story, carousel, blog
+  pic text,                     -- nama PIC produksi
+  production_deadline date,
+  scheduled_post_date date,
+  actual_post_date date,
+  production_status text,       -- idea, script, shooting, editing, review, approved, posted
+  caption text,
+  content_url text,
+  production_cost numeric,
+  notes text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+
+-- Riwayat perubahan status produksi konten
+content_status_history (
+  id uuid PRIMARY KEY,
+  content_id uuid REFERENCES content_items(id),
+  from_status text,
+  to_status text,
+  changed_by text,
+  changed_at timestamptz,
+  notes text
+)
+
+-- Target konten per kategori per bulan
+content_targets (
+  id uuid PRIMARY KEY,
+  period_year integer,
+  period_month integer,
+  category text,
+  target_count integer,
+  created_at timestamptz
+)
+
+-- KPI social media per platform per bulan
+social_media_kpi (
+  id uuid PRIMARY KEY,
+  period_year integer,
+  period_month integer,
+  platform text,                -- instagram, facebook, tiktok, youtube, website
+  reach integer,
+  impression integer,
+  engagement integer,
+  saves integer,
+  shares integer,
+  new_followers integer,
+  total_followers integer,
+  content_count integer,
+  notes text,
+  created_at timestamptz
+)
+
+-- Performa per konten setelah posting
+content_performance (
+  id uuid PRIMARY KEY,
+  content_id uuid REFERENCES content_items(id),
+  platform text,
+  reach integer,
+  impression integer,
+  engagement integer,
+  saves integer,
+  shares integer,
+  comments integer,
+  content_score numeric,        -- auto-hitung
+  notes text,
+  recorded_at timestamptz,
+  created_at timestamptz
+)
+
+-- Project Branding Score per proyek per bulan
+project_branding_scores (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  period_year integer,
+  period_month integer,
+  awareness_score numeric,
+  engagement_score numeric,
+  inquiry_score numeric,
+  sentiment_score numeric,
+  total_score numeric,          -- auto-hitung
+  notes text,
+  created_at timestamptz
+)
+
+-- Kegiatan PR
+pr_activities (
+  id uuid PRIMARY KEY,
+  title text,
+  type text,                    -- media_coverage, komunitas, pemerintah, event, sponsorship, csr
+  party_name text,
+  activity_date date,
+  description text,
+  estimated_reach integer,
+  cost numeric,
+  result text,
+  documentation_url text,
+  pr_score numeric,
+  notes text,
+  created_at timestamptz
+)
+
+-- Sentimen brand per platform per bulan
+sentiment_records (
+  id uuid PRIMARY KEY,
+  period_year integer,
+  period_month integer,
+  platform text,
+  total_analyzed integer,
+  positive_count integer,
+  neutral_count integer,
+  negative_count integer,
+  positive_themes text,
+  negative_themes text,
+  notes text,
+  created_at timestamptz
+)
+
+-- Content ROI per konten
+content_roi (
+  id uuid PRIMARY KEY,
+  content_id uuid REFERENCES content_items(id),
+  leads_from_content integer,
+  bookings_from_content integer,
+  akad_from_content integer,
+  estimated_akad_value numeric,
+  notes text,
+  created_at timestamptz
+)
+
+-- Trust Score per bulan
+trust_score_records (
+  id uuid PRIMARY KEY,
+  period_year integer,
+  period_month integer,
+  new_testimonials integer,
+  avg_testimonial_score numeric,
+  progress_content_count integer,
+  avg_response_time_minutes numeric,
+  positive_sentiment_pct numeric,
+  trust_score numeric,          -- auto-hitung
+  notes text,
+  created_at timestamptz
+)
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+1. **Kanban produksi konten:** Di Content Production Tracker, tampilkan board kanban
+   dengan 6 kolom tahap produksi. Kartu bisa di-drag ke kolom berikutnya. Setiap
+   perpindahan status tercatat otomatis di `content_status_history`.
+
+2. **Kalender konten visual:** Di halaman Kalender Konten, setiap tanggal menampilkan
+   badge warna sesuai kategori konten yang dijadwalkan. Klik konten langsung membuka
+   form edit.
+
+3. **Project Exposure Score + rekomendasi AI:** Sistem menghitung otomatis proporsi
+   konten per proyek dan membandingkannya dengan kondisi stok dari Modul Marketing.
+   Jika proyek dengan stok banyak mendapat sedikit konten, rekomendasi teks muncul
+   otomatis tanpa perlu intervensi manual.
+
+4. **Integrasi dengan Marketing:** Data leads_from_content dan bookings_from_content
+   di Content ROI diambil dari Modul Marketing berdasarkan field sumber lead yang
+   mencantumkan nama konten atau channel organik. Sinkronisasi dilakukan otomatis.
+
+5. **Integrasi dengan Administrasi KPR:** Data akad_from_content di Content ROI
+   diambil dari Modul Administrasi KPR berdasarkan customer yang asal lead-nya
+   adalah channel organik.
+
+6. **Sentiment chart:** Di Modul 9, tampilkan donut chart yang bisa diklik per segmen.
+   Klik segmen Negatif → tampilkan daftar tema negatif utama.
+
+7. **Export laporan branding bulanan:** Halaman Brand Health Score bisa di-export
+   menjadi PDF ringkasan satu halaman yang bisa dipresentasikan ke CEO atau investor.
+
+8. **Mobile-friendly:** Halaman update status produksi konten dan input performa konten
+   harus bisa diakses dari HP oleh tim konten di lapangan.
+
+9. **Number format:** Semua rupiah: `Rp 140.000.000`. Semua tanggal: `15 Januari 2026`.
+   Semua persentase: `82,0%`. Semua skor: `89/100`.
+
+10. **Status badge warna produksi konten:**
+    - Abu-abu: Idea
+    - Biru muda: Script
+    - Biru: Shooting
+    - Kuning: Editing
+    - Oranye: Review
+    - Hijau: Posted
+    - Merah: Terlambat dari deadline
+
+---
+
+## URUTAN PENGERJAAN
+
+1. Setup routing dan struktur folder semua halaman Branding
+2. Buat semua tabel database di Supabase
+3. Content Management: form konten + kalender + kanban produksi (modul paling aktif harian)
+4. Social Media Performance: form input KPI platform + visualisasi perbandingan
+5. Content Performance: form input performa per konten + ranking Top / Worst / Viral
+6. Personal Branding Founder: form KPI per platform + pie chart Founder Contribution
+7. Corporate Branding: form per brand + trend awareness
+8. Project Branding Score: form input + Project Exposure Score + rekomendasi AI
+9. Brand Sentiment Analysis: form input + donut chart + alert threshold
+10. Public Relations: form kegiatan PR + tabel media exposure
+11. Content ROI: form input + kalkulasi ROI + Organic Lead Contribution
+12. Trust Score: kalkulasi dari komponen tersedia + trend
+13. Brand Health Score: kalkulasi berbobot dari semua modul + export PDF
+14. Branding Dashboard: agregasi semua metric + fitur khusus Satara
+15. Integrasi dengan Modul Marketing: sinkron leads organik dan booking dari konten
+16. Integrasi dengan Modul Administrasi KPR: sinkron akad yang berasal dari konten
