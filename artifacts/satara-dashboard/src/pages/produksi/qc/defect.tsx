@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, AlertTriangle, CheckCircle2, Wrench } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CategorySelectShadcn } from "@/components/category-select";
 
 type Unit = { id: number; blok: string; nomor: string };
 type Defect = { id: number; unitId: number; kategori: string; deskripsi: string; status: string; verifiedBy: string | null; createdAt: string };
 
-const CATEGORIES = ["Struktur", "Dinding", "Atap", "Keramik", "Cat", "Instalasi Listrik", "Instalasi Air", "Kusen & Pintu", "Plafon", "Lainnya"];
+const DEFAULT_CATEGORIES = ["Struktur", "Dinding", "Atap", "Keramik", "Cat", "Instalasi Listrik", "Instalasi Air", "Kusen & Pintu", "Plafon", "Lainnya"];
 
 export default function QcDefect() {
   const [showForm, setShowForm] = useState(false);
@@ -90,10 +91,7 @@ export default function QcDefect() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Kategori</Label>
-              <Select value={form.kategori} onValueChange={v => setForm(p => ({ ...p, kategori: v }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Kategori..." /></SelectTrigger>
-                <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-              </Select>
+              <CategorySelectShadcn type="qc_kategori_defect" defaults={DEFAULT_CATEGORIES} value={form.kategori} onValueChange={v => setForm(p => ({ ...p, kategori: v }))} placeholder="Kategori..." />
             </div>
             <div className="space-y-1.5 sm:col-span-1">
               <Label className="text-xs">Deskripsi</Label>

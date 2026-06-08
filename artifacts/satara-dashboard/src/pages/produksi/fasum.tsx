@@ -5,19 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Save, RefreshCw } from "lucide-react";
+import { Building2, Save, RefreshCw, Plus, Check, X, Loader2 } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
+import { useCategoryOptions } from "@/components/category-select";
 
 type FasumRow = { id: number; projectId: number; stageCode: string | null; fasumType: string; progressPercent: number; notes: string | null; updatedBy: string | null };
 type Project = { id: number; nama: string };
 
-const FASUM_TYPES = ["Jalan", "Drainase", "Taman", "IPAL", "Masjid", "Gorong-gorong", "Gerbang", "Selokan", "Gazebo", "Paving Block"];
+const DEFAULT_FASUM_TYPES = ["Jalan", "Drainase", "Taman", "IPAL", "Masjid", "Gorong-gorong", "Gerbang", "Selokan", "Gazebo", "Paving Block"];
 
 export default function FasumPage() {
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [updatedBy, setUpdatedBy] = useState("");
   const [edits, setEdits] = useState<Record<string, { progress: number; notes: string }>>({});
+  const [addingType, setAddingType] = useState(false);
+  const [newTypeName, setNewTypeName] = useState("");
+  const { all: fasumTypes, addMut: addFasumType } = useCategoryOptions("fasum_tipe", DEFAULT_FASUM_TYPES);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -69,9 +73,17 @@ export default function FasumPage() {
   const getRow = (type: string) => rows.find(r => r.fasumType === type);
   const getProgress = (type: string) => edits[type]?.progress ?? getRow(type)?.progressPercent ?? 0;
 
-  const avgProgress = FASUM_TYPES.length > 0
-    ? Math.round(FASUM_TYPES.reduce((s, t) => s + getProgress(t), 0) / FASUM_TYPES.length)
+  const avgProgress = fasumTypes.length > 0
+    ? Math.round(fasumTypes.reduce((s, t) => s + getProgress(t), 0) / fasumTypes.length)
     : 0;
+
+  async function handleAddFasumType() {
+    const name = newTypeName.trim();
+    if (!name) return;
+    await addFasumType.mutateAsync(name);
+    setNewTypeName("");
+    setAddingType(false);
+  }
 
   return (
     <div className="space-y-5">
@@ -113,7 +125,7 @@ export default function FasumPage() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {FASUM_TYPES.map(type => {
+        {fasumTypes.map(type => {
           const row = getRow(type);
           const progress = getProgress(type);
           const hasEdit = type in edits;
@@ -153,6 +165,32 @@ export default function FasumPage() {
             </Card>
           );
         })}
+        <Card className="border-dashed border-2 flex items-center justify-center min-h-[80px]">
+          <CardContent className="p-3 w-full">
+            {addingType ? (
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={newTypeName}
+                  onChange={e => setNewTypeName(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleAddFasumType(); if (e.key === "Escape") { setAddingType(false); setNewTypeName(""); } }}
+                  placeholder="Nama tipe fasum baru..."
+                  className="flex-1 border rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                />
+                <button onClick={handleAddFasumType} disabled={!newTypeName.trim() || addFasumType.isPending} className="p-1.5 rounded-md bg-foreground text-background disabled:opacity-50">
+                  {addFasumType.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                </button>
+                <button onClick={() => { setAddingType(false); setNewTypeName(""); }} className="p-1.5 rounded-md border hover:bg-muted">
+                  <X className="size-3" />
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setAddingType(true)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full justify-center transition-colors">
+                <Plus className="size-4" /> Tambah tipe fasum baru...
+              </button>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

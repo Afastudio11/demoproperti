@@ -2,15 +2,16 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, ChevronDown, ChevronRight, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CategorySelect, useCategoryOptions } from "@/components/category-select";
 
-const DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
-const LOCATIONS = ["Makassar (HQ)", "Barru", "Villa Sinoa", "Lapangan", "Remote"];
+const DEFAULT_DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
+const DEFAULT_LOCATIONS = ["Makassar (HQ)", "Barru", "Villa Sinoa", "Lapangan", "Remote"];
 const STAGES = ["screening_cv", "interview_hrd", "interview_user", "offering", "hired", "ditolak"];
 const STAGE_LABELS: Record<string, string> = { screening_cv: "Screening CV", interview_hrd: "Interview HRD", interview_user: "Interview User", offering: "Offering", hired: "Hired", ditolak: "Ditolak" };
-const SOURCES = ["Referral Internal", "Job Portal", "LinkedIn", "Walk In", "Headhunter"];
+const DEFAULT_SOURCES = ["Referral Internal", "Job Portal", "LinkedIn", "Walk In", "Headhunter"];
 
-const EMPTY_NEED = { positionName: "", division: DIVISIONS[0], location: LOCATIONS[0], headcountNeeded: 1, headcountFilled: 0, targetHireDate: "", jobDescription: "", minimumQualification: "", picRecruiter: "", status: "dibuka" };
-const EMPTY_CAND = { needId: 0, name: "", phone: "", source: SOURCES[0], stage: "screening_cv", stageDate: "", recruiterNotes: "" };
+const EMPTY_NEED = { positionName: "", division: DEFAULT_DIVISIONS[0], location: DEFAULT_LOCATIONS[0], headcountNeeded: 1, headcountFilled: 0, targetHireDate: "", jobDescription: "", minimumQualification: "", picRecruiter: "", status: "dibuka" };
+const EMPTY_CAND = { needId: 0, name: "", phone: "", source: DEFAULT_SOURCES[0], stage: "screening_cv", stageDate: "", recruiterNotes: "" };
 
 function StageBadge({ stage }: { stage: string }) {
   const colors: Record<string, string> = { screening_cv: "bg-blue-100 text-blue-700", interview_hrd: "bg-purple-100 text-purple-700", interview_user: "bg-indigo-100 text-indigo-700", offering: "bg-amber-100 text-amber-700", hired: "bg-emerald-100 text-emerald-700", ditolak: "bg-red-100 text-red-700" };
@@ -169,9 +170,9 @@ export default function Rekrutmen() {
                 <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><input value={needForm[field] ?? ""} onChange={e => setNeedForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               ))}
               <div className="grid grid-cols-2 gap-3">
-                {[{ label: "Divisi", field: "division", options: DIVISIONS }, { label: "Lokasi", field: "location", options: LOCATIONS }, { label: "Status", field: "status", options: ["dibuka", "ditutup", "on_hold"] }].map(({ label, field, options }) => (
-                  <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><select value={needForm[field] ?? ""} onChange={e => setNeedForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{options.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
-                ))}
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Divisi</label><CategorySelect type="hr_divisi" defaults={DEFAULT_DIVISIONS} value={needForm.division ?? ""} onChange={v => setNeedForm((f: any) => ({ ...f, division: v }))} /></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Lokasi</label><CategorySelect type="hr_lokasi" defaults={DEFAULT_LOCATIONS} value={needForm.location ?? ""} onChange={v => setNeedForm((f: any) => ({ ...f, location: v }))} /></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label><select value={needForm.status ?? ""} onChange={e => setNeedForm((f: any) => ({ ...f, status: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{["dibuka", "ditutup", "on_hold"].map(o => <option key={o} value={o}>{o}</option>)}</select></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Jumlah Kebutuhan</label><input type="number" value={needForm.headcountNeeded ?? 1} onChange={e => setNeedForm((f: any) => ({ ...f, headcountNeeded: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={1} /></div>
               </div>
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Target Hire</label><input type="date" value={needForm.targetHireDate ?? ""} onChange={e => setNeedForm((f: any) => ({ ...f, targetHireDate: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
@@ -200,13 +201,12 @@ export default function Rekrutmen() {
                 <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><input value={candForm[field] ?? ""} onChange={e => setCandForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               ))}
               <div className="grid grid-cols-2 gap-3">
-                {[{ label: "Sumber", field: "source", options: SOURCES }, { label: "Tahap", field: "stage", options: STAGES.map(s => ({ value: s, label: STAGE_LABELS[s] })) }].map(({ label, field, options }) => (
-                  <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label>
-                    <select value={candForm[field] ?? ""} onChange={e => setCandForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                      {options.map((o: any) => typeof o === "string" ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </div>
-                ))}
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Sumber</label><CategorySelect type="hr_sumber_rekrutmen" defaults={DEFAULT_SOURCES} value={candForm.source ?? ""} onChange={v => setCandForm((f: any) => ({ ...f, source: v }))} /></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Tahap</label>
+                  <select value={candForm.stage ?? ""} onChange={e => setCandForm((f: any) => ({ ...f, stage: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                    {STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+                  </select>
+                </div>
               </div>
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Tanggal Tahap</label><input type="date" value={candForm.stageDate ?? ""} onChange={e => setCandForm((f: any) => ({ ...f, stageDate: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Catatan Recruiter</label><textarea value={candForm.recruiterNotes ?? ""} onChange={e => setCandForm((f: any) => ({ ...f, recruiterNotes: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" rows={2} /></div>

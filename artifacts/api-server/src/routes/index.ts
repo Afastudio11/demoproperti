@@ -36,6 +36,7 @@ import prodDashboardRouter from "./prod-dashboard";
 import administrasiRouter from "./administrasi";
 import marketingRouter from "./marketing";
 import hrRouter from "./hr";
+import categoriesRouter from "./categories";
 
 const router: IRouter = Router();
 
@@ -76,5 +77,6 @@ router.use(prodDashboardRouter);
 router.use(administrasiRouter);
 router.use(marketingRouter);
 router.use(hrRouter);
+router.use(categoriesRouter);
 
 export default router;

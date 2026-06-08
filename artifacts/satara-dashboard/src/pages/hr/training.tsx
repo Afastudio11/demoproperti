@@ -3,14 +3,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { CategorySelect } from "@/components/category-select";
 
-const TYPES = ["Training Internal", "Training Eksternal", "Coaching", "Sertifikasi", "Workshop"];
+const DEFAULT_TYPES = ["Training Internal", "Training Eksternal", "Coaching", "Sertifikasi", "Workshop"];
 const STATUSES = ["direncanakan", "berlangsung", "selesai"];
 const STATUS_COLORS: Record<string, string> = { direncanakan: "bg-blue-100 text-blue-700", berlangsung: "bg-amber-100 text-amber-700", selesai: "bg-emerald-100 text-emerald-700" };
 
 function fmtRp(n: number) { if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(0)} Jt`; return `Rp ${n.toLocaleString("id-ID")}`; }
 
-const EMPTY = { name: "", type: TYPES[0], competencyId: null, trainingDate: "", durationHours: 0, organizer: "", cost: 0, status: "direncanakan", evaluationScore: null, notes: "", participantIds: [] as number[] };
+const EMPTY = { name: "", type: DEFAULT_TYPES[0], competencyId: null, trainingDate: "", durationHours: 0, organizer: "", cost: 0, status: "direncanakan", evaluationScore: null, notes: "", participantIds: [] as number[] };
 
 export default function Training() {
   const qc = useQueryClient();
@@ -131,7 +132,7 @@ export default function Training() {
                 <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><input value={form[field] ?? ""} onChange={e => setForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               ))}
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Jenis</label><select value={form.type} onChange={e => setForm((f: any) => ({ ...f, type: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Jenis</label><CategorySelect type="hr_tipe_training" defaults={DEFAULT_TYPES} value={form.type ?? ""} onChange={v => setForm((f: any) => ({ ...f, type: v }))} /></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label><select value={form.status} onChange={e => setForm((f: any) => ({ ...f, status: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Tanggal Pelaksanaan</label><input type="date" value={form.trainingDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, trainingDate: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Durasi (jam)</label><input type="number" value={form.durationHours ?? 0} onChange={e => setForm((f: any) => ({ ...f, durationHours: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={0} /></div>

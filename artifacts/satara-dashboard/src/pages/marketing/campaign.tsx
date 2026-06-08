@@ -11,8 +11,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, AlertTriangle, TrendingDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
 import { cn } from "@/lib/utils";
+import { CategorySelectShadcn } from "@/components/category-select";
 
-const PLATFORMS = ["Instagram","Facebook","TikTok","Google Ads","YouTube","Twitter/X","WhatsApp Blast"];
+const DEFAULT_PLATFORMS = ["Instagram","Facebook","TikTok","Google Ads","YouTube","Twitter/X","WhatsApp Blast"];
 const CPL_ALERT = 25000;
 
 function fmtRp(n: number) { return new Intl.NumberFormat("id-ID", { style:"currency", currency:"IDR", maximumFractionDigits:0 }).format(n); }
@@ -93,10 +94,7 @@ export default function CampaignPage() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Platform</Label>
-                  <Select value={form.platform} onValueChange={v => set("platform", v)}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>{PLATFORMS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <CategorySelectShadcn type="marketing_platform" defaults={DEFAULT_PLATFORMS} value={form.platform} onValueChange={v => set("platform", v)} triggerClassName="h-8 text-xs" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Proyek</Label>

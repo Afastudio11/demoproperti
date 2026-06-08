@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Plus, Edit2, Trash2, X, Save, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CategorySelect, useCategoryOptions } from "@/components/category-select";
 
-const DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
+const DEFAULT_DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
 const STATUSES = ["aktif", "probasi", "kontrak", "tetap", "resign", "nonaktif"];
-const LOCATIONS = ["Makassar (HQ)", "Barru", "Villa Sinoa", "Lapangan", "Remote"];
+const DEFAULT_LOCATIONS = ["Makassar (HQ)", "Barru", "Villa Sinoa", "Lapangan", "Remote"];
 
 const DIVISION_TARGETS: Record<string, number> = {
   "CEO Office": 2, Planning: 3, Legal: 3, Marketing: 6, Administrasi: 4, Produksi: 6, Finance: 3, HR: 2,
@@ -18,7 +19,7 @@ function StatusBadge({ status }: { status: string }) {
 
 type Employee = { id: number; employeeCode: string; name: string; division: string; position: string; directManagerId?: number; employmentStatus: string; joinDate?: string; location?: string; phone?: string; email?: string; notes?: string };
 
-const EMPTY: Omit<Employee, "id" | "employeeCode"> = { name: "", division: DIVISIONS[0], position: "", directManagerId: undefined, employmentStatus: "aktif", joinDate: "", location: "Makassar (HQ)", phone: "", email: "", notes: "" };
+const EMPTY: Omit<Employee, "id" | "employeeCode"> = { name: "", division: DEFAULT_DIVISIONS[0], position: "", directManagerId: undefined, employmentStatus: "aktif", joinDate: "", location: "Makassar (HQ)", phone: "", email: "", notes: "" };
 
 export default function Organisasi() {
   const qc = useQueryClient();
@@ -43,8 +44,10 @@ export default function Organisasi() {
   function resetForm() { setForm(EMPTY); setEditId(null); setShowForm(false); }
   function startEdit(e: Employee) { setForm({ ...e }); setEditId(e.id); setShowForm(true); }
 
+  const { all: divisions } = useCategoryOptions("hr_divisi", DEFAULT_DIVISIONS);
+  const { all: locations } = useCategoryOptions("hr_lokasi", DEFAULT_LOCATIONS);
   const active = employees.filter(e => ["aktif", "tetap", "kontrak", "probasi"].includes(e.employmentStatus));
-  const byDivision = DIVISIONS.map(div => ({
+  const byDivision = divisions.map(div => ({
     div,
     count: active.filter(e => e.division === div).length,
     target: DIVISION_TARGETS[div] ?? 0,
@@ -179,18 +182,20 @@ export default function Organisasi() {
                   <input type={type} value={form[field] ?? ""} onChange={e => setForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
                 </div>
               ))}
-              {[
-                { label: "Divisi", field: "division", options: DIVISIONS },
-                { label: "Status Karyawan", field: "employmentStatus", options: STATUSES },
-                { label: "Lokasi Penugasan", field: "location", options: LOCATIONS },
-              ].map(({ label, field, options }) => (
-                <div key={field}>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label>
-                  <select value={form[field] ?? ""} onChange={e => setForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                    {options.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-              ))}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Divisi</label>
+                <CategorySelect type="hr_divisi" defaults={DEFAULT_DIVISIONS} value={form.division ?? ""} onChange={v => setForm((f: any) => ({ ...f, division: v }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Status Karyawan</label>
+                <select value={form.employmentStatus ?? ""} onChange={e => setForm((f: any) => ({ ...f, employmentStatus: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                  {STATUSES.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Lokasi Penugasan</label>
+                <CategorySelect type="hr_lokasi" defaults={DEFAULT_LOCATIONS} value={form.location ?? ""} onChange={v => setForm((f: any) => ({ ...f, location: v }))} />
+              </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Atasan Langsung</label>
                 <select value={form.directManagerId ?? ""} onChange={e => setForm((f: any) => ({ ...f, directManagerId: e.target.value ? Number(e.target.value) : undefined }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">

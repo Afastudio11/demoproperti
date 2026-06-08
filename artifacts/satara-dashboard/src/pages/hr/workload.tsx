@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts";
 import { cn } from "@/lib/utils";
+import { CategorySelect, useCategoryOptions } from "@/components/category-select";
 
-const DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
+const DEFAULT_DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
 const now = new Date();
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -15,7 +16,7 @@ function getWorkloadStatus(ratio: number) {
   return { label: "Underloaded", color: "text-blue-600", bg: "bg-blue-50 border-blue-200" };
 }
 
-const EMPTY = { division: DIVISIONS[0], periodYear: now.getFullYear(), periodMonth: now.getMonth() + 1, capacity: 100, actualLoad: 0, loadDescription: "" };
+const EMPTY = { division: DEFAULT_DIVISIONS[0], periodYear: now.getFullYear(), periodMonth: now.getMonth() + 1, capacity: 100, actualLoad: 0, loadDescription: "" };
 
 export default function Workload() {
   const qc = useQueryClient();
@@ -166,7 +167,7 @@ export default function Workload() {
           <div className="bg-background rounded-xl border shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b"><h3 className="font-semibold">{editId ? "Edit" : "Input"} Beban Kerja</h3><button onClick={resetForm}><X className="size-4" /></button></div>
             <div className="p-4 space-y-3">
-              <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Divisi</label><select value={form.division} onChange={e => setForm((f: any) => ({ ...f, division: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
+              <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Divisi</label><CategorySelect type="hr_divisi" defaults={DEFAULT_DIVISIONS} value={form.division ?? ""} onChange={v => setForm((f: any) => ({ ...f, division: v }))} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Bulan</label><select value={form.periodMonth} onChange={e => setForm((f: any) => ({ ...f, periodMonth: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Tahun</label><select value={form.periodYear} onChange={e => setForm((f: any) => ({ ...f, periodYear: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select></div>

@@ -9,11 +9,12 @@ import { Plus, Search, Package } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { useToast } from "@/hooks/use-toast";
+import { CategorySelectShadcn } from "@/components/category-select";
 
 type Material = { id: number; name: string; category: string; satuan: string; standardPerUnit: number | null; unitPrice: number | null; minimumStock: number };
 
 const fmtRp = (n: number) => n.toLocaleString("id-ID");
-const CATEGORIES = ["A - Pendahuluan", "B - Struktur", "C - Atap & Rangka", "D - Finishing", "E - Instalasi Listrik", "F - Instalasi Air"];
+const DEFAULT_CATEGORIES = ["A - Pendahuluan", "B - Struktur", "C - Atap & Rangka", "D - Finishing", "E - Instalasi Listrik", "F - Instalasi Air"];
 
 export default function MaterialMaster() {
   const [search, setSearch] = useState("");
@@ -70,10 +71,7 @@ export default function MaterialMaster() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Kategori</Label>
-              <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-              </Select>
+              <CategorySelectShadcn type="material_kategori" defaults={DEFAULT_CATEGORIES} value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))} placeholder="Pilih..." />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Satuan</Label>
