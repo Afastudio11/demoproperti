@@ -47,6 +47,7 @@ export default function PasarPage() {
   const [savedId, setSavedId] = useState<number | null>(null);
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
+  const { data: landProspects } = useQuery({ queryKey: ["land-prospects"], queryFn: () => fetch("/api/land-prospects").then(r => r.json()) });
   const { data: existing } = useQuery({
     queryKey: ["planning-market", form.projectId],
     enabled: form.projectId > 0,
@@ -58,7 +59,14 @@ export default function PasarPage() {
 
   useEffect(() => {
     if (existing) {
-      setForm(prev => ({ ...prev, ...(existing as object) }));
+      const ex = existing as Record<string, unknown>;
+      setForm(prev => ({
+        ...prev,
+        ...(ex as object),
+        kelurahan: (ex.kelurahan as string) || prev.kelurahan,
+        kecamatan: (ex.kecamatan as string) || prev.kecamatan,
+        kabupaten: (ex.kabupaten as string) || prev.kabupaten,
+      }));
       setSavedId((existing as Record<string, number>).id);
       if (Array.isArray((existing as Record<string, unknown>).competitors)) {
         setCompetitors((existing as Record<string, unknown>).competitors as Competitor[]);
@@ -67,6 +75,17 @@ export default function PasarPage() {
   }, [existing]);
 
   const setF = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: typeof v === "string" ? num(v) || v : v }));
+
+  const getLocationFromProspect = (pid: number) => {
+    if (!Array.isArray(landProspects)) return {};
+    const lp = (landProspects as Record<string, unknown>[]).find(p => p.projectId === pid);
+    if (!lp) return {};
+    return {
+      kelurahan: (lp.kelurahan as string) ?? "",
+      kecamatan: (lp.kecamatan as string) ?? "",
+      kabupaten: (lp.kabupaten as string) ?? "",
+    };
+  };
 
   const demandScore = calcDemandScore({
     populationGrowth: form.populationGrowth,
@@ -108,7 +127,13 @@ export default function PasarPage() {
 
       <div className="flex items-center gap-3">
         <Label className="text-sm shrink-0">Proyek</Label>
-        <Select onValueChange={v => setF("projectId", parseInt(v))}>
+        <Select onValueChange={v => {
+          const pid = parseInt(v);
+          const loc = getLocationFromProspect(pid);
+          setForm({ ...defaultForm, projectId: pid, ...loc });
+          setCompetitors([]);
+          setSavedId(null);
+        }}>
           <SelectTrigger className="h-8 w-64">
             <SelectValue placeholder="Pilih proyek..." />
           </SelectTrigger>
