@@ -1127,4 +1127,214 @@ Berikan Finance Health Score dari 0-100 dan 3 rekomendasi strategis singkat dala
   }
 });
 
+// ─── AUTOCOMPLETE (distinct field values for history suggestions) ─────────────
+router.get("/finance/autocomplete", async (req, res) => {
+  try {
+    const type = String(req.query.type ?? "");
+    const field = String(req.query.field ?? "");
+    let values: string[] = [];
+    if (type === "hutang") {
+      if (field === "projectName") {
+        const r = await db.selectDistinct({ v: debtRecordsTable.projectName }).from(debtRecordsTable).where(sql`project_name is not null and project_name != ''`).limit(60);
+        values = r.map(x => x.v!).filter(Boolean);
+      } else if (field === "creditorName") {
+        const r = await db.selectDistinct({ v: debtRecordsTable.creditorName }).from(debtRecordsTable).limit(60);
+        values = r.map(x => x.v).filter(v => v && v !== "Tidak diketahui");
+      } else if (field === "stageInfo") {
+        const r = await db.selectDistinct({ v: debtRecordsTable.stageInfo }).from(debtRecordsTable).where(sql`stage_info is not null and stage_info != ''`).limit(30);
+        values = r.map(x => x.v!).filter(Boolean);
+      }
+    } else if (["cashflow", "general_ledger", "bank"].includes(type)) {
+      if (field === "projectName") {
+        const r = await db.selectDistinct({ v: cashflowRecordsTable.projectName }).from(cashflowRecordsTable).where(sql`project_name is not null and project_name != ''`).limit(60);
+        values = r.map(x => x.v!).filter(Boolean);
+      } else if (field === "category") {
+        const r = await db.selectDistinct({ v: cashflowRecordsTable.category }).from(cashflowRecordsTable).limit(30);
+        values = r.map(x => x.v).filter(Boolean);
+      } else if (field === "description") {
+        const r = await db.selectDistinct({ v: cashflowRecordsTable.description }).from(cashflowRecordsTable).where(sql`description is not null and description != ''`).limit(40);
+        values = r.map(x => x.v!).filter(Boolean);
+      }
+    } else if (type === "piutang") {
+      if (field === "debtorName") {
+        const r = await db.selectDistinct({ v: receivableRecordsTable.debtorName }).from(receivableRecordsTable).limit(60);
+        values = r.map(x => x.v).filter(Boolean);
+      } else if (field === "category") {
+        const r = await db.selectDistinct({ v: receivableRecordsTable.category }).from(receivableRecordsTable).limit(20);
+        values = r.map(x => x.v).filter(Boolean);
+      }
+    } else if (type === "rab") {
+      if (field === "projectName") {
+        const r = await db.selectDistinct({ v: rabItemsTable.projectName }).from(rabItemsTable).limit(60);
+        values = r.map(x => x.v).filter(Boolean);
+      } else if (field === "stageCode") {
+        const r = await db.selectDistinct({ v: rabItemsTable.stageCode }).from(rabItemsTable).where(sql`stage_code is not null and stage_code != ''`).limit(20);
+        values = r.map(x => x.v!).filter(Boolean);
+      } else if (field === "itemName") {
+        const r = await db.selectDistinct({ v: rabItemsTable.itemName }).from(rabItemsTable).limit(60);
+        values = r.map(x => x.v).filter(Boolean);
+      } else if (field === "itemCategory") {
+        const r = await db.selectDistinct({ v: rabItemsTable.itemCategory }).from(rabItemsTable).where(sql`item_category is not null and item_category != ''`).limit(20);
+        values = r.map(x => x.v!).filter(Boolean);
+      }
+    }
+    res.json(values.sort().slice(0, 30));
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── MANUAL SAVE (simpan entri manual langsung ke DB) ─────────────────────────
+router.post("/finance/uploads/manual-save", async (req, res) => {
+  try {
+    const { fileType, entries, sessionName } = req.body as { fileType: string; entries: any[]; sessionName?: string };
+    if (!entries?.length) { res.status(400).json({ error: "Tidak ada entri" }); return; }
+    const now = new Date();
+    const label = sessionName || `Manual ${now.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}`;
+    function cn2(v: any): number {
+      if (!v && v !== 0) return 0;
+      if (typeof v === "number") return v;
+      return parseFloat(String(v).replace(/[Rp\s.]/g, "").replace(",", ".")) || 0;
+    }
+    const [log] = await db.insert(financeUploadsTable).values({
+      fileType, fileName: label, periodYear: now.getFullYear(), periodMonth: now.getMonth() + 1,
+      rowCount: entries.length, status: "berhasil",
+    }).returning();
+    const uploadId = log.id;
+    let inserted = 0;
+    if (fileType === "hutang") {
+      const rows = entries.map((e: any) => {
+        const orig = cn2(e.totalAmount); const paid = cn2(e.paidAmount);
+        const rem = cn2(e.remainingAmount) || Math.max(0, orig - paid);
+        if (!e.creditorName && orig === 0) return null;
+        return { uploadId, projectName: e.projectName || null, stageInfo: e.stageInfo || null,
+          creditorName: String(e.creditorName || "Tidak diketahui").trim(), category: "supplier",
+          totalAmount: String(orig), paidAmount: String(paid), remainingAmount: String(rem),
+          status: rem <= 0 ? "paid" : "outstanding", notes: e.notes || "" };
+      }).filter(Boolean);
+      if (rows.length) { inserted = (await db.insert(debtRecordsTable).values(rows as any).returning()).length; }
+    } else if (fileType === "piutang") {
+      const rows = entries.map((e: any) => {
+        const amt = cn2(e.totalAmount);
+        if (!e.debtorName && amt === 0) return null;
+        return { uploadId, debtorName: String(e.debtorName || ""), category: e.category || "customer", totalAmount: String(amt), dueDate: e.dueDate || null, status: "current", notes: e.notes || "" };
+      }).filter(Boolean);
+      if (rows.length) { inserted = (await db.insert(receivableRecordsTable).values(rows as any).returning()).length; }
+    } else if (["cashflow", "general_ledger", "bank"].includes(fileType)) {
+      const rows = entries.map((e: any) => {
+        const amt = cn2(e.amount);
+        if (!e.transactionDate && amt === 0) return null;
+        return { uploadId, transactionDate: e.transactionDate || now.toISOString().split("T")[0], type: e.type || "cash_in", category: String(e.category || "lainnya"), projectName: String(e.projectName || ""), amount: String(Math.abs(amt)), description: String(e.description || ""), referenceNumber: String(e.referenceNumber || "") };
+      }).filter(Boolean);
+      if (rows.length) { inserted = (await db.insert(cashflowRecordsTable).values(rows as any).returning()).length; }
+    } else if (fileType === "rab") {
+      const rows = entries.map((e: any) => {
+        const rab = cn2(e.rabAmount);
+        if (!e.itemName && rab === 0) return null;
+        return { uploadId, projectName: String(e.projectName || ""), stageCode: String(e.stageCode || ""), itemName: String(e.itemName || ""), itemCategory: String(e.itemCategory || ""), rabAmount: String(rab), realizationAmount: String(cn2(e.realizationAmount)) };
+      }).filter(Boolean);
+      if (rows.length) { inserted = (await db.insert(rabItemsTable).values(rows as any).returning()).length; }
+    }
+    res.json({ inserted, uploadId });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── AI PREVIEW (baca dokumen, kembalikan records TANPA save) ─────────────────
+router.post("/finance/uploads/ai-preview", async (req, res) => {
+  try {
+    const { fileType, fileName, sheets, pdfBase64, fileKind } = req.body as {
+      fileType: string; fileName: string; fileKind: "excel" | "pdf";
+      sheets?: Array<{ name: string; headers: string[]; rows: Record<string, any>[] }>;
+      pdfBase64?: string;
+    };
+    function cnP(v: any): number {
+      if (!v && v !== 0) return 0;
+      if (typeof v === "number") return v;
+      const s = String(v).replace(/Rp\.?\s*/gi, "").replace(/\./g, "").replace(/,/g, ".");
+      return parseFloat(s) || 0;
+    }
+    const SUMMARY_RE = /^(grand\s*total|sub\s*total|subtotal|total|jumlah|rekapitulasi|rekap)$/i;
+    let records: any[] = [];
+    const ai = createDeepSeekClient();
+
+    if (fileKind === "pdf" && pdfBase64) {
+      const buf = Buffer.from(pdfBase64, "base64");
+      const parsed = await pdfParse(buf);
+      if (!parsed.text?.trim()) throw new Error("PDF tidak mengandung teks yang bisa dibaca");
+      const textToSend = parsed.text.length > 12000 ? parsed.text.slice(0, 12000) + "\n...(dipotong)" : parsed.text;
+      const TARGETS: Record<string, string> = {
+        hutang: `[{"projectName":"...","stageInfo":"...","creditorName":"...","totalAmount":number,"paidAmount":number,"remainingAmount":number,"notes":"..."}]`,
+        piutang: `[{"debtorName":"...","category":"customer","totalAmount":number,"notes":"..."}]`,
+        cashflow: `[{"transactionDate":"YYYY-MM-DD","type":"cash_in|cash_out","category":"...","amount":number,"description":"..."}]`,
+        rab: `[{"projectName":"...","itemName":"...","rabAmount":number,"realizationAmount":number}]`,
+      };
+      const completion = await ai.chat.completions.create({
+        model: DEEPSEEK_MODEL,
+        messages: [
+          { role: "system", content: "Kembalikan hanya JSON array yang valid. Lewati baris GRAND TOTAL/SUBTOTAL/TOTAL." },
+          { role: "user", content: `Ekstrak data ${fileType} dari teks ini:\n\n${textToSend}\n\nFormat: ${TARGETS[fileType] ?? TARGETS.cashflow}` },
+        ],
+        temperature: 0.1, max_tokens: 6000,
+      });
+      const raw = completion.choices[0]?.message?.content ?? "[]";
+      const m = raw.match(/\[[\s\S]*\]/);
+      records = m ? JSON.parse(m[0]) : [];
+    } else if (fileKind === "excel" && sheets?.length) {
+      const firstSheet = sheets[0];
+      const mappingResp = await ai.chat.completions.create({
+        model: DEEPSEEK_MODEL,
+        messages: [
+          { role: "system", content: "Kembalikan hanya JSON object yang valid, tanpa penjelasan." },
+          { role: "user", content: `Deteksi mapping kolom Excel ke field target.\nHEADERS: ${JSON.stringify(firstSheet.headers)}\nSAMPLE: ${JSON.stringify(firstSheet.rows.slice(0, 3), null, 2)}\nField untuk ${fileType}: creditorName/projectName/stageInfo/totalAmount/paidAmount/notes (hutang), transactionDate/type/category/amount/description (cashflow), debtorName/totalAmount (piutang), projectName/itemName/rabAmount/realizationAmount (rab)\nKembalikan: {"targetField":"ExcelColumnName",...}` },
+        ],
+        temperature: 0, max_tokens: 400,
+      });
+      let colMap: Record<string, string | null> = {};
+      try { const raw = mappingResp.choices[0]?.message?.content ?? "{}"; const m = raw.match(/\{[\s\S]*\}/); colMap = m ? JSON.parse(m[0]) : {}; } catch { colMap = {}; }
+      function findColP(keys: string[], kws: string[]): string | null {
+        const low = keys.map(k => k.toLowerCase());
+        for (const kw of kws) { const i = low.findIndex(k => k.includes(kw.toLowerCase())); if (i !== -1) return keys[i]; }
+        return null;
+      }
+      function getValP(row: Record<string, any>, field: string, fbs: string[] = []): any {
+        const col = colMap[field]; if (col && row[col] !== undefined && row[col] !== "") return row[col];
+        for (const k of fbs) { const f = findColP(Object.keys(row), [k]); if (f && row[f] !== undefined && row[f] !== "") return row[f]; }
+        return null;
+      }
+      const allRows = sheets.flatMap(sh => sh.rows.map(r => ({ ...r, _sheet: sh.name })));
+      if (fileType === "hutang") {
+        records = allRows.map(row => {
+          const creditor = getValP(row, "creditorName", ["pemilik", "kreditur", "nama"]);
+          if (!creditor || SUMMARY_RE.test(String(creditor).trim())) return null;
+          const orig = cnP(getValP(row, "totalAmount", ["awal", "total", "nilai"]));
+          const paid = cnP(getValP(row, "paidAmount", ["terbayar", "bayar"]));
+          const rem = cnP(getValP(row, "remainingAmount", ["sisa"])) || Math.max(0, orig - paid);
+          if (orig === 0 && !creditor) return null;
+          return { projectName: String(getValP(row, "projectName", ["proyek"]) ?? "").trim() || null, stageInfo: String(getValP(row, "stageInfo", ["tahap"]) ?? "").trim() || null, creditorName: String(creditor).trim(), totalAmount: orig, paidAmount: paid, remainingAmount: rem, notes: String(getValP(row, "notes", ["keterangan"]) ?? "") };
+        }).filter(Boolean);
+      }
+    }
+
+    let docTotal = 0;
+    if (fileType === "hutang") docTotal = records.reduce((s: number, r: any) => s + (Number(r.totalAmount) || 0), 0);
+    else if (fileType === "piutang") docTotal = records.reduce((s: number, r: any) => s + (Number(r.totalAmount) || 0), 0);
+    else if (["cashflow", "general_ledger", "bank"].includes(fileType)) docTotal = records.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+    else if (fileType === "rab") docTotal = records.reduce((s: number, r: any) => s + (Number(r.rabAmount) || 0), 0);
+
+    res.json({ records: records.slice(0, 200), count: records.length, docTotal });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── EDIT HUTANG ──────────────────────────────────────────────────────────────
+router.put("/finance/hutang/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { creditorName, category, totalAmount, paidAmount, projectName, stageInfo, dueDate, notes } = req.body;
+    const orig = Number(totalAmount ?? 0); const paid = Number(paidAmount ?? 0);
+    const remaining = Math.max(0, orig - paid);
+    const [row] = await db.update(debtRecordsTable)
+      .set({ creditorName, category: category || "supplier", totalAmount: String(orig), paidAmount: String(paid), remainingAmount: String(remaining), projectName: projectName || null, stageInfo: stageInfo || null, dueDate: dueDate || null, notes: notes || "", status: remaining <= 0 ? "paid" : "outstanding" })
+      .where(eq(debtRecordsTable.id, id)).returning();
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
