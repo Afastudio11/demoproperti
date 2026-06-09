@@ -49,3 +49,4 @@ export * from "./marketing-absorption";
 export * from "./hr";
 export * from "./branding";
 export * from "./categories";
+export * from "./finance";

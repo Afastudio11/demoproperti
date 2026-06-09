@@ -38,6 +38,7 @@ import marketingRouter from "./marketing";
 import hrRouter from "./hr";
 import brandingRouter from "./branding";
 import categoriesRouter from "./categories";
+import financeRouter from "./finance";
 
 const router: IRouter = Router();
 
@@ -80,5 +81,6 @@ router.use(marketingRouter);
 router.use(hrRouter);
 router.use(brandingRouter);
 router.use(categoriesRouter);
+router.use(financeRouter);
 
 export default router;

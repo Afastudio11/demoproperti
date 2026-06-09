@@ -45,6 +45,7 @@ import {
   Truck,
   UserCog,
   Megaphone,
+  Landmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -67,6 +68,7 @@ const navItems = [
   { name: "Administrasi KPR", path: "/administrasi", icon: Users },
   { name: "Produksi", path: "/produksi", icon: HardHat },
   { name: "Human Resource", path: "/hr", icon: UserCog },
+  { name: "Finance & Accounting", path: "/finance", icon: Landmark },
   { name: "Serah Terima", path: "/serah-terima", icon: Key },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
@@ -74,6 +76,27 @@ const navItems = [
 type SubNavItem =
   | { type: "link"; name: string; path: string }
   | { type: "group"; label: string };
+
+const financeSubNav: SubNavItem[] = [
+  { type: "link", name: "Finance Dashboard", path: "/finance" },
+  { type: "link", name: "Upload Center", path: "/finance/upload" },
+  { type: "group", label: "Cashflow & Proyek" },
+  { type: "link", name: "Cashflow Center", path: "/finance/cashflow" },
+  { type: "link", name: "Project Finance", path: "/finance/proyek" },
+  { type: "link", name: "Realisasi vs RAB", path: "/finance/rab" },
+  { type: "group", label: "Kewajiban & Tagihan" },
+  { type: "link", name: "KPP Tracker", path: "/finance/kpp" },
+  { type: "link", name: "Hutang Center", path: "/finance/hutang" },
+  { type: "link", name: "Piutang Center", path: "/finance/piutang" },
+  { type: "group", label: "Analitik Keuangan" },
+  { type: "link", name: "Profitability Center", path: "/finance/profitabilitas" },
+  { type: "link", name: "Forecast Center", path: "/finance/forecast" },
+  { type: "link", name: "Accounting Center", path: "/finance/accounting" },
+  { type: "group", label: "Kontrol & Strategi" },
+  { type: "link", name: "Audit Center", path: "/finance/audit" },
+  { type: "link", name: "Early Warning System", path: "/finance/warning" },
+  { type: "link", name: "Analisis Ekspansi", path: "/finance/ekspansi" },
+];
 
 const hrSubNav: SubNavItem[] = [
   { type: "link", name: "Dashboard SDM", path: "/hr" },
@@ -275,6 +298,7 @@ function DashboardSidebar() {
   const isMarketing = location === "/marketing" || location.startsWith("/marketing/");
   const isHR = location === "/hr" || location.startsWith("/hr/");
   const isBranding = location === "/branding" || location.startsWith("/branding/");
+  const isFinance = location === "/finance" || location.startsWith("/finance/");
 
   return (
     <Sidebar className="lg:border-r-0!" collapsible="icon">
@@ -324,6 +348,7 @@ function DashboardSidebar() {
                 const isMarketingItem = item.path === "/marketing";
                 const isHRItem = item.path === "/hr";
                 const isBrandingItem = item.path === "/branding";
+                const isFinanceItem = item.path === "/finance";
                 const isActive =
                   location === item.path ||
                   (item.path !== "/" && location.startsWith(item.path)) ||
@@ -334,7 +359,8 @@ function DashboardSidebar() {
                   (isProduksiItem && isProduksi) ||
                   (isMarketingItem && isMarketing) ||
                   (isHRItem && isHR) ||
-                  (isBrandingItem && isBranding);
+                  (isBrandingItem && isBranding) ||
+                  (isFinanceItem && isFinance);
 
                 return (
                   <React.Fragment key={item.path}>
@@ -359,6 +385,7 @@ function DashboardSidebar() {
                     {isMarketingItem && isMarketing && renderSubNav(marketingSubNav, location)}
                     {isHRItem && isHR && renderSubNav(hrSubNav, location)}
                     {isBrandingItem && isBranding && renderSubNav(brandingSubNav, location)}
+                    {isFinanceItem && isFinance && renderSubNav(financeSubNav, location)}
                   </React.Fragment>
                 );
               })}

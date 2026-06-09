@@ -124,6 +124,20 @@ import BrandingSentimen from "@/pages/branding/sentimen";
 import BrandingROI from "@/pages/branding/roi";
 import BrandingTrust from "@/pages/branding/trust";
 import BrandingHealth from "@/pages/branding/health";
+import FinanceDashboard from "@/pages/finance/index";
+import FinanceUpload from "@/pages/finance/upload";
+import FinanceCashflow from "@/pages/finance/cashflow";
+import FinanceProyek from "@/pages/finance/proyek";
+import FinanceKpp from "@/pages/finance/kpp";
+import FinanceHutang from "@/pages/finance/hutang";
+import FinancePiutang from "@/pages/finance/piutang";
+import FinanceRab from "@/pages/finance/rab";
+import FinanceProfitabilitas from "@/pages/finance/profitabilitas";
+import FinanceForecast from "@/pages/finance/forecast";
+import FinanceAccounting from "@/pages/finance/accounting";
+import FinanceAudit from "@/pages/finance/audit";
+import FinanceWarning from "@/pages/finance/warning";
+import FinanceEkspansi from "@/pages/finance/ekspansi";
 
 const queryClient = new QueryClient();
 
@@ -251,6 +265,20 @@ function Router() {
         <Route path="/branding/roi" component={BrandingROI} />
         <Route path="/branding/trust" component={BrandingTrust} />
         <Route path="/branding/health" component={BrandingHealth} />
+        <Route path="/finance" component={FinanceDashboard} />
+        <Route path="/finance/upload" component={FinanceUpload} />
+        <Route path="/finance/cashflow" component={FinanceCashflow} />
+        <Route path="/finance/proyek" component={FinanceProyek} />
+        <Route path="/finance/kpp" component={FinanceKpp} />
+        <Route path="/finance/hutang" component={FinanceHutang} />
+        <Route path="/finance/piutang" component={FinancePiutang} />
+        <Route path="/finance/rab" component={FinanceRab} />
+        <Route path="/finance/profitabilitas" component={FinanceProfitabilitas} />
+        <Route path="/finance/forecast" component={FinanceForecast} />
+        <Route path="/finance/accounting" component={FinanceAccounting} />
+        <Route path="/finance/audit" component={FinanceAudit} />
+        <Route path="/finance/warning" component={FinanceWarning} />
+        <Route path="/finance/ekspansi" component={FinanceEkspansi} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

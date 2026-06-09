@@ -1,0 +1,877 @@
+# REPLIT PROMPT — MENU FINANCE & ACCOUNTING
+## Satara Development Internal Dashboard
+
+---
+
+## KONTEKS
+
+Dashboard internal Satara Development sudah berjalan dengan sidebar utama:
+Executive Overview, Daftar Proyek, Akuisisi Lahan, Perencanaan, Legal & Perizinan,
+Marketing, Branding, Administrasi KPR, Produksi, Serah Terima, HR,
+**Finance & Accounting** (← ini yang dibangun), Settings.
+
+**Tugas:** Bangun seluruh halaman dan sub-menu untuk menu **Finance & Accounting**.
+
+Sistem ini bukan software accounting pengganti Excel. Tim Finance Satara tetap bekerja
+di Excel. Sistem ini adalah **Satara Finance & Accounting Intelligence System (SFAIS)**:
+platform monitoring, analisis, dan pengambilan keputusan keuangan berbasis data yang
+diupload dari Excel.
+
+Alur kerja sistem:
+```
+Upload Excel (cashflow, GL, hutang, piutang, bank, RAB)
+↓
+Sistem membaca dan mem-parsing data
+↓
+AI melakukan analisis otomatis
+↓
+Dashboard update real-time
+```
+
+Finance bertanggung jawab pada: Cashflow, Pendanaan, Hutang, Piutang, KPP, Forecast.
+Accounting bertanggung jawab pada: Jurnal, Laba Rugi, Neraca, Arus Kas, Rekonsiliasi.
+
+---
+
+## STRUKTUR MENU FINANCE & ACCOUNTING
+
+```
+Finance & Accounting
+├── 1. Finance Dashboard (Command Center CEO)
+├── 2. Upload Center
+├── 3. Cashflow Center
+├── 4. Project Finance
+├── 5. KPP Tracker
+├── 6. Hutang Center
+├── 7. Piutang Center
+├── 8. Profitability Center
+├── 9. Forecast Center
+├── 10. Realisasi vs RAB
+├── 11. Accounting Center
+├── 12. Audit Center
+├── 13. Early Warning System
+└── 14. Investment & Expansion Analysis
+```
+
+---
+
+## SPESIFIKASI DETAIL SETIAP HALAMAN
+
+---
+
+### 1. FINANCE DASHBOARD (COMMAND CENTER CEO)
+**Route:** `/finance`
+**Fungsi:** Halaman pertama yang dibuka CEO saat login. Semua angka dihitung otomatis
+dari data yang sudah diupload. Tidak ada input manual di halaman ini.
+
+**Baris 1 — Finance Health Score (kartu utama):**
+- Angka skor (contoh: 91/100) dengan label status (SEHAT / WASPADA / KRITIS)
+- Gauge chart visual
+- Komponen penilaian AI: Likuiditas, Hutang, Cashflow, Profitabilitas, Kinerja Proyek
+
+**Baris 2 — Cash Position (8 kartu utama CEO):**
+
+| Metric | Nilai | Keterangan |
+|--------|-------|-----------|
+| Cash Position | Rp X | Kas Bank + Kas Tunai + Deposito + Piutang Cair <30 hari |
+| Outstanding KPP | Rp X | Sisa pokok KPP seluruh proyek |
+| HT Bulan Ini | Rp X | Total HT yang sudah cair bulan berjalan |
+| Hutang Jatuh Tempo | Rp X | Hutang yang jatuh tempo dalam 30 hari ke depan |
+| Piutang Jatuh Tempo | Rp X | Piutang yang jatuh tempo dalam 30 hari ke depan |
+| Profit Bulan Ini | Rp X | Laba bersih bulan berjalan |
+| Forecast 3 Bulan | Positif / Negatif | Label dari Forecast Center |
+| Finance Health Score | X/100 | Dari kalkulasi AI |
+
+**Baris 3 — Cash Position Detail:**
+
+| Item | Nilai |
+|------|-------|
+| Kas Bank | Rp X |
+| Kas Tunai | Rp X |
+| Deposito | Rp X |
+| Piutang Cair < 30 Hari | Rp X |
+| **Total Likuiditas** | **Rp X** |
+
+**Baris 4 — Net Cashflow Summary:**
+- Cash In Bulan Ini: Rp X
+- Cash Out Bulan Ini: Rp X
+- Net Cashflow: Rp X (hijau jika positif, merah jika negatif)
+
+**Baris 5 — AI Recommendation Panel:**
+Teks rekomendasi otomatis dari AI berdasarkan kondisi keuangan terkini. Contoh:
+```
+Fokus percepatan akad Tahap 4.
+KPP diproyeksikan lunas Agustus 2026.
+Pengambilan KPP baru Rp5 M pada Juli masih dalam batas aman.
+```
+
+**Baris 6 — Early Warning Alerts:**
+Daftar peringatan aktif dari Early Warning System (Modul 13), diurutkan berdasarkan
+tingkat urgensi.
+
+---
+
+### 2. UPLOAD CENTER
+**Route:** `/finance/upload`
+
+**Fungsi:** Pusat upload semua file Excel sebagai sumber data sistem.
+Ini adalah pintu masuk utama seluruh data keuangan.
+
+**Jenis file yang diterima:**
+
+| Jenis File | Keterangan | Format yang Diterima |
+|-----------|-----------|---------------------|
+| Cashflow | Laporan arus kas masuk dan keluar | .xlsx, .xls |
+| General Ledger | Buku besar / jurnal transaksi | .xlsx, .xls |
+| Hutang | Daftar hutang beserta jatuh tempo | .xlsx, .xls |
+| Piutang | Daftar piutang beserta jatuh tempo | .xlsx, .xls |
+| Rekening Koran / Bank | Mutasi rekening bank | .xlsx, .xls |
+| RAB Proyek | Rencana Anggaran Biaya per proyek | .xlsx, .xls |
+
+**Alur upload:**
+
+1. Pilih jenis file
+2. Upload file Excel
+3. Sistem mem-parsing dan menampilkan preview data (5-10 baris pertama)
+4. User melakukan mapping kolom: kolom mana di Excel yang sesuai dengan field sistem
+5. Validasi: sistem menampilkan laporan error (kolom wajib kosong, format tanggal salah, dll)
+6. Konfirmasi import
+7. Data masuk ke database, dashboard update otomatis
+
+**Tampilan:**
+
+- Tabel riwayat upload: jenis file, nama file, tanggal upload, periode data, status (Berhasil / Error), jumlah baris diimport
+- Status per jenis data: kapan terakhir diupload, periode data terbaru
+- Alert: jika data cashflow belum diupload bulan ini, tampilkan reminder
+
+**Catatan teknis:**
+Sistem harus bisa membaca format Excel yang umum digunakan tim Finance Satara.
+Jika struktur kolom berubah, fitur mapping kolom memungkinkan penyesuaian tanpa
+mengubah kode. Toleransi format tanggal: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD.
+
+---
+
+### 3. CASHFLOW CENTER
+**Route:** `/finance/cashflow`
+
+**Fungsi:** Monitoring arus kas masuk dan keluar per unit bisnis per periode.
+
+**Struktur Cash In per unit bisnis:**
+
+SN Residence (per proyek):
+- DP (Uang Muka dari customer)
+- Akad (Dana yang masuk saat akad)
+- HT (Hak Tanggungan yang cair dari bank)
+- SBUM (Subsidi Bantuan Uang Muka dari FLPP)
+
+Sekala Industry:
+- Penjualan
+- Piutang Masuk
+
+Unit bisnis lain:
+- Masuk sesuai kategori masing-masing
+
+**Struktur Cash Out (lintas unit bisnis):**
+- Material & Bahan Bangunan
+- SDM (Gaji, Bonus, Insentif)
+- Marketing & Branding
+- Legal & Perizinan
+- Pajak
+- Operasional (Listrik, Air, Internet, Sewa Kantor, ATK)
+- KPP (Cicilan pokok + bunga)
+- Vendor & Supplier
+- Lain-lain
+
+**Data diambil dari file Cashflow yang diupload di Modul 2.**
+
+**Tampilan:**
+
+- Tabel cashflow bulanan: Cash In per kategori, Cash Out per kategori, Net Cashflow
+- Bar chart: Cash In vs Cash Out per bulan (12 bulan terakhir)
+- Waterfall chart: breakdown Cash In dan Cash Out bulan ini
+- Filter: per unit bisnis, per kategori, per periode
+
+**Metric cards:**
+- Cash In Bulan Ini: Rp 1,8 M
+- Cash Out Bulan Ini: Rp 1,2 M
+- Net Cashflow: Rp +600 Jt (hijau jika positif, merah jika negatif)
+- Rata-rata Net Cashflow 3 Bulan Terakhir: Rp X
+
+**Kalkulasi:**
+```
+Net Cashflow = Total Cash In - Total Cash Out
+Cumulative Cashflow = akumulasi Net Cashflow dari awal tahun
+```
+
+---
+
+### 4. PROJECT FINANCE
+**Route:** `/finance/proyek`
+
+**Fungsi:** Monitoring keuangan per proyek: RAB, realisasi biaya, deviasi, dan estimasi profit.
+
+**Data diambil dari file RAB dan Cashflow yang diupload.**
+
+**Tampilan per proyek:**
+
+| Item | Nilai |
+|------|-------|
+| Total RAB | Rp 10 M |
+| Total Realisasi Biaya | Rp 9,4 M |
+| Deviasi | -6% (under budget) |
+| Progress Fisik (%) | 72% (sinkron dari modul Produksi) |
+| Estimasi Profit | Rp X |
+| Margin Estimasi (%) | X% |
+
+**Kalkulasi:**
+```
+Deviasi (%) = (Realisasi - RAB) ÷ RAB × 100%
+  Negatif = under budget (hijau)
+  Positif = over budget (merah)
+
+Estimasi Profit = Total Pendapatan Proyek - Estimasi Total Biaya Sampai Selesai
+
+Estimasi Total Biaya = Realisasi + (RAB - Realisasi) × (1 + faktor eskalasi)
+```
+
+**Tampilan dashboard:**
+- Tab per proyek: SN1, SN2, SN3, SN4, Barru, Villa Sinoa, Sekala, dll
+- Untuk setiap proyek: tabel item RAB vs Realisasi + bar chart deviasi per item
+- Summary lintas proyek: tabel perbandingan RAB, Realisasi, Deviasi, Progress, Profit Estimasi
+- Alert merah: proyek atau item yang realisasinya melebihi RAB lebih dari 10%
+
+---
+
+### 5. KPP TRACKER
+**Route:** `/finance/kpp`
+
+**Fungsi:** Tracking Kredit Pemilikan Proyek (konstruksi) per proyek.
+Ini adalah hutang terbesar Satara dan berdampak langsung pada cashflow.
+
+**Form input data KPP per proyek:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek | Select | |
+| Bank Pemberi KPP | Text | |
+| Plafon KPP (Rp) | Number | Batas kredit yang disetujui |
+| Tanggal Pencairan Pertama | Date | |
+| Jangka Waktu (bulan) | Number | |
+| Suku Bunga (% per tahun) | Number | |
+| Jadwal Angsuran | Textarea | Deskripsi jadwal atau upload file jadwal |
+
+**Data HT Masuk diambil otomatis dari modul Administrasi KPR (HT Tracker).**
+
+**Form input pelunasan / pembayaran KPP per bulan:**
+
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek | Select | |
+| Tanggal Pembayaran | Date | |
+| Pokok yang Dibayar (Rp) | Number | |
+| Bunga yang Dibayar (Rp) | Number | |
+| Catatan | Textarea | |
+
+**Kalkulasi otomatis:**
+```
+Outstanding KPP = Plafon - Total Pokok yang Sudah Dibayar
+
+Estimasi Pelunasan = berdasarkan jadwal HT masuk dari Administrasi KPR
+  (setiap HT yang masuk dikurangi dari outstanding)
+
+Proyeksi saldo outstanding per bulan ke depan dihitung berdasarkan:
+  - HT yang dijadwalkan cair (dari SP3K dan Akad Tracker)
+  - Pembayaran angsuran terjadwal
+```
+
+**Tampilan:**
+
+Tabel proyeksi outstanding per bulan:
+
+| Bulan | Outstanding Awal | HT Masuk | Pembayaran | Outstanding Akhir |
+|-------|-----------------|----------|------------|------------------|
+| Maret | Rp 4,5 M | Rp 700 Jt | Rp 0 | Rp 3,8 M |
+| April | Rp 3,8 M | Rp 1,47 M | Rp 0 | Rp 2,33 M |
+| Mei | Rp 2,33 M | Rp 1 M | Rp 0 | Rp 1,33 M |
+| Juni | Rp 1,33 M | Rp 630 Jt | Rp 0 | Rp 700 Jt |
+| Juli | Rp 700 Jt | Rp 700 Jt | Rp 0 | Rp 0 |
+
+- Line chart: proyeksi outstanding KPP per bulan hingga lunas
+- Label AI: "Estimasi KPP lunas: Agustus 2026"
+- Metric cards: Total Outstanding semua KPP, HT Masuk Bulan Ini, Estimasi Bulan Lunas
+- Integrasi: data HT masuk diambil otomatis dari modul Administrasi KPR
+
+---
+
+### 6. HUTANG CENTER
+**Route:** `/finance/hutang`
+
+**Fungsi:** Monitoring seluruh kewajiban hutang perusahaan lintas kategori.
+
+**Data diambil dari file Hutang yang diupload di Modul 2.**
+
+**Kategori hutang:**
+- KPP (ditarik otomatis dari Modul 5)
+- Vendor (hutang ke kontraktor / subkon)
+- Supplier (hutang ke toko material)
+- Internal (hutang antar entitas dalam grup)
+
+**Tampilan:**
+
+Tabel hutang per kategori:
+
+| Kategori | Total Hutang | Jatuh Tempo <30 Hari | Jatuh Tempo 30-60 Hari | Jatuh Tempo >60 Hari |
+|---------|-------------|---------------------|----------------------|---------------------|
+| KPP | Rp X | Rp X | Rp X | Rp X |
+| Vendor | Rp X | Rp X | Rp X | Rp X |
+| Supplier | Rp X | Rp X | Rp X | Rp X |
+| Internal | Rp X | Rp X | Rp X | Rp X |
+| **Total** | **Rp 3,4 M** | **Rp 650 Jt** | Rp X | Rp X |
+
+- Metric cards: Total Hutang, Jatuh Tempo 30 Hari, Jatuh Tempo 60 Hari
+- Bar chart: hutang per kategori
+- Tabel detail per kreditur: nama, kategori, total hutang, jatuh tempo, status
+- Alert merah: hutang yang jatuh tempo dalam 14 hari dan belum dibayar
+- Alert kuning: hutang yang jatuh tempo dalam 30 hari
+
+**AI Warning otomatis:**
+```
+⚠ Hutang Vendor [nama] jatuh tempo [tanggal]: Rp X
+⚠ Total hutang jatuh tempo bulan depan: Rp 750 Jt
+  Saldo kas saat ini: Rp X. [Aman / Perlu perhatian]
+```
+
+---
+
+### 7. PIUTANG CENTER
+**Route:** `/finance/piutang`
+
+**Fungsi:** Monitoring seluruh tagihan yang belum diterima perusahaan.
+
+**Data diambil dari file Piutang yang diupload di Modul 2.**
+
+**Kategori piutang:**
+- Konsumen (misalnya cicilan yang belum masuk)
+- Vendor (piutang ke subkon yang kelebihan bayar)
+- Internal (piutang antar entitas dalam grup)
+- Bank (HT yang sudah akad tapi belum cair, ditarik otomatis dari Administrasi KPR)
+
+**Tampilan:**
+
+Tabel piutang per kategori (aging analysis):
+
+| Kategori | Total | Current (<30 hr) | 30-60 Hari | 60-90 Hari | >90 Hari |
+|---------|-------|-----------------|-----------|-----------|---------|
+| Konsumen | Rp X | Rp X | Rp X | Rp X | Rp X |
+| Bank (HT) | Rp X | Rp X | Rp X | Rp X | Rp X |
+| Vendor | Rp X | Rp X | Rp X | Rp X | Rp X |
+| Internal | Rp X | Rp X | Rp X | Rp X | Rp X |
+| **Total** | **Rp 1,8 M** | | | | |
+
+- Metric cards: Total Piutang, Piutang Cair <30 Hari, Piutang Macet (>90 hari)
+- AI deteksi otomatis:
+  - Piutang macet: piutang > 90 hari yang belum ada pembayaran
+  - Piutang lewat tempo: sudah melewati tanggal jatuh tempo
+  - Piutang berisiko: piutang dari pihak yang memiliki riwayat keterlambatan
+
+---
+
+### 8. PROFITABILITY CENTER
+**Route:** `/finance/profitabilitas`
+
+**Fungsi:** Analisis profitabilitas per proyek, per tahun, dan per unit bisnis.
+
+**Data diambil dari Cashflow, RAB, dan General Ledger yang diupload.**
+
+**Tampilan per proyek:**
+
+| Proyek | Pendapatan | Biaya | Profit | Margin (%) | Status |
+|--------|-----------|-------|--------|-----------|--------|
+| SN Residence 3 | Rp X | Rp X | Rp 4,6 M | X% | Hijau |
+| Sekala Industry | Rp X | Rp X | Rp 400 Jt | X% | Kuning |
+| SN Residence 5 | Rp 0 | Rp X | Rp 0 | 0% | Abu-abu |
+
+- AI ranking proyek berdasarkan profitabilitas
+- Bar chart: profit per proyek per tahun
+- Trend: margin per proyek 4 kuartal terakhir
+- Filter: per tahun, per unit bisnis
+
+**Kalkulasi:**
+```
+Profit = Total Pendapatan Proyek - Total Biaya Proyek
+Margin (%) = Profit ÷ Total Pendapatan × 100%
+```
+
+---
+
+### 9. FORECAST CENTER
+**Route:** `/finance/forecast`
+
+**Fungsi:** Proyeksi cashflow ke depan berbasis data produksi, akad, HT, KPP, dan RAB.
+
+**Sumber data untuk forecast (semua otomatis dari modul lain):**
+- Progress produksi: dari modul Produksi
+- Jadwal akad: dari Akad Tracker (Administrasi KPR)
+- Jadwal HT cair: dari SP3K Tracker dan HT Tracker (Administrasi KPR)
+- Outstanding KPP: dari KPP Tracker
+- RAB sisa: dari Project Finance
+- Hutang jatuh tempo: dari Hutang Center
+- Piutang jatuh tempo: dari Piutang Center
+
+**Kalkulasi forecast per bulan:**
+```
+Forecast Cash In (bulan N) = HT dijadwalkan cair + Piutang jatuh tempo + Estimasi DP baru
+Forecast Cash Out (bulan N) = Angsuran KPP + Hutang jatuh tempo + Estimasi biaya produksi
+Forecast Net Cashflow = Forecast Cash In - Forecast Cash Out
+```
+
+**Tampilan:**
+
+Tabel forecast 6 bulan ke depan:
+
+| Bulan | Forecast Cash In | Forecast Cash Out | Forecast Net | Kumulatif |
+|-------|-----------------|------------------|-------------|----------|
+| Juli 2026 | Rp X | Rp X | Rp +400 Jt | Rp X |
+| Agustus 2026 | Rp X | Rp X | Rp +1,2 M | Rp X |
+| September 2026 | Rp X | Rp X | Rp +800 Jt | Rp X |
+
+- Line chart: forecast net cashflow per bulan (garis putus-putus untuk proyeksi,
+  garis penuh untuk aktual)
+- Alert merah: jika ada bulan dengan forecast negatif
+- Label AI: "Cashflow diproyeksikan positif selama 6 bulan ke depan"
+
+---
+
+### 10. REALISASI VS RAB
+**Route:** `/finance/rab`
+
+**Fungsi:** Analisis deviasi realisasi biaya terhadap RAB per proyek, per tahap, per item.
+
+**Data diambil dari file RAB dan Cashflow yang diupload.**
+
+**Tampilan hierarkis: Proyek → Tahap → Item Biaya**
+
+Contoh Tahap 4:
+
+| Item | RAB | Realisasi | Deviasi (Rp) | Deviasi (%) | Status |
+|------|-----|-----------|-------------|------------|--------|
+| Bangunan | Rp 1 M | Rp 950 Jt | -Rp 50 Jt | -5% | Under |
+| Jalan | Rp 300 Jt | Rp 290 Jt | -Rp 10 Jt | -3% | Under |
+| Drainase | Rp 150 Jt | Rp 170 Jt | +Rp 20 Jt | +13% | Over |
+| **Total** | **Rp 1,45 M** | **Rp 1,41 M** | **-Rp 40 Jt** | **-2,8%** | Under |
+
+- Color coding: hijau (under budget), merah (over budget >5%), kuning (over budget 1-5%)
+- AI komentar otomatis per item yang over budget:
+  "Drainase Tahap 4 over budget 13%. Evaluasi penyebab dan estimasi dampak ke margin proyek."
+- Summary lintas proyek: tabel perbandingan total deviasi per proyek
+
+---
+
+### 11. ACCOUNTING CENTER
+**Route:** `/finance/accounting`
+
+**Fungsi:** Menghasilkan laporan keuangan standar dari data General Ledger yang diupload.
+
+**Data diambil dari file General Ledger yang diupload di Modul 2.**
+
+**Laporan yang dihasilkan otomatis:**
+
+**A. Laporan Laba Rugi:**
+- Pendapatan (per kategori)
+- HPP / Harga Pokok Penjualan
+- Laba Kotor
+- Beban Operasional (per kategori)
+- Laba Operasional
+- Pendapatan / Beban Non-Operasional
+- Laba Sebelum Pajak
+- Pajak
+- Laba Bersih
+
+**B. Neraca:**
+- Aset Lancar (Kas, Piutang, Persediaan, dll)
+- Aset Tetap
+- Total Aset
+- Kewajiban Lancar
+- Kewajiban Jangka Panjang
+- Ekuitas
+- Total Kewajiban dan Ekuitas
+
+**C. Laporan Arus Kas:**
+- Arus Kas dari Operasional
+- Arus Kas dari Investasi
+- Arus Kas dari Pendanaan
+- Kenaikan / Penurunan Kas Bersih
+
+**D. Laporan Perubahan Modal**
+
+**Tampilan:**
+- Tab: Laba Rugi / Neraca / Arus Kas / Perubahan Modal
+- Filter: periode (bulan / kuartal / tahun), unit bisnis
+- Perbandingan periode: tampilkan dua kolom (periode ini vs periode sebelumnya)
+- Export PDF: setiap laporan bisa di-export ke PDF format standar
+
+---
+
+### 12. AUDIT CENTER
+**Route:** `/finance/audit`
+
+**Fungsi:** Deteksi anomali dan potensi kesalahan dalam data keuangan secara otomatis.
+
+**Data diambil dari semua file yang diupload.**
+
+**Pemeriksaan AI otomatis setiap kali ada upload baru:**
+
+| Jenis Pemeriksaan | Deskripsi |
+|------------------|-----------|
+| Transaksi Duplikat | Dua atau lebih transaksi dengan nominal, tanggal, dan pihak yang sama |
+| Pembayaran Ganda | Pembayaran ke vendor / supplier yang sama dalam rentang < 3 hari |
+| Pengeluaran Tidak Wajar | Transaksi dengan nominal jauh di atas rata-rata kategori tersebut (>3x rata-rata) |
+| Selisih Rekening Koran | Saldo akhir di GL tidak cocok dengan saldo di rekening koran |
+| Selisih Kas | Saldo kas fisik tidak cocok dengan catatan |
+| Transaksi Tanpa Kategori | Transaksi di GL yang tidak memiliki kode akun atau kategori |
+| Pembayaran Tanpa Referensi | Pembayaran keluar yang tidak memiliki nomor invoice atau referensi |
+
+**Tampilan:**
+
+- Tabel temuan audit: jenis, deskripsi detail, tanggal transaksi, nominal, status (Baru / Ditinjau / Diselesaikan)
+- Setiap temuan bisa diklik untuk melihat detail transaksi yang bermasalah
+- Tombol aksi per temuan: "Tandai Sudah Ditinjau" / "Tandai Diselesaikan" / "Eskalasi ke CEO"
+- Metric cards: Total Temuan Baru, Total Temuan Belum Diselesaikan, Nilai Transaksi Bermasalah (Rp)
+
+**Contoh output:**
+```
+⚠ Ditemukan pembayaran ke Supplier [nama] sebanyak 2 kali pada [tanggal]
+  Total nilai: Rp X. Kemungkinan pembayaran ganda.
+
+⚠ Selisih rekening koran BRI tanggal [tanggal]: Rp X
+  Saldo GL: Rp X | Saldo mutasi bank: Rp X | Selisih: Rp X
+```
+
+---
+
+### 13. EARLY WARNING SYSTEM
+**Route:** `/finance/warning`
+
+**Fungsi:** Notifikasi otomatis untuk kondisi keuangan yang memerlukan perhatian segera.
+
+**Pemeriksaan yang dilakukan sistem secara otomatis setiap hari:**
+
+| Kondisi | Level | Contoh Pesan |
+|---------|-------|-------------|
+| Hutang jatuh tempo < 30 hari | Warning | "Hutang jatuh tempo bulan depan Rp 750 Jt" |
+| Realisasi melebihi RAB > 5% | Warning | "Realisasi Tahap 4 melebihi RAB 8%" |
+| Forecast cashflow negatif | Kritis | "Cashflow diproyeksikan negatif bulan Oktober" |
+| HT bulan ini turun > 30% vs rata-rata | Warning | "HT Juli turun 35% dibanding rata-rata 3 bulan" |
+| Piutang macet bertambah | Warning | "Piutang >90 hari bertambah Rp X bulan ini" |
+| Saldo kas < threshold | Kritis | "Saldo kas mendekati batas minimum operasional" |
+| Outstanding KPP > 80% plafon | Warning | "Outstanding KPP masih di atas 80% plafon" |
+| Selisih rekening koran ditemukan | Kritis | "Ditemukan selisih rekening koran Rp X" |
+
+**Threshold (konfigurasi di Settings, ada default):**
+- Saldo kas minimum: Rp 200 Jt (default)
+- Persentase over RAB yang memicu alert: 5% (default)
+- Persentase penurunan HT yang memicu alert: 30% (default)
+
+**Tampilan:**
+- Feed peringatan diurutkan: Kritis (merah) → Warning (kuning) → Info (biru)
+- Setiap alert memiliki tombol: "Tandai Dibaca" / "Buat Catatan Tindak Lanjut"
+- Riwayat alert: semua alert yang pernah muncul beserta status penanganannya
+- Alert aktif juga muncul di Finance Dashboard (Modul 1) sebagai banner
+
+---
+
+### 14. INVESTMENT & EXPANSION ANALYSIS
+**Route:** `/finance/ekspansi`
+
+**Fungsi:** Analisis kelayakan keuangan untuk pengambilan keputusan ekspansi dan investasi baru.
+AI menjawab pertanyaan strategis CEO berdasarkan kondisi keuangan terkini.
+
+**Skenario analisis yang tersedia:**
+
+**A. Analisis Kelayakan KPP Baru:**
+
+Form input:
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Proyek yang Akan Didanai | Text | |
+| Nilai KPP yang Diajukan (Rp) | Number | |
+| Estimasi Jangka Waktu (bulan) | Number | |
+| Bank yang Dituju | Text | |
+
+Output AI:
+```
+AMAN / PERLU PERHATIAN / TIDAK DISARANKAN
+
+Analisis:
+- Outstanding KPP existing: Rp X (lunas estimasi: [bulan])
+- HT yang akan masuk 3 bulan ke depan: Rp X
+- Cashflow bersih proyeksi saat mengambil KPP baru: Rp X/bulan
+- Rasio hutang terhadap aset: X%
+- Rekomendasi: [teks AI]
+```
+
+Contoh output:
+```
+AMAN
+Karena:
+- Outstanding KPP existing tersisa Rp 700 Jt
+- HT masuk Juli 2026: Rp 700 Jt → KPP lama lunas Agustus
+- Cashflow proyeksi positif Rp 400 Jt/bulan selama 6 bulan ke depan
+- Pengambilan KPP baru Rp 5 M pada Juli masih dalam batas aman
+```
+
+**B. Analisis Kapasitas Ekspansi Proyek Baru:**
+
+Form input:
+| Field | Tipe | Keterangan |
+|-------|------|-----------|
+| Nama Proyek Baru | Text | |
+| Estimasi Total Investasi (Rp) | Number | |
+| Estimasi Pendapatan per Tahun (Rp) | Number | |
+| Estimasi Biaya Operasional per Tahun (Rp) | Number | |
+
+Output AI: ROI, payback period, dampak terhadap cashflow existing.
+
+**Tampilan:**
+- Panel input skenario di sisi kiri
+- Panel hasil analisis AI di sisi kanan
+- Riwayat skenario yang pernah dianalisis (disimpan untuk referensi)
+
+---
+
+## DATABASE SCHEMA (SUPABASE)
+
+```sql
+-- Riwayat upload file
+finance_uploads (
+  id uuid PRIMARY KEY,
+  file_type text,               -- cashflow, general_ledger, hutang, piutang, bank, rab
+  file_name text,
+  period_year integer,
+  period_month integer,
+  row_count integer,
+  status text,                  -- berhasil, error
+  error_notes text,
+  uploaded_by text,
+  uploaded_at timestamptz
+)
+
+-- Data cashflow (hasil parsing dari upload)
+cashflow_records (
+  id uuid PRIMARY KEY,
+  upload_id uuid REFERENCES finance_uploads(id),
+  transaction_date date,
+  type text,                    -- cash_in, cash_out
+  category text,                -- dp, akad, ht, sbum, material, sdm, marketing, dll
+  project_id uuid REFERENCES projects(id),
+  amount numeric,
+  description text,
+  reference_number text,
+  created_at timestamptz
+)
+
+-- Data RAB per proyek per item
+rab_items (
+  id uuid PRIMARY KEY,
+  upload_id uuid REFERENCES finance_uploads(id),
+  project_id uuid REFERENCES projects(id),
+  stage_code text,
+  item_name text,
+  item_category text,
+  rab_amount numeric,
+  created_at timestamptz
+)
+
+-- Realisasi biaya per item RAB
+rab_realizations (
+  id uuid PRIMARY KEY,
+  rab_item_id uuid REFERENCES rab_items(id),
+  realization_date date,
+  amount numeric,
+  description text,
+  created_at timestamptz
+)
+
+-- Data KPP per proyek
+kpp_facilities (
+  id uuid PRIMARY KEY,
+  project_id uuid REFERENCES projects(id),
+  bank_name text,
+  plafon numeric,
+  first_disbursement_date date,
+  tenor_months integer,
+  interest_rate numeric,
+  notes text,
+  created_at timestamptz
+)
+
+-- Pembayaran KPP
+kpp_payments (
+  id uuid PRIMARY KEY,
+  kpp_id uuid REFERENCES kpp_facilities(id),
+  payment_date date,
+  principal_paid numeric,
+  interest_paid numeric,
+  notes text,
+  created_at timestamptz
+)
+
+-- Data hutang (hasil parsing dari upload)
+debt_records (
+  id uuid PRIMARY KEY,
+  upload_id uuid REFERENCES finance_uploads(id),
+  creditor_name text,
+  category text,                -- kpp, vendor, supplier, internal
+  total_amount numeric,
+  due_date date,
+  status text,                  -- outstanding, paid, overdue
+  notes text,
+  created_at timestamptz
+)
+
+-- Data piutang (hasil parsing dari upload)
+receivable_records (
+  id uuid PRIMARY KEY,
+  upload_id uuid REFERENCES finance_uploads(id),
+  debtor_name text,
+  category text,                -- konsumen, vendor, internal, bank_ht
+  total_amount numeric,
+  due_date date,
+  status text,                  -- current, overdue, macet
+  notes text,
+  created_at timestamptz
+)
+
+-- Temuan audit
+audit_findings (
+  id uuid PRIMARY KEY,
+  upload_id uuid REFERENCES finance_uploads(id),
+  finding_type text,            -- duplikat, pembayaran_ganda, tidak_wajar, selisih_bank, dll
+  description text,
+  transaction_date date,
+  amount numeric,
+  status text,                  -- baru, ditinjau, diselesaikan, dieskalasi
+  reviewed_by text,
+  reviewed_at timestamptz,
+  resolution_notes text,
+  created_at timestamptz
+)
+
+-- Early warning alerts
+finance_alerts (
+  id uuid PRIMARY KEY,
+  alert_type text,
+  level text,                   -- kritis, warning, info
+  message text,
+  amount numeric,
+  related_module text,
+  is_read boolean DEFAULT false,
+  action_notes text,
+  triggered_at timestamptz,
+  created_at timestamptz
+)
+
+-- Skenario analisis ekspansi
+expansion_analyses (
+  id uuid PRIMARY KEY,
+  scenario_name text,
+  scenario_type text,           -- kpp_baru, proyek_baru
+  input_data jsonb,             -- semua field input disimpan sebagai JSON
+  ai_output text,               -- teks rekomendasi AI
+  ai_verdict text,              -- AMAN, PERLU_PERHATIAN, TIDAK_DISARANKAN
+  created_by text,
+  created_at timestamptz
+)
+```
+
+---
+
+## CATATAN IMPLEMENTASI AI ANALYSIS
+
+Semua fitur yang disebut "AI" dalam prompt ini diimplementasikan menggunakan
+**Anthropic Claude API** melalui mekanisme yang sudah tersedia di sistem ini
+(lihat konfigurasi API di bagian atas proyek).
+
+Setiap modul yang memerlukan analisis AI mengirim prompt terstruktur ke Claude API
+dengan data keuangan yang sudah diparsing, kemudian menampilkan respons sebagai
+teks rekomendasi di dashboard.
+
+Contoh prompt yang dikirim ke API untuk Finance Health Score:
+```
+Berikut adalah data keuangan Satara Development bulan ini:
+- Net Cashflow: Rp +600 Jt
+- Outstanding KPP: Rp 2,33 M
+- Total Hutang: Rp 3,4 M
+- Piutang Macet: Rp X
+- Margin Proyek SN3: X%
+
+Berikan Finance Health Score dari 0-100 dan analisis singkat
+kondisi likuiditas, hutang, cashflow, profitabilitas, dan kinerja proyek.
+Format output: skor angka saja, lalu 3-5 poin analisis singkat.
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+1. **Upload sebagai pintu utama:** Seluruh halaman yang memerlukan data dari Excel
+   menampilkan banner "Data belum diupload" jika file terkait belum pernah diupload,
+   dengan tombol langsung ke Upload Center.
+
+2. **Preview sebelum import:** Setiap upload Excel menampilkan 10 baris pertama data
+   dan mapping kolom yang bisa disesuaikan sebelum data masuk ke database.
+
+3. **Laporan keuangan export PDF:** Halaman Accounting Center bisa menghasilkan PDF
+   laporan Laba Rugi, Neraca, dan Arus Kas dalam format standar yang rapi.
+
+4. **Early Warning di semua halaman:** Alert kritis dari Early Warning System muncul
+   sebagai banner merah di bagian atas semua halaman Finance, bukan hanya di halaman
+   khusus Warning.
+
+5. **KPP sinkron dengan Administrasi KPR:** Data HT yang cair di modul Administrasi
+   KPR otomatis mengurangi outstanding KPP di KPP Tracker. Ini adalah sinkronisasi
+   kritis yang harus berjalan real-time.
+
+6. **Forecast sinkron dengan Produksi dan Administrasi KPR:** Data jadwal akad dan
+   HT dari modul Administrasi KPR menjadi input utama Forecast Center. Jika jadwal
+   berubah di modul Administrasi, forecast otomatis recalculate.
+
+7. **Number format:** Semua rupiah dalam format Indonesia: `Rp 1.800.000.000` untuk
+   angka besar, atau disingkat `Rp 1,8 M` di metric card. Semua persentase: `6,0%`.
+   Semua tanggal: `15 Januari 2026`. Semua skor: `91/100`.
+
+8. **Color coding keuangan:**
+   - Hijau: positif, under budget, sehat
+   - Merah: negatif, over budget, kritis
+   - Kuning: mendekati batas, warning
+   - Abu-abu: belum ada data
+
+9. **Akses berbasis peran:** Halaman Accounting Center dan Audit Center hanya bisa
+   diakses oleh Finance Manager dan CEO. Halaman lain bisa diakses oleh semua
+   divisi yang relevan (contoh: Project Finance bisa dilihat oleh Project Manager).
+
+10. **Mobile-friendly:** Finance Dashboard dan Early Warning System harus bisa dibaca
+    dari HP oleh CEO untuk monitoring harian.
+
+---
+
+## URUTAN PENGERJAAN
+
+1. Setup routing dan struktur folder semua halaman Finance & Accounting
+2. Buat semua tabel database di Supabase
+3. Upload Center: parser Excel + mapping kolom + validasi + riwayat upload
+4. Cashflow Center: parsing data cashflow + visualisasi + metric cards
+5. KPP Tracker: form input KPP + kalkulasi proyeksi outstanding + sinkron HT dari Administrasi KPR
+6. Hutang Center: parsing data hutang + aging analysis + alert jatuh tempo
+7. Piutang Center: parsing data piutang + aging analysis + AI deteksi piutang macet
+8. Realisasi vs RAB: parsing data RAB + kalkulasi deviasi + alert over budget
+9. Project Finance: agregasi RAB, realisasi, dan cashflow per proyek
+10. Profitability Center: kalkulasi profit dan margin per proyek dari data yang tersedia
+11. Accounting Center: parsing General Ledger + generate laporan Laba Rugi, Neraca, Arus Kas
+12. Audit Center: algoritma deteksi anomali dari data yang diupload
+13. Early Warning System: pemeriksaan otomatis harian + feed alert
+14. Forecast Center: kalkulasi proyeksi dari data produksi, akad, HT, KPP, hutang, piutang
+15. Investment & Expansion Analysis: form skenario + integrasi Claude API untuk analisis
+16. Finance Dashboard: agregasi semua metric + AI recommendation via Claude API
+17. Integrasi dengan Administrasi KPR: sinkron HT ke KPP Tracker dan Forecast Center
+18. Integrasi dengan Produksi: sinkron progress fisik ke Project Finance dan Forecast Center
