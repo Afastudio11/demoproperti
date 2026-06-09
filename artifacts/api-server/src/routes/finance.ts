@@ -282,6 +282,14 @@ Contoh: {"creditorName": "NAMA PEMILIK", "totalAmount": "NILAI AWAL", "projectNa
     const BATCH = 100;
 
     if (fileType === "hutang") {
+      // Pola baris ringkasan yang harus dilewati (bukan entri hutang sesungguhnya)
+      const SUMMARY_ROW_RE = /^(grand\s*total|sub\s*total|subtotal|total|jumlah\s*total|jumlah|rekapitulasi|rekap|total\s*keseluruhan|grand\s*total\s*.*)$/i;
+      function isSummaryRow(creditor: any, project: any): boolean {
+        const c = String(creditor ?? "").trim();
+        const p = String(project ?? "").trim();
+        return SUMMARY_ROW_RE.test(c) || SUMMARY_ROW_RE.test(p);
+      }
+
       const dbRows = allSheetRows.map((row) => {
         const creditor = getVal(row, "creditorName", ["pemilik", "kreditur", "vendor", "nama"]);
         const project = getVal(row, "projectName", ["project", "proyek"]);
@@ -293,6 +301,8 @@ Contoh: {"creditorName": "NAMA PEMILIK", "totalAmount": "NILAI AWAL", "projectNa
         const keterangan = getVal(row, "notes", ["keterangan", "catatan", "note"]);
         const effectiveRemaining = remaining > 0 ? remaining : Math.max(0, orig - paid);
         const status = effectiveRemaining <= 0 ? "paid" : "outstanding";
+        // Lewati baris ringkasan/total — bukan entri hutang sesungguhnya
+        if (isSummaryRow(creditor, null)) return null;
         if (!creditor && orig === 0) return null;
         return {
           uploadId, projectName: project ? String(project).trim() : null,
@@ -686,6 +696,16 @@ router.post("/finance/hutang", async (req, res) => {
       remainingAmount: String(remaining), projectName, stageInfo, dueDate, notes, status,
     }).returning();
     res.json(row);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete("/finance/hutang/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await db.delete(debtRecordsTable).where(eq(debtRecordsTable.id, id));
+    res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

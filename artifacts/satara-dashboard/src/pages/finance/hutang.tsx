@@ -1,12 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertTriangle, Plus, ChevronDown, ChevronRight, Download, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import * as XLSX from "xlsx";
 
 function fmtRp(n: number) {
   if (Math.abs(n) >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)} M`;
   if (Math.abs(n) >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(0)} Jt`;
   return `Rp ${n.toLocaleString("id-ID")}`;
+}
+
+function fmtRpRaw(n: number) {
+  return n;
 }
 
 function fmtPct(paid: number, total: number) {
@@ -22,6 +27,7 @@ export default function HutangCenter() {
   const [form, setForm] = useState(EMPTY);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<"proyek" | "daftar">("proyek");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["finance-hutang"],
@@ -42,6 +48,91 @@ export default function HutangCenter() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-hutang"] }); setShowForm(false); setForm(EMPTY); },
   });
 
+  const deleteDebt = useMutation({
+    mutationFn: (id: number) => fetch(`/api/finance/hutang/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-hutang"] }); setDeletingId(null); },
+  });
+
+  function exportExcel() {
+    const wb = XLSX.utils.book_new();
+    const projects = Object.keys(byProject).sort();
+
+    const allDataRows: any[][] = [];
+
+    // Header baris sesuai format asli
+    allDataRows.push(["Tahap", "Nama Pemilik/Kreditur", "Nilai Awal", "Terbayar", "Sisa Kewajiban", "Status", "Keterangan"]);
+
+    for (const proj of projects) {
+      const pd = byProject[proj];
+
+      // Baris per kreditur — urutan sesuai data asli
+      for (const r of pd.items) {
+        const remaining = Number(r.remainingAmount ?? 0);
+        allDataRows.push([
+          r.stageInfo || "",
+          r.creditorName,
+          Number(r.totalAmount),
+          Number(r.paidAmount ?? 0),
+          remaining,
+          remaining <= 0 ? "Lunas" : "Belum Lunas",
+          r.notes || "",
+        ]);
+      }
+
+      // Baris GRAND TOTAL per proyek (sesuai format dokumen asli)
+      allDataRows.push([
+        "",
+        `GRAND TOTAL ${proj}`,
+        pd.totalAmount,
+        pd.paidAmount,
+        pd.remainingAmount,
+        pd.remainingAmount <= 0 ? "Lunas" : "Belum Lunas",
+        "",
+      ]);
+
+      // Baris subtotal proyek
+      allDataRows.push([
+        `Subtotal ${proj}`,
+        "",
+        pd.totalAmount,
+        pd.paidAmount,
+        pd.remainingAmount,
+        `${pd.items.filter((i: any) => i.status === "paid").length}/${pd.items.length} lunas`,
+        "",
+      ]);
+
+      // Baris kosong pemisah
+      allDataRows.push(["", "", "", "", "", "", ""]);
+    }
+
+    // Grand total keseluruhan
+    allDataRows.push([
+      "TOTAL KESELURUHAN",
+      "",
+      totalAll,
+      totalPaid,
+      totalRemaining,
+      `${fmtPct(totalPaid, totalAll)}% terbayar`,
+      "",
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet(allDataRows);
+
+    // Lebar kolom
+    ws["!cols"] = [
+      { wch: 20 }, // Tahap
+      { wch: 30 }, // Nama Pemilik/Kreditur
+      { wch: 18 }, // Nilai Awal
+      { wch: 18 }, // Terbayar
+      { wch: 18 }, // Sisa Kewajiban
+      { wch: 14 }, // Status
+      { wch: 30 }, // Keterangan
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan Hutang");
+    XLSX.writeFile(wb, `LAPORAN_HUTANG_${new Date().toISOString().split("T")[0]}.xlsx`);
+  }
+
   const isEmpty = records.length === 0;
   const projects = Object.keys(byProject).sort();
 
@@ -56,11 +147,20 @@ export default function HutangCenter() {
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Hutang Center</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Monitoring kewajiban hutang pembebasan lahan per proyek</p>
         </div>
-        <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
-          <Plus className="size-3.5" />
-          Tambah Hutang
-        </button>
+        <div className="flex items-center gap-2">
+          {!isEmpty && (
+            <button onClick={exportExcel}
+              className="flex items-center gap-2 border text-sm font-medium px-3 py-1.5 rounded-md hover:bg-muted transition-colors">
+              <Download className="size-3.5" />
+              Export Excel
+            </button>
+          )}
+          <button onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
+            <Plus className="size-3.5" />
+            Tambah Hutang
+          </button>
+        </div>
       </div>
 
       {isEmpty && !isLoading ? (
@@ -130,7 +230,6 @@ export default function HutangCenter() {
                           <span className="font-semibold text-sm">{proj}</span>
                           <span className="text-xs text-muted-foreground">{pd.items.length} kreditur</span>
                         </div>
-                        {/* Progress bar */}
                         <div className="mt-2 flex items-center gap-3">
                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                             <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
@@ -156,7 +255,7 @@ export default function HutangCenter() {
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="border-b bg-muted/30">
-                              {["Tahap", "Nama Pemilik/Kreditur", "Nilai Awal", "Terbayar", "Sisa Kewajiban", "Status", "Keterangan"].map(h => (
+                              {["Tahap", "Nama Pemilik/Kreditur", "Nilai Awal", "Terbayar", "Sisa Kewajiban", "Status", "Keterangan", ""].map(h => (
                                 <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                               ))}
                             </tr>
@@ -164,8 +263,9 @@ export default function HutangCenter() {
                           <tbody>
                             {pd.items.map((r: any) => {
                               const remaining = Number(r.remainingAmount ?? 0);
+                              const isDeleting = deletingId === r.id;
                               return (
-                                <tr key={r.id} className={cn("border-b last:border-0", remaining > 0 ? "" : "bg-emerald-50/30 dark:bg-emerald-950/10")}>
+                                <tr key={r.id} className={cn("border-b last:border-0 group", remaining > 0 ? "" : "bg-emerald-50/30 dark:bg-emerald-950/10")}>
                                   <td className="px-3 py-2 text-muted-foreground">{r.stageInfo || "-"}</td>
                                   <td className="px-3 py-2 font-medium max-w-[180px] truncate">{r.creditorName}</td>
                                   <td className="px-3 py-2 tabular-nums">{fmtRp(Number(r.totalAmount))}</td>
@@ -181,6 +281,15 @@ export default function HutangCenter() {
                                     </span>
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground max-w-[150px] truncate">{r.notes || "-"}</td>
+                                  <td className="px-3 py-2">
+                                    <button
+                                      onClick={() => setDeletingId(r.id)}
+                                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-all"
+                                      title="Hapus record"
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </button>
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -193,7 +302,7 @@ export default function HutangCenter() {
                               <td className={cn("px-3 py-2 tabular-nums text-xs", pd.remainingAmount > 0 ? "text-amber-500" : "text-emerald-500")}>
                                 {fmtRp(pd.remainingAmount)}
                               </td>
-                              <td colSpan={2} className="px-3 py-2 text-xs text-muted-foreground">{pd.items.filter((i: any) => i.status === "paid").length}/{pd.items.length} lunas</td>
+                              <td colSpan={3} className="px-3 py-2 text-xs text-muted-foreground">{pd.items.filter((i: any) => i.status === "paid").length}/{pd.items.length} lunas</td>
                             </tr>
                           </tfoot>
                         </table>
@@ -212,7 +321,7 @@ export default function HutangCenter() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      {["Proyek", "Tahap", "Kreditur", "Nilai Awal", "Terbayar", "Sisa", "Status"].map(h => (
+                      {["Proyek", "Tahap", "Kreditur", "Nilai Awal", "Terbayar", "Sisa", "Status", ""].map(h => (
                         <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -221,7 +330,7 @@ export default function HutangCenter() {
                     {records.map((r: any) => {
                       const remaining = Number(r.remainingAmount ?? 0);
                       return (
-                        <tr key={r.id} className="border-b last:border-0 text-xs">
+                        <tr key={r.id} className="border-b last:border-0 text-xs group">
                           <td className="px-4 py-2 font-medium text-xs">{r.projectName || "-"}</td>
                           <td className="px-4 py-2 text-muted-foreground">{r.stageInfo || "-"}</td>
                           <td className="px-4 py-2 max-w-[160px] truncate">{r.creditorName}</td>
@@ -235,6 +344,15 @@ export default function HutangCenter() {
                               r.status === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
                               {r.status === "paid" ? "Lunas" : "Belum Lunas"}
                             </span>
+                          </td>
+                          <td className="px-4 py-2">
+                            <button
+                              onClick={() => setDeletingId(r.id)}
+                              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-all"
+                              title="Hapus record"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -280,6 +398,32 @@ export default function HutangCenter() {
                 {addDebt.isPending ? "Menyimpan..." : "Simpan"}
               </button>
               <button onClick={() => setShowForm(false)} className="flex-1 border text-sm py-2 rounded-md hover:bg-muted">Batal</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deletingId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="rounded-xl border bg-background w-full max-w-sm p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="size-9 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center shrink-0">
+                <Trash2 className="size-4 text-red-500" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold">Hapus Record Hutang</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Record ini akan dihapus permanen dari database.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => deleteDebt.mutate(deletingId)}
+                disabled={deleteDebt.isPending}
+                className="flex-1 bg-red-500 text-white text-sm py-2 rounded-md hover:bg-red-600 disabled:opacity-50">
+                {deleteDebt.isPending ? "Menghapus..." : "Ya, Hapus"}
+              </button>
+              <button onClick={() => setDeletingId(null)} className="flex-1 border text-sm py-2 rounded-md hover:bg-muted">Batal</button>
             </div>
           </div>
         </div>
