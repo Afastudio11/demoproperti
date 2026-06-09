@@ -170,6 +170,176 @@ router.post("/finance/uploads/piutang", async (req, res) => {
   }
 });
 
+// ─── AI-POWERED IMPORT ────────────────────────────────────────────────────────
+// Endpoint ini menerima data Excel mentah (headers + rows), lalu AI memetakan
+// kolom ke skema database secara otomatis — format Excel apapun bisa dibaca.
+router.post("/finance/uploads/ai-import", async (req, res) => {
+  try {
+    const { fileType, fileName, headers, rows } = req.body as {
+      fileType: string;
+      fileName: string;
+      headers: string[];
+      rows: Record<string, any>[];
+    };
+
+    if (!rows?.length) {
+      res.status(400).json({ error: "Tidak ada data untuk diimport" });
+      return;
+    }
+
+    const SCHEMAS: Record<string, string> = {
+      hutang: `Array of objects with fields:
+- creditorName: string (nama kreditur/bank/vendor)
+- category: "kpp" | "vendor" | "supplier" | "internal" (pilih yang paling cocok)
+- totalAmount: number (angka Rupiah, hilangkan "Rp", titik/koma pemisah ribuan)
+- dueDate: string format "YYYY-MM-DD" (tanggal jatuh tempo)
+- status: "outstanding" | "paid" | "overdue" (default "outstanding" jika tidak ada info)
+- notes: string (catatan, boleh kosong "")`,
+
+      piutang: `Array of objects with fields:
+- debtorName: string (nama debitur/pelanggan)
+- category: "customer" | "internal" | "vendor"
+- totalAmount: number (angka Rupiah)
+- dueDate: string format "YYYY-MM-DD"
+- status: "current" | "overdue" | "paid" (default "current")
+- notes: string`,
+
+      cashflow: `Array of objects with fields:
+- transactionDate: string format "YYYY-MM-DD"
+- type: "cash_in" | "cash_out"
+- category: string (kategori transaksi)
+- projectName: string (nama proyek, boleh kosong "")
+- amount: number (nilai absolut, selalu positif)
+- description: string (keterangan)
+- referenceNumber: string (no. referensi, boleh kosong "")`,
+
+      rab: `Array of objects with fields:
+- projectName: string (nama proyek)
+- stageCode: string (kode tahap: LAND, PLAN, LEGAL, SELL, BUILD, AKAD, HANDOVER)
+- itemName: string (nama item pekerjaan)
+- itemCategory: string (kategori item)
+- rabAmount: number (anggaran dalam Rupiah)
+- realizationAmount: number (realisasi dalam Rupiah, 0 jika belum ada)`,
+
+      general_ledger: `Array of objects with fields:
+- transactionDate: string format "YYYY-MM-DD"
+- type: "cash_in" | "cash_out" (debit = cash_in, kredit = cash_out)
+- category: string
+- projectName: string
+- amount: number
+- description: string
+- referenceNumber: string`,
+
+      bank: `Array of objects with fields:
+- transactionDate: string format "YYYY-MM-DD"
+- type: "cash_in" | "cash_out" (kredit/masuk = cash_in, debit/keluar = cash_out)
+- category: "bank"
+- projectName: string
+- amount: number (nilai absolut)
+- description: string
+- referenceNumber: string`,
+    };
+
+    const targetSchema = SCHEMAS[fileType] ?? SCHEMAS["cashflow"];
+    const sampleRows = rows.slice(0, 20);
+
+    const ai = createDeepSeekClient();
+    const prompt = `Kamu adalah sistem ekstraksi data keuangan. Tugas kamu: baca data Excel berikut dan petakan ke skema target.
+
+JENIS DATA: ${fileType}
+NAMA FILE: ${fileName}
+HEADER KOLOM: ${JSON.stringify(headers)}
+CONTOH DATA (${sampleRows.length} baris pertama dari ${rows.length} total):
+${JSON.stringify(sampleRows, null, 2)}
+
+SKEMA TARGET:
+${targetSchema}
+
+INSTRUKSI PENTING:
+1. Petakan SEMUA ${rows.length} baris data (bukan hanya sampel)
+2. Bersihkan format angka Rupiah (hilangkan "Rp", titik, ganti koma dengan titik desimal)
+3. Format tanggal ke "YYYY-MM-DD" — kenali format Indonesia (DD/MM/YYYY, DD-MM-YYYY, dll)
+4. Jika kolom tidak ada, gunakan nilai default yang logis
+5. Skip baris yang kosong atau hanya berisi header
+6. Untuk category, gunakan inferensi konteks jika tidak eksplisit
+
+DATA LENGKAP SEMUA BARIS:
+${JSON.stringify(rows, null, 2)}
+
+Kembalikan HANYA JSON array yang valid tanpa komentar atau penjelasan. Format: [{"field": "value", ...}, ...]`;
+
+    const completion = await ai.chat.completions.create({
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: "Kamu adalah sistem ekstraksi data. Selalu kembalikan JSON array yang valid." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.1,
+    });
+
+    let rawContent = completion.choices[0]?.message?.content ?? "[]";
+    const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error("AI tidak mengembalikan JSON array yang valid");
+    const mapped: any[] = JSON.parse(jsonMatch[0]);
+
+    const now = new Date();
+    const [uploadLog] = await db.insert(financeUploadsTable).values({
+      fileType,
+      fileName,
+      periodYear: now.getFullYear(),
+      periodMonth: now.getMonth() + 1,
+      rowCount: mapped.length,
+      status: "berhasil",
+    }).returning();
+
+    const uploadId = uploadLog.id;
+    let inserted = 0;
+
+    if (fileType === "hutang") {
+      const dbRows = mapped.map((r: any) => ({
+        uploadId, creditorName: String(r.creditorName ?? ""), category: r.category ?? "vendor",
+        totalAmount: String(Number(r.totalAmount) || 0), dueDate: r.dueDate || null,
+        status: r.status ?? "outstanding", notes: r.notes ?? "",
+      }));
+      const result = await db.insert(debtRecordsTable).values(dbRows).returning();
+      inserted = result.length;
+
+    } else if (fileType === "piutang") {
+      const dbRows = mapped.map((r: any) => ({
+        uploadId, debtorName: String(r.debtorName ?? ""), category: r.category ?? "customer",
+        totalAmount: String(Number(r.totalAmount) || 0), dueDate: r.dueDate || null,
+        status: r.status ?? "current", notes: r.notes ?? "",
+      }));
+      const result = await db.insert(receivableRecordsTable).values(dbRows).returning();
+      inserted = result.length;
+
+    } else if (fileType === "cashflow" || fileType === "general_ledger" || fileType === "bank") {
+      const dbRows = mapped.map((r: any) => ({
+        uploadId, transactionDate: r.transactionDate, type: r.type ?? "cash_in",
+        category: r.category ?? "lainnya", projectName: r.projectName ?? "",
+        amount: String(Math.abs(Number(r.amount) || 0)),
+        description: r.description ?? "", referenceNumber: r.referenceNumber ?? "",
+      }));
+      const result = await db.insert(cashflowRecordsTable).values(dbRows).returning();
+      inserted = result.length;
+
+    } else if (fileType === "rab") {
+      const dbRows = mapped.map((r: any) => ({
+        uploadId, projectName: r.projectName ?? "", stageCode: r.stageCode ?? "",
+        itemName: r.itemName ?? "", itemCategory: r.itemCategory ?? "",
+        rabAmount: String(Number(r.rabAmount) || 0),
+        realizationAmount: String(Number(r.realizationAmount) || 0),
+      }));
+      const result = await db.insert(rabItemsTable).values(dbRows).returning();
+      inserted = result.length;
+    }
+
+    res.json({ uploadId, inserted, mapped: mapped.slice(0, 5) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── CASHFLOW ─────────────────────────────────────────────────────────────────
 router.get("/finance/cashflow", async (req, res) => {
   try {

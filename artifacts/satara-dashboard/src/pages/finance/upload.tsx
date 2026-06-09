@@ -1,16 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, CheckCircle, AlertCircle, Clock, FileText, RefreshCw } from "lucide-react";
+import { Upload, CheckCircle, AlertCircle, Clock, Sparkles, Loader2, FileText } from "lucide-react";
 import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 const FILE_TYPES = [
-  { key: "cashflow", label: "Cashflow", desc: "Laporan arus kas masuk dan keluar", accept: ".xlsx,.xls" },
-  { key: "general_ledger", label: "General Ledger", desc: "Buku besar / jurnal transaksi", accept: ".xlsx,.xls" },
-  { key: "hutang", label: "Hutang", desc: "Daftar hutang beserta jatuh tempo", accept: ".xlsx,.xls" },
-  { key: "piutang", label: "Piutang", desc: "Daftar piutang beserta jatuh tempo", accept: ".xlsx,.xls" },
-  { key: "bank", label: "Rekening Koran / Bank", desc: "Mutasi rekening bank", accept: ".xlsx,.xls" },
-  { key: "rab", label: "RAB Proyek", desc: "Rencana Anggaran Biaya per proyek", accept: ".xlsx,.xls" },
+  { key: "cashflow", label: "Cashflow", desc: "Laporan arus kas masuk dan keluar" },
+  { key: "general_ledger", label: "General Ledger", desc: "Buku besar / jurnal transaksi" },
+  { key: "hutang", label: "Hutang", desc: "Daftar hutang beserta jatuh tempo" },
+  { key: "piutang", label: "Piutang", desc: "Daftar piutang beserta jatuh tempo" },
+  { key: "bank", label: "Rekening Koran / Bank", desc: "Mutasi rekening bank" },
+  { key: "rab", label: "RAB Proyek", desc: "Rencana Anggaran Biaya per proyek" },
 ];
 
 function fmtDate(s: string) {
@@ -19,14 +19,19 @@ function fmtDate(s: string) {
   return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
 
+type Step = "select" | "preview" | "processing" | "done" | "error";
+
 export default function UploadCenter() {
   const qc = useQueryClient();
   const [selected, setSelected] = useState("cashflow");
   const [preview, setPreview] = useState<any[] | null>(null);
+  const [allRows, setAllRows] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [fileName, setFileName] = useState("");
-  const [step, setStep] = useState<"select" | "preview" | "done">("select");
-  const [msg, setMsg] = useState("");
+  const [step, setStep] = useState<Step>("select");
+  const [resultMsg, setResultMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [processingMsg, setProcessingMsg] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: uploads = [] } = useQuery({
@@ -34,50 +39,80 @@ export default function UploadCenter() {
     queryFn: () => fetch("/api/finance/uploads").then(r => r.json()),
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async (body: any) => {
-      const res = await fetch("/api/finance/uploads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      return res.json();
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-uploads"] }); },
-  });
-
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setErrorMsg("");
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const wb = XLSX.read(ev.target?.result, { type: "binary" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      if (rows.length === 0) return;
-      const hdrs = (rows[0] as any[]).map(String);
-      setHeaders(hdrs);
-      const dataRows = rows.slice(1, 11).map((row: any[]) => {
-        const obj: any = {};
-        hdrs.forEach((h, i) => { obj[h] = row[i] ?? ""; });
-        return obj;
-      });
-      setPreview(dataRows);
-      setStep("preview");
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        if (rawRows.length < 2) {
+          setErrorMsg("File kosong atau tidak memiliki baris data.");
+          return;
+        }
+        const hdrs = (rawRows[0] as any[]).map(v => String(v ?? "").trim()).filter(Boolean);
+        setHeaders(hdrs);
+        const dataRows = rawRows.slice(1).filter(row =>
+          (row as any[]).some(cell => cell !== null && cell !== undefined && cell !== "")
+        ).map((row: any[]) => {
+          const obj: any = {};
+          hdrs.forEach((h, i) => { obj[h] = row[i] ?? ""; });
+          return obj;
+        });
+        setAllRows(dataRows);
+        setPreview(dataRows.slice(0, 5));
+        setStep("preview");
+      } catch {
+        setErrorMsg("Gagal membaca file. Pastikan format .xlsx atau .xls.");
+      }
     };
     reader.readAsBinaryString(file);
   }
 
   async function confirmImport() {
-    const now = new Date();
-    const res = await uploadMutation.mutateAsync({
-      fileType: selected,
-      fileName,
-      periodYear: now.getFullYear(),
-      periodMonth: now.getMonth() + 1,
-      rowCount: preview?.length ?? 0,
-      status: "berhasil",
-    });
-    setMsg(`Berhasil: ${preview?.length ?? 0} baris data ${FILE_TYPES.find(f => f.key === selected)?.label} berhasil diimport.`);
-    setStep("done");
+    setStep("processing");
+    setProcessingMsg(`AI sedang membaca dan memetakan ${allRows.length} baris data...`);
+
+    try {
+      const res = await fetch("/api/finance/uploads/ai-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileType: selected,
+          fileName,
+          headers,
+          rows: allRows,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Import gagal");
+      const label = FILE_TYPES.find(f => f.key === selected)?.label ?? selected;
+      setResultMsg(`${data.inserted} baris data ${label} berhasil diimport oleh AI.`);
+      setStep("done");
+      qc.invalidateQueries({ queryKey: ["finance-uploads"] });
+      qc.invalidateQueries({ queryKey: ["finance-hutang"] });
+      qc.invalidateQueries({ queryKey: ["finance-piutang"] });
+      qc.invalidateQueries({ queryKey: ["finance-cashflow"] });
+      qc.invalidateQueries({ queryKey: ["finance-rab"] });
+    } catch (err: any) {
+      setErrorMsg(err.message ?? "Terjadi kesalahan saat import");
+      setStep("error");
+    }
+  }
+
+  function reset() {
+    setStep("select");
+    setFileName("");
     setPreview(null);
+    setAllRows([]);
+    setHeaders([]);
+    setErrorMsg("");
+    setResultMsg("");
+    if (inputRef.current) inputRef.current.value = "";
   }
 
   const lastByType: Record<string, any> = {};
@@ -91,7 +126,7 @@ export default function UploadCenter() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Upload Center</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Pusat upload semua file Excel sebagai sumber data SFAIS</p>
+        <p className="text-sm text-muted-foreground mt-0.5">AI membaca dokumen Excel format apapun dan memetakan data secara otomatis</p>
       </div>
 
       {/* Status per jenis data */}
@@ -115,28 +150,50 @@ export default function UploadCenter() {
 
       {/* Upload form */}
       <div className="rounded-xl border bg-card p-5">
-        <h2 className="text-sm font-semibold mb-4">Upload File Baru</h2>
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="size-4 text-amber-500" />
+          <h2 className="text-sm font-semibold">Upload File Baru — Dibaca oleh AI</h2>
+        </div>
 
         {step === "done" ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-emerald-600 text-sm">
-              <CheckCircle className="size-4" />
-              <span>{msg}</span>
+              <CheckCircle className="size-4 shrink-0" />
+              <span>{resultMsg}</span>
             </div>
-            <button onClick={() => { setStep("select"); setFileName(""); if (inputRef.current) inputRef.current.value = ""; }}
+            <button onClick={reset}
               className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md border hover:bg-muted transition-colors">
               <Upload className="size-3.5" />
               Upload File Lain
+            </button>
+          </div>
+        ) : step === "processing" ? (
+          <div className="flex flex-col items-center justify-center py-10 gap-4">
+            <Loader2 className="size-8 animate-spin text-amber-500" />
+            <div className="text-center">
+              <p className="text-sm font-medium">{processingMsg}</p>
+              <p className="text-xs text-muted-foreground mt-1">AI memetakan kolom ke skema database secara otomatis</p>
+            </div>
+          </div>
+        ) : step === "error" ? (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 text-red-600 text-sm">
+              <AlertCircle className="size-4 shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
+            <button onClick={reset}
+              className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md border hover:bg-muted transition-colors">
+              Coba Lagi
             </button>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Step 1: Pilih jenis */}
             <div>
-              <label className="text-xs text-muted-foreground font-medium mb-2 block">1. Pilih Jenis File</label>
+              <label className="text-xs text-muted-foreground font-medium mb-2 block">1. Pilih Jenis Data</label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {FILE_TYPES.map(ft => (
-                  <button key={ft.key} onClick={() => setSelected(ft.key)}
+                  <button key={ft.key} onClick={() => { setSelected(ft.key); reset(); }}
                     className={cn("rounded-lg border p-3 text-left transition-colors",
                       selected === ft.key ? "border-foreground bg-foreground/5" : "hover:bg-muted/50")}>
                     <div className="text-xs font-medium">{ft.label}</div>
@@ -154,39 +211,56 @@ export default function UploadCenter() {
                 <label htmlFor="file-upload" className="cursor-pointer">
                   <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
                   <div className="text-sm font-medium">Klik untuk pilih file</div>
-                  <div className="text-xs text-muted-foreground mt-1">Format: .xlsx, .xls</div>
-                  {fileName && <div className="text-xs text-emerald-600 mt-2 font-medium">{fileName}</div>}
+                  <div className="text-xs text-muted-foreground mt-1">Format: .xlsx, .xls — kolom bebas, AI akan memetakan otomatis</div>
+                  {fileName && <div className="text-xs text-emerald-600 mt-2 font-medium flex items-center justify-center gap-1"><FileText className="size-3" />{fileName}</div>}
                 </label>
               </div>
+              {errorMsg && (
+                <div className="flex items-center gap-2 text-red-600 text-xs mt-2">
+                  <AlertCircle className="size-3" />{errorMsg}
+                </div>
+              )}
             </div>
 
             {/* Step 3: Preview */}
             {step === "preview" && preview && (
               <div>
-                <label className="text-xs text-muted-foreground font-medium mb-2 block">3. Preview Data (10 baris pertama)</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs text-muted-foreground font-medium">3. Preview Data (5 baris pertama dari {allRows.length} total)</label>
+                  <div className="flex items-center gap-1 text-[10px] text-amber-600 font-medium">
+                    <Sparkles className="size-3" />
+                    AI akan memetakan semua {allRows.length} baris
+                  </div>
+                </div>
                 <div className="overflow-x-auto rounded-lg border">
                   <table className="text-xs w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        {headers.map(h => <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground">{h}</th>)}
+                        {headers.map(h => <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {preview.map((row, i) => (
                         <tr key={i} className="border-b last:border-0">
-                          {headers.map(h => <td key={h} className="px-3 py-2">{String(row[h] ?? "")}</td>)}
+                          {headers.map(h => <td key={h} className="px-3 py-2 whitespace-nowrap max-w-[150px] truncate">{String(row[h] ?? "")}</td>)}
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900">
+                  <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+                    <Sparkles className="size-3.5 shrink-0 mt-0.5" />
+                    <span>AI akan membaca nama kolom di file kamu dan memetakannya ke database secara otomatis, tanpa perlu format khusus.</span>
+                  </div>
+                </div>
                 <div className="flex items-center gap-3 mt-3">
-                  <button onClick={confirmImport} disabled={uploadMutation.isPending}
-                    className="flex items-center gap-2 bg-foreground text-background text-sm px-4 py-2 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50">
-                    <CheckCircle className="size-3.5" />
-                    {uploadMutation.isPending ? "Mengimport..." : "Konfirmasi Import"}
+                  <button onClick={confirmImport}
+                    className="flex items-center gap-2 bg-foreground text-background text-sm px-4 py-2 rounded-md hover:opacity-90 transition-opacity">
+                    <Sparkles className="size-3.5" />
+                    Proses dengan AI
                   </button>
-                  <button onClick={() => { setStep("select"); setPreview(null); setFileName(""); if (inputRef.current) inputRef.current.value = ""; }}
+                  <button onClick={reset}
                     className="text-sm px-4 py-2 rounded-md border hover:bg-muted transition-colors">
                     Batal
                   </button>
@@ -206,11 +280,9 @@ export default function UploadCenter() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Jenis File</th>
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Nama File</th>
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Tanggal</th>
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Baris</th>
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Status</th>
+                {["Jenis File","Nama File","Tanggal","Baris","Status"].map(h => (
+                  <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -219,7 +291,7 @@ export default function UploadCenter() {
               ) : uploads.map((u: any) => (
                 <tr key={u.id} className="border-b last:border-0">
                   <td className="px-4 py-2.5 text-xs font-medium">{FILE_TYPES.find(f => f.key === u.fileType)?.label ?? u.fileType}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground">{u.fileName}</td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{u.fileName}</td>
                   <td className="px-4 py-2.5 text-xs">{fmtDate(u.uploadedAt)}</td>
                   <td className="px-4 py-2.5 text-xs tabular-nums">{u.rowCount ?? "-"}</td>
                   <td className="px-4 py-2.5">
