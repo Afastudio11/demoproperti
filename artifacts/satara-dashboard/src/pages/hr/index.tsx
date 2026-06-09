@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Users, TrendingUp, AlertTriangle, DollarSign, Activity, Target, Star, UserX, Briefcase, ArrowUpRight } from "lucide-react";
@@ -44,7 +45,7 @@ const CustomDot = (props: any) => {
 export default function HRDashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["hr-dashboard"],
-    queryFn: () => fetch("/api/hr/dashboard").then(r => r.json()),
+    queryFn: () => fetch("/api/hr/dashboard").then(apiJson),
     refetchInterval: 30000,
   });
 

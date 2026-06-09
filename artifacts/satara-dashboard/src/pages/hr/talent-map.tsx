@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
@@ -28,7 +29,7 @@ export default function TalentMap() {
 
   const { data: dashboard } = useQuery({
     queryKey: ["hr-dashboard"],
-    queryFn: () => fetch("/api/hr/dashboard").then(r => r.json()),
+    queryFn: () => fetch("/api/hr/dashboard").then(apiJson),
   });
 
   const allTalents: any[] = dashboard?.talentMap ?? [];

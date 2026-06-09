@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2 } from "lucide-react";
@@ -19,19 +20,19 @@ export default function Training() {
   const [editId, setEditId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(r => r.json()) });
-  const { data: compDefs = [] } = useQuery<any[]>({ queryKey: ["hr-comp-defs"], queryFn: () => fetch("/api/hr/competency/definitions").then(r => r.json()) });
-  const { data: programs = [] } = useQuery<any[]>({ queryKey: ["hr-training"], queryFn: () => fetch("/api/hr/training/programs").then(r => r.json()) });
+  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(apiJson) });
+  const { data: compDefs = [] } = useQuery<any[]>({ queryKey: ["hr-comp-defs"], queryFn: () => fetch("/api/hr/competency/definitions").then(apiJson) });
+  const { data: programs = [] } = useQuery<any[]>({ queryKey: ["hr-training"], queryFn: () => fetch("/api/hr/training/programs").then(apiJson) });
 
   const save = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/training/programs/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/training/programs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/training/programs/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/training/programs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-training"] }); resetForm(); },
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/training/programs/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/training/programs/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-training"] }),
   });
 

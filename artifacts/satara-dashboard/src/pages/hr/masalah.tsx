@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Plus, Pencil, Trash2, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiJson } from "@/lib/api";
 
 const PROJECTS = ["Semua", "SN RESIDENCE", "SEKALA INDUSTRY"];
 
@@ -27,22 +28,24 @@ export default function HRMasalah() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [search, setSearch] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
   const params = new URLSearchParams(project !== "Semua" ? { project } : {});
   const { data = [], isLoading } = useQuery<Issue[]>({
     queryKey: ["hr-individual-issues", project],
-    queryFn: () => fetch(`/api/hr/individual-issues?${params}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/hr/individual-issues?${params}`).then(apiJson),
   });
 
   const saveMut = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/individual-issues/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/individual-issues", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-individual-issues"] }); setShowForm(false); setEditId(null); setForm({ ...emptyForm }); },
+      ? fetch(`/api/hr/individual-issues/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/individual-issues", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-individual-issues"] }); setShowForm(false); setEditId(null); setForm({ ...emptyForm }); setFormError(null); },
+    onError: (e: any) => setFormError(e.message),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/individual-issues/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/individual-issues/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-individual-issues"] }),
   });
 
@@ -138,12 +141,17 @@ export default function HRMasalah() {
               <input value={form.keterangan} onChange={e => setForm(f => ({ ...f, keterangan: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background" placeholder="cth: Open, Selesai, On-Progress" />
             </div>
           </div>
+          {formError && (
+            <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+              <AlertCircle className="size-3.5 shrink-0" /> {formError}
+            </div>
+          )}
           <div className="flex gap-2">
-            <button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending || !form.nama}
+            <button onClick={() => { setFormError(null); saveMut.mutate(form); }} disabled={saveMut.isPending || !form.nama}
               className="text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
               {saveMut.isPending ? "Menyimpan..." : "Simpan"}
             </button>
-            <button onClick={() => { setShowForm(false); setEditId(null); setForm({ ...emptyForm }); }} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
+            <button onClick={() => { setShowForm(false); setEditId(null); setForm({ ...emptyForm }); setFormError(null); }} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
           </div>
         </div>
       )}

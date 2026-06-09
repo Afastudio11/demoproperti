@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, ArrowRight } from "lucide-react";
@@ -30,19 +31,19 @@ export default function Karir() {
   const [showForm, setShowForm] = useState(false);
   const [filterDiv, setFilterDiv] = useState("");
 
-  const { data: paths = [] } = useQuery<any[]>({ queryKey: ["hr-career-paths"], queryFn: () => fetch("/api/hr/career-paths").then(r => r.json()) });
-  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(r => r.json()) });
-  const { data: kpiRecords = [] } = useQuery<any[]>({ queryKey: ["hr-kpi-records"], queryFn: () => fetch("/api/hr/kpi/records").then(r => r.json()) });
+  const { data: paths = [] } = useQuery<any[]>({ queryKey: ["hr-career-paths"], queryFn: () => fetch("/api/hr/career-paths").then(apiJson) });
+  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(apiJson) });
+  const { data: kpiRecords = [] } = useQuery<any[]>({ queryKey: ["hr-kpi-records"], queryFn: () => fetch("/api/hr/kpi/records").then(apiJson) });
 
   const save = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/career-paths/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/career-paths", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/career-paths/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/career-paths", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-career-paths"] }); resetForm(); },
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/career-paths/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/career-paths/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-career-paths"] }),
   });
 

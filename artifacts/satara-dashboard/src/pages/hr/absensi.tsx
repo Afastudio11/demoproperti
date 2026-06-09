@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Upload, Trash2, Plus, Filter } from "lucide-react";
+import { Calendar, Upload, Pencil, Trash2, Plus, Filter, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiJson } from "@/lib/api";
 
 const MONTHS = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
 const STATUS_COLORS: Record<string, string> = {
@@ -18,11 +19,12 @@ const STATUS_LABELS: Record<string, string> = {
 
 const PROJECTS = ["SN RESIDENCE", "SEKALA INDUSTRY", "Semua"];
 
+
 function buildAttendanceMatrix(rows: any[]) {
-  const byEmployee: Record<string, Record<number, string>> = {};
+  const byEmployee: Record<string, Record<number, { status: string; id: number }>> = {};
   for (const r of rows) {
     if (!byEmployee[r.employeeName]) byEmployee[r.employeeName] = {};
-    byEmployee[r.employeeName][r.day] = r.status ?? "";
+    byEmployee[r.employeeName][r.day] = { status: r.status ?? "", id: r.id };
   }
   return byEmployee;
 }
@@ -37,28 +39,32 @@ export default function HRAbsensi() {
   const [editId, setEditId] = useState<number | null>(null);
   const [importMode, setImportMode] = useState(false);
   const [bulkText, setBulkText] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const params = new URLSearchParams({ month, year: year.toString(), ...(project !== "Semua" ? { project } : {}) });
   const { data = [], isLoading } = useQuery<any[]>({
     queryKey: ["hr-attendance", month, year, project],
-    queryFn: () => fetch(`/api/hr/attendance?${params}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/hr/attendance?${params}`).then(apiJson),
   });
 
   const saveMut = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/attendance/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-attendance"] }); setShowForm(false); setEditId(null); },
+      ? fetch(`/api/hr/attendance/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-attendance"] }); setShowForm(false); setEditId(null); setFormError(null); },
+    onError: (e: any) => setFormError(e.message),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/attendance/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/attendance/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-attendance"] }),
   });
 
   const bulkMut = useMutation({
-    mutationFn: (records: any[]) => fetch("/api/hr/attendance/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ records }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-attendance"] }); setImportMode(false); setBulkText(""); },
+    mutationFn: (records: any[]) => fetch("/api/hr/attendance/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ records }) }).then(apiJson),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-attendance"] }); setImportMode(false); setBulkText(""); setImportError(null); },
+    onError: (e: any) => setImportError(e.message),
   });
 
   const matrix = buildAttendanceMatrix(data);
@@ -100,7 +106,7 @@ export default function HRAbsensi() {
           <button onClick={() => setImportMode(v => !v)} className="flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">
             <Upload className="size-3.5" /> Import
           </button>
-          <button onClick={() => { setShowForm(true); setEditId(null); setForm({ employeeName: "", project: project !== "Semua" ? project : "SN RESIDENCE", month, year, day: 1, status: "H" }); }}
+          <button onClick={() => { setShowForm(true); setEditId(null); setFormError(null); setForm({ employeeName: "", project: project !== "Semua" ? project : "SN RESIDENCE", month, year, day: 1, status: "H" }); }}
             className="flex items-center gap-1.5 text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90">
             <Plus className="size-3.5" /> Tambah
           </button>
@@ -137,11 +143,16 @@ export default function HRAbsensi() {
           <p className="text-xs text-muted-foreground">Format: NAMA [TAB] PROJECT [TAB] BULAN [TAB] TAHUN [TAB] Hari1 [TAB] Hari2 ... Hari31</p>
           <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={6}
             className="w-full text-xs border rounded-md p-2 font-mono bg-background" placeholder="Paste data Excel di sini..." />
+          {importError && (
+            <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+              <AlertCircle className="size-3.5 shrink-0" /> {importError}
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={handleImport} disabled={bulkMut.isPending} className="text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
               {bulkMut.isPending ? "Menyimpan..." : "Import Data"}
             </button>
-            <button onClick={() => setImportMode(false)} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
+            <button onClick={() => { setImportMode(false); setImportError(null); }} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
           </div>
         </div>
       )}
@@ -149,7 +160,7 @@ export default function HRAbsensi() {
       {/* Add/Edit form */}
       {showForm && (
         <div className="border rounded-xl p-4 space-y-3 bg-muted/30">
-          <h3 className="font-medium text-sm">{editId ? "Edit Record" : "Tambah Record Absensi"}</h3>
+          <h3 className="font-medium text-sm">{editId ? "Edit Record Absensi" : "Tambah Record Absensi"}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[["Nama Karyawan","employeeName","text"],["Project","project","text"],["Bulan","month","text"],["Tahun","year","number"],["Hari","day","number"],["Status (H/C/L/A/S/I)","status","text"]].map(([label, key, type]) => (
               <div key={key}>
@@ -173,11 +184,16 @@ export default function HRAbsensi() {
               </div>
             ))}
           </div>
+          {formError && (
+            <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+              <AlertCircle className="size-3.5 shrink-0" /> {formError}
+            </div>
+          )}
           <div className="flex gap-2">
-            <button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending} className="text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
+            <button onClick={() => { setFormError(null); saveMut.mutate(form); }} disabled={saveMut.isPending} className="text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
               {saveMut.isPending ? "Menyimpan..." : "Simpan"}
             </button>
-            <button onClick={() => { setShowForm(false); setEditId(null); }} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
+            <button onClick={() => { setShowForm(false); setEditId(null); setFormError(null); }} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
           </div>
         </div>
       )}
@@ -209,8 +225,8 @@ export default function HRAbsensi() {
             <tbody>
               {employees.map(emp => {
                 const days = matrix[emp] ?? {};
-                const hadir = Object.values(days).filter(s => s === "H" || s === "L").length;
-                const alpha = Object.values(days).filter(s => s === "A").length;
+                const hadir = Object.values(days).filter(d => d.status === "H" || d.status === "L").length;
+                const alpha = Object.values(days).filter(d => d.status === "A").length;
                 const empRows = data.filter(r => r.employeeName === emp);
                 const proj = empRows[0]?.project ?? "";
                 return (
@@ -219,11 +235,25 @@ export default function HRAbsensi() {
                     <td className="px-2 py-1.5 text-muted-foreground">{proj}</td>
                     {Array.from({ length: daysInMonth }, (_, i) => {
                       const d = i + 1;
-                      const status = days[d] ?? "";
+                      const cell = days[d];
+                      const status = cell?.status ?? "";
                       return (
                         <td key={d} className="px-0.5 py-1 text-center">
                           {status ? (
-                            <span className={cn("inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold", STATUS_COLORS[status] ?? "bg-muted text-muted-foreground")}>{status}</span>
+                            <button
+                              onClick={() => {
+                                if (cell) {
+                                  setEditId(cell.id);
+                                  const rec = empRows.find(r => r.day === d);
+                                  if (rec) setForm({ employeeName: rec.employeeName, project: rec.project ?? "", month: rec.month ?? "", year: rec.year ?? year, day: rec.day, status: rec.status ?? "H" });
+                                  setFormError(null);
+                                  setShowForm(true);
+                                }
+                              }}
+                              className={cn("inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold hover:ring-2 hover:ring-offset-1 hover:ring-current", STATUS_COLORS[status] ?? "bg-muted text-muted-foreground")}
+                            >
+                              {status}
+                            </button>
                           ) : (
                             <span className="inline-flex items-center justify-center w-5 h-5 rounded text-[10px] text-muted-foreground/40">·</span>
                           )}
@@ -233,12 +263,25 @@ export default function HRAbsensi() {
                     <td className="px-2 py-1.5 text-center font-semibold text-emerald-700">{hadir}</td>
                     <td className="px-2 py-1.5 text-center font-semibold text-red-600">{alpha}</td>
                     <td className="px-1 py-1.5">
-                      <button onClick={() => {
-                        const r = empRows[0];
-                        if (r) { setEditId(r.id); setForm({ employeeName: r.employeeName, project: r.project ?? "", month: r.month ?? "", year: r.year ?? year, day: r.day, status: r.status ?? "H" }); setShowForm(true); }
-                      }} className="text-muted-foreground hover:text-foreground p-1">
-                        <Trash2 className="size-3" />
-                      </button>
+                      <div className="flex gap-0.5">
+                        <button
+                          onClick={() => {
+                            const r = empRows[0];
+                            if (r) { setEditId(r.id); setForm({ employeeName: r.employeeName, project: r.project ?? "", month: r.month ?? "", year: r.year ?? year, day: r.day, status: r.status ?? "H" }); setFormError(null); setShowForm(true); }
+                          }}
+                          className="text-muted-foreground hover:text-foreground p-1"
+                          title="Edit"
+                        >
+                          <Pencil className="size-3" />
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Hapus semua data ${emp} bulan ini?`)) { empRows.forEach(r => deleteMut.mutate(r.id)); } }}
+                          className="text-muted-foreground hover:text-destructive p-1"
+                          title="Hapus semua"
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
@@ -56,7 +57,7 @@ function HCGaugeLarge({ score, status }: { score: number; status: string }) {
 export default function HCScore() {
   const { data, isLoading } = useQuery({
     queryKey: ["hr-dashboard"],
-    queryFn: () => fetch("/api/hr/dashboard").then(r => r.json()),
+    queryFn: () => fetch("/api/hr/dashboard").then(apiJson),
     refetchInterval: 30000,
   });
 

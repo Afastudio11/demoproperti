@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, Download } from "lucide-react";
@@ -24,18 +25,18 @@ export default function Kompensasi() {
   const [filterYear, setFilterYear] = useState(now.getFullYear());
   const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1);
 
-  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(r => r.json()) });
-  const { data: records = [] } = useQuery<any[]>({ queryKey: ["hr-compensation"], queryFn: () => fetch("/api/hr/compensation").then(r => r.json()) });
+  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(apiJson) });
+  const { data: records = [] } = useQuery<any[]>({ queryKey: ["hr-compensation"], queryFn: () => fetch("/api/hr/compensation").then(apiJson) });
 
   const save = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/compensation/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/compensation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/compensation/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/compensation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-compensation"] }); qc.invalidateQueries({ queryKey: ["hr-dashboard"] }); resetForm(); },
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/compensation/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/compensation/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-compensation"] }); qc.invalidateQueries({ queryKey: ["hr-dashboard"] }); },
   });
 

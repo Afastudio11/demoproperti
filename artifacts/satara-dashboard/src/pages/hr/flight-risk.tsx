@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, AlertTriangle } from "lucide-react";
@@ -14,18 +15,18 @@ export default function FlightRisk() {
   const [showForm, setShowForm] = useState(false);
   const [filterYear, setFilterYear] = useState(now.getFullYear());
 
-  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(r => r.json()) });
-  const { data: records = [] } = useQuery<any[]>({ queryKey: ["hr-flight-risk"], queryFn: () => fetch("/api/hr/flight-risk").then(r => r.json()) });
+  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(apiJson) });
+  const { data: records = [] } = useQuery<any[]>({ queryKey: ["hr-flight-risk"], queryFn: () => fetch("/api/hr/flight-risk").then(apiJson) });
 
   const save = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/flight-risk/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/flight-risk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/flight-risk/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/flight-risk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-flight-risk"] }); qc.invalidateQueries({ queryKey: ["hr-dashboard"] }); resetForm(); },
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/flight-risk/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/flight-risk/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-flight-risk"] }); qc.invalidateQueries({ queryKey: ["hr-dashboard"] }); },
   });
 

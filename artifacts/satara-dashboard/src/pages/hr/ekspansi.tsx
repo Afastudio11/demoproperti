@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2 } from "lucide-react";
@@ -11,21 +12,21 @@ export default function Ekspansi() {
   const [editId, setEditId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(r => r.json()) });
-  const { data: needs = [] } = useQuery<any[]>({ queryKey: ["hr-expansion-needs"], queryFn: () => fetch("/api/hr/expansion").then(r => r.json()) });
-  const { data: kpiRecords = [] } = useQuery<any[]>({ queryKey: ["hr-kpi-records"], queryFn: () => fetch("/api/hr/kpi/records").then(r => r.json()) });
-  const { data: compScores = [] } = useQuery<any[]>({ queryKey: ["hr-comp-scores"], queryFn: () => fetch("/api/hr/competency/scores").then(r => r.json()) });
-  const { data: compDefs = [] } = useQuery<any[]>({ queryKey: ["hr-comp-defs"], queryFn: () => fetch("/api/hr/competency/definitions").then(r => r.json()) });
+  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(apiJson) });
+  const { data: needs = [] } = useQuery<any[]>({ queryKey: ["hr-expansion-needs"], queryFn: () => fetch("/api/hr/expansion").then(apiJson) });
+  const { data: kpiRecords = [] } = useQuery<any[]>({ queryKey: ["hr-kpi-records"], queryFn: () => fetch("/api/hr/kpi/records").then(apiJson) });
+  const { data: compScores = [] } = useQuery<any[]>({ queryKey: ["hr-comp-scores"], queryFn: () => fetch("/api/hr/competency/scores").then(apiJson) });
+  const { data: compDefs = [] } = useQuery<any[]>({ queryKey: ["hr-comp-defs"], queryFn: () => fetch("/api/hr/competency/definitions").then(apiJson) });
 
   const save = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/expansion/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/expansion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/expansion/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/expansion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-expansion-needs"] }); resetForm(); },
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/expansion/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/expansion/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-expansion-needs"] }),
   });
 

@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2 } from "lucide-react";
@@ -41,31 +42,31 @@ export default function Kompetensi() {
   const [selectedEmpId, setSelectedEmpId] = useState<number | null>(null);
   const [tab, setTab] = useState<"definisi" | "assessment">("definisi");
 
-  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(r => r.json()) });
-  const { data: defs = [] } = useQuery<any[]>({ queryKey: ["hr-comp-defs"], queryFn: () => fetch("/api/hr/competency/definitions").then(r => r.json()) });
-  const { data: scores = [] } = useQuery<any[]>({ queryKey: ["hr-comp-scores"], queryFn: () => fetch("/api/hr/competency/scores").then(r => r.json()) });
+  const { data: employees = [] } = useQuery<any[]>({ queryKey: ["hr-employees"], queryFn: () => fetch("/api/hr/employees").then(apiJson) });
+  const { data: defs = [] } = useQuery<any[]>({ queryKey: ["hr-comp-defs"], queryFn: () => fetch("/api/hr/competency/definitions").then(apiJson) });
+  const { data: scores = [] } = useQuery<any[]>({ queryKey: ["hr-comp-scores"], queryFn: () => fetch("/api/hr/competency/scores").then(apiJson) });
 
   const saveDef = useMutation({
     mutationFn: (body: any) => editDefId
-      ? fetch(`/api/hr/competency/definitions/${editDefId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/competency/definitions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/competency/definitions/${editDefId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/competency/definitions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-comp-defs"] }); setShowDefForm(false); setDefForm(EMPTY_DEF); setEditDefId(null); },
   });
 
   const delDef = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/competency/definitions/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/competency/definitions/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-comp-defs"] }),
   });
 
   const saveScore = useMutation({
     mutationFn: (body: any) => editScoreId
-      ? fetch(`/api/hr/competency/scores/${editScoreId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/competency/scores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/competency/scores/${editScoreId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/competency/scores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-comp-scores"] }); qc.invalidateQueries({ queryKey: ["hr-dashboard"] }); setShowScoreForm(false); setScoreForm(EMPTY_SCORE); setEditScoreId(null); },
   });
 
   const delScore = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/competency/scores/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/competency/scores/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-comp-scores"] }),
   });
 

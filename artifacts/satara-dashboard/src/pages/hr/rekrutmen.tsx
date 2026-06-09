@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, ChevronDown, ChevronRight, Users } from "lucide-react";
@@ -28,29 +29,29 @@ export default function Rekrutmen() {
   const [editCandId, setEditCandId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  const { data: needs = [] } = useQuery<any[]>({ queryKey: ["hr-recruitment-needs"], queryFn: () => fetch("/api/hr/recruitment/needs").then(r => r.json()) });
+  const { data: needs = [] } = useQuery<any[]>({ queryKey: ["hr-recruitment-needs"], queryFn: () => fetch("/api/hr/recruitment/needs").then(apiJson) });
 
   const saveNeed = useMutation({
     mutationFn: (body: any) => editNeedId
-      ? fetch(`/api/hr/recruitment/needs/${editNeedId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/recruitment/needs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/recruitment/needs/${editNeedId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/recruitment/needs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-recruitment-needs"] }); setShowNeedForm(false); setNeedForm(EMPTY_NEED); setEditNeedId(null); },
   });
 
   const delNeed = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/recruitment/needs/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/recruitment/needs/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-recruitment-needs"] }),
   });
 
   const saveCand = useMutation({
     mutationFn: (body: any) => editCandId
-      ? fetch(`/api/hr/recruitment/candidates/${editCandId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/recruitment/candidates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/recruitment/candidates/${editCandId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/recruitment/candidates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-recruitment-needs"] }); setShowCandForm(false); setCandForm(EMPTY_CAND); setEditCandId(null); },
   });
 
   const delCand = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/recruitment/candidates/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/recruitment/candidates/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-recruitment-needs"] }),
   });
 

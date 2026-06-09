@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, Upload, Plus, Filter } from "lucide-react";
+import { Clock, Upload, Plus, Filter, AlertCircle } from "lucide-react";
+import { apiJson } from "@/lib/api";
 
 const MONTHS = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
 const PROJECTS = ["SN RESIDENCE", "SEKALA INDUSTRY", "Semua"];
@@ -15,6 +16,7 @@ type OvertimeRow = {
   terlambatMenit: number;
   lemburJam: string;
 };
+
 
 function buildOvertimeMatrix(rows: OvertimeRow[]) {
   const byEmployee: Record<string, { terlambat: Record<number, number>; lembur: Record<number, number>; project: string }> = {};
@@ -37,28 +39,32 @@ export default function HRLembur() {
   const [importMode, setImportMode] = useState(false);
   const [bulkText, setBulkText] = useState("");
   const [viewMode, setViewMode] = useState<"terlambat" | "lembur">("lembur");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const params = new URLSearchParams({ month, year: year.toString(), ...(project !== "Semua" ? { project } : {}) });
   const { data = [], isLoading } = useQuery<OvertimeRow[]>({
     queryKey: ["hr-overtime", month, year, project],
-    queryFn: () => fetch(`/api/hr/overtime?${params}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/hr/overtime?${params}`).then(apiJson),
   });
 
   const saveMut = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/overtime/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/overtime", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-overtime"] }); setShowForm(false); setEditId(null); },
+      ? fetch(`/api/hr/overtime/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/overtime", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-overtime"] }); setShowForm(false); setEditId(null); setFormError(null); },
+    onError: (e: any) => setFormError(e.message),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/overtime/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/overtime/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-overtime"] }),
   });
 
   const bulkMut = useMutation({
-    mutationFn: (records: any[]) => fetch("/api/hr/overtime/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ records }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-overtime"] }); setImportMode(false); setBulkText(""); },
+    mutationFn: (records: any[]) => fetch("/api/hr/overtime/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ records }) }).then(apiJson),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-overtime"] }); setImportMode(false); setBulkText(""); setImportError(null); },
+    onError: (e: any) => setImportError(e.message),
   });
 
   const matrix = buildOvertimeMatrix(data);
@@ -89,6 +95,7 @@ export default function HRLembur() {
           records.push({ employeeName: empName, project: proj, month: m, year: y, day: d, terlambatMenit: terlambat, lemburJam: lembur.toString() });
         }
       }
+      void no;
     }
     if (records.length) bulkMut.mutate(records);
   }
@@ -104,7 +111,7 @@ export default function HRLembur() {
           <button onClick={() => setImportMode(v => !v)} className="flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">
             <Upload className="size-3.5" /> Import
           </button>
-          <button onClick={() => { setShowForm(true); setEditId(null); setForm({ employeeName: "", project: project !== "Semua" ? project : "SN RESIDENCE", month, year, day: 1, terlambatMenit: 0, lemburJam: 0 }); }}
+          <button onClick={() => { setShowForm(true); setEditId(null); setFormError(null); setForm({ employeeName: "", project: project !== "Semua" ? project : "SN RESIDENCE", month, year, day: 1, terlambatMenit: 0, lemburJam: 0 }); }}
             className="flex items-center gap-1.5 text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90">
             <Plus className="size-3.5" /> Tambah
           </button>
@@ -152,11 +159,16 @@ export default function HRLembur() {
           <p className="text-xs text-muted-foreground">Format: No [TAB] NAMA [TAB] PROJECT [TAB] BULAN [TAB] TAHUN [TAB] TERLAMBAT_1 [TAB] LEMBUR_1 [TAB] TERLAMBAT_2 [TAB] LEMBUR_2 ... (per hari)</p>
           <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={6}
             className="w-full text-xs border rounded-md p-2 font-mono bg-background" placeholder="Paste data Excel di sini..." />
+          {importError && (
+            <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+              <AlertCircle className="size-3.5 shrink-0" /> {importError}
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={handleImport} disabled={bulkMut.isPending} className="text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
               {bulkMut.isPending ? "Menyimpan..." : "Import Data"}
             </button>
-            <button onClick={() => setImportMode(false)} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
+            <button onClick={() => { setImportMode(false); setImportError(null); }} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
           </div>
         </div>
       )}
@@ -164,7 +176,7 @@ export default function HRLembur() {
       {/* Add/Edit form */}
       {showForm && (
         <div className="border rounded-xl p-4 space-y-3 bg-muted/30">
-          <h3 className="font-medium text-sm">{editId ? "Edit Record" : "Tambah Record Lembur"}</h3>
+          <h3 className="font-medium text-sm">{editId ? "Edit Record Lembur" : "Tambah Record Lembur"}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[["Nama Karyawan","employeeName","text"],["Hari","day","number"],["Terlambat (menit)","terlambatMenit","number"],["Lembur (jam)","lemburJam","number"]].map(([label, key, type]) => (
               <div key={key}>
@@ -190,12 +202,17 @@ export default function HRLembur() {
               <input type="number" value={form.year} onChange={e => setForm(f => ({ ...f, year: Number(e.target.value) }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background" />
             </div>
           </div>
+          {formError && (
+            <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+              <AlertCircle className="size-3.5 shrink-0" /> {formError}
+            </div>
+          )}
           <div className="flex gap-2">
-            <button onClick={() => saveMut.mutate({ ...form, lemburJam: form.lemburJam.toString() })} disabled={saveMut.isPending}
+            <button onClick={() => { setFormError(null); saveMut.mutate({ ...form, lemburJam: form.lemburJam.toString() }); }} disabled={saveMut.isPending}
               className="text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
               {saveMut.isPending ? "Menyimpan..." : "Simpan"}
             </button>
-            <button onClick={() => { setShowForm(false); setEditId(null); }} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
+            <button onClick={() => { setShowForm(false); setEditId(null); setFormError(null); }} className="text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50">Batal</button>
           </div>
         </div>
       )}
@@ -253,7 +270,7 @@ export default function HRLembur() {
                       <button onClick={() => {
                         const r = data.find(x => x.employeeName === emp);
                         if (r) deleteMut.mutate(r.id);
-                      }} className="text-muted-foreground hover:text-red-500 p-1 text-[10px]">×</button>
+                      }} className="text-muted-foreground hover:text-destructive p-1 text-[10px]">×</button>
                     </td>
                   </tr>
                 );

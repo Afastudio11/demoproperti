@@ -1,3 +1,4 @@
+import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, AlertTriangle } from "lucide-react";
@@ -26,17 +27,17 @@ export default function Workload() {
   const [filterYear, setFilterYear] = useState(now.getFullYear());
   const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1);
 
-  const { data: records = [] } = useQuery<any[]>({ queryKey: ["hr-workload"], queryFn: () => fetch("/api/hr/workload").then(r => r.json()) });
+  const { data: records = [] } = useQuery<any[]>({ queryKey: ["hr-workload"], queryFn: () => fetch("/api/hr/workload").then(apiJson) });
 
   const save = useMutation({
     mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/workload/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
-      : fetch("/api/hr/workload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      ? fetch(`/api/hr/workload/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
+      : fetch("/api/hr/workload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-workload"] }); qc.invalidateQueries({ queryKey: ["hr-dashboard"] }); resetForm(); },
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/hr/workload/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/hr/workload/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-workload"] }); qc.invalidateQueries({ queryKey: ["hr-dashboard"] }); },
   });
 
