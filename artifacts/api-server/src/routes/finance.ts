@@ -14,6 +14,9 @@ import {
 } from "@workspace/db";
 import { eq, desc, sql, and, lte, gte, lt } from "drizzle-orm";
 import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+// pdf-parse is CJS — require is available via the ESM banner in build.mjs
+const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number; info: any }> =
+  (globalThis as any).require("pdf-parse");
 
 const router = Router();
 
@@ -367,6 +370,151 @@ Contoh: {"creditorName": "NAMA PEMILIK", "totalAmount": "NILAI AWAL", "projectNa
     }
 
     res.json({ uploadId, inserted, colMap, totalRows });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── PDF IMPORT ───────────────────────────────────────────────────────────────
+// Menerima PDF sebagai base64, ekstrak teks, AI parsing → insert ke DB
+router.post("/finance/uploads/pdf-import", async (req, res) => {
+  try {
+    const { fileType, fileName, pdfBase64 } = req.body as {
+      fileType: string;
+      fileName: string;
+      pdfBase64: string;
+    };
+
+    if (!pdfBase64) {
+      res.status(400).json({ error: "Tidak ada data PDF" });
+      return;
+    }
+
+    // Decode base64 → Buffer → extract text
+    const pdfBuffer = Buffer.from(pdfBase64, "base64");
+    const parsed = await pdfParse(pdfBuffer);
+    const rawText = parsed.text;
+
+    if (!rawText?.trim()) {
+      res.status(400).json({ error: "PDF tidak mengandung teks yang bisa dibaca (mungkin PDF scan/gambar)" });
+      return;
+    }
+
+    const SCHEMA_TARGETS: Record<string, string> = {
+      hutang: `JSON array of objects:
+[{ "projectName": "...", "stageInfo": "...", "creditorName": "...", "totalAmount": number, "paidAmount": number, "remainingAmount": number, "landArea": number|null, "status": "outstanding"|"paid"|"overdue", "notes": "..." }]`,
+      piutang: `JSON array: [{ "debtorName": "...", "category": "customer"|"internal"|"vendor", "totalAmount": number, "dueDate": "YYYY-MM-DD"|null, "status": "current"|"overdue"|"paid", "notes": "..." }]`,
+      cashflow: `JSON array: [{ "transactionDate": "YYYY-MM-DD", "type": "cash_in"|"cash_out", "category": "...", "projectName": "...", "amount": number, "description": "...", "referenceNumber": "..." }]`,
+      rab: `JSON array: [{ "projectName": "...", "stageCode": "...", "itemName": "...", "itemCategory": "...", "rabAmount": number, "realizationAmount": number }]`,
+      general_ledger: `JSON array: [{ "transactionDate": "YYYY-MM-DD", "type": "cash_in"|"cash_out", "category": "...", "projectName": "...", "amount": number, "description": "...", "referenceNumber": "..." }]`,
+      bank: `JSON array: [{ "transactionDate": "YYYY-MM-DD", "type": "cash_in"|"cash_out", "category": "bank", "projectName": "...", "amount": number, "description": "...", "referenceNumber": "..." }]`,
+    };
+
+    const targetSchema = SCHEMA_TARGETS[fileType] ?? SCHEMA_TARGETS["cashflow"];
+    const ai = createDeepSeekClient();
+
+    // Split text into pages for context (limit total tokens)
+    const textToSend = rawText.length > 15000 ? rawText.slice(0, 15000) + "\n...(dipotong)" : rawText;
+
+    const prompt = `Kamu adalah sistem ekstraksi data keuangan dari dokumen PDF.
+
+JENIS DATA: ${fileType}
+NAMA FILE: ${fileName}
+JUMLAH HALAMAN: ${parsed.numpages}
+
+ISI DOKUMEN PDF:
+${textToSend}
+
+TUGAS:
+Ekstrak SEMUA data keuangan dari teks di atas dan kembalikan sebagai ${targetSchema}
+
+ATURAN PENTING:
+1. Bersihkan angka: hilangkan "Rp", titik ribuan, ganti koma desimal dengan titik
+2. Format tanggal ke YYYY-MM-DD, kenali format Indonesia (DD/MM/YYYY, DD Month YYYY, dll)
+3. Ekstra semua baris/entri yang ditemukan, jangan lewatkan satu pun
+4. Jika field tidak ada, gunakan null atau 0 atau "" sesuai tipe
+5. Untuk hutang: totalAmount = nilai awal, paidAmount = yang sudah dibayar, remainingAmount = sisa
+
+Kembalikan HANYA JSON array yang valid, tanpa penjelasan atau markdown.`;
+
+    const completion = await ai.chat.completions.create({
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: "Kembalikan hanya JSON array yang valid. Tidak ada teks lain." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 8000,
+    });
+
+    let rawContent = completion.choices[0]?.message?.content ?? "[]";
+    const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error("AI tidak mengembalikan JSON array yang valid dari PDF");
+    const mapped: any[] = JSON.parse(jsonMatch[0]);
+
+    const now = new Date();
+    const [uploadLog] = await db.insert(financeUploadsTable).values({
+      fileType, fileName: fileName,
+      periodYear: now.getFullYear(), periodMonth: now.getMonth() + 1,
+      rowCount: mapped.length, status: "berhasil",
+    }).returning();
+    const uploadId = uploadLog.id;
+    let inserted = 0;
+    const BATCH = 100;
+
+    if (fileType === "hutang") {
+      const dbRows = mapped.map((r: any) => {
+        const orig = Number(r.totalAmount) || 0;
+        const paid = Number(r.paidAmount) || 0;
+        const remaining = Number(r.remainingAmount) || Math.max(0, orig - paid);
+        return {
+          uploadId, projectName: r.projectName || null, stageInfo: r.stageInfo || null,
+          creditorName: String(r.creditorName || "Tidak diketahui"),
+          category: "supplier", totalAmount: String(orig), paidAmount: String(paid),
+          remainingAmount: String(remaining), landArea: r.landArea ? String(r.landArea) : null,
+          status: remaining <= 0 ? "paid" : "outstanding", notes: r.notes || "",
+          metadata: { source: "pdf", pages: parsed.numpages },
+        };
+      });
+      for (let i = 0; i < dbRows.length; i += BATCH) {
+        const result = await db.insert(debtRecordsTable).values(dbRows.slice(i, i + BATCH)).returning();
+        inserted += result.length;
+      }
+    } else if (fileType === "piutang") {
+      const dbRows = mapped.map((r: any) => ({
+        uploadId, debtorName: String(r.debtorName || ""), category: r.category || "customer",
+        totalAmount: String(Number(r.totalAmount) || 0), dueDate: r.dueDate || null,
+        status: r.status || "current", notes: r.notes || "",
+      }));
+      for (let i = 0; i < dbRows.length; i += BATCH) {
+        const result = await db.insert(receivableRecordsTable).values(dbRows.slice(i, i + BATCH)).returning();
+        inserted += result.length;
+      }
+    } else if (["cashflow", "general_ledger", "bank"].includes(fileType)) {
+      const dbRows = mapped.map((r: any) => ({
+        uploadId, transactionDate: r.transactionDate || now.toISOString().split("T")[0],
+        type: r.type || "cash_in", category: r.category || "lainnya",
+        projectName: r.projectName || "", amount: String(Math.abs(Number(r.amount) || 0)),
+        description: r.description || "", referenceNumber: r.referenceNumber || "",
+      }));
+      for (let i = 0; i < dbRows.length; i += BATCH) {
+        const result = await db.insert(cashflowRecordsTable).values(dbRows.slice(i, i + BATCH)).returning();
+        inserted += result.length;
+      }
+    } else if (fileType === "rab") {
+      const dbRows = mapped.map((r: any) => ({
+        uploadId, projectName: r.projectName || "", stageCode: r.stageCode || "",
+        itemName: r.itemName || "", itemCategory: r.itemCategory || "",
+        rabAmount: String(Number(r.rabAmount) || 0),
+        realizationAmount: String(Number(r.realizationAmount) || 0),
+      }));
+      for (let i = 0; i < dbRows.length; i += BATCH) {
+        const result = await db.insert(rabItemsTable).values(dbRows.slice(i, i + BATCH)).returning();
+        inserted += result.length;
+      }
+    }
+
+    res.json({ uploadId, inserted, pages: parsed.numpages, extractedChars: rawText.length });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
