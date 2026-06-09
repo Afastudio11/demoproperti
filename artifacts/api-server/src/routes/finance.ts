@@ -175,166 +175,198 @@ router.post("/finance/uploads/piutang", async (req, res) => {
 // kolom ke skema database secara otomatis — format Excel apapun bisa dibaca.
 router.post("/finance/uploads/ai-import", async (req, res) => {
   try {
-    const { fileType, fileName, headers, rows } = req.body as {
+    const { fileType, fileName, sheets } = req.body as {
       fileType: string;
       fileName: string;
-      headers: string[];
-      rows: Record<string, any>[];
+      // Each sheet: { name, headers, rows }
+      sheets: Array<{ name: string; headers: string[]; rows: Record<string, any>[] }>;
     };
 
-    if (!rows?.length) {
+    if (!sheets?.length || !sheets.some(s => s.rows?.length)) {
       res.status(400).json({ error: "Tidak ada data untuk diimport" });
       return;
     }
 
-    const SCHEMAS: Record<string, string> = {
-      hutang: `Array of objects with fields:
-- creditorName: string (nama kreditur/bank/vendor)
-- category: "kpp" | "vendor" | "supplier" | "internal" (pilih yang paling cocok)
-- totalAmount: number (angka Rupiah, hilangkan "Rp", titik/koma pemisah ribuan)
-- dueDate: string format "YYYY-MM-DD" (tanggal jatuh tempo)
-- status: "outstanding" | "paid" | "overdue" (default "outstanding" jika tidak ada info)
-- notes: string (catatan, boleh kosong "")`,
-
-      piutang: `Array of objects with fields:
-- debtorName: string (nama debitur/pelanggan)
-- category: "customer" | "internal" | "vendor"
-- totalAmount: number (angka Rupiah)
-- dueDate: string format "YYYY-MM-DD"
-- status: "current" | "overdue" | "paid" (default "current")
-- notes: string`,
-
-      cashflow: `Array of objects with fields:
-- transactionDate: string format "YYYY-MM-DD"
-- type: "cash_in" | "cash_out"
-- category: string (kategori transaksi)
-- projectName: string (nama proyek, boleh kosong "")
-- amount: number (nilai absolut, selalu positif)
-- description: string (keterangan)
-- referenceNumber: string (no. referensi, boleh kosong "")`,
-
-      rab: `Array of objects with fields:
-- projectName: string (nama proyek)
-- stageCode: string (kode tahap: LAND, PLAN, LEGAL, SELL, BUILD, AKAD, HANDOVER)
-- itemName: string (nama item pekerjaan)
-- itemCategory: string (kategori item)
-- rabAmount: number (anggaran dalam Rupiah)
-- realizationAmount: number (realisasi dalam Rupiah, 0 jika belum ada)`,
-
-      general_ledger: `Array of objects with fields:
-- transactionDate: string format "YYYY-MM-DD"
-- type: "cash_in" | "cash_out" (debit = cash_in, kredit = cash_out)
-- category: string
-- projectName: string
-- amount: number
-- description: string
-- referenceNumber: string`,
-
-      bank: `Array of objects with fields:
-- transactionDate: string format "YYYY-MM-DD"
-- type: "cash_in" | "cash_out" (kredit/masuk = cash_in, debit/keluar = cash_out)
-- category: "bank"
-- projectName: string
-- amount: number (nilai absolut)
-- description: string
-- referenceNumber: string`,
-    };
-
-    const targetSchema = SCHEMAS[fileType] ?? SCHEMAS["cashflow"];
-    const sampleRows = rows.slice(0, 20);
-
-    const ai = createDeepSeekClient();
-    const prompt = `Kamu adalah sistem ekstraksi data keuangan. Tugas kamu: baca data Excel berikut dan petakan ke skema target.
-
-JENIS DATA: ${fileType}
-NAMA FILE: ${fileName}
-HEADER KOLOM: ${JSON.stringify(headers)}
-CONTOH DATA (${sampleRows.length} baris pertama dari ${rows.length} total):
-${JSON.stringify(sampleRows, null, 2)}
-
-SKEMA TARGET:
-${targetSchema}
-
-INSTRUKSI PENTING:
-1. Petakan SEMUA ${rows.length} baris data (bukan hanya sampel)
-2. Bersihkan format angka Rupiah (hilangkan "Rp", titik, ganti koma dengan titik desimal)
-3. Format tanggal ke "YYYY-MM-DD" — kenali format Indonesia (DD/MM/YYYY, DD-MM-YYYY, dll)
-4. Jika kolom tidak ada, gunakan nilai default yang logis
-5. Skip baris yang kosong atau hanya berisi header
-6. Untuk category, gunakan inferensi konteks jika tidak eksplisit
-
-DATA LENGKAP SEMUA BARIS:
-${JSON.stringify(rows, null, 2)}
-
-Kembalikan HANYA JSON array yang valid tanpa komentar atau penjelasan. Format: [{"field": "value", ...}, ...]`;
-
-    const completion = await ai.chat.completions.create({
-      model: DEEPSEEK_MODEL,
-      messages: [
-        { role: "system", content: "Kamu adalah sistem ekstraksi data. Selalu kembalikan JSON array yang valid." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.1,
-    });
-
-    let rawContent = completion.choices[0]?.message?.content ?? "[]";
-    const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error("AI tidak mengembalikan JSON array yang valid");
-    const mapped: any[] = JSON.parse(jsonMatch[0]);
-
-    const now = new Date();
-    const [uploadLog] = await db.insert(financeUploadsTable).values({
-      fileType,
-      fileName,
-      periodYear: now.getFullYear(),
-      periodMonth: now.getMonth() + 1,
-      rowCount: mapped.length,
-      status: "berhasil",
-    }).returning();
-
-    const uploadId = uploadLog.id;
-    let inserted = 0;
-
-    if (fileType === "hutang") {
-      const dbRows = mapped.map((r: any) => ({
-        uploadId, creditorName: String(r.creditorName ?? ""), category: r.category ?? "vendor",
-        totalAmount: String(Number(r.totalAmount) || 0), dueDate: r.dueDate || null,
-        status: r.status ?? "outstanding", notes: r.notes ?? "",
-      }));
-      const result = await db.insert(debtRecordsTable).values(dbRows).returning();
-      inserted = result.length;
-
-    } else if (fileType === "piutang") {
-      const dbRows = mapped.map((r: any) => ({
-        uploadId, debtorName: String(r.debtorName ?? ""), category: r.category ?? "customer",
-        totalAmount: String(Number(r.totalAmount) || 0), dueDate: r.dueDate || null,
-        status: r.status ?? "current", notes: r.notes ?? "",
-      }));
-      const result = await db.insert(receivableRecordsTable).values(dbRows).returning();
-      inserted = result.length;
-
-    } else if (fileType === "cashflow" || fileType === "general_ledger" || fileType === "bank") {
-      const dbRows = mapped.map((r: any) => ({
-        uploadId, transactionDate: r.transactionDate, type: r.type ?? "cash_in",
-        category: r.category ?? "lainnya", projectName: r.projectName ?? "",
-        amount: String(Math.abs(Number(r.amount) || 0)),
-        description: r.description ?? "", referenceNumber: r.referenceNumber ?? "",
-      }));
-      const result = await db.insert(cashflowRecordsTable).values(dbRows).returning();
-      inserted = result.length;
-
-    } else if (fileType === "rab") {
-      const dbRows = mapped.map((r: any) => ({
-        uploadId, projectName: r.projectName ?? "", stageCode: r.stageCode ?? "",
-        itemName: r.itemName ?? "", itemCategory: r.itemCategory ?? "",
-        rabAmount: String(Number(r.rabAmount) || 0),
-        realizationAmount: String(Number(r.realizationAmount) || 0),
-      }));
-      const result = await db.insert(rabItemsTable).values(dbRows).returning();
-      inserted = result.length;
+    // ── Helper: clean number from Rupiah format ──────────────────────────────
+    function cleanNum(v: any): number {
+      if (v === null || v === undefined || v === "") return 0;
+      if (typeof v === "number") return v;
+      const s = String(v).replace(/Rp\.?\s*/gi, "").replace(/\./g, "").replace(/,/g, ".");
+      return parseFloat(s) || 0;
     }
 
-    res.json({ uploadId, inserted, mapped: mapped.slice(0, 5) });
+    // ── Helper: fuzzy find column by keywords ────────────────────────────────
+    function findCol(headers: string[], keywords: string[]): string | null {
+      const hLow = headers.map(h => h.toLowerCase().trim());
+      for (const kw of keywords) {
+        const idx = hLow.findIndex(h => h.includes(kw.toLowerCase()));
+        if (idx !== -1) return headers[idx];
+      }
+      return null;
+    }
+
+    // ── Step 1: Use AI to detect column mapping (sample only, fast) ──────────
+    const firstSheet = sheets[0];
+    const sampleRows = firstSheet.rows.slice(0, 5);
+
+    const SCHEMA_HINTS: Record<string, string> = {
+      hutang: `Fields needed: projectName (nama proyek), stageInfo (tahap/fase), creditorName (nama pemilik/kreditur), totalAmount (nilai awal/total), paidAmount (terbayar/sudah dibayar), remainingAmount (sisa kewajiban/belum terbayar), landArea (luas tanah m2/m3), category (kpp|vendor|supplier|internal — default supplier for land), notes (keterangan).`,
+      piutang: `Fields needed: debtorName, category (customer|internal|vendor), totalAmount, dueDate (YYYY-MM-DD), status (current|overdue|paid), notes.`,
+      cashflow: `Fields needed: transactionDate (YYYY-MM-DD), type (cash_in|cash_out), category, projectName, amount (positive number), description, referenceNumber.`,
+      rab: `Fields needed: projectName, stageCode, itemName, itemCategory, rabAmount, realizationAmount.`,
+      general_ledger: `Fields needed: transactionDate (YYYY-MM-DD), type (cash_in|cash_out — debit=cash_in kredit=cash_out), category, projectName, amount, description, referenceNumber.`,
+      bank: `Fields needed: transactionDate (YYYY-MM-DD), type (cash_in|cash_out — kredit=cash_in debit=cash_out), category (bank), projectName, amount, description, referenceNumber.`,
+    };
+
+    const ai = createDeepSeekClient();
+    const mappingPrompt = `Kamu adalah sistem deteksi kolom Excel. Tentukan mapping kolom Excel ke field target.
+
+FILE: ${fileName}
+SHEET PERTAMA: ${firstSheet.name}
+HEADERS: ${JSON.stringify(firstSheet.headers)}
+SAMPLE DATA (3 baris): ${JSON.stringify(sampleRows.slice(0, 3), null, 2)}
+
+TARGET FIELDS:
+${SCHEMA_HINTS[fileType] ?? SCHEMA_HINTS["cashflow"]}
+
+Kembalikan HANYA JSON object mapping: {"targetField": "ExcelColumnName", ...}
+Jika kolom tidak ada di Excel, set ke null.
+Contoh: {"creditorName": "NAMA PEMILIK", "totalAmount": "NILAI AWAL", "projectName": "NAMA PROJECT", "paidAmount": "NILAI TERBAYAR"}`;
+
+    const mappingResp = await ai.chat.completions.create({
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: "Kembalikan hanya JSON object yang valid, tanpa penjelasan." },
+        { role: "user", content: mappingPrompt },
+      ],
+      temperature: 0,
+      max_tokens: 500,
+    });
+
+    let colMap: Record<string, string | null> = {};
+    try {
+      const raw = mappingResp.choices[0]?.message?.content ?? "{}";
+      const match = raw.match(/\{[\s\S]*\}/);
+      colMap = match ? JSON.parse(match[0]) : {};
+    } catch { colMap = {}; }
+
+    // ── Step 2: Process ALL rows from ALL sheets with rule-based transform ────
+    const now = new Date();
+    const allSheetRows: Record<string, any>[] = [];
+    for (const sheet of sheets) {
+      for (const row of sheet.rows) {
+        allSheetRows.push({ ...row, _sheet: sheet.name });
+      }
+    }
+
+    function getVal(row: Record<string, any>, field: string, fallbackKeys: string[] = []): any {
+      const mappedCol = colMap[field];
+      if (mappedCol && row[mappedCol] !== undefined && row[mappedCol] !== "") return row[mappedCol];
+      for (const k of fallbackKeys) {
+        const found = findCol(Object.keys(row), [k]);
+        if (found && row[found] !== undefined && row[found] !== "") return row[found];
+      }
+      return null;
+    }
+
+    const totalRows = allSheetRows.length;
+    const [uploadLog] = await db.insert(financeUploadsTable).values({
+      fileType, fileName, periodYear: now.getFullYear(), periodMonth: now.getMonth() + 1,
+      rowCount: totalRows, status: "berhasil",
+    }).returning();
+    const uploadId = uploadLog.id;
+    let inserted = 0;
+    const BATCH = 100;
+
+    if (fileType === "hutang") {
+      const dbRows = allSheetRows.map((row) => {
+        const creditor = getVal(row, "creditorName", ["pemilik", "kreditur", "vendor", "nama"]);
+        const project = getVal(row, "projectName", ["project", "proyek"]);
+        const stage = getVal(row, "stageInfo", ["tahap", "fase", "phase"]);
+        const orig = cleanNum(getVal(row, "totalAmount", ["awal", "total", "nilai", "harga"]));
+        const paid = cleanNum(getVal(row, "paidAmount", ["terbayar", "bayar", "dibayar", "lunas"]));
+        const remaining = cleanNum(getVal(row, "remainingAmount", ["sisa", "kewajiban", "outstanding", "belum"]));
+        const land = cleanNum(getVal(row, "landArea", ["luas", "m2", "m3", "area"]));
+        const keterangan = getVal(row, "notes", ["keterangan", "catatan", "note"]);
+        const effectiveRemaining = remaining > 0 ? remaining : Math.max(0, orig - paid);
+        const status = effectiveRemaining <= 0 ? "paid" : "outstanding";
+        if (!creditor && orig === 0) return null;
+        return {
+          uploadId, projectName: project ? String(project).trim() : null,
+          stageInfo: stage ? String(stage).trim() : null,
+          creditorName: String(creditor ?? "").trim() || "Tidak diketahui",
+          category: "supplier", totalAmount: String(orig),
+          paidAmount: String(paid), remainingAmount: String(effectiveRemaining),
+          landArea: land > 0 ? String(land) : null, status, notes: keterangan ? String(keterangan) : "",
+          metadata: { sheet: row._sheet, rawRow: row },
+        };
+      }).filter(Boolean) as any[];
+
+      for (let i = 0; i < dbRows.length; i += BATCH) {
+        const batch = dbRows.slice(i, i + BATCH);
+        const result = await db.insert(debtRecordsTable).values(batch).returning();
+        inserted += result.length;
+      }
+
+    } else if (fileType === "piutang") {
+      const dbRows = allSheetRows.map((row) => {
+        const debtor = getVal(row, "debtorName", ["debitur", "pelanggan", "customer", "nama"]);
+        const orig = cleanNum(getVal(row, "totalAmount", ["jumlah", "piutang", "tagihan", "nilai"]));
+        if (!debtor && orig === 0) return null;
+        return {
+          uploadId, debtorName: String(debtor ?? "").trim() || "Tidak diketahui",
+          category: getVal(row, "category", ["kategori"]) ?? "customer",
+          totalAmount: String(orig), dueDate: null, status: "current",
+          notes: String(getVal(row, "notes", ["keterangan", "catatan"]) ?? ""),
+        };
+      }).filter(Boolean) as any[];
+      for (let i = 0; i < dbRows.length; i += BATCH) {
+        const result = await db.insert(receivableRecordsTable).values(dbRows.slice(i, i + BATCH)).returning();
+        inserted += result.length;
+      }
+
+    } else if (fileType === "cashflow" || fileType === "general_ledger" || fileType === "bank") {
+      const dbRows = allSheetRows.map((row) => {
+        const amt = cleanNum(getVal(row, "amount", ["jumlah", "nominal", "debit", "kredit", "nilai"]));
+        const txDate = getVal(row, "transactionDate", ["tanggal", "tgl", "date"]);
+        if (!txDate && amt === 0) return null;
+        return {
+          uploadId, transactionDate: txDate ?? now.toISOString().split("T")[0],
+          type: getVal(row, "type", ["jenis", "tipe"]) ?? "cash_in",
+          category: String(getVal(row, "category", ["kategori"]) ?? "lainnya"),
+          projectName: String(getVal(row, "projectName", ["proyek", "project"]) ?? ""),
+          amount: String(Math.abs(amt)),
+          description: String(getVal(row, "description", ["keterangan", "uraian", "deskripsi"]) ?? ""),
+          referenceNumber: String(getVal(row, "referenceNumber", ["no", "nomor", "ref"]) ?? ""),
+        };
+      }).filter(Boolean) as any[];
+      for (let i = 0; i < dbRows.length; i += BATCH) {
+        const result = await db.insert(cashflowRecordsTable).values(dbRows.slice(i, i + BATCH)).returning();
+        inserted += result.length;
+      }
+
+    } else if (fileType === "rab") {
+      const dbRows = allSheetRows.map((row) => {
+        const item = getVal(row, "itemName", ["item", "pekerjaan", "uraian", "nama"]);
+        const rab = cleanNum(getVal(row, "rabAmount", ["anggaran", "rab", "rencana", "nilai"]));
+        if (!item && rab === 0) return null;
+        return {
+          uploadId,
+          projectName: String(getVal(row, "projectName", ["proyek", "project"]) ?? ""),
+          stageCode: String(getVal(row, "stageCode", ["tahap", "kode", "stage"]) ?? ""),
+          itemName: String(item ?? ""),
+          itemCategory: String(getVal(row, "itemCategory", ["kategori"]) ?? ""),
+          rabAmount: String(rab),
+          realizationAmount: String(cleanNum(getVal(row, "realizationAmount", ["realisasi", "aktual", "terbayar"]))),
+        };
+      }).filter(Boolean) as any[];
+      for (let i = 0; i < dbRows.length; i += BATCH) {
+        const result = await db.insert(rabItemsTable).values(dbRows.slice(i, i + BATCH)).returning();
+        inserted += result.length;
+      }
+    }
+
+    res.json({ uploadId, inserted, colMap, totalRows });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -447,31 +479,48 @@ router.post("/finance/kpp/:id/payment", async (req, res) => {
 // ─── HUTANG CENTER ────────────────────────────────────────────────────────────
 router.get("/finance/hutang", async (req, res) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
     const d30 = new Date(); d30.setDate(d30.getDate() + 30);
     const d60 = new Date(); d60.setDate(d60.getDate() + 60);
 
-    const records = await db.select().from(debtRecordsTable).where(eq(debtRecordsTable.status, "outstanding")).orderBy(debtRecordsTable.dueDate);
+    const records = await db.select().from(debtRecordsTable).orderBy(debtRecordsTable.projectName, debtRecordsTable.createdAt);
 
-    const byCategory: Record<string, { total: number; lt30: number; d30_60: number; gt60: number; items: any[] }> = {};
+    // Group by project
+    const byProject: Record<string, { totalAmount: number; paidAmount: number; remainingAmount: number; items: any[] }> = {};
+    const byCategory: Record<string, { total: number; lt30: number; d30_60: number; gt60: number }> = {};
     let totalAll = 0;
+    let totalPaid = 0;
+    let totalRemaining = 0;
 
     for (const r of records) {
-      const amt = Number(r.totalAmount);
+      const orig = Number(r.totalAmount);
+      const paid = Number(r.paidAmount ?? 0);
+      const remaining = Number(r.remainingAmount ?? (orig - paid));
       const due = r.dueDate ? new Date(r.dueDate) : null;
+      const proj = r.projectName ?? "Lainnya";
       const cat = r.category;
-      if (!byCategory[cat]) byCategory[cat] = { total: 0, lt30: 0, d30_60: 0, gt60: 0, items: [] };
-      byCategory[cat].total += amt;
-      totalAll += amt;
+
+      // By project
+      if (!byProject[proj]) byProject[proj] = { totalAmount: 0, paidAmount: 0, remainingAmount: 0, items: [] };
+      byProject[proj].totalAmount += orig;
+      byProject[proj].paidAmount += paid;
+      byProject[proj].remainingAmount += remaining;
+      byProject[proj].items.push({ ...r, totalAmount: orig, paidAmount: paid, remainingAmount: remaining });
+
+      // By category (use remaining for aging)
+      if (!byCategory[cat]) byCategory[cat] = { total: 0, lt30: 0, d30_60: 0, gt60: 0 };
+      byCategory[cat].total += orig;
       if (due) {
-        if (due <= d30) byCategory[cat].lt30 += amt;
-        else if (due <= d60) byCategory[cat].d30_60 += amt;
-        else byCategory[cat].gt60 += amt;
+        if (due <= d30) byCategory[cat].lt30 += orig;
+        else if (due <= d60) byCategory[cat].d30_60 += orig;
+        else byCategory[cat].gt60 += orig;
       }
-      byCategory[cat].items.push(r);
+
+      totalAll += orig;
+      totalPaid += paid;
+      totalRemaining += remaining;
     }
 
-    res.json({ byCategory, total: totalAll, records });
+    res.json({ byProject, byCategory, total: totalAll, totalPaid, totalRemaining, records });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -479,8 +528,15 @@ router.get("/finance/hutang", async (req, res) => {
 
 router.post("/finance/hutang", async (req, res) => {
   try {
-    const { creditorName, category, totalAmount, dueDate, notes } = req.body;
-    const [row] = await db.insert(debtRecordsTable).values({ creditorName, category, totalAmount: String(totalAmount), dueDate, notes, status: "outstanding" }).returning();
+    const { creditorName, category, totalAmount, paidAmount, remainingAmount, projectName, stageInfo, dueDate, notes } = req.body;
+    const paid = Number(paidAmount ?? 0);
+    const orig = Number(totalAmount ?? 0);
+    const remaining = Number(remainingAmount ?? (orig - paid));
+    const status = remaining <= 0 ? "paid" : "outstanding";
+    const [row] = await db.insert(debtRecordsTable).values({
+      creditorName, category, totalAmount: String(orig), paidAmount: String(paid),
+      remainingAmount: String(remaining), projectName, stageInfo, dueDate, notes, status,
+    }).returning();
     res.json(row);
   } catch (e: any) {
     res.status(500).json({ error: e.message });

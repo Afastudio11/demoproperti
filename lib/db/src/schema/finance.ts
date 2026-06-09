@@ -64,12 +64,18 @@ export const kppPaymentsTable = pgTable("finance_kpp_payments", {
 export const debtRecordsTable = pgTable("finance_debt_records", {
   id: serial("id").primaryKey(),
   uploadId: integer("upload_id"),
+  projectName: text("project_name"),
+  stageInfo: text("stage_info"),
   creditorName: text("creditor_name").notNull(),
   category: text("category").notNull(),
   totalAmount: numeric("total_amount", { precision: 18, scale: 2 }).notNull(),
+  paidAmount: numeric("paid_amount", { precision: 18, scale: 2 }).default("0"),
+  remainingAmount: numeric("remaining_amount", { precision: 18, scale: 2 }).default("0"),
+  landArea: numeric("land_area", { precision: 14, scale: 4 }),
   dueDate: date("due_date"),
   status: text("status").notNull().default("outstanding"),
   notes: text("notes"),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

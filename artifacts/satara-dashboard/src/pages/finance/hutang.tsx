@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { AlertTriangle, Plus, Upload } from "lucide-react";
+import { AlertTriangle, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -10,16 +9,19 @@ function fmtRp(n: number) {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
-const CATS = ["kpp", "vendor", "supplier", "internal"];
-const CAT_LABELS: Record<string, string> = { kpp: "KPP", vendor: "Vendor", supplier: "Supplier", internal: "Internal" };
+function fmtPct(paid: number, total: number) {
+  if (!total) return 0;
+  return Math.round((paid / total) * 100);
+}
 
-const EMPTY = { creditorName: "", category: "vendor", totalAmount: "", dueDate: "", notes: "" };
+const EMPTY = { creditorName: "", category: "supplier", totalAmount: "", paidAmount: "", dueDate: "", notes: "", projectName: "", stageInfo: "" };
 
 export default function HutangCenter() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY);
-  const [catFilter, setCatFilter] = useState("semua");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [viewMode, setViewMode] = useState<"proyek" | "daftar">("proyek");
 
   const { data, isLoading } = useQuery({
     queryKey: ["finance-hutang"],
@@ -27,185 +29,254 @@ export default function HutangCenter() {
     refetchInterval: 60000,
   });
 
-  const byCategory: Record<string, any> = data?.byCategory ?? {};
-  const total = data?.total ?? 0;
+  const byProject: Record<string, any> = data?.byProject ?? {};
   const records: any[] = data?.records ?? [];
+  const totalAll = data?.total ?? 0;
+  const totalPaid = data?.totalPaid ?? 0;
+  const totalRemaining = data?.totalRemaining ?? 0;
 
   const addDebt = useMutation({
-    mutationFn: (body: any) => fetch("/api/finance/hutang", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch("/api/finance/hutang", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-hutang"] }); setShowForm(false); setForm(EMPTY); },
   });
 
-  const chartData = CATS.map(cat => ({
-    name: CAT_LABELS[cat],
-    lt30: byCategory[cat]?.lt30 ?? 0,
-    d30_60: byCategory[cat]?.d30_60 ?? 0,
-    gt60: byCategory[cat]?.gt60 ?? 0,
-  }));
-
-  const totalLt30 = CATS.reduce((s, c) => s + (byCategory[c]?.lt30 ?? 0), 0);
-  const totalD30_60 = CATS.reduce((s, c) => s + (byCategory[c]?.d30_60 ?? 0), 0);
-
-  const filtered = catFilter === "semua" ? records : records.filter(r => r.category === catFilter);
-
   const isEmpty = records.length === 0;
+  const projects = Object.keys(byProject).sort();
+
+  function toggleProject(p: string) {
+    setExpanded(prev => ({ ...prev, [p]: !prev[p] }));
+  }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Hutang Center</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Monitoring seluruh kewajiban hutang perusahaan</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Monitoring kewajiban hutang pembebasan lahan per proyek</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
-            <Plus className="size-3.5" />
-            Tambah Hutang
-          </button>
-        </div>
+        <button onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
+          <Plus className="size-3.5" />
+          Tambah Hutang
+        </button>
       </div>
 
-      {isEmpty && !isLoading && (
+      {isEmpty && !isLoading ? (
         <div className="rounded-xl border-2 border-dashed p-8 text-center">
-          <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
+          <AlertTriangle className="size-8 mx-auto mb-2 text-muted-foreground" />
           <p className="text-sm font-medium">Data hutang belum tersedia</p>
-          <p className="text-xs text-muted-foreground mt-1 mb-3">Upload file hutang di Upload Center atau tambah data manual</p>
+          <p className="text-xs text-muted-foreground mt-1">Upload file hutang di Upload Center atau tambah data manual</p>
         </div>
-      )}
-
-      {/* Metric cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl border bg-card p-4">
-          <div className="text-xs text-muted-foreground mb-1.5">Total Hutang</div>
-          <div className="text-xl font-bold tabular-nums text-red-500">{fmtRp(total)}</div>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <div className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1"><AlertTriangle className="size-3 text-red-500" />Jatuh Tempo &lt;30 Hari</div>
-          <div className={cn("text-xl font-bold tabular-nums", totalLt30 > 0 ? "text-red-500" : "")}>{fmtRp(totalLt30)}</div>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <div className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1"><AlertTriangle className="size-3 text-amber-500" />Jatuh Tempo 30-60 Hari</div>
-          <div className={cn("text-xl font-bold tabular-nums", totalD30_60 > 0 ? "text-amber-500" : "")}>{fmtRp(totalD30_60)}</div>
-        </div>
-      </div>
-
-      {/* Summary Table by Category */}
-      {!isEmpty && (
-        <div className="rounded-xl border bg-card">
-          <div className="p-4 border-b"><h2 className="text-sm font-semibold">Ringkasan per Kategori</h2></div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/30">
-                  {["Kategori","Total Hutang","Jatuh Tempo <30 Hari","Jatuh Tempo 30-60 Hari","Jatuh Tempo >60 Hari"].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {CATS.map(cat => {
-                  const d = byCategory[cat];
-                  if (!d) return null;
-                  return (
-                    <tr key={cat} className="border-b last:border-0">
-                      <td className="px-4 py-2.5 font-medium">{CAT_LABELS[cat]}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-red-500">{fmtRp(d.total)}</td>
-                      <td className={cn("px-4 py-2.5 tabular-nums", d.lt30 > 0 ? "text-red-600 font-semibold" : "")}>{fmtRp(d.lt30)}</td>
-                      <td className={cn("px-4 py-2.5 tabular-nums", d.d30_60 > 0 ? "text-amber-500" : "")}>{fmtRp(d.d30_60)}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{fmtRp(d.gt60)}</td>
-                    </tr>
-                  );
-                })}
-                <tr className="bg-muted/30 font-semibold">
-                  <td className="px-4 py-2.5">Total</td>
-                  <td className="px-4 py-2.5 tabular-nums text-red-500">{fmtRp(total)}</td>
-                  <td className="px-4 py-2.5 tabular-nums text-red-600">{fmtRp(totalLt30)}</td>
-                  <td className="px-4 py-2.5 tabular-nums text-amber-500">{fmtRp(totalD30_60)}</td>
-                  <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{fmtRp(CATS.reduce((s, c) => s + (byCategory[c]?.gt60 ?? 0), 0))}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Bar chart */}
-      {!isEmpty && (
-        <div className="rounded-xl border bg-card p-4">
-          <h2 className="text-sm font-semibold mb-4">Hutang per Kategori (Aging)</h2>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData} barSize={18}>
-              <CartesianGrid strokeDasharray="3 3" className="opacity-10" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v / 1e6).toFixed(0)}Jt`} />
-              <Tooltip formatter={(v: number, k: string) => [fmtRp(v), k === "lt30" ? "<30 Hari" : k === "d30_60" ? "30-60 Hari" : ">60 Hari"]} />
-              <Bar dataKey="lt30" fill="#ef4444" name="lt30" />
-              <Bar dataKey="d30_60" fill="#f59e0b" name="d30_60" />
-              <Bar dataKey="gt60" fill="#6b7280" name="gt60" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Detail table */}
-      {!isEmpty && (
-        <div className="rounded-xl border bg-card">
-          <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Detail Hutang</h2>
-            <div className="flex gap-1">
-              {["semua", ...CATS].map(c => (
-                <button key={c} onClick={() => setCatFilter(c)} className={cn("text-xs px-2.5 py-1 rounded-md transition-colors",
-                  catFilter === c ? "bg-foreground text-background" : "border hover:bg-muted")}>
-                  {c === "semua" ? "Semua" : CAT_LABELS[c]}
-                </button>
-              ))}
+      ) : (
+        <>
+          {/* Top metric cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border bg-card p-4">
+              <div className="text-xs text-muted-foreground mb-1.5">Total Nilai Awal</div>
+              <div className="text-xl font-bold tabular-nums text-foreground">{fmtRp(totalAll)}</div>
+              <div className="text-[11px] text-muted-foreground mt-1">{projects.length} proyek · {records.length} kreditur</div>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <div className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                <span className="size-2 rounded-full bg-emerald-500 inline-block" />
+                Sudah Terbayar
+              </div>
+              <div className="text-xl font-bold tabular-nums text-emerald-500">{fmtRp(totalPaid)}</div>
+              <div className="text-[11px] text-muted-foreground mt-1">{fmtPct(totalPaid, totalAll)}% dari total</div>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <div className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                <AlertTriangle className="size-3 text-amber-500" />
+                Sisa Kewajiban
+              </div>
+              <div className={cn("text-xl font-bold tabular-nums", totalRemaining > 0 ? "text-amber-500" : "text-emerald-500")}>
+                {fmtRp(totalRemaining)}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">{fmtPct(totalRemaining, totalAll)}% belum terbayar</div>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b bg-muted/30">{["Kreditur","Kategori","Total Hutang","Jatuh Tempo","Status"].map(h => <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>)}</tr></thead>
-              <tbody>
-                {filtered.map((r: any) => {
-                  const isUrgent = r.dueDate && new Date(r.dueDate) <= new Date(Date.now() + 14 * 86400000);
-                  return (
-                    <tr key={r.id} className={cn("border-b last:border-0", isUrgent ? "bg-red-50/50 dark:bg-red-950/10" : "")}>
-                      <td className="px-4 py-2.5 font-medium">{r.creditorName}{isUrgent && <AlertTriangle className="inline size-3 text-red-500 ml-1.5" />}</td>
-                      <td className="px-4 py-2.5 text-xs">{CAT_LABELS[r.category] ?? r.category}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-red-500 font-medium">{fmtRp(Number(r.totalAmount))}</td>
-                      <td className="px-4 py-2.5 text-xs">{r.dueDate ?? "-"}</td>
-                      <td className="px-4 py-2.5"><span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium",
-                        r.status === "outstanding" ? "bg-amber-100 text-amber-700" : r.status === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
-                        {r.status}
-                      </span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+
+          {/* View toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Tampilkan:</span>
+            {(["proyek", "daftar"] as const).map(m => (
+              <button key={m} onClick={() => setViewMode(m)}
+                className={cn("text-xs px-2.5 py-1 rounded-md border transition-colors",
+                  viewMode === m ? "bg-foreground text-background" : "hover:bg-muted")}>
+                {m === "proyek" ? "Per Proyek" : "Daftar Lengkap"}
+              </button>
+            ))}
           </div>
-        </div>
+
+          {/* Per-project view */}
+          {viewMode === "proyek" && (
+            <div className="space-y-3">
+              {projects.map(proj => {
+                const pd = byProject[proj];
+                const pct = fmtPct(pd.paidAmount, pd.totalAmount);
+                const isOpen = expanded[proj];
+                return (
+                  <div key={proj} className="rounded-xl border bg-card overflow-hidden">
+                    {/* Project header */}
+                    <button
+                      onClick={() => toggleProject(proj)}
+                      className="w-full p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left"
+                    >
+                      {isOpen ? <ChevronDown className="size-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="size-4 shrink-0 text-muted-foreground" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <span className="font-semibold text-sm">{proj}</span>
+                          <span className="text-xs text-muted-foreground">{pd.items.length} kreditur</span>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="mt-2 flex items-center gap-3">
+                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-muted-foreground shrink-0">{pct}% terbayar</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 ml-4">
+                        <div className="text-xs text-muted-foreground">Nilai Awal</div>
+                        <div className="text-sm font-semibold tabular-nums">{fmtRp(pd.totalAmount)}</div>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-[11px] text-emerald-500 tabular-nums">{fmtRp(pd.paidAmount)} terbayar</span>
+                          <span className={cn("text-[11px] tabular-nums", pd.remainingAmount > 0 ? "text-amber-500" : "text-emerald-500")}>
+                            {fmtRp(pd.remainingAmount)} sisa
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Expanded: detail per creditor */}
+                    {isOpen && (
+                      <div className="border-t overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/30">
+                              {["Tahap", "Nama Pemilik/Kreditur", "Nilai Awal", "Terbayar", "Sisa Kewajiban", "Status", "Keterangan"].map(h => (
+                                <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pd.items.map((r: any) => {
+                              const remaining = Number(r.remainingAmount ?? 0);
+                              return (
+                                <tr key={r.id} className={cn("border-b last:border-0", remaining > 0 ? "" : "bg-emerald-50/30 dark:bg-emerald-950/10")}>
+                                  <td className="px-3 py-2 text-muted-foreground">{r.stageInfo || "-"}</td>
+                                  <td className="px-3 py-2 font-medium max-w-[180px] truncate">{r.creditorName}</td>
+                                  <td className="px-3 py-2 tabular-nums">{fmtRp(Number(r.totalAmount))}</td>
+                                  <td className="px-3 py-2 tabular-nums text-emerald-600 font-medium">{fmtRp(Number(r.paidAmount ?? 0))}</td>
+                                  <td className={cn("px-3 py-2 tabular-nums font-medium", remaining > 0 ? "text-amber-500" : "text-emerald-500")}>
+                                    {fmtRp(remaining)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium",
+                                      r.status === "paid" ? "bg-emerald-100 text-emerald-700" :
+                                        r.status === "outstanding" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
+                                      {r.status === "paid" ? "Lunas" : r.status === "outstanding" ? "Belum Lunas" : r.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2 text-muted-foreground max-w-[150px] truncate">{r.notes || "-"}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-muted/30 font-semibold">
+                              <td colSpan={2} className="px-3 py-2 text-xs">Subtotal {proj}</td>
+                              <td className="px-3 py-2 tabular-nums text-xs">{fmtRp(pd.totalAmount)}</td>
+                              <td className="px-3 py-2 tabular-nums text-xs text-emerald-600">{fmtRp(pd.paidAmount)}</td>
+                              <td className={cn("px-3 py-2 tabular-nums text-xs", pd.remainingAmount > 0 ? "text-amber-500" : "text-emerald-500")}>
+                                {fmtRp(pd.remainingAmount)}
+                              </td>
+                              <td colSpan={2} className="px-3 py-2 text-xs text-muted-foreground">{pd.items.filter((i: any) => i.status === "paid").length}/{pd.items.length} lunas</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Flat list view */}
+          {viewMode === "daftar" && (
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      {["Proyek", "Tahap", "Kreditur", "Nilai Awal", "Terbayar", "Sisa", "Status"].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((r: any) => {
+                      const remaining = Number(r.remainingAmount ?? 0);
+                      return (
+                        <tr key={r.id} className="border-b last:border-0 text-xs">
+                          <td className="px-4 py-2 font-medium text-xs">{r.projectName || "-"}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{r.stageInfo || "-"}</td>
+                          <td className="px-4 py-2 max-w-[160px] truncate">{r.creditorName}</td>
+                          <td className="px-4 py-2 tabular-nums">{fmtRp(Number(r.totalAmount))}</td>
+                          <td className="px-4 py-2 tabular-nums text-emerald-600">{fmtRp(Number(r.paidAmount ?? 0))}</td>
+                          <td className={cn("px-4 py-2 tabular-nums font-medium", remaining > 0 ? "text-amber-500" : "text-emerald-500")}>
+                            {fmtRp(remaining)}
+                          </td>
+                          <td className="px-4 py-2">
+                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium",
+                              r.status === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                              {r.status === "paid" ? "Lunas" : "Belum Lunas"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Form */}
+      {/* Add form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-sm p-5 space-y-3">
+          <div className="rounded-xl border bg-background w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
             <h2 className="text-sm font-semibold">Tambah Data Hutang</h2>
-            {[{ key: "creditorName", label: "Nama Kreditur", type: "text" },{ key: "totalAmount", label: "Total Hutang (Rp)", type: "number" },{ key: "dueDate", label: "Jatuh Tempo", type: "date" }].map(f => (
-              <div key={f.key}><label className="text-xs text-muted-foreground">{f.label}</label>
-                <input type={f.type} value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background" />
-              </div>
-            ))}
-            <div><label className="text-xs text-muted-foreground">Kategori</label>
-              <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background">
-                {CATS.map(c => <option key={c} value={c}>{CAT_LABELS[c]}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: "projectName", label: "Nama Proyek", type: "text" },
+                { key: "stageInfo", label: "Tahap", type: "text" },
+                { key: "creditorName", label: "Nama Kreditur/Pemilik", type: "text" },
+                { key: "totalAmount", label: "Nilai Awal (Rp)", type: "number" },
+                { key: "paidAmount", label: "Sudah Terbayar (Rp)", type: "number" },
+                { key: "dueDate", label: "Jatuh Tempo", type: "date" },
+              ].map(f => (
+                <div key={f.key} className={f.key === "creditorName" ? "col-span-2" : ""}>
+                  <label className="text-xs text-muted-foreground">{f.label}</label>
+                  <input type={f.type} value={(form as any)[f.key]}
+                    onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background" />
+                </div>
+              ))}
             </div>
-            <div><label className="text-xs text-muted-foreground">Catatan</label>
-              <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background resize-none" />
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground">Keterangan</label>
+              <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                rows={2} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background resize-none" />
             </div>
             <div className="flex gap-2 pt-1">
-              <button onClick={() => addDebt.mutate(form)} disabled={addDebt.isPending} className="flex-1 bg-foreground text-background text-sm py-2 rounded-md hover:opacity-90 disabled:opacity-50">
+              <button onClick={() => addDebt.mutate(form)} disabled={addDebt.isPending}
+                className="flex-1 bg-foreground text-background text-sm py-2 rounded-md hover:opacity-90 disabled:opacity-50">
                 {addDebt.isPending ? "Menyimpan..." : "Simpan"}
               </button>
               <button onClick={() => setShowForm(false)} className="flex-1 border text-sm py-2 rounded-md hover:bg-muted">Batal</button>
