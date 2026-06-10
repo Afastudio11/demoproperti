@@ -106,64 +106,6 @@ export default function FinanceDashboard() {
         </Link>
       </div>
 
-      {/* Row 1 — Finance Health Score */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="sm:col-span-1">
-          {isLoading ? <div className="h-28 rounded-xl border bg-muted/30 animate-pulse" /> : <FinanceGauge score={score} status={status} />}
-        </div>
-        <div className="sm:col-span-2 grid grid-cols-3 gap-2">
-          {[
-            { label: "Likuiditas", value: score >= 80 ? "Baik" : score >= 60 ? "Cukup" : "Rendah" },
-            { label: "Hutang", value: kpp < 5e9 ? "Terkendali" : "Perlu Perhatian" },
-            { label: "Cashflow", value: net >= 0 ? "Positif" : "Negatif" },
-            { label: "Profitabilitas", value: "Normal" },
-            { label: "Kinerja Proyek", value: "On Track" },
-            { label: "Forecast", value: net >= 0 ? "Positif" : "Perlu Review" },
-          ].map(item => (
-            <div key={item.label} className="rounded-lg border bg-card p-3">
-              <div className="text-[10px] text-muted-foreground">{item.label}</div>
-              <div className={cn("text-sm font-medium mt-0.5",
-                ["Positif","Baik","Terkendali","On Track"].includes(item.value) ? "text-emerald-600" :
-                ["Negatif","Rendah"].includes(item.value) ? "text-red-500" : "text-amber-500"
-              )}>{item.value}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Row 2 — 8 Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MetricCard label="Cash Position" value={isLoading ? "..." : fmtRp(cashIn - cashOut)} sub="Estimasi kas bersih" icon={DollarSign} positive={cashIn > cashOut} />
-        <MetricCard label="Outstanding KPP" value={isLoading ? "..." : fmtRp(kpp)} sub="Sisa pokok KPP aktif" icon={Landmark} positive={kpp < 3e9} />
-        <MetricCard label="Hutang Jatuh Tempo" value={isLoading ? "..." : fmtRp(hutangJT)} sub="30 hari ke depan" icon={AlertTriangle} positive={hutangJT < 500e6} />
-        <MetricCard label="Piutang Jatuh Tempo" value={isLoading ? "..." : fmtRp(piutangJT)} sub="30 hari ke depan" icon={TrendingUp} positive />
-        <MetricCard label="Cash In Bulan Ini" value={isLoading ? "..." : fmtRp(cashIn)} icon={ArrowUpRight} positive />
-        <MetricCard label="Cash Out Bulan Ini" value={isLoading ? "..." : fmtRp(cashOut)} icon={ArrowDownRight} positive={false} />
-        <MetricCard label="Net Cashflow" value={isLoading ? "..." : fmtRp(net)} sub="Bulan berjalan" icon={Activity} positive={net >= 0} />
-        <MetricCard label="Finance Score" value={isLoading ? "..." : `${score}/100`} sub={status} icon={Shield} positive={score >= 80} />
-      </div>
-
-      {/* Row 3 — Net Cashflow Summary */}
-      <div className="rounded-xl border bg-card p-4">
-        <h2 className="text-sm font-semibold mb-3">Ringkasan Cashflow Bulan Ini</h2>
-        <div className="grid grid-cols-3 gap-4 text-sm">
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">Cash In</div>
-            <div className="text-lg font-semibold text-emerald-600">{fmtRp(cashIn)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">Cash Out</div>
-            <div className="text-lg font-semibold text-red-500">{fmtRp(cashOut)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">Net Cashflow</div>
-            <div className={cn("text-lg font-bold", net >= 0 ? "text-emerald-600" : "text-red-500")}>
-              {net >= 0 ? "+" : ""}{fmtRp(net)}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Row 4 — AI Recommendation */}
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-center justify-between mb-3">

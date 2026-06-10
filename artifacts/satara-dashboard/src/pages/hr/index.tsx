@@ -61,7 +61,7 @@ export default function HRDashboard() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">HR — Command Center</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Human Resource</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Satara Human Resource Management System</p>
         </div>
         <Link href="/hr/organisasi">
@@ -70,53 +70,6 @@ export default function HRDashboard() {
             Data Karyawan
           </button>
         </Link>
-      </div>
-
-      {/* HC Score */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="sm:col-span-1">
-          {isLoading ? <div className="h-24 rounded-xl border bg-muted/30 animate-pulse" /> : <HCGauge score={hcScore} status={hcStatus} />}
-        </div>
-        <div className="sm:col-span-2 grid grid-cols-5 gap-2">
-          {[
-            { label: "KPI Achievement", key: "kpiAchievement", bobot: "30%" },
-            { label: "Produktivitas", key: "productivity", bobot: "20%" },
-            { label: "Kompetensi", key: "competency", bobot: "20%" },
-            { label: "Kultur", key: "culture", bobot: "15%" },
-            { label: "Rekrutmen", key: "recruitment", bobot: "15%" },
-          ].map(({ label, key, bobot }) => (
-            <div key={key} className="bg-card border rounded-xl p-3 flex flex-col justify-between">
-              <div className="text-[10px] text-muted-foreground font-medium">{label}</div>
-              <div className="text-xl font-bold tabular-nums">{isLoading ? "-" : `${(bd[key] ?? 0).toFixed(0)}`}<span className="text-xs font-normal">/100</span></div>
-              <div className="text-[10px] text-muted-foreground">bobot {bobot}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        {[
-          { label: "Karyawan Aktif", val: isLoading ? "-" : data?.totalActive ?? 0, icon: Users, color: "text-foreground" },
-          { label: "KPI Rata-rata", val: isLoading ? "-" : pct(data?.avgKpiAchievement ?? 0), icon: Target, color: "text-blue-600" },
-          { label: "Top Performer", val: isLoading ? "-" : data?.topPerformer?.name ?? "-", icon: Star, color: "text-emerald-600", sub: data?.topPerformer ? `${data.topPerformer.score}/100` : "" },
-          { label: "Bottom Performer", val: isLoading ? "-" : data?.bottomPerformer?.name ?? "-", icon: UserX, color: "text-red-500", sub: data?.bottomPerformer ? `${data.bottomPerformer.score}/100` : "" },
-          { label: "Posisi Lowong", val: isLoading ? "-" : data?.openPositions ?? 0, icon: Briefcase, color: (data?.openPositions ?? 0) > 0 ? "text-amber-500" : "text-emerald-600" },
-          { label: "Total Payroll", val: isLoading ? "-" : fmtRp(data?.totalPayroll ?? 0), icon: DollarSign, color: "text-foreground" },
-          { label: "Revenue/Karyawan", val: isLoading ? "-" : fmtRp(data?.revenuePerEmployee ?? 0), icon: TrendingUp, color: "text-blue-600" },
-          { label: "Ekspansi Siap", val: isLoading ? "-" : pct(data?.expansionReadiness ?? 0), icon: ArrowUpRight, color: "text-emerald-600" },
-        ].map(({ label, val, icon: Icon, color, sub }: any) => (
-          <div key={label} className="bg-card border rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
-              <Icon className="size-3.5 text-muted-foreground" />
-            </div>
-            <div className="bg-muted/50 border rounded-lg px-2 py-1.5">
-              <span className={cn("text-sm font-semibold", color)}>{val}</span>
-            </div>
-            {sub && <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>}
-          </div>
-        ))}
       </div>
 
       {/* Talent Map */}

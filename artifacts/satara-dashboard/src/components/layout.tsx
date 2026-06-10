@@ -347,7 +347,6 @@ function DashboardSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={isActive} className="h-7">
                         <Link href={item.path}>
-                          <item.icon className="size-3.5" />
                           <span className="text-sm">{item.name}</span>
                         </Link>
                       </SidebarMenuButton>

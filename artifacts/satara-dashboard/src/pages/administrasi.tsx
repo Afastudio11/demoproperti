@@ -38,16 +38,13 @@ export default function Administrasi() {
     refetchInterval: 30000,
   });
 
-  const pipelineCounts: Record<string, number> = data?.pipelineCounts ?? {};
-  const totalPipeline = PIPELINE_STAGES.reduce((s, st) => s + (pipelineCounts[st.key] ?? 0), 0);
-  const maxCount = Math.max(...PIPELINE_STAGES.map(s => pipelineCounts[s.key] ?? 0), 1);
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Administrasi KPR</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Command center pipeline Booking → Berkas → Setor → OTS → SP3K → Akad → HT Cair</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Pipeline Booking → Berkas → Setor → OTS → SP3K → Akad → HT Cair</p>
         </div>
         <Link href="/administrasi/customer/new">
           <button className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">
@@ -55,63 +52,6 @@ export default function Administrasi() {
             Tambah Customer
           </button>
         </Link>
-      </div>
-
-      {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          { label: "Total Aktif", value: isLoading ? "-" : (data?.totalAktif ?? 0), icon: Users, color: "text-foreground", sub: "customer dalam pipeline" },
-          { label: "HT Bulan Ini", value: isLoading ? "-" : fmtRp(data?.htBulanIni ?? 0), icon: DollarSign, color: "text-emerald-600", sub: "dana masuk" },
-          { label: "HT Tahun Ini", value: isLoading ? "-" : fmtRp(data?.htTahunIni ?? 0), icon: TrendingUp, color: "text-emerald-600", sub: "total tahun ini" },
-          { label: "Bank Terbaik", value: isLoading ? "-" : (data?.bestBank ?? "-"), icon: Building2, color: "text-blue-600", sub: "akad terbanyak bulan ini" },
-          { label: "Aging Warning", value: isLoading ? "-" : `${data?.agingWarning ?? 0} / ${data?.agingKritis ?? 0}`, icon: AlertTriangle, color: (data?.agingKritis ?? 0) > 0 ? "text-red-500" : "text-amber-500", sub: "warning / kritis" },
-          { label: "Health Score", value: isLoading ? "-" : `${data?.healthScore ?? 0}/100`, icon: Activity, color: (data?.healthScore ?? 100) >= 70 ? "text-emerald-600" : "text-red-500", sub: "admin health" },
-        ].map(({ label, value, icon: Icon, color, sub }) => (
-          <div key={label} className="bg-card border rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground">{label}</span>
-              <Icon className="size-3.5 text-muted-foreground" />
-            </div>
-            <div className="bg-muted/50 border rounded-lg px-2.5 py-2">
-              <span className={cn("text-lg font-semibold tracking-tight", color)}>{value}</span>
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Pipeline Funnel */}
-      <div className="bg-card border rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="size-4 text-muted-foreground" />
-          <h3 className="font-medium text-sm">Pipeline KPR</h3>
-          <span className="text-xs text-muted-foreground ml-auto">{totalPipeline} total customer</span>
-        </div>
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          {PIPELINE_STAGES.map((stage, i) => {
-            const count = pipelineCounts[stage.key] ?? 0;
-            const heightPct = maxCount > 0 ? Math.max((count / maxCount) * 100, 8) : 8;
-            return (
-              <Link key={stage.key} href={`/administrasi/customer?status=${stage.key}`}>
-                <div className="flex flex-col items-center gap-1.5 cursor-pointer group">
-                  <div className="text-center w-full">
-                    <span className="text-lg font-semibold">{count}</span>
-                  </div>
-                  <div className="w-full rounded-md border overflow-hidden" style={{ height: 60 }}>
-                    <div
-                      className={cn("w-full rounded-md transition-all group-hover:opacity-80", STAGE_COLORS[stage.key] ?? "bg-muted")}
-                      style={{ height: `${heightPct}%`, marginTop: `${100 - heightPct}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-center text-muted-foreground leading-tight">{stage.label}</span>
-                  {i < PIPELINE_STAGES.length - 1 && (
-                    <span className="hidden sm:block text-muted-foreground/30 text-xs absolute" style={{ right: -8 }}>›</span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
       </div>
 
       {/* Alerts */}

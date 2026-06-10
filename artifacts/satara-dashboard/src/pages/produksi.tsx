@@ -73,22 +73,8 @@ export default function Produksi() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-lg font-bold">Produksi — Command Center</h1>
+        <h1 className="text-lg font-bold">Produksi</h1>
         <p className="text-sm text-muted-foreground">Monitoring konstruksi, subkon, material, dan QC secara real-time</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        <KpiCard title="Avg Progress" value={isLoading ? "—" : fmtPct(s?.avgProgress ?? 0)} sub={`${s?.activeUnits ?? 0} unit aktif`} icon={HardHat} linkTo="/produksi/progress/unit" />
-        <KpiCard title="Fasum Avg" value={isLoading ? "—" : fmtPct(s?.fasumAvg ?? 0)} sub="fasum keseluruhan" icon={Building2} color="text-blue-500" linkTo="/produksi/fasum" />
-        <KpiCard title="Tagihan Pending" value={isLoading ? "—" : fmtRp(s?.pendingTotal ?? 0)} sub="termin subkon" icon={DollarSign} color="text-amber-500" linkTo="/produksi/subkon/approval" />
-        <KpiCard title="Stok Terpakai" value={isLoading ? "—" : fmtRp(s?.totalMatOut ?? 0)} sub="nilai keluar" icon={Package} color="text-violet-500" linkTo="/produksi/material/stok" />
-        <KpiCard title="HT Tertahan" value={isLoading ? "—" : fmtRp(data?.htTertahan ?? 0)} sub={`${data?.sp3kCount ?? 0} unit SP3K`} icon={Key} color="text-red-500" linkTo="/produksi/ready-akad" />
-        <KpiCard title="Total Unit" value={isLoading ? "—" : `${s?.totalUnits ?? 0}`} sub="semua proyek" icon={Users} linkTo="/produksi/progress/unit" />
-        <div className={`rounded-lg border p-3 flex flex-col gap-0.5 ${healthColor.split(" ").slice(1).join(" ")}`}>
-          <p className="text-xs text-muted-foreground">Health Score</p>
-          <p className={`text-2xl font-bold ${healthColor.split(" ")[0]}`}>{isLoading ? "—" : healthScore}</p>
-          <Link href="/produksi/health" className="text-[11px] text-muted-foreground underline underline-offset-2">Lihat detail</Link>
-        </div>
       </div>
 
       <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">

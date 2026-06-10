@@ -66,24 +66,8 @@ export default function LegalDashboard() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">Legal Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Command center legalitas seluruh proyek Satara</p>
-      </div>
-
-      {/* Panel B — 4 Metric Cards CEO */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Legal Readiness", value: `${metrics?.avgLegalReadiness ?? 0}%`, sub: "rata-rata seluruh proyek", color: readinessCls(metrics?.avgLegalReadiness ?? 0) },
-          { label: "Permit Readiness", value: `${metrics?.avgPermitReadiness ?? 0}%`, sub: "rata-rata kelengkapan izin", color: readinessCls(metrics?.avgPermitReadiness ?? 0) },
-          { label: "SHM Split Readiness", value: `${metrics?.overallShmReadiness ?? 0}%`, sub: "total SHM sudah pecah", color: readinessCls(metrics?.overallShmReadiness ?? 0) },
-          { label: "Legal Risk Score", value: `${metrics?.legalRiskScore ?? 100}`, sub: "dari 100 (lebih tinggi = lebih aman)", color: metrics?.legalRiskScore >= 80 ? "text-emerald-600" : metrics?.legalRiskScore >= 60 ? "text-yellow-600" : "text-red-600" },
-        ].map(m => (
-          <div key={m.label} className="bg-card border rounded-xl p-3">
-            <div className="text-xs text-muted-foreground mb-1">{m.label}</div>
-            <div className={cn("text-2xl font-bold", m.color)}>{m.value}</div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">{m.sub}</div>
-          </div>
-        ))}
+        <h1 className="text-xl font-semibold">Legal & Perizinan</h1>
+        <p className="text-sm text-muted-foreground">Legalitas, perizinan, dan SHM seluruh proyek Satara</p>
       </div>
 
       {/* Panel F — Alerts */}
