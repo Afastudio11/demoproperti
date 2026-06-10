@@ -310,40 +310,32 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ANAK PERUSAHAAN (Logo Only - Animated) */}
-      <section className="bg-white py-16 px-6 md:px-12 lg:px-16 border-t border-black/10">
-        <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-28">
-            <FadeIn delay={0} duration={800} direction="up">
-              <div className="group cursor-default">
-                <img
-                  src="/logo-roemah-warga.png"
-                  alt="Roemah Warga"
-                  className="h-12 w-auto object-contain mix-blend-multiply opacity-50 group-hover:opacity-90 transition-all duration-500 group-hover:scale-105"
-                />
-              </div>
-            </FadeIn>
-
-            <FadeIn delay={200} duration={800} direction="up">
-              <div className="group cursor-default">
-                <img
-                  src="/logo-sekala.png"
-                  alt="Sekala"
-                  className="h-10 w-auto object-contain mix-blend-multiply opacity-50 group-hover:opacity-90 transition-all duration-500 group-hover:scale-105"
-                />
-              </div>
-            </FadeIn>
-
-            <FadeIn delay={400} duration={800} direction="up">
-              <div className="group cursor-default">
-                <img
-                  src="/logo-sn-residence.png"
-                  alt="SN Residence Bantaeng"
-                  className="h-12 w-auto object-contain mix-blend-multiply opacity-50 group-hover:opacity-90 transition-all duration-500 group-hover:scale-105"
-                />
-              </div>
-            </FadeIn>
-          </div>
+      {/* ANAK PERUSAHAAN (Marquee Logo Scroll) */}
+      <section className="bg-white py-14 border-t border-black/10 overflow-hidden">
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes marquee {
+            0%   { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+          }
+          .marquee-track {
+            display: flex;
+            width: max-content;
+            animation: marquee 18s linear infinite;
+          }
+          .marquee-track:hover {
+            animation-play-state: paused;
+          }
+        `}} />
+        <div className="marquee-track">
+          {[0, 1].map((i) => (
+            <div key={i} className="flex items-center gap-20 px-10">
+              <img src="/logo-roemah-warga.png" alt="Roemah Warga" className="h-16 w-auto object-contain mix-blend-multiply opacity-50 hover:opacity-90 transition-opacity duration-300" />
+              <img src="/logo-sekala.png"        alt="Sekala"          className="h-11 w-auto object-contain mix-blend-multiply opacity-50 hover:opacity-90 transition-opacity duration-300" />
+              <img src="/logo-sn-residence.png"  alt="SN Residence"    className="h-14 w-auto object-contain mix-blend-multiply opacity-50 hover:opacity-90 transition-opacity duration-300" />
+              {/* spacer between sets */}
+              <span className="w-16 shrink-0" />
+            </div>
+          ))}
         </div>
       </section>
 
