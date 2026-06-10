@@ -223,4 +223,127 @@ router.patch("/produksi/subkon/payments/:id/mark-paid", async (req, res) => {
   }
 });
 
+// ─── MATERIAL COMPARISON PER SUBKON ──────────────────────────────────────────
+
+router.get("/produksi/subkon/material-comparison", async (req, res) => {
+  try {
+    const { prodMaterialMasterTable, prodMaterialOutTable } = await import("@workspace/db");
+
+    const contracts = await db.select().from(subkonContractsTable);
+    const payments = await db.select().from(subkonPaymentsTable);
+    const masters = await db.select().from(prodMaterialMasterTable);
+    const allOut = await db.select().from(prodMaterialOutTable);
+
+    // Filter by projectId jika ada
+    const projectId = req.query.projectId ? parseInt(req.query.projectId as string) : null;
+    const filteredContracts = projectId ? contracts.filter(c => c.projectId === projectId) : contracts;
+    const filteredOut = projectId ? allOut.filter(o => o.projectId === projectId) : allOut;
+
+    // Ambil hanya records yang punya subkon_name
+    const outWithSubkon = filteredOut.filter(o => o.subkonName);
+
+    // Kelompokkan pemakaian per (subkonName + projectId + materialId)
+    const usageMap: Record<string, number> = {};
+    for (const o of outWithSubkon) {
+      const key = `${o.subkonName}__${o.projectId}__${o.materialId}`;
+      usageMap[key] = (usageMap[key] ?? 0) + o.quantity;
+    }
+
+    const masterMap = new Map(masters.map(m => [m.id, m]));
+
+    // Helper: hitung unit selesai dari progress payment yang sudah approved/paid
+    // Abaikan "draft" karena belum dikonfirmasi
+    const getUnitsCompleted = (contractId: number, unitCount: number): number => {
+      const confirmedPayments = payments.filter(
+        p => p.contractId === contractId && (p.status === "approved" || p.status === "paid")
+      );
+      if (confirmedPayments.length === 0) return unitCount; // fallback: asumsi semua unit
+      const maxProgress = Math.max(...confirmedPayments.map(p => p.progressCurrent ?? 0));
+      return Math.round((maxProgress / 100) * unitCount);
+    };
+
+    // Bangun hasil per contract
+    const result = filteredContracts
+      .filter(c => c.subkonName)
+      .map(c => {
+        // Cari material yang digunakan oleh subkon ini di proyek ini
+        const relevantKeys = Object.keys(usageMap).filter(k => k.startsWith(`${c.subkonName}__${c.projectId}__`));
+
+        // Gunakan unit selesai sebagai pembagi (bukan total kontrak)
+        const unitsCompleted = getUnitsCompleted(c.id, c.unitCount);
+        const denominator = unitsCompleted > 0 ? unitsCompleted : c.unitCount;
+
+        const materials = relevantKeys.map(key => {
+          const materialId = parseInt(key.split("__")[2]);
+          const master = masterMap.get(materialId);
+          if (!master) return null;
+
+          const totalActual = usageMap[key];
+          const standardPerUnit = master.standardPerUnit ?? 0;
+          const actualPerUnit = denominator > 0 ? totalActual / denominator : 0;
+          const deviasiFraction = standardPerUnit > 0 ? (actualPerUnit - standardPerUnit) / standardPerUnit : 0;
+          const deviasiPct = Math.round(deviasiFraction * 1000) / 10; // 1 decimal
+
+          // Selisih nilai = (actual - standard) per unit * unitCount * harga
+          const unitPrice = master.unitPrice ?? 0;
+          const selisihPerUnit = actualPerUnit - standardPerUnit;
+          const selisihNilai = Math.round(selisihPerUnit * c.unitCount * unitPrice);
+
+          const status =
+            deviasiPct <= -3 ? "SANGAT_EFISIEN"
+            : deviasiPct <= 5 ? "EFISIEN"
+            : deviasiPct <= 15 ? "PERLU_PERHATIAN"
+            : "BOROS";
+
+          return {
+            materialId,
+            materialName: master.name,
+            category: master.category,
+            satuan: master.satuan,
+            standardPerUnit: Math.round(standardPerUnit * 100) / 100,
+            actualPerUnit: Math.round(actualPerUnit * 100) / 100,
+            totalActual: Math.round(totalActual * 10) / 10,
+            totalStandard: Math.round(standardPerUnit * c.unitCount * 10) / 10,
+            deviasiPct,
+            selisihNilai,
+            unitPrice,
+            status,
+          };
+        }).filter(Boolean);
+
+        // Hitung skor efisiensi (100 = sempurna, kurang jika boros)
+        const avgDeviasi = materials.length > 0
+          ? materials.reduce((s, m) => s + (m!.deviasiPct > 0 ? m!.deviasiPct : 0), 0) / materials.length
+          : 0;
+        const efficiencyScore = Math.max(0, Math.round(100 - avgDeviasi * 2));
+        const totalSelisihNilai = materials.reduce((s, m) => s + (m!.selisihNilai ?? 0), 0);
+
+        const overallStatus =
+          efficiencyScore >= 90 ? "EFISIEN"
+          : efficiencyScore >= 75 ? "CUKUP"
+          : efficiencyScore >= 60 ? "PERLU_PERHATIAN"
+          : "BOROS";
+
+        return {
+          contractId: c.id,
+          subkonName: c.subkonName,
+          projectId: c.projectId,
+          stageCode: c.stageCode,
+          unitCount: c.unitCount,
+          unitsCompleted: denominator,
+          efficiencyScore,
+          totalSelisihNilai,
+          overallStatus,
+          materials: materials.sort((a, b) => (b!.deviasiPct) - (a!.deviasiPct)),
+        };
+      })
+      .sort((a, b) => a.efficiencyScore - b.efficiencyScore); // terboros duluan
+
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Failed to compute material comparison");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
