@@ -329,9 +329,9 @@ export default function LandingPage() {
         <div className="marquee-track">
           {[0, 1].map((i) => (
             <div key={i} className="flex items-center gap-20 px-10">
-              <img src="/logo-roemah-warga.png" alt="Roemah Warga" className="h-16 w-auto object-contain mix-blend-multiply opacity-50 hover:opacity-90 transition-opacity duration-300" />
-              <img src="/logo-sekala.png"        alt="Sekala"          className="h-11 w-auto object-contain mix-blend-multiply opacity-50 hover:opacity-90 transition-opacity duration-300" />
-              <img src="/logo-sn-residence.png"  alt="SN Residence"    className="h-14 w-auto object-contain mix-blend-multiply opacity-50 hover:opacity-90 transition-opacity duration-300" />
+              <img src="/logo-roemah-warga.png" alt="Roemah Warga" className="h-20 w-auto object-contain mix-blend-multiply opacity-100 transition-opacity duration-300" />
+              <img src="/logo-sekala.png"        alt="Sekala"          className="h-11 w-auto object-contain mix-blend-multiply opacity-100 transition-opacity duration-300" />
+              <img src="/logo-sn-residence.png"  alt="SN Residence"    className="h-14 w-auto object-contain mix-blend-multiply opacity-100 transition-opacity duration-300" />
               {/* spacer between sets */}
               <span className="w-16 shrink-0" />
             </div>
