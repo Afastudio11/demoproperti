@@ -59,7 +59,6 @@ import AgingPage from "@/pages/administrasi/aging";
 import TargetPage from "@/pages/administrasi/target";
 import KomplainPage from "@/pages/administrasi/komplain";
 import Produksi from "@/pages/produksi";
-import SerahTerima from "@/pages/serah-terima";
 import Settings from "@/pages/settings";
 import SLIS from "@/pages/slis";
 import Layout from "@/components/layout";
@@ -245,7 +244,6 @@ function AppRoutes() {
         <Route path="/produksi/analitik/eligibilitas" component={AnalitikEligibilitas} />
         <Route path="/produksi/analitik/forecast" component={AnalitikForecast} />
         <Route path="/produksi/health" component={ProduksiHealth} />
-        <Route path="/serah-terima" component={SerahTerima} />
         <Route path="/settings" component={Settings} />
         <Route path="/slis" component={SLIS} />
         <Route path="/hr" component={HRDashboard} />

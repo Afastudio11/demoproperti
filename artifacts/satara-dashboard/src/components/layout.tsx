@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Building2, MapPin, Calculator, FileText, Magnet,
-  Users, HardHat, Key, Settings, ChevronsUpDown, BarChart3,
+  Users, HardHat, Settings, ChevronsUpDown, BarChart3,
   DollarSign, Shield, ShieldCheck, UserCog, Megaphone, Landmark, LogOut,
 } from "lucide-react";
 import {
@@ -37,7 +37,6 @@ const navItems = [
   { moduleKey: "produksi", name: "Produksi", path: "/produksi", icon: HardHat },
   { moduleKey: "hr", name: "Human Resource", path: "/hr", icon: UserCog },
   { moduleKey: "finance", name: "Finance & Accounting", path: "/finance", icon: Landmark },
-  { moduleKey: "serah_terima", name: "Serah Terima", path: "/serah-terima", icon: Key },
   { moduleKey: "settings", name: "Settings", path: "/settings", icon: Settings },
 ];
 
