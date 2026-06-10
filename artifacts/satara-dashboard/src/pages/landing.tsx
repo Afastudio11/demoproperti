@@ -331,6 +331,66 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ANAK PERUSAHAAN (Logo Showcase - White Section) */}
+      <section className="bg-white py-20 px-6 md:px-12 lg:px-16 border-t border-black/10">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            <div className="text-center mb-12">
+              <span className="inline-block text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1 mb-4 font-display">
+                Anak Perusahaan.
+              </span>
+              <p className="text-concrete text-sm max-w-xl mx-auto">
+                Unit bisnis operasional yang menjalankan pilar-pilar ekosistem Satara Group secara mandiri dan terukur.
+              </p>
+            </div>
+
+            <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-16 lg:gap-24">
+              {/* Roemah Warga */}
+              <div className="flex flex-col items-center gap-3 group">
+                <div className="h-16 flex items-center justify-center">
+                  <img
+                    src="/logo-roemah-warga.png"
+                    alt="Roemah Warga"
+                    className="h-14 w-auto object-contain mix-blend-multiply opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+                  />
+                </div>
+                <span className="text-[10px] font-semibold text-concrete uppercase tracking-widest">Properti Komunitas</span>
+              </div>
+
+              {/* Divider */}
+              <div className="hidden md:block w-px h-12 bg-black/10"></div>
+
+              {/* Sekala */}
+              <div className="flex flex-col items-center gap-3 group">
+                <div className="h-16 flex items-center justify-center">
+                  <img
+                    src="/logo-sekala.png"
+                    alt="Sekala"
+                    className="h-12 w-auto object-contain mix-blend-multiply opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+                  />
+                </div>
+                <span className="text-[10px] font-semibold text-concrete uppercase tracking-widest">Fashion &amp; Kreatif</span>
+              </div>
+
+              {/* Divider */}
+              <div className="hidden md:block w-px h-12 bg-black/10"></div>
+
+              {/* SN Residence Bantaeng */}
+              <div className="flex flex-col items-center gap-3 group">
+                <div className="h-16 flex items-center justify-center">
+                  <img
+                    src="/logo-sn-residence.png"
+                    alt="SN Residence Bantaeng"
+                    className="h-14 w-auto object-contain mix-blend-multiply opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+                  />
+                </div>
+                <span className="text-[10px] font-semibold text-concrete uppercase tracking-widest">Residensial Premium</span>
+              </div>
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* 4. EKOSISTEM BISNIS (Service List Row Style - Black Section) */}
       <section className="bg-black py-24 px-6 md:px-12 lg:px-16 border-t border-white/10 text-white" id="ekosistem">
         <div className="container mx-auto">
@@ -358,16 +418,10 @@ export default function LandingPage() {
               
               {/* Row 01: Satara Development */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
-                {/* Left Column: Sketch Visual (2/12) */}
+                {/* Left Column: Photo Visual (2/12) */}
                 <div className="lg:col-span-2 hidden lg:flex justify-center">
-                  <div className="bg-neutral-900 p-4 rounded-lg border border-white/10 shadow-sm w-36 h-36 flex items-center justify-center">
-                    <svg width="80" height="80" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="20" y="40" width="80" height="60" rx="4" stroke="#ffffff" strokeWidth="1.5" fill="#222222" />
-                      <path d="M15 40L60 15L105 40" stroke="#ffffff" strokeWidth="2" strokeLinejoin="round" />
-                      <line x1="40" y1="100" x2="40" y2="70" stroke="#888888" strokeWidth="1.5" />
-                      <line x1="80" y1="100" x2="80" y2="70" stroke="#888888" strokeWidth="1.5" />
-                      <circle cx="60" cy="55" r="8" stroke="#ffffff" strokeWidth="1.5" />
-                    </svg>
+                  <div className="rounded-lg overflow-hidden w-36 h-36 border border-white/10 shadow-sm">
+                    <img src="/foto-sn-residence.jpg" alt="SN Residence" className="w-full h-full object-cover" />
                   </div>
                 </div>
 
@@ -399,15 +453,10 @@ export default function LandingPage() {
 
               {/* Row 02: Satara Fashion */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
-                {/* Left Column: Sketch Visual (2/12) */}
+                {/* Left Column: Photo Visual (2/12) */}
                 <div className="lg:col-span-2 hidden lg:flex justify-center">
-                  <div className="bg-neutral-900 p-4 rounded-lg border border-white/10 shadow-sm w-36 h-36 flex items-center justify-center">
-                    <svg width="80" height="80" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M20 90C40 70 80 100 100 50" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
-                      <path d="M30 100C50 80 90 110 110 60" stroke="#888888" strokeWidth="1.5" strokeDasharray="3 3" />
-                      <circle cx="100" cy="50" r="5" fill="#ffffff" />
-                      <circle cx="20" cy="90" r="5" fill="#888888" />
-                    </svg>
+                  <div className="rounded-lg overflow-hidden w-36 h-36 border border-white/10 shadow-sm">
+                    <img src="/foto-sekala.png" alt="Sekala" className="w-full h-full object-cover object-top" />
                   </div>
                 </div>
 
@@ -433,15 +482,10 @@ export default function LandingPage() {
 
               {/* Row 03: Future Expansion */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
-                {/* Left Column: Sketch Visual (2/12) */}
+                {/* Left Column: Photo Visual (2/12) */}
                 <div className="lg:col-span-2 hidden lg:flex justify-center">
-                  <div className="bg-neutral-900 p-4 rounded-lg border border-white/10 shadow-sm w-36 h-36 flex items-center justify-center">
-                    <svg width="80" height="80" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="25" y="25" width="30" height="30" rx="3" stroke="#888888" strokeWidth="1.5" />
-                      <rect x="65" y="25" width="30" height="30" rx="3" stroke="#888888" strokeWidth="1.5" />
-                      <rect x="45" y="65" width="30" height="30" rx="3" stroke="#ffffff" strokeWidth="1.5" />
-                      <path d="M40 55L50 65M80 55L70 65" stroke="#ffffff" strokeWidth="1.5" />
-                    </svg>
+                  <div className="rounded-lg overflow-hidden w-36 h-36 border border-white/10 shadow-sm">
+                    <img src="/foto-roemah-warga.png" alt="Roemah Warga" className="w-full h-full object-cover" />
                   </div>
                 </div>
 
@@ -578,7 +622,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 6. FRAMEWORK PENGEMBANGAN PROYEK (Grid Ramping - Black Section) */}
+      {/* 7. FRAMEWORK PENGEMBANGAN PROYEK (Grid Ramping - Black Section) */}
       <section className="bg-black py-24 px-6 md:px-12 lg:px-16 border-t border-white/10 text-white" id="framework">
         <div className="container mx-auto">
           <FadeIn duration={1000} direction="up">
