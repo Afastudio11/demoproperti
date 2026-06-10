@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Upload, CheckCircle, AlertCircle, Sparkles, Loader2, FileText, FileType, Plus, Trash2, ChevronLeft, ClipboardList, Table } from "lucide-react";
+import { Upload, CheckCircle, AlertCircle, Sparkles, Loader2, FileText, FileType, Plus, Trash2, ChevronLeft, PlusSquare } from "lucide-react";
 import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -109,10 +109,13 @@ function sanitizeCell(v: any): any {
   return v ?? "";
 }
 
-function emptyRow(type: string): Record<string, any> {
+function emptyReviewRow(fields: FieldDef[], extraCols: string[]): Record<string, any> {
   const row: Record<string, any> = {};
-  for (const f of (TYPE_FIELDS[type] ?? [])) {
+  for (const f of fields) {
     row[f.key] = f.type === "select" ? (f.options?.[0] ?? "") : "";
+  }
+  for (const col of extraCols) {
+    row[col] = "";
   }
   return row;
 }
@@ -125,71 +128,33 @@ function fmtRp(n: number) {
 }
 
 type ParsedSheet = { name: string; headers: string[]; rows: Record<string, any>[] };
-type Step = "type" | "manual" | "docUpload" | "aiCompare" | "saving" | "done" | "error";
-type Mode = "manual_first" | "doc_direct";
+type Step = "type" | "docUpload" | "review" | "saving" | "done" | "error";
 type FileKind = "excel" | "pdf" | null;
-
-// ─── AutocompleteInput ─────────────────────────────────────────────────────────
-function AcInput({ value, onChange, dataType, field, placeholder, cls }: {
-  value: string; onChange: (v: string) => void; dataType: string; field: string;
-  placeholder?: string; cls?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const { data: all = [] } = useQuery<string[]>({
-    queryKey: ["ac", dataType, field],
-    queryFn: () => fetch(`/api/finance/autocomplete?type=${dataType}&field=${field}`).then(r => r.json()),
-    staleTime: 120_000,
-    enabled: !!field,
-  });
-  const matches = value.length >= 1
-    ? all.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s !== value)
-    : all;
-
-  return (
-    <div className="relative">
-      <input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 160)}
-        placeholder={placeholder ?? ""}
-        className={cn("w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring", cls)}
-      />
-      {open && matches.length > 0 && (
-        <div className="absolute top-full left-0 z-40 mt-0.5 bg-popover border rounded-md shadow-lg max-h-44 overflow-y-auto" style={{ minWidth: 160 }}>
-          {matches.slice(0, 10).map(s => (
-            <button key={s} type="button"
-              onMouseDown={e => { e.preventDefault(); onChange(s); setOpen(false); }}
-              className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted border-b last:border-0 truncate">
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function UploadCenter() {
   const qc = useQueryClient();
   const [step, setStep] = useState<Step>("type");
-  const [mode, setMode] = useState<Mode>("manual_first");
   const [selected, setSelected] = useState("hutang");
-  const [manualRows, setManualRows] = useState<Record<string, any>[]>([emptyRow("hutang")]);
   const [sheets, setSheets] = useState<ParsedSheet[]>([]);
   const [fileName, setFileName] = useState("");
   const [fileKind, setFileKind] = useState<FileKind>(null);
-  const [pdfInfo, setPdfInfo] = useState<{ pages: number } | null>(null);
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+  const [pdfInfo, setPdfInfo] = useState<{ pages: number } | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
-  const [aiPreview, setAiPreview] = useState<{ records: any[]; count: number; docTotal: number } | null>(null);
   const [resultMsg, setResultMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [processingMsg, setProcessingMsg] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: uploads = [] } = useQuery({
+  // Review table state
+  const [reviewRows, setReviewRows] = useState<Record<string, any>[]>([]);
+  const [extraCols, setExtraCols] = useState<string[]>([]);
+  const [newColName, setNewColName] = useState("");
+  const [showAddCol, setShowAddCol] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const { data: uploads = [], refetch: refetchUploads } = useQuery({
     queryKey: ["finance-uploads"],
     queryFn: () => fetch("/api/finance/uploads").then(r => r.json()),
   });
@@ -207,28 +172,8 @@ export default function UploadCenter() {
 
   function selectType(type: string) {
     setSelected(type);
-    setManualRows([emptyRow(type)]);
     setErrorMsg("");
   }
-
-  function startFlow() {
-    if (mode === "doc_direct") { setStep("docUpload"); }
-    else { setStep("manual"); }
-  }
-
-  function addRow() { setManualRows(r => [...r, emptyRow(selected)]); }
-  function removeRow(i: number) { setManualRows(r => r.filter((_, idx) => idx !== i)); }
-  function updateRow(i: number, field: string, val: any) {
-    setManualRows(r => r.map((row, idx) => idx === i ? { ...row, [field]: val } : row));
-  }
-
-  const validManualRows = manualRows.filter(r => Object.values(r).some(v => v !== "" && v !== 0));
-
-  const manualTotal = validManualRows.reduce((s, r) => {
-    const numFields = (TYPE_FIELDS[selected] ?? []).filter(f => f.type === "number");
-    const firstNumField = numFields[0]?.key ?? "totalAmount";
-    return s + (Number(r[firstNumField]) || 0);
-  }, 0);
 
   // ── File parsing ──────────────────────────────────────────────────────────
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -292,9 +237,13 @@ export default function UploadCenter() {
     }
   }
 
-  async function runAiPreview() {
+  const fileReady = fileName && (fileKind === "pdf" ? !!pdfBase64 : sheets.length > 0);
+  const totalRows = sheets.reduce((s, sh) => s + sh.rows.length, 0);
+  const curSheet = sheets[activeSheet];
+
+  async function processFile() {
     setStep("saving");
-    setProcessingMsg(`AI membaca ${fileKind === "pdf" ? "PDF" : `${sheets.length} sheet Excel`} dan membandingkan dengan ${validManualRows.length} baris manual...`);
+    setProcessingMsg("AI membaca dokumen dan mengekstrak data...");
     try {
       const body = fileKind === "pdf"
         ? { fileType: selected, fileName, pdfBase64, fileKind: "pdf" }
@@ -302,81 +251,104 @@ export default function UploadCenter() {
       const res = await fetch("/api/finance/uploads/ai-preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "AI preview gagal");
-      setAiPreview(data);
-      setStep("aiCompare");
-    } catch (err: any) { setErrorMsg(err.message ?? "Kesalahan saat AI membaca dokumen"); setStep("error"); }
+      const fields = TYPE_FIELDS[selected] ?? [];
+      const extracted: Record<string, any>[] = (data.records ?? []).map((r: any) => {
+        const row: Record<string, any> = {};
+        for (const f of fields) {
+          row[f.key] = r[f.key] ?? (f.type === "select" ? (f.options?.[0] ?? "") : "");
+        }
+        return row;
+      });
+      if (!extracted.length) {
+        extracted.push(emptyReviewRow(fields, []));
+      }
+      setReviewRows(extracted);
+      setExtraCols([]);
+      setStep("review");
+    } catch (err: any) {
+      setErrorMsg(err.message ?? "Kesalahan saat AI membaca dokumen");
+      setStep("error");
+    }
   }
 
-  async function saveManual() {
-    if (!validManualRows.length) { setErrorMsg("Tidak ada data untuk disimpan."); return; }
+  // ── Review table handlers ─────────────────────────────────────────────────
+  function updateReviewCell(rowIdx: number, key: string, val: any) {
+    setReviewRows(rows => rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r));
+  }
+  function addReviewRow() {
+    setReviewRows(rows => [...rows, emptyReviewRow(TYPE_FIELDS[selected] ?? [], extraCols)]);
+  }
+  function removeReviewRow(i: number) {
+    setReviewRows(rows => rows.filter((_, idx) => idx !== i));
+  }
+  function addExtraCol() {
+    const name = newColName.trim();
+    if (!name || extraCols.includes(name)) return;
+    setExtraCols(c => [...c, name]);
+    setReviewRows(rows => rows.map(r => ({ ...r, [name]: "" })));
+    setNewColName("");
+    setShowAddCol(false);
+  }
+  function removeExtraCol(col: string) {
+    setExtraCols(c => c.filter(x => x !== col));
+    setReviewRows(rows => rows.map(r => { const nr = { ...r }; delete nr[col]; return nr; }));
+  }
+
+  async function saveReview() {
+    const valid = reviewRows.filter(r => Object.values(r).some(v => v !== "" && v !== 0));
+    if (!valid.length) { setErrorMsg("Tidak ada data untuk disimpan."); return; }
     setStep("saving");
-    setProcessingMsg(`Menyimpan ${validManualRows.length} entri ke database...`);
+    setProcessingMsg(`Menyimpan ${valid.length} entri ke database...`);
     try {
-      const res = await fetch("/api/finance/uploads/manual-save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileType: selected, entries: validManualRows }) });
+      const res = await fetch("/api/finance/uploads/manual-save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileType: selected, fileName, entries: valid }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Gagal menyimpan");
-      setResultMsg(`${data.inserted} entri data ${FILE_TYPES.find(f => f.key === selected)?.label ?? selected} berhasil disimpan dari input manual.`);
-      setStep("done"); invalidateAll();
-    } catch (err: any) { setErrorMsg(err.message ?? "Terjadi kesalahan"); setStep("error"); }
+      setResultMsg(`${data.inserted} entri data ${FILE_TYPES.find(f => f.key === selected)?.label ?? selected} berhasil disimpan.`);
+      setStep("done");
+      invalidateAll();
+    } catch (err: any) {
+      setErrorMsg(err.message ?? "Terjadi kesalahan");
+      setStep("error");
+    }
   }
 
-  async function saveFromDoc() {
-    setStep("saving");
-    setProcessingMsg("Menyimpan data dari dokumen ke database...");
+  async function deleteUpload(id: number) {
+    setDeletingId(id);
     try {
-      let res: Response;
-      if (fileKind === "pdf") {
-        res = await fetch("/api/finance/uploads/pdf-import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileType: selected, fileName, pdfBase64 }) });
-      } else {
-        res = await fetch("/api/finance/uploads/ai-import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileType: selected, fileName, sheets }) });
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Import gagal");
-      setResultMsg(`${data.inserted} entri data ${FILE_TYPES.find(f => f.key === selected)?.label ?? selected} berhasil diimport dari ${fileKind === "pdf" ? "PDF" : `${sheets.length} sheet Excel`}.`);
-      setStep("done"); invalidateAll();
-    } catch (err: any) { setErrorMsg(err.message ?? "Terjadi kesalahan"); setStep("error"); }
+      const res = await fetch(`/api/finance/uploads/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Gagal menghapus");
+      await refetchUploads();
+      invalidateAll();
+    } catch {
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function reset() {
     setStep("type"); setFileName(""); setSheets([]); setFileKind(null); setPdfBase64(null);
-    setPdfInfo(null); setErrorMsg(""); setResultMsg(""); setActiveSheet(0); setAiPreview(null);
-    setManualRows([emptyRow(selected)]);
+    setPdfInfo(null); setErrorMsg(""); setResultMsg(""); setActiveSheet(0);
+    setReviewRows([]); setExtraCols([]); setNewColName(""); setShowAddCol(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
   const fields = TYPE_FIELDS[selected] ?? [];
-  const curSheet = sheets[activeSheet];
-  const totalRows = sheets.reduce((s, sh) => s + sh.rows.length, 0);
-
-  const fileReady = fileName && (fileKind === "pdf" ? !!pdfBase64 : sheets.length > 0);
 
   // ─────────────────────────────────────────────────────────────────────────────
-
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Upload Center</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Input data keuangan secara manual atau import dari dokumen</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Import data keuangan dari dokumen Excel atau PDF secara otomatis</p>
       </div>
 
       {/* ── STEP: TYPE ──────────────────────────────────────────────────────────── */}
       {step === "type" && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            {([
-              { key: "manual_first" as Mode, Icon: ClipboardList, title: "Manual + Bukti Dokumen", desc: "Isi data sendiri dulu, lalu upload dokumen sebagai bukti. AI akan verifikasi." },
-              { key: "doc_direct" as Mode, Icon: Table, title: "Upload Dokumen Langsung", desc: "Upload Excel atau PDF, AI baca dan ekstrak data secara otomatis." },
-            ]).map(m => (
-              <button key={m.key} onClick={() => setMode(m.key)}
-                className={cn("text-left p-4 rounded-xl border transition-all", mode === m.key ? "border-foreground bg-foreground/5 shadow-sm" : "border-border hover:bg-muted/30")}>
-                <m.Icon className={cn("size-5 mb-2", mode === m.key ? "text-foreground" : "text-muted-foreground")} />
-                <div className="text-sm font-semibold">{m.title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{m.desc}</div>
-                {mode === m.key && <div className="mt-2 text-[11px] font-medium text-foreground bg-foreground/10 inline-block px-2 py-0.5 rounded-full">Dipilih</div>}
-              </button>
-            ))}
-          </div>
-
           <div className="rounded-xl border bg-card">
             <div className="p-4 border-b flex items-center justify-between">
               <span className="text-sm font-semibold">Pilih Jenis Data</span>
@@ -402,97 +374,10 @@ export default function UploadCenter() {
             </div>
           </div>
 
-          <button onClick={startFlow}
+          <button onClick={() => setStep("docUpload")}
             className="bg-foreground text-background text-sm font-medium px-5 py-2.5 rounded-md hover:opacity-90 flex items-center gap-2">
-            {mode === "manual_first" ? <><ClipboardList className="size-3.5" />Mulai Input Manual</> : <><Upload className="size-3.5" />Mulai Upload Dokumen</>}
+            <Upload className="size-3.5" />Mulai Upload Dokumen
           </button>
-        </div>
-      )}
-
-      {/* ── STEP: MANUAL ────────────────────────────────────────────────────────── */}
-      {step === "manual" && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setStep("type")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronLeft className="size-3.5" />Kembali
-            </button>
-            <div className="flex-1">
-              <div className="text-sm font-semibold">{FILE_TYPES.find(f => f.key === selected)?.label} — Input Data Manual</div>
-              <div className="text-xs text-muted-foreground">Klik kolom teks untuk melihat riwayat pilihan. Bisa tambah banyak baris sekaligus.</div>
-            </div>
-            <span className="text-xs bg-muted text-muted-foreground px-2.5 py-0.5 rounded-full">{manualRows.length} baris</span>
-          </div>
-
-          <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b bg-muted/40">
-                    <th className="px-2 py-2 text-left text-muted-foreground font-medium w-7 shrink-0">#</th>
-                    {fields.map(f => (
-                      <th key={f.key} className="px-1.5 py-2 text-left text-muted-foreground font-medium whitespace-nowrap" style={{ minWidth: f.w ?? 120 }}>
-                        {f.label}
-                      </th>
-                    ))}
-                    <th className="px-2 py-2 w-7" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {manualRows.map((row, i) => (
-                    <tr key={i} className="border-b last:border-0">
-                      <td className="px-2 py-1 text-muted-foreground text-center text-[10px]">{i + 1}</td>
-                      {fields.map(f => (
-                        <td key={f.key} className="px-1 py-1" style={{ minWidth: f.w ?? 120 }}>
-                          {f.type === "select" ? (
-                            <select value={row[f.key] ?? ""} onChange={e => updateRow(i, f.key, e.target.value)}
-                              className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring">
-                              {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
-                            </select>
-                          ) : f.type === "date" ? (
-                            <input type="date" value={row[f.key] ?? ""} onChange={e => updateRow(i, f.key, e.target.value)}
-                              className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
-                          ) : f.type === "number" ? (
-                            <input type="number" value={row[f.key] ?? ""} onChange={e => updateRow(i, f.key, e.target.value)}
-                              placeholder="0" min={0}
-                              className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                          ) : f.ac ? (
-                            <AcInput value={row[f.key] ?? ""} onChange={v => updateRow(i, f.key, v)} dataType={selected} field={f.key} />
-                          ) : (
-                            <input type="text" value={row[f.key] ?? ""} onChange={e => updateRow(i, f.key, e.target.value)}
-                              className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
-                          )}
-                        </td>
-                      ))}
-                      <td className="px-2 py-1 w-7">
-                        <button onClick={() => removeRow(i)} disabled={manualRows.length === 1}
-                          className="text-muted-foreground hover:text-red-500 disabled:opacity-20 transition-colors">
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="p-2 border-t">
-              <button onClick={addRow} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">
-                <Plus className="size-3.5" />Tambah Baris
-              </button>
-            </div>
-          </div>
-
-          {errorMsg && <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg p-3">{errorMsg}</div>}
-
-          <div className="flex items-center gap-3 flex-wrap">
-            <button onClick={saveManual}
-              className="bg-foreground text-background text-sm font-medium px-4 py-2 rounded-md hover:opacity-90">
-              Simpan Sekarang
-            </button>
-            <button onClick={() => { setErrorMsg(""); setStep("docUpload"); }}
-              className="flex items-center gap-2 border text-sm font-medium px-4 py-2 rounded-md hover:bg-muted transition-colors">
-              <Upload className="size-3.5" />Upload Bukti Dokumen
-            </button>
-          </div>
         </div>
       )}
 
@@ -500,16 +385,12 @@ export default function UploadCenter() {
       {step === "docUpload" && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <button onClick={() => setStep(mode === "manual_first" ? "manual" : "type")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={() => setStep("type")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
               <ChevronLeft className="size-3.5" />Kembali
             </button>
             <div className="flex-1">
-              <div className="text-sm font-semibold">{FILE_TYPES.find(f => f.key === selected)?.label} — {mode === "manual_first" ? "Upload Bukti Dokumen" : "Upload Dokumen"}</div>
-              <div className="text-xs text-muted-foreground">
-                {mode === "manual_first" && validManualRows.length > 0
-                  ? `${validManualRows.length} baris dari input manual siap diverifikasi`
-                  : "Upload Excel atau PDF untuk diproses AI"}
-              </div>
+              <div className="text-sm font-semibold">{FILE_TYPES.find(f => f.key === selected)?.label} — Upload Dokumen</div>
+              <div className="text-xs text-muted-foreground">Upload Excel atau PDF untuk diproses AI secara otomatis</div>
             </div>
           </div>
 
@@ -566,97 +447,129 @@ export default function UploadCenter() {
             </div>
           )}
 
-          <div className="flex items-center gap-3 flex-wrap">
-            {fileReady && (
-              <button onClick={mode === "manual_first" ? runAiPreview : saveFromDoc}
-                className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-4 py-2 rounded-md hover:opacity-90">
-                <Sparkles className="size-3.5" />
-                {mode === "manual_first" ? "Verifikasi dengan AI" : `Proses dengan AI`}
-              </button>
-            )}
-            {mode === "manual_first" && (
-              <button onClick={saveManual} className="border text-sm px-4 py-2 rounded-md hover:bg-muted transition-colors">
-                Simpan Manual Saja
-              </button>
-            )}
-          </div>
+          {fileReady && (
+            <button onClick={processFile}
+              className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-4 py-2 rounded-md hover:opacity-90">
+              <Sparkles className="size-3.5" />Proses dengan AI
+            </button>
+          )}
         </div>
       )}
 
-      {/* ── STEP: AI COMPARE ────────────────────────────────────────────────────── */}
-      {step === "aiCompare" && aiPreview && (
+      {/* ── STEP: REVIEW ────────────────────────────────────────────────────────── */}
+      {step === "review" && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <button onClick={() => setStep("docUpload")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
               <ChevronLeft className="size-3.5" />Kembali
             </button>
-            <div className="text-sm font-semibold">Hasil Verifikasi AI</div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold">{FILE_TYPES.find(f => f.key === selected)?.label} — Review & Edit Data</div>
+              <div className="text-xs text-muted-foreground">{reviewRows.length} baris terdeteksi. Periksa, edit, tambah baris atau kolom sebelum menyimpan.</div>
+            </div>
+            <span className="text-xs bg-muted text-muted-foreground px-2.5 py-0.5 rounded-full">{reviewRows.length} baris</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground mb-1">Input Manual Anda</div>
-              <div className="text-2xl font-bold tabular-nums">{validManualRows.length}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">baris</div>
-              <div className="text-sm font-medium mt-2 text-foreground">{fmtRp(manualTotal)}</div>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground mb-1">Terdeteksi dari Dokumen</div>
-              <div className="text-2xl font-bold tabular-nums">{aiPreview.count}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">baris</div>
-              <div className="text-sm font-medium mt-2 text-foreground">{fmtRp(aiPreview.docTotal)}</div>
-            </div>
-          </div>
-
-          {(() => {
-            const diff = Math.abs(manualTotal - aiPreview.docTotal);
-            const pct = manualTotal > 0 ? (diff / manualTotal) * 100 : 100;
-            const match = pct < 2;
-            return (
-              <div className={cn("rounded-lg border p-3 flex items-center gap-2 text-sm",
-                match ? "border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400"
-                  : "border-amber-200 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400")}>
-                {match ? <CheckCircle className="size-4 shrink-0" /> : <AlertCircle className="size-4 shrink-0" />}
-                <span>
-                  {match
-                    ? "Nilai dari input manual cocok dengan dokumen."
-                    : `Selisih ${fmtRp(diff)} antara manual (${fmtRp(manualTotal)}) dan dokumen (${fmtRp(aiPreview.docTotal)}). Pilih sumber data yang tepat.`}
-                </span>
-              </div>
-            );
-          })()}
-
-          {aiPreview.records.length > 0 && (
-            <div className="rounded-xl border bg-card overflow-hidden">
-              <div className="px-4 py-2 border-b bg-muted/30 text-xs font-medium text-muted-foreground">
-                Preview entri dari dokumen ({aiPreview.count} total, tampil {Math.min(5, aiPreview.records.length)})
-              </div>
-              <div className="overflow-x-auto max-h-44">
-                <table className="w-full text-xs">
-                  <tbody>
-                    {aiPreview.records.slice(0, 5).map((r: any, i: number) => (
-                      <tr key={i} className="border-b last:border-0">
-                        {Object.entries(r).slice(0, 5).map(([k, v]) => (
-                          <td key={k} className="px-3 py-1.5 text-muted-foreground truncate max-w-[120px]">{String(v ?? "-")}</td>
-                        ))}
-                      </tr>
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="border-b bg-muted/40">
+                    <th className="px-2 py-2 text-left text-muted-foreground font-medium w-7 shrink-0">#</th>
+                    {fields.map(f => (
+                      <th key={f.key} className="px-1.5 py-2 text-left text-muted-foreground font-medium whitespace-nowrap" style={{ minWidth: f.w ?? 120 }}>
+                        {f.label}
+                      </th>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                    {extraCols.map(col => (
+                      <th key={col} className="px-1.5 py-2 text-left font-medium whitespace-nowrap" style={{ minWidth: 120 }}>
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">{col}</span>
+                          <button onClick={() => removeExtraCol(col)} className="text-muted-foreground hover:text-red-500 transition-colors ml-0.5">
+                            <Trash2 className="size-3" />
+                          </button>
+                        </div>
+                      </th>
+                    ))}
+                    {/* Add column header button */}
+                    <th className="px-2 py-2 w-24">
+                      {showAddCol ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            autoFocus
+                            value={newColName}
+                            onChange={e => setNewColName(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") addExtraCol(); if (e.key === "Escape") { setShowAddCol(false); setNewColName(""); } }}
+                            placeholder="Nama kolom"
+                            className="text-[10px] px-1.5 py-1 border rounded-sm bg-background w-20 focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                          <button onClick={addExtraCol} className="text-emerald-600 hover:text-emerald-700 text-[10px] font-medium">OK</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setShowAddCol(true)}
+                          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap">
+                          <PlusSquare className="size-3" />Tambah Kolom
+                        </button>
+                      )}
+                    </th>
+                    <th className="px-2 py-2 w-7" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviewRows.map((row, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-muted/10">
+                      <td className="px-2 py-1 text-muted-foreground text-center text-[10px]">{i + 1}</td>
+                      {fields.map(f => (
+                        <td key={f.key} className="px-1 py-1" style={{ minWidth: f.w ?? 120 }}>
+                          {f.type === "select" ? (
+                            <select value={row[f.key] ?? ""} onChange={e => updateReviewCell(i, f.key, e.target.value)}
+                              className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring">
+                              {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : f.type === "date" ? (
+                            <input type="date" value={row[f.key] ?? ""} onChange={e => updateReviewCell(i, f.key, e.target.value)}
+                              className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                          ) : f.type === "number" ? (
+                            <input type="number" value={row[f.key] ?? ""} onChange={e => updateReviewCell(i, f.key, e.target.value)}
+                              placeholder="0" min={0}
+                              className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                          ) : (
+                            <input type="text" value={row[f.key] ?? ""} onChange={e => updateReviewCell(i, f.key, e.target.value)}
+                              className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                          )}
+                        </td>
+                      ))}
+                      {extraCols.map(col => (
+                        <td key={col} className="px-1 py-1" style={{ minWidth: 120 }}>
+                          <input type="text" value={row[col] ?? ""} onChange={e => updateReviewCell(i, col, e.target.value)}
+                            className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                        </td>
+                      ))}
+                      <td className="px-2 py-1 w-24" />
+                      <td className="px-2 py-1 w-7">
+                        <button onClick={() => removeReviewRow(i)} disabled={reviewRows.length === 1}
+                          className="text-muted-foreground hover:text-red-500 disabled:opacity-20 transition-colors">
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-
-          <div className="flex items-center gap-3 flex-wrap">
-            <button onClick={saveManual}
-              className="bg-foreground text-background text-sm font-medium px-4 py-2 rounded-md hover:opacity-90">
-              Simpan dari Input Manual
-            </button>
-            <button onClick={saveFromDoc}
-              className="flex items-center gap-2 border text-sm font-medium px-4 py-2 rounded-md hover:bg-muted transition-colors">
-              <Sparkles className="size-3.5" />Simpan dari Dokumen
-            </button>
+            <div className="p-2 border-t">
+              <button onClick={addReviewRow} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">
+                <Plus className="size-3.5" />Tambah Baris
+              </button>
+            </div>
           </div>
+
+          {errorMsg && <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg p-3">{errorMsg}</div>}
+
+          <button onClick={saveReview}
+            className="bg-foreground text-background text-sm font-medium px-5 py-2.5 rounded-md hover:opacity-90">
+            Simpan ke Database
+          </button>
         </div>
       )}
 
@@ -676,7 +589,7 @@ export default function UploadCenter() {
             <p className="text-sm font-semibold">Berhasil Disimpan</p>
             <p className="text-sm text-muted-foreground mt-1">{resultMsg}</p>
           </div>
-          <button onClick={reset} className="mt-2 border text-sm px-4 py-2 rounded-md hover:bg-muted transition-colors">Input Data Lagi</button>
+          <button onClick={reset} className="mt-2 border text-sm px-4 py-2 rounded-md hover:bg-muted transition-colors">Upload Data Lagi</button>
         </div>
       )}
 
@@ -696,24 +609,23 @@ export default function UploadCenter() {
       {step === "type" && uploads.length > 0 && (
         <div className="rounded-xl border bg-card">
           <div className="p-4 border-b">
-            <h2 className="text-sm font-semibold">Riwayat Upload & Input</h2>
+            <h2 className="text-sm font-semibold">Riwayat Upload</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  {["Jenis Data", "Nama / Sesi", "Tanggal", "Baris", "Status"].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
+                  {["Jenis Data", "Nama / Sesi", "Tanggal", "Baris", "Status", ""].map((h, i) => (
+                    <th key={i} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {uploads.slice(0, 12).map((u: any) => (
-                  <tr key={u.id} className="border-b last:border-0">
+                  <tr key={u.id} className="border-b last:border-0 hover:bg-muted/20">
                     <td className="px-4 py-2.5 text-xs font-medium">
                       <div className="flex items-center gap-1.5">
-                        {u.fileName?.startsWith("Manual") ? <ClipboardList className="size-3 text-amber-500" />
-                          : u.fileName?.toLowerCase().endsWith(".pdf") ? <FileType className="size-3 text-blue-500" />
+                        {u.fileName?.toLowerCase().endsWith(".pdf") ? <FileType className="size-3 text-blue-500" />
                           : <FileText className="size-3 text-emerald-500" />}
                         {FILE_TYPES.find(f => f.key === u.fileType)?.label ?? u.fileType}
                       </div>
@@ -723,9 +635,23 @@ export default function UploadCenter() {
                     <td className="px-4 py-2.5 text-xs">{u.rowCount ?? "-"}</td>
                     <td className="px-4 py-2.5 text-xs">
                       <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-medium",
-                        u.status === "berhasil" ? "bg-emerald-100 text-emerald-700" : u.status === "error" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700")}>
+                        u.status === "berhasil" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                          : u.status === "error" ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400")}>
                         {u.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs w-10">
+                      <button
+                        onClick={() => deleteUpload(u.id)}
+                        disabled={deletingId === u.id}
+                        className="text-muted-foreground hover:text-red-500 disabled:opacity-40 transition-colors"
+                        title="Hapus upload ini"
+                      >
+                        {deletingId === u.id
+                          ? <Loader2 className="size-3.5 animate-spin" />
+                          : <Trash2 className="size-3.5" />}
+                      </button>
                     </td>
                   </tr>
                 ))}

@@ -108,6 +108,17 @@ router.post("/finance/uploads", async (req, res) => {
   }
 });
 
+router.delete("/finance/uploads/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id)) { res.status(400).json({ error: "ID tidak valid" }); return; }
+    await db.delete(financeUploadsTable).where(eq(financeUploadsTable.id, id));
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Bulk import cashflow records
 router.post("/finance/uploads/cashflow", async (req, res) => {
   try {
