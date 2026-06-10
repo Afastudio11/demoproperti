@@ -1248,6 +1248,148 @@ router.post("/finance/uploads/manual-save", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── AI VERIFY (bandingkan manual entries vs isi dokumen) ─────────────────────
+router.post("/finance/uploads/ai-verify", async (req, res) => {
+  try {
+    const { fileType, manualEntries, fileName, fileKind, sheets, pdfBase64 } = req.body as {
+      fileType: string;
+      manualEntries: Record<string, any>[];
+      fileName: string;
+      fileKind: "excel" | "pdf";
+      sheets?: Array<{ name: string; headers: string[]; rows: Record<string, any>[] }>;
+      pdfBase64?: string;
+    };
+
+    function cn(v: any): number {
+      if (!v && v !== 0) return 0;
+      if (typeof v === "number") return v;
+      const s = String(v).replace(/Rp\.?\s*/gi, "").replace(/\./g, "").replace(/,/g, ".");
+      return parseFloat(s) || 0;
+    }
+    function fmtRp(n: number): string {
+      if (!n || isNaN(n)) return "Rp 0";
+      if (Math.abs(n) >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)} M`;
+      if (Math.abs(n) >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(0)} Jt`;
+      return `Rp ${n.toLocaleString("id-ID")}`;
+    }
+    function pct(diff: number, base: number): string {
+      if (!base) return "";
+      return ` (${Math.abs(diff / base * 100).toFixed(1)}%)`;
+    }
+    function approxEq(a: number, b: number): boolean {
+      if (a === 0 && b === 0) return true;
+      const base = Math.max(Math.abs(a), Math.abs(b), 1);
+      return Math.abs(a - b) / base < 0.02; // 2% tolerance
+    }
+
+    // ── Hitung totals dari manual entries ──────────────────────────────────────
+    type CheckItem = { label: string; manualVal: number; key: string };
+    const checks: CheckItem[] = [];
+
+    if (fileType === "hutang") {
+      const total = manualEntries.reduce((s, r) => s + cn(r.totalAmount), 0);
+      const paid = manualEntries.reduce((s, r) => s + cn(r.paidAmount), 0);
+      checks.push({ label: "Total Nilai Hutang (Rp)", manualVal: total, key: "totalHutang" });
+      checks.push({ label: "Total Terbayar (Rp)", manualVal: paid, key: "totalPaid" });
+      checks.push({ label: "Jumlah Entri Kreditur", manualVal: manualEntries.length, key: "countEntri" });
+    } else if (fileType === "piutang") {
+      const total = manualEntries.reduce((s, r) => s + cn(r.totalAmount), 0);
+      checks.push({ label: "Total Piutang (Rp)", manualVal: total, key: "totalPiutang" });
+      checks.push({ label: "Jumlah Entri Debitur", manualVal: manualEntries.length, key: "countEntri" });
+    } else if (["cashflow", "general_ledger", "bank"].includes(fileType)) {
+      const cashIn = manualEntries.filter(r => r.type === "cash_in").reduce((s, r) => s + cn(r.amount), 0);
+      const cashOut = manualEntries.filter(r => r.type === "cash_out").reduce((s, r) => s + cn(r.amount), 0);
+      checks.push({ label: "Total Masuk / Cash In (Rp)", manualVal: cashIn, key: "cashIn" });
+      checks.push({ label: "Total Keluar / Cash Out (Rp)", manualVal: cashOut, key: "cashOut" });
+      checks.push({ label: "Net Cashflow (Rp)", manualVal: cashIn - cashOut, key: "net" });
+      checks.push({ label: "Jumlah Transaksi", manualVal: manualEntries.length, key: "countEntri" });
+    } else if (fileType === "rab") {
+      const anggaran = manualEntries.reduce((s, r) => s + cn(r.rabAmount), 0);
+      const realisasi = manualEntries.reduce((s, r) => s + cn(r.realizationAmount), 0);
+      checks.push({ label: "Total Anggaran RAB (Rp)", manualVal: anggaran, key: "totalAnggaran" });
+      checks.push({ label: "Total Realisasi (Rp)", manualVal: realisasi, key: "totalRealisasi" });
+      checks.push({ label: "Jumlah Item", manualVal: manualEntries.length, key: "countEntri" });
+    }
+
+    if (!checks.length) {
+      res.status(400).json({ error: "Tipe data tidak dikenali untuk verifikasi" });
+      return;
+    }
+
+    // ── Siapkan dokumen teks untuk AI ──────────────────────────────────────────
+    let docText = "";
+    const ai = createDeepSeekClient();
+
+    if (fileKind === "pdf" && pdfBase64) {
+      const buf = Buffer.from(pdfBase64, "base64");
+      const parsed = await pdfParse(buf);
+      docText = (parsed.text || "").slice(0, 14000);
+    } else if (fileKind === "excel" && sheets?.length) {
+      const allRows = sheets.flatMap(sh =>
+        sh.rows.map(row => sh.headers.map(h => String(row[h] ?? "")).join("\t"))
+      );
+      const headerLine = sheets[0]?.headers.join("\t") ?? "";
+      docText = [headerLine, ...allRows].slice(0, 600).join("\n");
+      if (docText.length > 14000) docText = docText.slice(0, 14000);
+    }
+
+    if (!docText.trim()) {
+      res.status(400).json({ error: "Dokumen kosong atau tidak bisa dibaca." });
+      return;
+    }
+
+    // ── AI ekstrak angka yang sama dari dokumen ────────────────────────────────
+    const targetKeys = checks.map(c => c.key);
+    const targetDesc = checks.map(c => `"${c.key}": <angka numerik untuk ${c.label}>`).join(", ");
+
+    const completion = await ai.chat.completions.create({
+      model: DEEPSEEK_MODEL,
+      messages: [
+        {
+          role: "system",
+          content: "Kamu adalah asisten keuangan. Ekstrak angka-angka summary dari dokumen. Kembalikan JSON object saja, tanpa penjelasan.",
+        },
+        {
+          role: "user",
+          content: `Dari dokumen keuangan berikut (tipe: ${fileType}), ekstrak nilai-nilai ini:\n${targetDesc}\n\nUntuk "countEntri": hitung jumlah baris data (bukan header, bukan total/subtotal).\nUntuk angka Rupiah: kembalikan angka saja tanpa "Rp" atau titik/koma pemisah ribuan.\n\nDOKUMEN:\n${docText}\n\nKembalikan JSON: {${targetKeys.map(k => `"${k}": number`).join(", ")}}`,
+        },
+      ],
+      temperature: 0,
+      max_tokens: 300,
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "{}";
+    const m = raw.match(/\{[\s\S]*\}/);
+    let docVals: Record<string, number> = {};
+    try { docVals = m ? JSON.parse(m[0]) : {}; } catch { docVals = {}; }
+
+    // ── Bandingkan ────────────────────────────────────────────────────────────
+    type VerifyCheck = { label: string; manualValue: string; docValue: string; match: boolean; diff?: string; };
+    const result: VerifyCheck[] = checks.map(c => {
+      const docVal = typeof docVals[c.key] === "number" ? docVals[c.key] : null;
+      const isCount = c.key === "countEntri";
+      const manualFmt = isCount ? `${c.manualVal} baris` : fmtRp(c.manualVal);
+      const docFmt = docVal === null ? "Tidak ditemukan" : isCount ? `${docVal} baris` : fmtRp(docVal);
+      const match = docVal !== null && approxEq(c.manualVal, docVal);
+      const diff = docVal !== null && !match
+        ? (isCount ? `Selisih ${Math.abs(c.manualVal - docVal)} baris` : `Selisih ${fmtRp(Math.abs(c.manualVal - docVal))}${pct(c.manualVal - docVal, c.manualVal)}`)
+        : undefined;
+      return { label: c.label, manualValue: manualFmt, docValue: docFmt, match, diff };
+    });
+
+    const matchCount = result.filter(r => r.match).length;
+    const totalCount = result.length;
+    const allMatch = matchCount === totalCount;
+    const summary = allMatch
+      ? "Semua item cocok antara input manual dan dokumen bukti."
+      : `${totalCount - matchCount} item tidak cocok — periksa selisih sebelum menyimpan.`;
+
+    res.json({ checks: result, summary, matchCount, totalCount });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── AI PREVIEW (baca dokumen, kembalikan records TANPA save) ─────────────────
 router.post("/finance/uploads/ai-preview", async (req, res) => {
   try {
