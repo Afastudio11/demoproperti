@@ -368,7 +368,7 @@ export default function LandingPage() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
                 {/* Left Column: Photo Visual (2/12) */}
                 <div className="lg:col-span-2 hidden lg:flex justify-center">
-                  <div className="rounded-lg overflow-hidden w-36 h-36 border border-white/10 shadow-sm">
+                  <div className="rounded-lg overflow-hidden w-52 h-52 border border-white/10 shadow-sm">
                     <img src="/foto-sn-residence.jpg" alt="SN Residence" className="w-full h-full object-cover" />
                   </div>
                 </div>
@@ -403,7 +403,7 @@ export default function LandingPage() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
                 {/* Left Column: Photo Visual (2/12) */}
                 <div className="lg:col-span-2 hidden lg:flex justify-center">
-                  <div className="rounded-lg overflow-hidden w-36 h-36 border border-white/10 shadow-sm">
+                  <div className="rounded-lg overflow-hidden w-52 h-52 border border-white/10 shadow-sm">
                     <img src="/foto-sekala.png" alt="Sekala" className="w-full h-full object-cover object-top" />
                   </div>
                 </div>
@@ -432,7 +432,7 @@ export default function LandingPage() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
                 {/* Left Column: Photo Visual (2/12) */}
                 <div className="lg:col-span-2 hidden lg:flex justify-center">
-                  <div className="rounded-lg overflow-hidden w-36 h-36 border border-white/10 shadow-sm">
+                  <div className="rounded-lg overflow-hidden w-52 h-52 border border-white/10 shadow-sm">
                     <img src="/foto-roemah-warga.png" alt="Roemah Warga" className="w-full h-full object-cover" />
                   </div>
                 </div>
