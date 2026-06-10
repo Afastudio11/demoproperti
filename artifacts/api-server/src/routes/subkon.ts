@@ -1,9 +1,16 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { subkonContractsTable, subkonPaymentsTable, paymentApprovalsTable } from "@workspace/db";
+import {
+  subkonContractsTable,
+  subkonPaymentsTable,
+  paymentApprovalsTable,
+  unitsTable,
+  prodMaterialOutTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { listSubkonMaster, normalizeSubkonName } from "../lib/subkon-master";
 import { getContractFieldProgress } from "../lib/production-relations";
+import { recordFinanceCashflow } from "../lib/finance-sync";
 
 const router: IRouter = Router();
 
@@ -85,13 +92,23 @@ router.post("/produksi/subkon/contracts", async (req, res) => {
 router.patch("/produksi/subkon/contracts/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
     const body = { ...req.body };
     if ("subkonName" in body) {
       body.subkonName = normalizeSubkonName(body.subkonName);
       if (!body.subkonName) return res.status(400).json({ error: "Nama subkon wajib diisi" });
     }
+    const unitCount = Number(body.unitCount ?? existing.unitCount);
+    const valuePerUnit = Number(body.valuePerUnit ?? existing.valuePerUnit);
+    const retentionPerUnit = Number(body.retentionPerUnit ?? existing.retentionPerUnit);
+    if ("unitCount" in body || "valuePerUnit" in body || "retentionPerUnit" in body) {
+      body.contractValue = unitCount * valuePerUnit;
+      body.totalRetention = unitCount * retentionPerUnit;
+      body.netPayableValue = body.contractValue - body.totalRetention;
+    }
     const [row] = await db.update(subkonContractsTable).set(body).where(eq(subkonContractsTable.id, id)).returning();
-    if (!row) return res.status(404).json({ error: "Not found" });
     res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update subkon contract");
@@ -102,6 +119,15 @@ router.patch("/produksi/subkon/contracts/:id", async (req, res) => {
 router.delete("/produksi/subkon/contracts/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const payments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.contractId, id));
+    const units = await db.select().from(unitsTable).where(eq(unitsTable.contractId, id));
+    const materialOut = await db.select().from(prodMaterialOutTable).where(eq(prodMaterialOutTable.contractId, id));
+    if (payments.length || units.length || materialOut.length) {
+      return res.status(409).json({
+        error: "Kontrak sudah dipakai oleh unit/material/pembayaran. Nonaktifkan kontrak jika tidak dipakai lagi.",
+        usage: { payments: payments.length, units: units.length, materialOut: materialOut.length },
+      });
+    }
     await db.delete(subkonContractsTable).where(eq(subkonContractsTable.id, id));
     res.json({ ok: true });
   } catch (err) {
@@ -246,6 +272,18 @@ router.patch("/produksi/subkon/payments/:id/mark-paid", async (req, res) => {
     if (existing.status !== "approved") return res.status(400).json({ error: "Pembayaran harus disetujui sebelum ditandai paid" });
     const [row] = await db.update(subkonPaymentsTable).set({ status: "paid", paymentDate: new Date().toISOString().split("T")[0] }).where(eq(subkonPaymentsTable.id, id)).returning();
     if (!row) return res.status(404).json({ error: "Not found" });
+    const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, row.contractId));
+    if (contract && row.netPayment && row.netPayment > 0) {
+      await recordFinanceCashflow({
+        transactionDate: row.paymentDate ?? undefined,
+        type: "cash_out",
+        category: "subkon",
+        amount: row.netPayment,
+        description: `Pembayaran termin ${row.terminNumber ?? "-"} ${contract.subkonName}`,
+        referenceNumber: `SUBKON-${row.contractId}-${row.id}`,
+        projectId: contract.projectId,
+      });
+    }
     res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to mark payment as paid");

@@ -7,6 +7,8 @@ import {
   competitorsTable,
   marketingAbsorptionTable,
   projectsTable,
+  customersTable,
+  customerStatusHistoryTable,
 } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { z } from "zod";
@@ -32,6 +34,46 @@ function fmtLead(l: typeof leadsTable.$inferSelect) {
     createdAt: createdAt.toISOString(),
     updatedAt: l.updatedAt instanceof Date ? l.updatedAt.toISOString() : l.updatedAt,
   };
+}
+
+function sameText(left: string | null | undefined, right: string | null | undefined) {
+  return (left ?? "").trim().toLowerCase() === (right ?? "").trim().toLowerCase();
+}
+
+async function createCustomerFromLeadIfNeeded(lead: typeof leadsTable.$inferSelect) {
+  if (!["BERKAS_LENGKAP", "DISERAHKAN_ADMIN"].includes(lead.status)) return null;
+
+  const customers = await db.select().from(customersTable);
+  const existing = customers.find((customer) =>
+    customer.projectId === lead.projectId
+    && (sameText(customer.kontak || customer.phone, lead.kontak) || sameText(customer.nama, lead.nama))
+  );
+  if (existing) return existing;
+
+  const pipelineStatus = lead.status === "DISERAHKAN_ADMIN" ? "PROSES_BERKAS" : "BERKAS_LENGKAP";
+  const [customer] = await db.insert(customersTable).values({
+    projectId: lead.projectId,
+    nama: lead.nama,
+    kontak: lead.kontak,
+    phone: lead.kontak,
+    pekerjaan: lead.pekerjaan ?? null,
+    referralSource: lead.namaKampanye ?? lead.campaign ?? lead.source,
+    picAdmin: lead.assignedTo ?? null,
+    catatan: lead.catatanFollowUp ?? null,
+    pipelineStatus,
+    statusUpdatedAt: new Date(),
+    bookingDate: lead.tanggalBooking ?? null,
+  }).returning();
+
+  await db.insert(customerStatusHistoryTable).values({
+    customerId: customer.id,
+    fromStatus: null,
+    toStatus: pipelineStatus,
+    changedBy: lead.picSales ?? lead.assignedTo ?? "marketing",
+    notes: `Auto-sync dari lead marketing #${lead.id}`,
+  });
+
+  return customer;
 }
 
 router.get("/marketing/leads", async (req, res) => {
@@ -68,7 +110,8 @@ router.post("/marketing/leads", async (req, res) => {
     const body = req.body;
     if (!body.nama || !body.kontak || !body.projectId) return res.status(400).json({ error: "Nama, kontak, dan proyek wajib diisi" });
     const [lead] = await db.insert(leadsTable).values({ ...body, status: body.status || "NEW_LEAD" }).returning();
-    res.status(201).json(fmtLead(lead));
+    const syncedCustomer = await createCustomerFromLeadIfNeeded(lead);
+    res.status(201).json({ ...fmtLead(lead), syncedCustomerId: syncedCustomer?.id ?? null });
   } catch (err) {
     req.log.error({ err }, "Failed to create lead");
     res.status(400).json({ error: "Invalid request" });
@@ -80,7 +123,8 @@ router.patch("/marketing/leads/:id", async (req, res) => {
     const body = req.body;
     const [lead] = await db.update(leadsTable).set({ ...body, updatedAt: new Date() }).where(eq(leadsTable.id, parseInt(req.params.id))).returning();
     if (!lead) return res.status(404).json({ error: "Not found" });
-    res.json(fmtLead(lead));
+    const syncedCustomer = await createCustomerFromLeadIfNeeded(lead);
+    res.json({ ...fmtLead(lead), syncedCustomerId: syncedCustomer?.id ?? null });
   } catch (err) {
     req.log.error({ err }, "Failed to update lead");
     res.status(400).json({ error: "Invalid request" });
@@ -110,22 +154,27 @@ router.get("/marketing/dashboard", async (req, res) => {
     const monthLeads = leads.filter(l => new Date(l.createdAt) >= thisMonth);
 
     const totalLeads = monthLeads.length;
-    const surveyCount = leads.filter(l => ["SURVEY_DIJADWALKAN","SURVEY_DILAKUKAN"].includes(l.status)).length;
-    const bookingCount = leads.filter(l => l.status === "BOOKING").length;
-    const berkasCount = leads.filter(l => ["BERKAS_LENGKAP","DISERAHKAN_ADMIN"].includes(l.status)).length;
-    const totalCampaignSpend = campaigns.reduce((s, c) => s + parseFloat((c.spend ?? "0").toString()), 0);
+    const surveyCount = monthLeads.filter(l => ["SURVEY_DIJADWALKAN","SURVEY_DILAKUKAN"].includes(l.status)).length;
+    const bookingCount = monthLeads.filter(l => l.status === "BOOKING").length;
+    const berkasCount = monthLeads.filter(l => ["BERKAS_LENGKAP","DISERAHKAN_ADMIN"].includes(l.status)).length;
+    const totalCampaignSpend = campaigns
+      .filter(c => !c.tanggalMulai || new Date(c.tanggalMulai) >= thisMonth)
+      .reduce((s, c) => s + parseFloat((c.spend ?? "0").toString()), 0);
     const cpl = totalLeads > 0 ? Math.round(totalCampaignSpend / Math.max(totalLeads, 1)) : 0;
     const totalUnits = absorptions.reduce((s, a) => s + (a.totalUnit || 0), 0);
     const totalTerjual = absorptions.reduce((s, a) => s + (a.unitTerjual || 0), 0);
     const absorptionRate = totalUnits > 0 ? Math.round((totalTerjual / totalUnits) * 100) : 0;
     const stockSisa = totalUnits - totalTerjual;
 
-    const surveyed = leads.filter(l => ["SURVEY_DIJADWALKAN","SURVEY_DILAKUKAN","BOOKING","BERKAS_LENGKAP","DISERAHKAN_ADMIN"].includes(l.status)).length;
+    const surveyed = monthLeads.filter(l => ["SURVEY_DIJADWALKAN","SURVEY_DILAKUKAN","BOOKING","BERKAS_LENGKAP","DISERAHKAN_ADMIN"].includes(l.status)).length;
     const surveyRate = totalLeads > 0 ? Math.round((surveyed / Math.max(monthLeads.length, 1)) * 100) : 0;
     const bookingRate = surveyed > 0 ? Math.round((bookingCount / Math.max(surveyed, 1)) * 100) : 0;
     const berkasRate = bookingCount > 0 ? Math.round((berkasCount / Math.max(bookingCount, 1)) * 100) : 0;
 
-    const avgBookingPerMonth = Math.max(bookingCount, 1);
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const bookingsLast90Days = leads.filter(l => l.status === "BOOKING" && new Date(l.createdAt) >= ninetyDaysAgo).length;
+    const avgBookingPerMonth = Math.max(Math.round(bookingsLast90Days / 3), 1);
     const coverageMonths = stockSisa > 0 ? Math.round(stockSisa / avgBookingPerMonth) : 0;
 
     const latestBranding = brandingKpis.sort((a, b) => b.bulan.localeCompare(a.bulan))[0];
@@ -223,16 +272,25 @@ router.get("/marketing/dashboard", async (req, res) => {
 router.get("/marketing/campaigns", async (req, res) => {
   try {
     let rows = await db.select().from(campaignsTable).orderBy(desc(campaignsTable.createdAt));
+    const leads = await db.select().from(leadsTable);
     if (req.query.projectId) rows = rows.filter(r => r.projectId === parseInt(req.query.projectId as string));
     const result = rows.map(c => {
       const anggaran = parseFloat((c.anggaran ?? "0").toString());
       const spend = parseFloat((c.spend ?? "0").toString());
       const impresi = c.impresi ?? 0;
       const klik = c.klik ?? 0;
-      const leadsGen = c.leadsGenerated ?? 0;
+      const actualLeads = leads.filter(l =>
+        (l.namaKampanye === c.nama || l.campaign === c.nama)
+        && (!c.projectId || l.projectId === c.projectId)
+      ).length;
+      const manualLeads = c.leadsGenerated ?? 0;
+      const leadsGen = actualLeads || manualLeads;
       return {
         ...c,
         anggaran: anggaran, spend: spend,
+        leadsGenerated: leadsGen,
+        manualLeadsGenerated: manualLeads,
+        actualLeadsGenerated: actualLeads,
         cpl: leadsGen > 0 ? Math.round(spend / leadsGen) : 0,
         ctr: impresi > 0 ? Math.round(klik / impresi * 10000) / 100 : 0,
         cpm: impresi > 0 ? Math.round(spend / impresi * 1000) : 0,

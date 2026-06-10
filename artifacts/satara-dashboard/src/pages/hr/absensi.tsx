@@ -18,7 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 const STATUS_CYCLE = ["H", "A", "C", "S", "I", "L", ""];
 
-const PROJECTS = ["SN RESIDENCE", "SEKALA INDUSTRY", "Semua"];
+type Project = { id: number; nama: string };
 
 function buildAttendanceMatrix(rows: any[]) {
   const byEmployee: Record<string, Record<number, { status: string; id: number }>> = {};
@@ -37,33 +37,43 @@ export default function HRAbsensi() {
 
   // Bulk input state
   const [bulkMode, setBulkMode] = useState(false);
-  const [bulkProject, setBulkProject] = useState("SN RESIDENCE");
+  const [bulkProject, setBulkProject] = useState("");
   // grid: employeeId -> day -> status
   const [bulkGrid, setBulkGrid] = useState<Record<number, Record<number, string>>>({});
   const [bulkSaved, setBulkSaved] = useState(false);
 
   // Single edit
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ employeeName: "", project: "SN RESIDENCE", month, year, day: 1, status: "H" });
+  const [form, setForm] = useState({ employeeName: "", project: "", month, year, day: 1, status: "H" });
   const [editId, setEditId] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
-
-  const params = new URLSearchParams({ month, year: year.toString(), ...(project !== "Semua" ? { project } : {}) });
-  const { data = [], isLoading } = useQuery<any[]>({
-    queryKey: ["hr-attendance", month, year, project],
-    queryFn: () => fetch(`/api/hr/attendance?${params}`).then(apiJson),
-  });
 
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["hr-employees"],
     queryFn: () => fetch("/api/hr/employees").then(apiJson),
   });
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then(apiJson),
+  });
+  const projectOptions = ["Semua", ...projects.map(p => p.nama)];
+  const findProject = (name: string) => projects.find(p => p.nama === name);
+  const selectedProject = findProject(project);
+  const params = new URLSearchParams({ month, year: year.toString(), ...(selectedProject ? { projectId: String(selectedProject.id) } : {}) });
+  const { data = [], isLoading } = useQuery<any[]>({
+    queryKey: ["hr-attendance", month, year, selectedProject?.id ?? "all"],
+    queryFn: () => fetch(`/api/hr/attendance?${params}`).then(apiJson),
+  });
 
   const saveMut = useMutation({
-    mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/attendance/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
-      : fetch("/api/hr/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
+    mutationFn: (body: any) => {
+      const employee = employees.find((emp: any) => emp.name === body.employeeName);
+      const payload = { ...body, employeeId: employee?.id ?? null, projectId: findProject(body.project)?.id ?? null };
+      return editId
+        ? fetch(`/api/hr/attendance/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(apiJson)
+        : fetch("/api/hr/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(apiJson);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-attendance"] }); setShowForm(false); setEditId(null); setFormError(null); },
     onError: (e: any) => setFormError(e.message),
   });
@@ -101,7 +111,7 @@ export default function HRAbsensi() {
       grid[emp.id] = {};
     }
     setBulkGrid(grid);
-    setBulkProject(project !== "Semua" ? project : "SN RESIDENCE");
+    setBulkProject(project !== "Semua" ? project : (projects[0]?.nama ?? ""));
     setBulkMode(true);
     setBulkSaved(false);
     setBulkError(null);
@@ -123,7 +133,9 @@ export default function HRAbsensi() {
       for (const [dayStr, status] of Object.entries(days)) {
         if (status) {
           records.push({
+            employeeId: emp.id,
             employeeName: emp.name,
+            projectId: findProject(bulkProject)?.id ?? null,
             project: bulkProject,
             month,
             year,
@@ -162,7 +174,7 @@ export default function HRAbsensi() {
         </select>
         <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} className="text-sm border rounded-md px-2 py-1.5 bg-background w-20" />
         <select value={project} onChange={e => setProject(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
-          {PROJECTS.map(p => <option key={p}>{p}</option>)}
+          {projectOptions.map(p => <option key={p}>{p}</option>)}
         </select>
       </div>
 
@@ -190,7 +202,7 @@ export default function HRAbsensi() {
                 <span className="text-xs text-muted-foreground">Project:</span>
                 <select value={bulkProject} onChange={e => setBulkProject(e.target.value)}
                   className="text-xs border rounded px-2 py-1 bg-background">
-                  {["SN RESIDENCE","SEKALA INDUSTRY"].map(p => <option key={p}>{p}</option>)}
+                  {projects.map(p => <option key={p.id}>{p.nama}</option>)}
                 </select>
               </div>
               <div className="flex gap-1 text-[10px] text-muted-foreground items-center border rounded px-2 py-1 bg-background">
@@ -285,9 +297,15 @@ export default function HRAbsensi() {
             {[["Nama Karyawan","employeeName","text"],["Project","project","text"],["Bulan","month","text"],["Tahun","year","number"],["Hari","day","number"]].map(([label, key, type]) => (
               <div key={key}>
                 <label className="text-xs text-muted-foreground block mb-1">{label}</label>
-                {key === "project" ? (
+                {key === "employeeName" ? (
+                  <select value={form.employeeName} onChange={e => setForm(f => ({ ...f, employeeName: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background">
+                    <option value="">Pilih karyawan...</option>
+                    {employees.map((emp: any) => <option key={emp.id}>{emp.name}</option>)}
+                  </select>
+                ) : key === "project" ? (
                   <select value={form.project} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background">
-                    {["SN RESIDENCE","SEKALA INDUSTRY"].map(p => <option key={p}>{p}</option>)}
+                    <option value="">Pilih proyek...</option>
+                    {projects.map(p => <option key={p.id}>{p.nama}</option>)}
                   </select>
                 ) : key === "month" ? (
                   <select value={form.month} onChange={e => setForm(f => ({ ...f, month: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background">

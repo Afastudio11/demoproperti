@@ -44,7 +44,7 @@ const subModules = [
       { name: "Keluar",     path: "/produksi/material/keluar",   desc: "Pengeluaran material ke lapangan" },
       { name: "Konsumsi",   path: "/produksi/material/konsumsi", desc: "Konsumsi aktual vs standar" },
       { name: "Variance",   path: "/produksi/material/variance", desc: "Variance & penyimpangan material" },
-      { name: "Forecast",   path: "/produksi/material/forecast", desc: "Prediksi kebutuhan material" },
+      { name: "Forecast Material", path: "/produksi/material/forecast", desc: "Prediksi kebutuhan material" },
     ],
   },
   {
@@ -68,9 +68,9 @@ const subModules = [
     items: [
       { name: "Velocity",           path: "/produksi/analitik/velocity",       desc: "Kecepatan produksi per unit" },
       { name: "Produktivitas",      path: "/produksi/analitik/produktivitas",   desc: "Output subkon vs target" },
-      { name: "Forecast",           path: "/produksi/analitik/forecast",        desc: "Prediksi selesai per unit" },
+      { name: "Forecast Penyelesaian", path: "/produksi/analitik/forecast", desc: "Prediksi selesai per unit" },
       { name: "Cost to Complete",   path: "/produksi/analitik/cost-to-complete",desc: "Sisa biaya konstruksi" },
-      { name: "Cashflow Impact",    path: "/produksi/analitik/cashflow-impact", desc: "Dampak cashflow konstruksi" },
+      { name: "Dampak Termin ke Cashflow", path: "/produksi/analitik/cashflow-impact", desc: "Dampak pembayaran termin subkon ke arus kas" },
       { name: "Baseline",           path: "/produksi/analitik/baseline",        desc: "Realisasi vs baseline plan" },
       { name: "Eligibilitas",       path: "/produksi/analitik/eligibilitas",    desc: "Unit eligible KPR" },
     ],

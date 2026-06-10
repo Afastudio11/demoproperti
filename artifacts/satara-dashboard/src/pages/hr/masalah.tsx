@@ -4,7 +4,7 @@ import { AlertCircle, Plus, Pencil, Trash2, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiJson } from "@/lib/api";
 
-const PROJECTS = ["Semua", "SN RESIDENCE", "SEKALA INDUSTRY"];
+type Project = { id: number; nama: string };
 
 type Issue = {
   id: number;
@@ -19,7 +19,7 @@ type Issue = {
   createdAt: string;
 };
 
-const emptyForm = { project: "SN RESIDENCE", tanggal: "", divisi: "", nama: "", masalah: "", solusi: "", deadline: "", keterangan: "" };
+const emptyForm = { project: "", tanggal: "", divisi: "", nama: "", masalah: "", solusi: "", deadline: "", keterangan: "" };
 
 export default function HRMasalah() {
   const qc = useQueryClient();
@@ -30,16 +30,31 @@ export default function HRMasalah() {
   const [search, setSearch] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
-  const params = new URLSearchParams(project !== "Semua" ? { project } : {});
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then(apiJson),
+  });
+  const { data: employees = [] } = useQuery<any[]>({
+    queryKey: ["hr-employees"],
+    queryFn: () => fetch("/api/hr/employees").then(apiJson),
+  });
+  const projectOptions = ["Semua", ...projects.map(p => p.nama)];
+  const findProject = (name: string) => projects.find(p => p.nama === name);
+  const selectedProject = findProject(project);
+  const params = new URLSearchParams(selectedProject ? { projectId: String(selectedProject.id) } : {});
   const { data = [], isLoading } = useQuery<Issue[]>({
-    queryKey: ["hr-individual-issues", project],
+    queryKey: ["hr-individual-issues", selectedProject?.id ?? "all"],
     queryFn: () => fetch(`/api/hr/individual-issues?${params}`).then(apiJson),
   });
 
   const saveMut = useMutation({
-    mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/individual-issues/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
-      : fetch("/api/hr/individual-issues", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
+    mutationFn: (body: any) => {
+      const employee = employees.find((emp: any) => emp.name === body.nama);
+      const payload = { ...body, projectId: findProject(body.project)?.id ?? null, divisi: body.divisi || employee?.division || "" };
+      return editId
+        ? fetch(`/api/hr/individual-issues/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(apiJson)
+        : fetch("/api/hr/individual-issues", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(apiJson);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-individual-issues"] }); setShowForm(false); setEditId(null); setForm({ ...emptyForm }); setFormError(null); },
     onError: (e: any) => setFormError(e.message),
   });
@@ -59,7 +74,7 @@ export default function HRMasalah() {
 
   function openEdit(issue: Issue) {
     setEditId(issue.id);
-    setForm({ project: issue.project ?? "SN RESIDENCE", tanggal: issue.tanggal ?? "", divisi: issue.divisi ?? "", nama: issue.nama ?? "", masalah: issue.masalah ?? "", solusi: issue.solusi ?? "", deadline: issue.deadline ?? "", keterangan: issue.keterangan ?? "" });
+    setForm({ project: issue.project ?? "", tanggal: issue.tanggal ?? "", divisi: issue.divisi ?? "", nama: issue.nama ?? "", masalah: issue.masalah ?? "", solusi: issue.solusi ?? "", deadline: issue.deadline ?? "", keterangan: issue.keterangan ?? "" });
     setShowForm(true);
   }
 
@@ -70,7 +85,7 @@ export default function HRMasalah() {
           <h1 className="text-xl font-semibold tracking-tight">Masalah Individu</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Tracking masalah dan solusi karyawan per proyek</p>
         </div>
-        <button onClick={() => { setShowForm(true); setEditId(null); setForm({ ...emptyForm, project: project !== "Semua" ? project : "SN RESIDENCE" }); }}
+        <button onClick={() => { setShowForm(true); setEditId(null); setForm({ ...emptyForm, project: project !== "Semua" ? project : (projects[0]?.nama ?? "") }); }}
           className="flex items-center gap-1.5 text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90">
           <Plus className="size-3.5" /> Tambah Masalah
         </button>
@@ -81,8 +96,8 @@ export default function HRMasalah() {
         {[
           { label: "Total Masalah", val: data.length, color: "text-foreground" },
           { label: "Masih Open", val: openCount, color: openCount > 0 ? "text-red-600" : "text-emerald-600" },
-          { label: "SN Residence", val: data.filter(d => d.project === "SN RESIDENCE").length, color: "text-blue-600" },
-          { label: "Sekala Industry", val: data.filter(d => d.project === "SEKALA INDUSTRY").length, color: "text-purple-600" },
+          { label: projects[0]?.nama ?? "Proyek 1", val: projects[0] ? data.filter(d => d.project === projects[0].nama).length : 0, color: "text-blue-600" },
+          { label: projects[1]?.nama ?? "Proyek 2", val: projects[1] ? data.filter(d => d.project === projects[1].nama).length : 0, color: "text-purple-600" },
         ].map(({ label, val, color }) => (
           <div key={label} className="border rounded-xl p-3">
             <div className="text-[10px] text-muted-foreground mb-1">{label}</div>
@@ -95,7 +110,7 @@ export default function HRMasalah() {
       <div className="flex items-center gap-3 flex-wrap">
         <Filter className="size-4 text-muted-foreground" />
         <select value={project} onChange={e => setProject(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
-          {PROJECTS.map(p => <option key={p}>{p}</option>)}
+          {projectOptions.map(p => <option key={p}>{p}</option>)}
         </select>
         <input placeholder="Cari nama / divisi / masalah..." value={search} onChange={e => setSearch(e.target.value)}
           className="text-sm border rounded-md px-2 py-1.5 bg-background flex-1 min-w-[200px]" />
@@ -109,7 +124,8 @@ export default function HRMasalah() {
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Project</label>
               <select value={form.project} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background">
-                {["SN RESIDENCE","SEKALA INDUSTRY"].map(p => <option key={p}>{p}</option>)}
+                <option value="">Pilih proyek...</option>
+                {projects.map(p => <option key={p.id}>{p.nama}</option>)}
               </select>
             </div>
             <div>
@@ -122,7 +138,13 @@ export default function HRMasalah() {
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Nama Karyawan</label>
-              <input value={form.nama} onChange={e => setForm(f => ({ ...f, nama: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background" />
+              <select value={form.nama} onChange={e => {
+                const employee = employees.find((emp: any) => emp.name === e.target.value);
+                setForm(f => ({ ...f, nama: e.target.value, divisi: employee?.division ?? f.divisi }));
+              }} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background">
+                <option value="">Pilih karyawan...</option>
+                {employees.map((emp: any) => <option key={emp.id}>{emp.name}</option>)}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs text-muted-foreground block mb-1">Masalah</label>

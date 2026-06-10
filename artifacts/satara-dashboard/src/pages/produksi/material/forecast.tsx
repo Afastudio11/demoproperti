@@ -27,7 +27,7 @@ export default function MaterialForecast() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-lg font-bold">Procurement Forecast (14 Hari)</h1>
+        <h1 className="text-lg font-bold">Forecast Material (14 Hari)</h1>
         <p className="text-sm text-muted-foreground">Material yang perlu segera diprocure untuk kebutuhan {activeUnits} unit aktif</p>
       </div>
       <div className="grid grid-cols-3 gap-3">

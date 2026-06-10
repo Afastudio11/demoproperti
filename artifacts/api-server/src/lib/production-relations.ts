@@ -113,7 +113,7 @@ export async function recalculateUnitProductionState(unitId: number) {
   const qcScore = qcItems.length > 0
     ? Math.round((qcItems.filter((item) => item.isPass).length / qcItems.length) * 100)
     : 0;
-  const qcPassed = qcItems.length === 0 || qcScore >= 90;
+  const qcPassed = qcItems.length > 0 && qcScore >= 90;
 
   const readyAkad = progress >= 100 && !hasOpenDefects && !hasOpenReworks && qcPassed;
   await db.update(unitsTable).set({ progress, readyAkad }).where(eq(unitsTable.id, unitId));

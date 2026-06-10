@@ -1,0 +1,796 @@
+{
+  "generatedAt": "2026-06-10T13:14:35.051Z",
+  "config": {
+    "appBase": "http://localhost:5173",
+    "apiBase": "http://localhost:5173/api",
+    "hasDatabaseUrl": false,
+    "adminUsername": "qa_admin"
+  },
+  "summary": {
+    "passed": 134,
+    "failed": 0,
+    "blocked": 20,
+    "warned": 0
+  },
+  "checks": [
+    {
+      "id": "db.seed",
+      "status": "blocked",
+      "message": "DATABASE_URL belum diset, jadi akun admin QA dan fake database belum bisa dibuat."
+    },
+    {
+      "id": "api.health",
+      "status": "blocked",
+      "message": "API belum siap di http://localhost:5173/api. Status: 500.",
+      "detail": {
+        "body": ""
+      }
+    },
+    {
+      "id": "api.get./projects",
+      "status": "blocked",
+      "message": "Daftar proyek belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./planning/land",
+      "status": "blocked",
+      "message": "Planning lahan belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./land-prospects",
+      "status": "blocked",
+      "message": "Prospek lahan belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./planning/market",
+      "status": "blocked",
+      "message": "Market planning belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./planning/feasibility",
+      "status": "blocked",
+      "message": "Feasibility planning belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./planning/landbank",
+      "status": "blocked",
+      "message": "Landbank planning belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./produksi/subkon/master",
+      "status": "blocked",
+      "message": "Master subkon dari kontrak belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./produksi/subkon/contracts",
+      "status": "blocked",
+      "message": "Kontrak subkon belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./produksi/material/master",
+      "status": "blocked",
+      "message": "Master material belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./produksi/material/in",
+      "status": "blocked",
+      "message": "Material masuk belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./produksi/material/out",
+      "status": "blocked",
+      "message": "Material keluar belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./produksi/material/stok",
+      "status": "blocked",
+      "message": "Stok material terhitung belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./hr/employees",
+      "status": "blocked",
+      "message": "Master karyawan belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./hr/attendance",
+      "status": "blocked",
+      "message": "Absensi belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./hr/overtime",
+      "status": "blocked",
+      "message": "Lembur belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./hr/culture",
+      "status": "blocked",
+      "message": "Culture sync dari absensi belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./finance/cashflow",
+      "status": "blocked",
+      "message": "Cashflow finance belum dites karena API health gagal."
+    },
+    {
+      "id": "api.get./dashboard/executive",
+      "status": "blocked",
+      "message": "Dashboard executive belum dites karena API health gagal."
+    },
+    {
+      "id": "ui.route./teamwork",
+      "status": "pass",
+      "message": "Route UI /teamwork mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./executive",
+      "status": "pass",
+      "message": "Route UI /executive mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./projects",
+      "status": "pass",
+      "message": "Route UI /projects mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./projects/1",
+      "status": "pass",
+      "message": "Route UI /projects/1 mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./akuisisi",
+      "status": "pass",
+      "message": "Route UI /akuisisi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan",
+      "status": "pass",
+      "message": "Route UI /perencanaan mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/pasar",
+      "status": "pass",
+      "message": "Route UI /perencanaan/pasar mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/lahan",
+      "status": "pass",
+      "message": "Route UI /perencanaan/lahan mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/produk",
+      "status": "pass",
+      "message": "Route UI /perencanaan/produk mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/feasibility",
+      "status": "pass",
+      "message": "Route UI /perencanaan/feasibility mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/timeline",
+      "status": "pass",
+      "message": "Route UI /perencanaan/timeline mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/cashflow",
+      "status": "pass",
+      "message": "Route UI /perencanaan/cashflow mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/sdm",
+      "status": "pass",
+      "message": "Route UI /perencanaan/sdm mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/landbank",
+      "status": "pass",
+      "message": "Route UI /perencanaan/landbank mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/kpp/1/simulasi",
+      "status": "pass",
+      "message": "Route UI /perencanaan/kpp/1/simulasi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/ekspansi/kesiapan",
+      "status": "pass",
+      "message": "Route UI /perencanaan/ekspansi/kesiapan mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/ekspansi/skenario",
+      "status": "pass",
+      "message": "Route UI /perencanaan/ekspansi/skenario mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./perencanaan/timeline/warning",
+      "status": "pass",
+      "message": "Route UI /perencanaan/timeline/warning mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./legal",
+      "status": "pass",
+      "message": "Route UI /legal mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./legal/permit",
+      "status": "pass",
+      "message": "Route UI /legal/permit mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./legal/lahan",
+      "status": "pass",
+      "message": "Route UI /legal/lahan mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./legal/shm",
+      "status": "pass",
+      "message": "Route UI /legal/shm mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./legal/issue",
+      "status": "pass",
+      "message": "Route UI /legal/issue mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./legal/arsip",
+      "status": "pass",
+      "message": "Route UI /legal/arsip mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing",
+      "status": "pass",
+      "message": "Route UI /marketing mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/lead/new",
+      "status": "pass",
+      "message": "Route UI /marketing/lead/new mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/lead/1/edit",
+      "status": "pass",
+      "message": "Route UI /marketing/lead/1/edit mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/lead/1",
+      "status": "pass",
+      "message": "Route UI /marketing/lead/1 mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/lead",
+      "status": "pass",
+      "message": "Route UI /marketing/lead mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/branding",
+      "status": "pass",
+      "message": "Route UI /marketing/branding mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/campaign",
+      "status": "pass",
+      "message": "Route UI /marketing/campaign mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/sales",
+      "status": "pass",
+      "message": "Route UI /marketing/sales mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/absorption",
+      "status": "pass",
+      "message": "Route UI /marketing/absorption mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/stock",
+      "status": "pass",
+      "message": "Route UI /marketing/stock mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/forecast",
+      "status": "pass",
+      "message": "Route UI /marketing/forecast mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/demand-score",
+      "status": "pass",
+      "message": "Route UI /marketing/demand-score mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/kompetitor",
+      "status": "pass",
+      "message": "Route UI /marketing/kompetitor mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./marketing/health",
+      "status": "pass",
+      "message": "Route UI /marketing/health mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi",
+      "status": "pass",
+      "message": "Route UI /administrasi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/customer/new",
+      "status": "pass",
+      "message": "Route UI /administrasi/customer/new mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/customer/1/edit",
+      "status": "pass",
+      "message": "Route UI /administrasi/customer/1/edit mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/customer/1",
+      "status": "pass",
+      "message": "Route UI /administrasi/customer/1 mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/customer",
+      "status": "pass",
+      "message": "Route UI /administrasi/customer mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/bank-submission",
+      "status": "pass",
+      "message": "Route UI /administrasi/bank-submission mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/ots",
+      "status": "pass",
+      "message": "Route UI /administrasi/ots mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/sp3k",
+      "status": "pass",
+      "message": "Route UI /administrasi/sp3k mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/akad",
+      "status": "pass",
+      "message": "Route UI /administrasi/akad mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/ht",
+      "status": "pass",
+      "message": "Route UI /administrasi/ht mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/bank-performance",
+      "status": "pass",
+      "message": "Route UI /administrasi/bank-performance mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/aging",
+      "status": "pass",
+      "message": "Route UI /administrasi/aging mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/target",
+      "status": "pass",
+      "message": "Route UI /administrasi/target mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/komplain",
+      "status": "pass",
+      "message": "Route UI /administrasi/komplain mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/dokumen/1",
+      "status": "pass",
+      "message": "Route UI /administrasi/dokumen/1 mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./administrasi/import",
+      "status": "pass",
+      "message": "Route UI /administrasi/import mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi",
+      "status": "pass",
+      "message": "Route UI /produksi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/progress/proyek",
+      "status": "pass",
+      "message": "Route UI /produksi/progress/proyek mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/progress/tahap",
+      "status": "pass",
+      "message": "Route UI /produksi/progress/tahap mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/progress/unit",
+      "status": "pass",
+      "message": "Route UI /produksi/progress/unit mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/fasum",
+      "status": "pass",
+      "message": "Route UI /produksi/fasum mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/subkon/kontrak",
+      "status": "pass",
+      "message": "Route UI /produksi/subkon/kontrak mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/subkon/termin",
+      "status": "pass",
+      "message": "Route UI /produksi/subkon/termin mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/subkon/approval",
+      "status": "pass",
+      "message": "Route UI /produksi/subkon/approval mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/subkon/performa",
+      "status": "pass",
+      "message": "Route UI /produksi/subkon/performa mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/material/master",
+      "status": "pass",
+      "message": "Route UI /produksi/material/master mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/material/masuk",
+      "status": "pass",
+      "message": "Route UI /produksi/material/masuk mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/material/keluar",
+      "status": "pass",
+      "message": "Route UI /produksi/material/keluar mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/material/stok",
+      "status": "pass",
+      "message": "Route UI /produksi/material/stok mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/material/konsumsi",
+      "status": "pass",
+      "message": "Route UI /produksi/material/konsumsi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/material/variance",
+      "status": "pass",
+      "message": "Route UI /produksi/material/variance mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/material/forecast",
+      "status": "pass",
+      "message": "Route UI /produksi/material/forecast mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/qc/checklist",
+      "status": "pass",
+      "message": "Route UI /produksi/qc/checklist mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/qc/rework",
+      "status": "pass",
+      "message": "Route UI /produksi/qc/rework mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/qc/defect",
+      "status": "pass",
+      "message": "Route UI /produksi/qc/defect mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/ready-akad",
+      "status": "pass",
+      "message": "Route UI /produksi/ready-akad mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/analitik/velocity",
+      "status": "pass",
+      "message": "Route UI /produksi/analitik/velocity mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/analitik/baseline",
+      "status": "pass",
+      "message": "Route UI /produksi/analitik/baseline mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/analitik/cost-to-complete",
+      "status": "pass",
+      "message": "Route UI /produksi/analitik/cost-to-complete mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/analitik/cashflow-impact",
+      "status": "pass",
+      "message": "Route UI /produksi/analitik/cashflow-impact mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/analitik/produktivitas",
+      "status": "pass",
+      "message": "Route UI /produksi/analitik/produktivitas mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/analitik/eligibilitas",
+      "status": "pass",
+      "message": "Route UI /produksi/analitik/eligibilitas mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/analitik/forecast",
+      "status": "pass",
+      "message": "Route UI /produksi/analitik/forecast mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./produksi/health",
+      "status": "pass",
+      "message": "Route UI /produksi/health mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./settings",
+      "status": "pass",
+      "message": "Route UI /settings mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./slis",
+      "status": "pass",
+      "message": "Route UI /slis mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr",
+      "status": "pass",
+      "message": "Route UI /hr mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/organisasi",
+      "status": "pass",
+      "message": "Route UI /hr/organisasi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/rekrutmen",
+      "status": "pass",
+      "message": "Route UI /hr/rekrutmen mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/kpi/definisi",
+      "status": "pass",
+      "message": "Route UI /hr/kpi/definisi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/kpi/input",
+      "status": "pass",
+      "message": "Route UI /hr/kpi/input mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/performance",
+      "status": "pass",
+      "message": "Route UI /hr/performance mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/kompetensi",
+      "status": "pass",
+      "message": "Route UI /hr/kompetensi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/training",
+      "status": "pass",
+      "message": "Route UI /hr/training mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/karir",
+      "status": "pass",
+      "message": "Route UI /hr/karir mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/kompensasi",
+      "status": "pass",
+      "message": "Route UI /hr/kompensasi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/produktivitas",
+      "status": "pass",
+      "message": "Route UI /hr/produktivitas mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/suksesi",
+      "status": "pass",
+      "message": "Route UI /hr/suksesi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/kultur",
+      "status": "pass",
+      "message": "Route UI /hr/kultur mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/workload",
+      "status": "pass",
+      "message": "Route UI /hr/workload mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/ekspansi",
+      "status": "pass",
+      "message": "Route UI /hr/ekspansi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/talent-map",
+      "status": "pass",
+      "message": "Route UI /hr/talent-map mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/flight-risk",
+      "status": "pass",
+      "message": "Route UI /hr/flight-risk mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/hc-score",
+      "status": "pass",
+      "message": "Route UI /hr/hc-score mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/absensi",
+      "status": "pass",
+      "message": "Route UI /hr/absensi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/lembur",
+      "status": "pass",
+      "message": "Route UI /hr/lembur mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./hr/masalah",
+      "status": "pass",
+      "message": "Route UI /hr/masalah mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding",
+      "status": "pass",
+      "message": "Route UI /branding mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/korporat",
+      "status": "pass",
+      "message": "Route UI /branding/korporat mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/founder",
+      "status": "pass",
+      "message": "Route UI /branding/founder mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/konten/kalender",
+      "status": "pass",
+      "message": "Route UI /branding/konten/kalender mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/konten/produksi",
+      "status": "pass",
+      "message": "Route UI /branding/konten/produksi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/konten/new",
+      "status": "pass",
+      "message": "Route UI /branding/konten/new mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/konten",
+      "status": "pass",
+      "message": "Route UI /branding/konten mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/sosmed",
+      "status": "pass",
+      "message": "Route UI /branding/sosmed mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/performa-konten",
+      "status": "pass",
+      "message": "Route UI /branding/performa-konten mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/proyek",
+      "status": "pass",
+      "message": "Route UI /branding/proyek mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/pr",
+      "status": "pass",
+      "message": "Route UI /branding/pr mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/sentimen",
+      "status": "pass",
+      "message": "Route UI /branding/sentimen mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/roi",
+      "status": "pass",
+      "message": "Route UI /branding/roi mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/trust",
+      "status": "pass",
+      "message": "Route UI /branding/trust mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./branding/health",
+      "status": "pass",
+      "message": "Route UI /branding/health mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance",
+      "status": "pass",
+      "message": "Route UI /finance mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/upload",
+      "status": "pass",
+      "message": "Route UI /finance/upload mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/cashflow",
+      "status": "pass",
+      "message": "Route UI /finance/cashflow mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/proyek",
+      "status": "pass",
+      "message": "Route UI /finance/proyek mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/kpp",
+      "status": "pass",
+      "message": "Route UI /finance/kpp mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/hutang",
+      "status": "pass",
+      "message": "Route UI /finance/hutang mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/piutang",
+      "status": "pass",
+      "message": "Route UI /finance/piutang mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/rab",
+      "status": "pass",
+      "message": "Route UI /finance/rab mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/profitabilitas",
+      "status": "pass",
+      "message": "Route UI /finance/profitabilitas mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/forecast",
+      "status": "pass",
+      "message": "Route UI /finance/forecast mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/accounting",
+      "status": "pass",
+      "message": "Route UI /finance/accounting mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/audit",
+      "status": "pass",
+      "message": "Route UI /finance/audit mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/warning",
+      "status": "pass",
+      "message": "Route UI /finance/warning mengembalikan HTML SPA."
+    },
+    {
+      "id": "ui.route./finance/ekspansi",
+      "status": "pass",
+      "message": "Route UI /finance/ekspansi mengembalikan HTML SPA."
+    }
+  ],
+  "seeded": {},
+  "credentials": {
+    "username": "qa_admin",
+    "password": "qa_admin_12345",
+    "note": "Akun ini hanya dibuat jika DATABASE_URL valid dan DB bisa diakses."
+  }
+}

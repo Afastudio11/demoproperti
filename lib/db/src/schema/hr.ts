@@ -243,7 +243,9 @@ export const insertProductivityRecordSchema = createInsertSchema(productivityRec
 
 export const attendanceRecordsTable = pgTable("hr_attendance_records", {
   id: serial("id").primaryKey(),
+  employeeId: integer("employee_id"),
   employeeName: text("employee_name").notNull(),
+  projectId: integer("project_id"),
   project: text("project"),
   month: text("month"),
   year: integer("year"),
@@ -254,7 +256,9 @@ export const attendanceRecordsTable = pgTable("hr_attendance_records", {
 
 export const overtimeRecordsTable = pgTable("hr_overtime_records", {
   id: serial("id").primaryKey(),
+  employeeId: integer("employee_id"),
   employeeName: text("employee_name").notNull(),
+  projectId: integer("project_id"),
   project: text("project"),
   month: text("month"),
   year: integer("year"),
@@ -266,6 +270,7 @@ export const overtimeRecordsTable = pgTable("hr_overtime_records", {
 
 export const individualIssuesTable = pgTable("hr_individual_issues", {
   id: serial("id").primaryKey(),
+  projectId: integer("project_id"),
   project: text("project"),
   tanggal: text("tanggal"),
   divisi: text("divisi"),

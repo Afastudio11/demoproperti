@@ -1,11 +1,68 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { prodMaterialMasterTable, prodMaterialInTable, prodMaterialOutTable, unitsTable } from "@workspace/db";
+import {
+  prodMaterialMasterTable,
+  prodMaterialInTable,
+  prodMaterialOutTable,
+  unitsTable,
+  subkonContractsTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { resolveKnownSubkonName } from "../lib/subkon-master";
 import { findSubkonContract } from "../lib/production-relations";
 
 const router: IRouter = Router();
+
+async function resolveMaterialContext(body: Record<string, unknown>) {
+  let projectId = Number(body.projectId);
+  let stageCode = typeof body.stageCode === "string" ? body.stageCode || null : null;
+  let subkonName = await resolveKnownSubkonName(body.subkonName);
+  let unitId = body.unitId ? Number(body.unitId) : null;
+
+  if (unitId) {
+    const [unit] = await db.select().from(unitsTable).where(eq(unitsTable.id, unitId));
+    if (!unit) {
+      const err = new Error("Unit tidak ditemukan") as Error & { statusCode?: number };
+      err.statusCode = 404;
+      throw err;
+    }
+    if (Number.isFinite(projectId) && projectId !== unit.projectId) {
+      const err = new Error("Unit tidak sesuai dengan proyek yang dipilih") as Error & { statusCode?: number };
+      err.statusCode = 400;
+      throw err;
+    }
+    projectId = unit.projectId;
+    stageCode = unit.stageCode ?? stageCode;
+    subkonName = unit.subkonName ? await resolveKnownSubkonName(unit.subkonName) : subkonName;
+  }
+
+  const contract = await findSubkonContract({
+    contractId: body.contractId,
+    projectId,
+    stageCode,
+    subkonName,
+  });
+
+  return {
+    projectId,
+    stageCode,
+    subkonName: contract?.subkonName ?? subkonName,
+    contractId: contract?.id ?? null,
+    unitId,
+  };
+}
+
+async function getScopedStock(projectId: number, stageCode: string | null, materialId: number) {
+  const inRows = await db.select().from(prodMaterialInTable);
+  const outRows = await db.select().from(prodMaterialOutTable);
+  const sameScope = (row: { projectId: number; stageCode?: string | null; materialId: number }) =>
+    row.projectId === projectId
+    && (row.stageCode ?? "") === (stageCode ?? "")
+    && row.materialId === materialId;
+  const totalIn = inRows.filter(sameScope).reduce((sum, row) => sum + row.quantity, 0);
+  const totalOut = outRows.filter(sameScope).reduce((sum, row) => sum + row.quantity, 0);
+  return Math.round((totalIn - totalOut) * 100) / 100;
+}
 
 const SEED_MATERIALS = [
   { category: "A - Pendahuluan", name: "Tali Tukang", satuan: "m", standardPerUnit: 50 },
@@ -116,10 +173,14 @@ router.get("/produksi/material/in", async (req, res) => {
       rows = rows.filter(r => (r.stageCode ?? "") === req.query.stageCode);
     }
     const masters = await db.select().from(prodMaterialMasterTable);
+    const units = await db.select().from(unitsTable);
+    const contracts = await db.select().from(subkonContractsTable);
     const enriched = rows.map(r => ({
       ...r,
       createdAt: r.createdAt.toISOString(),
       material: masters.find(m => m.id === r.materialId) ?? null,
+      unit: r.unitId ? units.find(u => u.id === r.unitId) ?? null : null,
+      contract: r.contractId ? contracts.find(c => c.id === r.contractId) ?? null : null,
     }));
     res.json(enriched);
   } catch (err) {
@@ -130,7 +191,15 @@ router.get("/produksi/material/in", async (req, res) => {
 
 router.post("/produksi/material/in", async (req, res) => {
   try {
-    const [row] = await db.insert(prodMaterialInTable).values(req.body).returning();
+    const context = await resolveMaterialContext(req.body);
+    const [row] = await db.insert(prodMaterialInTable).values({
+      ...req.body,
+      projectId: context.projectId,
+      stageCode: context.stageCode,
+      unitId: context.unitId,
+      contractId: context.contractId,
+      subkonName: context.subkonName,
+    }).returning();
     res.status(201).json({ ...row, createdAt: row.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create material in");
@@ -151,10 +220,14 @@ router.get("/produksi/material/out", async (req, res) => {
       rows = rows.filter(r => (r.stageCode ?? "") === req.query.stageCode);
     }
     const masters = await db.select().from(prodMaterialMasterTable);
+    const units = await db.select().from(unitsTable);
+    const contracts = await db.select().from(subkonContractsTable);
     const enriched = rows.map(r => ({
       ...r,
       createdAt: r.createdAt.toISOString(),
       material: masters.find(m => m.id === r.materialId) ?? null,
+      unit: r.unitId ? units.find(u => u.id === r.unitId) ?? null : null,
+      contract: r.contractId ? contracts.find(c => c.id === r.contractId) ?? null : null,
     }));
     res.json(enriched);
   } catch (err) {
@@ -165,34 +238,26 @@ router.get("/produksi/material/out", async (req, res) => {
 
 router.post("/produksi/material/out", async (req, res) => {
   try {
-    let projectId = Number(req.body.projectId);
-    let stageCode = typeof req.body.stageCode === "string" ? req.body.stageCode || null : null;
-    let subkonName = await resolveKnownSubkonName(req.body.subkonName);
-
-    if (req.body.unitId) {
-      const [unit] = await db.select().from(unitsTable).where(eq(unitsTable.id, Number(req.body.unitId)));
-      if (!unit) return res.status(404).json({ error: "Unit tidak ditemukan" });
-      if (Number.isFinite(projectId) && projectId !== unit.projectId) {
-        return res.status(400).json({ error: "Unit tidak sesuai dengan proyek yang dipilih" });
-      }
-      projectId = unit.projectId;
-      stageCode = unit.stageCode ?? stageCode;
-      subkonName = unit.subkonName ? await resolveKnownSubkonName(unit.subkonName) : subkonName;
+    const context = await resolveMaterialContext(req.body);
+    const materialId = Number(req.body.materialId);
+    const quantity = Number(req.body.quantity);
+    const available = await getScopedStock(context.projectId, context.stageCode, materialId);
+    if (quantity <= 0) return res.status(400).json({ error: "Quantity harus lebih dari 0" });
+    if (quantity > available) {
+      return res.status(409).json({
+        error: "Stok tidak cukup untuk proyek/tahap/material ini",
+        available,
+        requested: quantity,
+      });
     }
-
-    const contract = await findSubkonContract({
-      contractId: req.body.contractId,
-      projectId,
-      stageCode,
-      subkonName,
-    });
 
     const [row] = await db.insert(prodMaterialOutTable).values({
       ...req.body,
-      projectId,
-      contractId: contract?.id ?? null,
-      stageCode,
-      subkonName: contract?.subkonName ?? subkonName,
+      projectId: context.projectId,
+      unitId: context.unitId,
+      contractId: context.contractId,
+      stageCode: context.stageCode,
+      subkonName: context.subkonName,
     }).returning();
     res.status(201).json({ ...row, createdAt: row.createdAt.toISOString() });
   } catch (err) {

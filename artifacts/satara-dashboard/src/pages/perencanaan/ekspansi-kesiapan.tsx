@@ -19,8 +19,8 @@ function readinessLabel(s: number) { return s >= 80 ? "Siap Ekspansi" : s >= 60 
 
 export default function EkspansiKesiapanPage() {
   const { data: expansionTargets = [] } = useQuery<any[]>({
-    queryKey: ["expansion-targets"],
-    queryFn: () => fetch("/api/expansion-targets").then(r => r.json()).catch(() => []),
+    queryKey: ["planning-expansion"],
+    queryFn: () => fetch("/api/planning/expansion").then(r => r.ok ? r.json() : []).catch(() => []),
   });
 
   const { data: cashflowData } = useQuery<any[]>({
@@ -39,6 +39,7 @@ export default function EkspansiKesiapanPage() {
   });
 
   const cashflowArr = Array.isArray(cashflowData) ? cashflowData : [];
+  const expansionArr = Array.isArray(expansionTargets) ? expansionTargets : [];
   const landbankArr = Array.isArray(landbank) ? landbank : [];
   const sdmArr = Array.isArray(sdm) ? sdm : [];
 
@@ -46,7 +47,7 @@ export default function EkspansiKesiapanPage() {
   const landbankScore = Math.min(100, landbankArr.filter((l: any) => l.status === "tersedia").length * 25);
   const timScore = Math.min(100, sdmArr.length * 20);
   const legalScore = 60;
-  const pasarScore = 70;
+  const pasarScore = Math.min(100, expansionArr.length * 20 || 70);
 
   const scores = {
     cashflow: cashflowScore,

@@ -21,6 +21,7 @@ import {
   attendanceRecordsTable,
   overtimeRecordsTable,
   individualIssuesTable,
+  projectsTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -44,6 +45,93 @@ function calcFlightRisk(r: {
 }
 
 const err500 = (res: any, e: any) => res.status(500).json({ error: e?.message ?? String(e) });
+const MONTH_NAME_TO_NUMBER: Record<string, number> = {
+  JANUARI: 1,
+  FEBRUARI: 2,
+  MARET: 3,
+  APRIL: 4,
+  MEI: 5,
+  JUNI: 6,
+  JULI: 7,
+  AGUSTUS: 8,
+  SEPTEMBER: 9,
+  OKTOBER: 10,
+  NOVEMBER: 11,
+  DESEMBER: 12,
+};
+
+function parseHrMonth(month: string | null) {
+  if (!month) return null;
+  const numeric = Number(month);
+  if (Number.isFinite(numeric) && numeric >= 1 && numeric <= 12) return numeric;
+  return MONTH_NAME_TO_NUMBER[month.trim().toUpperCase()] ?? null;
+}
+
+async function normalizeHrOperationalRows<T extends Record<string, any>>(records: T[]) {
+  const employees = await db.select().from(employeesTable);
+  const projects = await db.select().from(projectsTable);
+
+  return records.map((record) => {
+    const employeeId = record.employeeId ? Number(record.employeeId) : null;
+    const projectId = record.projectId ? Number(record.projectId) : null;
+    const employee = employeeId ? employees.find(e => e.id === employeeId) : null;
+    const project = projectId ? projects.find(p => p.id === projectId) : null;
+    return {
+      ...record,
+      employeeId,
+      employeeName: employee?.name ?? record.employeeName,
+      projectId,
+      project: project?.nama ?? record.project,
+    };
+  });
+}
+
+async function syncCultureFromAttendance(records: (typeof attendanceRecordsTable.$inferSelect)[]) {
+  const grouped = new Map<string, { employeeId: number; year: number; month: number; present: number; late: number; workingDays: number }>();
+  for (const record of records) {
+    if (!record.employeeId || !record.year || !record.month) continue;
+    const monthNumber = parseHrMonth(record.month);
+    if (!monthNumber) continue;
+    const key = `${record.employeeId}:${record.year}:${monthNumber}`;
+    const bucket = grouped.get(key) ?? {
+      employeeId: record.employeeId,
+      year: record.year,
+      month: monthNumber,
+      present: 0,
+      late: 0,
+      workingDays: 0,
+    };
+    bucket.workingDays += 1;
+    const status = (record.status ?? "").trim().toUpperCase();
+    if (status === "H" || status === "L" || status === "HADIR" || status === "LEMBUR") bucket.present += 1;
+    if (status === "T" || status === "TERLAMBAT") bucket.late += 1;
+    grouped.set(key, bucket);
+  }
+
+  for (const bucket of grouped.values()) {
+    const existing = await db.select().from(cultureRecordsTable).where(and(
+      eq(cultureRecordsTable.employeeId, bucket.employeeId),
+      eq(cultureRecordsTable.periodYear, bucket.year),
+      eq(cultureRecordsTable.periodMonth, bucket.month),
+    ));
+    const payload = {
+      daysPresent: bucket.present,
+      lateCount: bucket.late,
+      workingDays: bucket.workingDays,
+      notes: "Auto-sync dari absensi",
+    };
+    if (existing[0]) {
+      await db.update(cultureRecordsTable).set(payload).where(eq(cultureRecordsTable.id, existing[0].id));
+    } else {
+      await db.insert(cultureRecordsTable).values({
+        employeeId: bucket.employeeId,
+        periodYear: bucket.year,
+        periodMonth: bucket.month,
+        ...payload,
+      });
+    }
+  }
+}
 
 // ─── EMPLOYEES ────────────────────────────────────────────────────────────────
 router.get("/hr/employees", async (_req, res) => {
@@ -552,12 +640,16 @@ router.delete("/hr/productivity/:id", async (req, res) => {
 // ─── ATTENDANCE ───────────────────────────────────────────────────────────────
 router.get("/hr/attendance", async (req, res) => {
   try {
-    const { employeeName, project, month, year } = req.query as Record<string, string>;
+    const { employeeName, employeeId, project, projectId, month, year } = req.query as Record<string, string>;
+    const conditions = [];
+    if (employeeName) conditions.push(eq(attendanceRecordsTable.employeeName, employeeName));
+    if (employeeId) conditions.push(eq(attendanceRecordsTable.employeeId, Number(employeeId)));
+    if (project) conditions.push(eq(attendanceRecordsTable.project, project));
+    if (projectId) conditions.push(eq(attendanceRecordsTable.projectId, Number(projectId)));
+    if (month) conditions.push(eq(attendanceRecordsTable.month, month));
+    if (year) conditions.push(eq(attendanceRecordsTable.year, Number(year)));
     let q = db.select().from(attendanceRecordsTable).$dynamic();
-    if (employeeName) q = q.where(eq(attendanceRecordsTable.employeeName, employeeName));
-    if (project) q = q.where(eq(attendanceRecordsTable.project, project));
-    if (month) q = q.where(eq(attendanceRecordsTable.month, month));
-    if (year) q = q.where(eq(attendanceRecordsTable.year, Number(year)));
+    if (conditions.length) q = q.where(and(...conditions));
     const rows = await q.orderBy(attendanceRecordsTable.employeeName, attendanceRecordsTable.day);
     res.json(rows);
   } catch (e: any) { err500(res, e); }
@@ -570,7 +662,19 @@ router.post("/hr/attendance/bulk", async (req, res) => {
       res.status(400).json({ error: "records array wajib diisi" });
       return;
     }
-    const rows = await db.insert(attendanceRecordsTable).values(records).returning();
+    const normalized = await normalizeHrOperationalRows(records);
+    for (const record of normalized) {
+      if (!record.employeeName) return res.status(400).json({ error: "employeeName/employeeId wajib valid" });
+      await db.delete(attendanceRecordsTable).where(and(
+        eq(attendanceRecordsTable.employeeName, record.employeeName),
+        eq(attendanceRecordsTable.project, record.project ?? ""),
+        eq(attendanceRecordsTable.month, record.month ?? ""),
+        eq(attendanceRecordsTable.year, Number(record.year)),
+        eq(attendanceRecordsTable.day, Number(record.day)),
+      ));
+    }
+    const rows = await db.insert(attendanceRecordsTable).values(normalized).returning();
+    await syncCultureFromAttendance(rows);
     res.json({ inserted: rows.length });
   } catch (e: any) { err500(res, e); }
 });
@@ -578,7 +682,9 @@ router.post("/hr/attendance/bulk", async (req, res) => {
 router.post("/hr/attendance", async (req, res) => {
   try {
     const body = Array.isArray(req.body) ? req.body : [req.body];
-    const rows = await db.insert(attendanceRecordsTable).values(body).returning();
+    const normalized = await normalizeHrOperationalRows(body);
+    const rows = await db.insert(attendanceRecordsTable).values(normalized).returning();
+    await syncCultureFromAttendance(rows);
     res.json(rows);
   } catch (e: any) { err500(res, e); }
 });
@@ -600,12 +706,16 @@ router.delete("/hr/attendance/:id", async (req, res) => {
 // ─── OVERTIME ────────────────────────────────────────────────────────────────
 router.get("/hr/overtime", async (req, res) => {
   try {
-    const { employeeName, project, month, year } = req.query as Record<string, string>;
+    const { employeeName, employeeId, project, projectId, month, year } = req.query as Record<string, string>;
+    const conditions = [];
+    if (employeeName) conditions.push(eq(overtimeRecordsTable.employeeName, employeeName));
+    if (employeeId) conditions.push(eq(overtimeRecordsTable.employeeId, Number(employeeId)));
+    if (project) conditions.push(eq(overtimeRecordsTable.project, project));
+    if (projectId) conditions.push(eq(overtimeRecordsTable.projectId, Number(projectId)));
+    if (month) conditions.push(eq(overtimeRecordsTable.month, month));
+    if (year) conditions.push(eq(overtimeRecordsTable.year, Number(year)));
     let q = db.select().from(overtimeRecordsTable).$dynamic();
-    if (employeeName) q = q.where(eq(overtimeRecordsTable.employeeName, employeeName));
-    if (project) q = q.where(eq(overtimeRecordsTable.project, project));
-    if (month) q = q.where(eq(overtimeRecordsTable.month, month));
-    if (year) q = q.where(eq(overtimeRecordsTable.year, Number(year)));
+    if (conditions.length) q = q.where(and(...conditions));
     const rows = await q.orderBy(overtimeRecordsTable.employeeName, overtimeRecordsTable.day);
     res.json(rows);
   } catch (e: any) { err500(res, e); }
@@ -618,7 +728,8 @@ router.post("/hr/overtime/bulk", async (req, res) => {
       res.status(400).json({ error: "records array wajib diisi" });
       return;
     }
-    const rows = await db.insert(overtimeRecordsTable).values(records).returning();
+    const normalized = await normalizeHrOperationalRows(records);
+    const rows = await db.insert(overtimeRecordsTable).values(normalized).returning();
     res.json({ inserted: rows.length });
   } catch (e: any) { err500(res, e); }
 });
@@ -626,7 +737,8 @@ router.post("/hr/overtime/bulk", async (req, res) => {
 router.post("/hr/overtime", async (req, res) => {
   try {
     const body = Array.isArray(req.body) ? req.body : [req.body];
-    const rows = await db.insert(overtimeRecordsTable).values(body).returning();
+    const normalized = await normalizeHrOperationalRows(body);
+    const rows = await db.insert(overtimeRecordsTable).values(normalized).returning();
     res.json(rows);
   } catch (e: any) { err500(res, e); }
 });
@@ -648,9 +760,12 @@ router.delete("/hr/overtime/:id", async (req, res) => {
 // ─── INDIVIDUAL ISSUES ────────────────────────────────────────────────────────
 router.get("/hr/individual-issues", async (req, res) => {
   try {
-    const { project } = req.query as Record<string, string>;
+    const { project, projectId } = req.query as Record<string, string>;
+    const conditions = [];
+    if (project) conditions.push(eq(individualIssuesTable.project, project));
+    if (projectId) conditions.push(eq(individualIssuesTable.projectId, Number(projectId)));
     let q = db.select().from(individualIssuesTable).$dynamic();
-    if (project) q = q.where(eq(individualIssuesTable.project, project));
+    if (conditions.length) q = q.where(and(...conditions));
     const rows = await q.orderBy(desc(individualIssuesTable.createdAt));
     res.json(rows);
   } catch (e: any) { err500(res, e); }
@@ -658,7 +773,8 @@ router.get("/hr/individual-issues", async (req, res) => {
 
 router.post("/hr/individual-issues", async (req, res) => {
   try {
-    const [row] = await db.insert(individualIssuesTable).values(req.body).returning();
+    const [body] = await normalizeHrOperationalRows([req.body]);
+    const [row] = await db.insert(individualIssuesTable).values(body).returning();
     res.json(row);
   } catch (e: any) { err500(res, e); }
 });

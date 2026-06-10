@@ -2,28 +2,22 @@ import { useQuery } from "@tanstack/react-query";
 import {
   useGetDashboardSummary,
   useGetDashboardAlerts,
-  useGetDashboardCashflow,
   useListLandProspects,
   useListLegalDocuments,
   useListHandovers,
 } from "@workspace/api-client-react";
 import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
 import {
-  AlertCircle, TrendingUp, TrendingDown, Users, Building, Activity,
-  FilePlus, UserPlus, MapPin, Search, Target, BarChart3, DollarSign,
-  HardHat, Package, Shield, FileText, Handshake, Brain, ChevronRight,
-  AlertTriangle, CheckCircle2, Star, UserX, Landmark, Key, Clock,
+  AlertCircle, TrendingUp, TrendingDown, Users, Building2, Activity,
+  FilePlus, UserPlus, MapPin, Search, Target, BarChart3,
+  HardHat, Package, ShieldCheck, Handshake, ChevronRight,
+  CheckCircle2, UserX, Landmark, FileCheck2, Calculator, Megaphone,
 } from "lucide-react";
-import {
-  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
-} from "recharts";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { KABUPATEN_DATA, getGradeLabel, getGradeBg, getGradeColor } from "@/data/slis-scoring";
-import { fmtCurrency } from "@/lib/planning-calc";
 
 /* ─── helpers ─── */
 const fmtRp = (n: number) => {
@@ -118,36 +112,6 @@ function MiniBar({ value, max, color = "bg-primary" }: { value: number; max: num
   );
 }
 
-function CustomTooltip({ active, payload, label }: {
-  active?: boolean; payload?: Array<{ value: number; dataKey: string; color: string }>; label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-card border rounded-md p-3 shadow-lg text-xs">
-      <p className="text-muted-foreground mb-2">{label}</p>
-      {payload.map((entry, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <span className="size-2 rounded-full" style={{ background: entry.color }} />
-          <span className="font-medium">{typeof entry.value === "number" && entry.value > 1_000_000
-            ? fmtRp(entry.value)
-            : entry.value?.toLocaleString("id-ID")}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ScoreChip({ score, label }: { score: number; label?: string }) {
-  const color = score >= 80 ? "text-emerald-600 bg-emerald-50 border-emerald-200"
-    : score >= 60 ? "text-amber-600 bg-amber-50 border-amber-200"
-    : "text-red-600 bg-red-50 border-red-200";
-  return (
-    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-semibold", color)}>
-      {score}{label ?? ""}
-    </span>
-  );
-}
-
 /* ─── MAIN PAGE ─── */
 export default function Dashboard() {
   const [, navigate] = useLocation();
@@ -155,7 +119,6 @@ export default function Dashboard() {
   /* Existing queries */
   const { data: summary } = useGetDashboardSummary();
   const { data: alerts } = useGetDashboardAlerts();
-  const { data: cashflow } = useGetDashboardCashflow();
   const { data: prospects } = useListLandProspects({});
   const { data: legalDocs } = useListLegalDocuments({});
   const { data: handovers } = useListHandovers({});
@@ -301,13 +264,88 @@ export default function Dashboard() {
     { label: "Serah Terima", score: handoverArr.length > 0 ? Math.round((bastCount / handoverArr.length) * 100) : 0, href: "/serah-terima" },
   ];
 
+  const dashboardAlerts = Array.isArray(alerts) ? alerts : [];
+  const executiveRisks = [
+    ...dashboardAlerts.map((alert: any, index: number) => ({
+      id: `dashboard-${alert.id ?? index}`,
+      source: alert.projectName ?? "Dashboard",
+      message: alert.message,
+      level: alert.level === "red" || alert.level === "kritis" ? "kritis" : "warning",
+      href: "/projects",
+    })),
+    ...planWarnings.map((warning, index) => ({
+      id: `planning-${index}`,
+      source: "Perencanaan",
+      message: `${warning.project}: ${warning.detail}`,
+      level: warning.severity === "red" ? "kritis" : "warning",
+      href: "/perencanaan/timeline/warning",
+    })),
+    ...(adminData?.agingKritis ? [{
+      id: "admin-aging-kritis",
+      source: "Administrasi KPR",
+      message: `${adminData.agingKritis} berkas melewati batas aging kritis`,
+      level: "kritis",
+      href: "/administrasi/aging",
+    }] : []),
+    ...(adminData?.agingWarning ? [{
+      id: "admin-aging-warning",
+      source: "Administrasi KPR",
+      message: `${adminData.agingWarning} berkas masuk aging warning`,
+      level: "warning",
+      href: "/administrasi/aging",
+    }] : []),
+    ...prodAlerts.slice(0, 4).map((alert: any, index: number) => ({
+      id: `produksi-${index}`,
+      source: "Produksi",
+      message: alert.message,
+      level: alert.severity === "kritis" ? "kritis" : "warning",
+      href: "/produksi/health",
+    })),
+    ...finAlerts.slice(0, 4).map((alert: any, index: number) => ({
+      id: `finance-${index}`,
+      source: "Finance",
+      message: alert.message,
+      level: alert.level === "kritis" ? "kritis" : "warning",
+      href: "/finance/warning",
+    })),
+    ...flightRisks.slice(0, 3).map((risk: any, index: number) => ({
+      id: `hr-${index}`,
+      source: "Human Resource",
+      message: `${risk.name ?? risk.employeeName ?? "Karyawan"} terdeteksi flight risk tinggi`,
+      level: "warning",
+      href: "/hr/flight-risk",
+    })),
+    ...(legalPending > 0 ? [{
+      id: "legal-pending",
+      source: "Legal",
+      message: `${legalPending} dokumen legal masih pending/proses`,
+      level: "warning",
+      href: "/legal",
+    }] : []),
+    ...(stagnanCount > 0 ? [{
+      id: "marketing-stagnan",
+      source: "Marketing",
+      message: `${stagnanCount} lead stagnan perlu follow-up`,
+      level: "warning",
+      href: "/marketing/lead",
+    }] : []),
+  ].sort((a, b) => Number(b.level === "kritis") - Number(a.level === "kritis"));
+
+  const criticalRiskCount = executiveRisks.filter((risk) => risk.level === "kritis").length;
+  const warningRiskCount = executiveRisks.length - criticalRiskCount;
+  const executiveFinanceStatus = finStatus === "SEHAT" && criticalRiskCount === 0
+    ? "Stabil"
+    : criticalRiskCount > 0 || finStatus === "KRITIS"
+      ? "Perlu Eskalasi"
+      : "Waspada";
+
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Command Center</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Ringkasan operasional seluruh divisi Satara Development</p>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Executive Overview</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Ringkasan keputusan, risiko, dan kesehatan seluruh divisi Satara Development</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="h-9 gap-1.5 bg-card hover:bg-card/80 border-border/50" onClick={() => navigate("/projects")}>
@@ -323,7 +361,7 @@ export default function Dashboard() {
 
       {/* ── Top KPIs ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Proyek" value={summary?.totalProjects ?? "-"} icon={Building} />
+        <StatCard title="Total Proyek" value={summary?.totalProjects ?? "-"} icon={Building2} />
         <StatCard title="Total Leads" value={summary?.totalLeads ?? "-"} icon={Users} />
         <StatCard title="Overall Progress" value={summary?.overallProgress ? `${Math.round(summary.overallProgress)}%` : "-"} icon={Activity} sub="Konstruksi" />
         <StatCard title="Projects at Risk" value={summary?.projectsAtRisk ?? 0} icon={AlertCircle}
@@ -354,7 +392,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Map + Alerts + Cashflow ── */}
+      {/* ── Map + Executive Risk Brief ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-card text-card-foreground rounded-xl border overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border/50">
@@ -371,50 +409,64 @@ export default function Dashboard() {
               <AlertCircle className="size-4 text-muted-foreground" />
             </div>
             <div className="p-4 space-y-3">
-              {alerts?.slice(0, 5).map((alert: any) => (
-                <div key={alert.id} className="flex items-start gap-3">
-                  <div className={cn("size-2 rounded-full mt-1.5 shrink-0", LEVEL_COLOR[alert.level] ?? "bg-muted-foreground")} />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{alert.projectName}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{alert.message}</div>
-                  </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg border bg-muted/30 p-2">
+                  <div className="text-[10px] text-muted-foreground">Status</div>
+                  <div className={cn("text-sm font-semibold mt-0.5",
+                    executiveFinanceStatus === "Stabil" ? "text-emerald-600"
+                    : executiveFinanceStatus === "Waspada" ? "text-amber-500"
+                    : "text-red-500")}>{executiveFinanceStatus}</div>
                 </div>
-              ))}
-              {!alerts?.length && <p className="text-sm text-muted-foreground text-center py-2">Tidak ada risiko aktif</p>}
+                <div className="rounded-lg border bg-muted/30 p-2">
+                  <div className="text-[10px] text-muted-foreground">Kritis</div>
+                  <div className={cn("text-sm font-semibold mt-0.5", criticalRiskCount > 0 ? "text-red-500" : "text-muted-foreground")}>{criticalRiskCount}</div>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-2">
+                  <div className="text-[10px] text-muted-foreground">Warning</div>
+                  <div className={cn("text-sm font-semibold mt-0.5", warningRiskCount > 0 ? "text-amber-500" : "text-muted-foreground")}>{warningRiskCount}</div>
+                </div>
+              </div>
+
+              {executiveRisks.length > 0 ? (
+                <div className="space-y-2 pt-1">
+                  {executiveRisks.slice(0, 6).map((risk) => (
+                    <Link key={risk.id} href={risk.href}>
+                      <div className="flex items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+                        <div className={cn("size-2 rounded-full mt-1.5 shrink-0", risk.level === "kritis" ? "bg-red-500" : "bg-amber-400")} />
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">{risk.source}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{risk.message}</div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-emerald-600 justify-center py-4">
+                  <CheckCircle2 className="size-4" />
+                  <span className="text-sm font-medium">Tidak ada risiko aktif lintas modul</span>
+                </div>
+              )}
             </div>
           </div>
-          <div className="bg-card text-card-foreground rounded-xl border flex-1">
+
+          <div className="bg-card text-card-foreground rounded-xl border">
             <div className="flex items-center justify-between p-4 border-b border-border/50">
-              <h3 className="font-medium text-sm">Cashflow Forecast</h3>
+              <h3 className="font-medium text-sm">Snapshot Keuangan</h3>
+              <Landmark className="size-4 text-muted-foreground" />
             </div>
-            <div className="p-4">
-              <div className="h-[160px]">
-                {cashflow?.forecast?.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={cashflow.forecast} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(1 0 0 / 8%)" vertical={false} />
-                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "oklch(0.708 0 0)" }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "oklch(0.708 0 0)" }}
-                        tickFormatter={(v) => v >= 1e9 ? `${(v / 1e9).toFixed(0)}M` : `${(v / 1e6).toFixed(0)}jt`} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <defs>
-                        <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ec4899" stopOpacity={0.3} /><stop offset="100%" stopColor="#ec4899" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} /><stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Area type="monotone" dataKey="income" stroke="#ec4899" strokeWidth={2} fill="url(#incomeGrad)" dot={false} />
-                      <Area type="monotone" dataKey="expense" stroke="#06b6d4" strokeWidth={2} fill="url(#expenseGrad)" dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Memuat data...</div>}
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <MiniKpi label="Finance Score" value={finScore ? `${finScore}/100` : "—"}
+                  color={finScore >= 80 ? "text-emerald-600" : finScore >= 60 ? "text-amber-500" : "text-red-500"} />
+                <MiniKpi label="Net Cashflow" value={fin.netCashflow ? fmtRp(fin.netCashflow) : "—"}
+                  color={(fin.netCashflow ?? 0) >= 0 ? "text-emerald-600" : "text-red-500"} />
               </div>
-              <div className="flex items-center gap-4 mt-2">
-                <div className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-pink-500" /><span className="text-xs text-muted-foreground">Pendapatan</span></div>
-                <div className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-cyan-400" /><span className="text-xs text-muted-foreground">Pengeluaran</span></div>
-              </div>
+              <Link href="/finance/forecast">
+                <span className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5">
+                  Lihat forecast cashflow di Finance <ChevronRight className="size-3" />
+                </span>
+              </Link>
             </div>
           </div>
         </div>
@@ -430,7 +482,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* ── PERENCANAAN ── */}
-          <ModuleCard title="Perencanaan & Feasibility" icon={BarChart3} href="/perencanaan"
+          <ModuleCard title="Perencanaan & Feasibility" icon={Calculator} href="/perencanaan"
             badge={planWarnings.length > 0 ? `${planWarnings.length} warning` : undefined}>
             <div className="grid grid-cols-4 gap-3 mb-4">
               <MiniKpi label="Proyek Aktif" value={projArr.length} />
@@ -459,7 +511,7 @@ export default function Dashboard() {
           </ModuleCard>
 
           {/* ── MARKETING ── */}
-          <ModuleCard title="Marketing & Sales" icon={TrendingUp} href="/marketing"
+          <ModuleCard title="Marketing & Sales" icon={Megaphone} href="/marketing"
             badge={stagnanCount > 0 ? `${stagnanCount} stagnan` : undefined}>
             <div className="grid grid-cols-3 gap-3 mb-4">
               <MiniKpi label="Total Leads" value={leadsArr.length} />
@@ -481,7 +533,7 @@ export default function Dashboard() {
           </ModuleCard>
 
           {/* ── ADMINISTRASI KPR ── */}
-          <ModuleCard title="Administrasi KPR" icon={FileText} href="/administrasi"
+          <ModuleCard title="Administrasi KPR" icon={FileCheck2} href="/administrasi"
             badge={(adminData?.agingKritis ?? 0) > 0 ? `${adminData.agingKritis} kritis` : undefined}>
             <div className="grid grid-cols-4 gap-3 mb-4">
               <MiniKpi label="Total Aktif" value={adminData?.totalAktif ?? "—"} />
@@ -543,7 +595,7 @@ export default function Dashboard() {
           </ModuleCard>
 
           {/* ── FINANCE ── */}
-          <ModuleCard title="Finance & Accounting" icon={DollarSign} href="/finance"
+          <ModuleCard title="Finance & Accounting" icon={Landmark} href="/finance"
             badge={finAlerts.filter((a: any) => a.level === "kritis").length > 0
               ? `${finAlerts.filter((a: any) => a.level === "kritis").length} kritis` : undefined}>
             <div className="grid grid-cols-4 gap-3 mb-4">
@@ -619,7 +671,7 @@ export default function Dashboard() {
           </ModuleCard>
 
           {/* ── LEGAL ── */}
-          <ModuleCard title="Legal & Perizinan" icon={Shield} href="/legal">
+          <ModuleCard title="Legal & Perizinan" icon={ShieldCheck} href="/legal">
             <div className="grid grid-cols-3 gap-3 mb-4">
               <MiniKpi label="Total Dokumen" value={legalArr.length} />
               <MiniKpi label="Approved" value={legalApproved} color="text-emerald-600" />

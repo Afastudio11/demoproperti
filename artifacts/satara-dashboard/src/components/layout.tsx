@@ -16,9 +16,9 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard, Building2, MapPin, Calculator, FileText, Magnet,
-  Users, HardHat, Settings, ChevronsUpDown, BarChart3,
-  DollarSign, Shield, ShieldCheck, UserCog, Megaphone, Landmark, LogOut,
+  LayoutDashboard, Building2, MapPin, Calculator, FileCheck2,
+  Users, HardHat, Settings, ChevronsUpDown,
+  Shield, ShieldCheck, UserCog, Megaphone, Landmark, LogOut,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -30,10 +30,10 @@ const navItems = [
   { moduleKey: "projects", name: "Daftar Proyek", path: "/projects", icon: Building2 },
   { moduleKey: "akuisisi", name: "Akuisisi Lahan", path: "/akuisisi", icon: MapPin },
   { moduleKey: "perencanaan", name: "Perencanaan", path: "/perencanaan", icon: Calculator },
-  { moduleKey: "legal", name: "Legal & Perizinan", path: "/legal", icon: FileText },
-  { moduleKey: "marketing", name: "Marketing", path: "/marketing", icon: Magnet },
+  { moduleKey: "legal", name: "Legal & Perizinan", path: "/legal", icon: ShieldCheck },
+  { moduleKey: "marketing", name: "Marketing", path: "/marketing", icon: Megaphone },
   { moduleKey: "branding", name: "Branding", path: "/branding", icon: Megaphone },
-  { moduleKey: "administrasi", name: "Administrasi KPR", path: "/administrasi", icon: Users },
+  { moduleKey: "administrasi", name: "Administrasi KPR", path: "/administrasi", icon: FileCheck2 },
   { moduleKey: "produksi", name: "Produksi", path: "/produksi", icon: HardHat },
   { moduleKey: "hr", name: "Human Resource", path: "/hr", icon: UserCog },
   { moduleKey: "finance", name: "Finance & Accounting", path: "/finance", icon: Landmark },
@@ -55,7 +55,7 @@ const financeSubNav: SubNavItem[] = [
   { type: "link", name: "Piutang Center", path: "/finance/piutang" },
   { type: "group", label: "Analitik Keuangan" },
   { type: "link", name: "Profitability Center", path: "/finance/profitabilitas" },
-  { type: "link", name: "Forecast Center", path: "/finance/forecast" },
+  { type: "link", name: "Forecast Cashflow", path: "/finance/forecast" },
   { type: "link", name: "Accounting Center", path: "/finance/accounting" },
   { type: "group", label: "Kontrol & Strategi" },
   { type: "link", name: "Audit Center", path: "/finance/audit" },
@@ -196,7 +196,7 @@ const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Input Keluar", path: "/produksi/material/keluar" },
   { type: "link", name: "Konsumsi", path: "/produksi/material/konsumsi" },
   { type: "link", name: "Variance", path: "/produksi/material/variance" },
-  { type: "link", name: "Forecast", path: "/produksi/material/forecast" },
+  { type: "link", name: "Forecast Material", path: "/produksi/material/forecast" },
   { type: "group", label: "Progress" },
   { type: "link", name: "Progress Proyek", path: "/produksi/progress/proyek" },
   { type: "link", name: "Progress Tahap", path: "/produksi/progress/tahap" },
@@ -213,10 +213,10 @@ const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Velocity", path: "/produksi/analitik/velocity" },
   { type: "link", name: "Baseline", path: "/produksi/analitik/baseline" },
   { type: "link", name: "Cost to Complete", path: "/produksi/analitik/cost-to-complete" },
-  { type: "link", name: "Cashflow Impact", path: "/produksi/analitik/cashflow-impact" },
+  { type: "link", name: "Dampak Termin ke Cashflow", path: "/produksi/analitik/cashflow-impact" },
   { type: "link", name: "Produktivitas", path: "/produksi/analitik/produktivitas" },
   { type: "link", name: "Eligibilitas", path: "/produksi/analitik/eligibilitas" },
-  { type: "link", name: "Forecast", path: "/produksi/analitik/forecast" },
+  { type: "link", name: "Forecast Penyelesaian", path: "/produksi/analitik/forecast" },
 ];
 
 function renderSubNav(items: SubNavItem[], location: string) {

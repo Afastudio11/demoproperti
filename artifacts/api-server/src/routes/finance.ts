@@ -14,11 +14,19 @@ import {
 } from "@workspace/db";
 import { eq, desc, sql, and, lte, gte, lt } from "drizzle-orm";
 import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+import { recordFinanceCashflow } from "../lib/finance-sync";
 // pdf-parse is CJS — require is available via the ESM banner in build.mjs
 const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number; info: any }> =
   (globalThis as any).require("pdf-parse");
 
 const router = Router();
+
+function inferCashflowType(input: unknown, amount: number): "cash_in" | "cash_out" {
+  const raw = String(input ?? "").toLowerCase();
+  if (["cash_out", "out", "keluar", "kredit", "credit", "pengeluaran", "biaya"].includes(raw)) return "cash_out";
+  if (["cash_in", "in", "masuk", "debit", "debet", "debitur", "income", "pendapatan"].includes(raw)) return "cash_in";
+  return amount < 0 ? "cash_out" : "cash_in";
+}
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 router.get("/finance/dashboard", async (req, res) => {
@@ -39,7 +47,7 @@ router.get("/finance/dashboard", async (req, res) => {
         .where(and(eq(cashflowRecordsTable.type, "cash_out"),
           sql`EXTRACT(MONTH FROM transaction_date) = ${thisMonth}`,
           sql`EXTRACT(YEAR FROM transaction_date) = ${thisYear}`)),
-      db.select({ total: sql<number>`coalesce(sum(total_amount::numeric),0)` })
+      db.select({ total: sql<number>`coalesce(sum(coalesce(remaining_amount,total_amount)::numeric),0)` })
         .from(debtRecordsTable)
         .where(and(eq(debtRecordsTable.status, "outstanding"),
           sql`due_date <= ${next30.toISOString().split("T")[0]}`)),
@@ -112,6 +120,12 @@ router.delete("/finance/uploads/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id || isNaN(id)) { res.status(400).json({ error: "ID tidak valid" }); return; }
+    await Promise.all([
+      db.delete(cashflowRecordsTable).where(eq(cashflowRecordsTable.uploadId, id)),
+      db.delete(rabItemsTable).where(eq(rabItemsTable.uploadId, id)),
+      db.delete(debtRecordsTable).where(eq(debtRecordsTable.uploadId, id)),
+      db.delete(receivableRecordsTable).where(eq(receivableRecordsTable.uploadId, id)),
+    ]);
     await db.delete(financeUploadsTable).where(eq(financeUploadsTable.id, id));
     res.json({ ok: true });
   } catch (e: any) {
@@ -125,8 +139,9 @@ router.post("/finance/uploads/cashflow", async (req, res) => {
     const { uploadId, records } = req.body as { uploadId: number; records: any[] };
     if (!records?.length) { res.json({ inserted: 0 }); return; }
     const rows = records.map((r: any) => ({
-      uploadId, transactionDate: r.transactionDate, type: r.type,
-      category: r.category, projectName: r.projectName, amount: String(r.amount),
+      uploadId, transactionDate: r.transactionDate,
+      type: inferCashflowType(r.type, Number(r.amount)),
+      category: r.category, projectName: r.projectName, amount: String(Math.abs(Number(r.amount) || 0)),
       description: r.description, referenceNumber: r.referenceNumber,
     }));
     const inserted = await db.insert(cashflowRecordsTable).values(rows).returning();
@@ -356,7 +371,7 @@ Contoh: {"creditorName": "NAMA PEMILIK", "totalAmount": "NILAI AWAL", "projectNa
         if (!txDate && amt === 0) return null;
         return {
           uploadId, transactionDate: txDate ?? now.toISOString().split("T")[0],
-          type: getVal(row, "type", ["jenis", "tipe"]) ?? "cash_in",
+          type: inferCashflowType(getVal(row, "type", ["jenis", "tipe"]), amt),
           category: String(getVal(row, "category", ["kategori"]) ?? "lainnya"),
           projectName: String(getVal(row, "projectName", ["proyek", "project"]) ?? ""),
           amount: String(Math.abs(amt)),
@@ -512,12 +527,15 @@ Kembalikan HANYA JSON array yang valid, tanpa penjelasan atau markdown.`;
         inserted += result.length;
       }
     } else if (["cashflow", "general_ledger", "bank"].includes(fileType)) {
-      const dbRows = mapped.map((r: any) => ({
-        uploadId, transactionDate: r.transactionDate || now.toISOString().split("T")[0],
-        type: r.type || "cash_in", category: r.category || "lainnya",
-        projectName: r.projectName || "", amount: String(Math.abs(Number(r.amount) || 0)),
-        description: r.description || "", referenceNumber: r.referenceNumber || "",
-      }));
+      const dbRows = mapped.map((r: any) => {
+        const amount = Number(r.amount) || 0;
+        return {
+          uploadId, transactionDate: r.transactionDate || now.toISOString().split("T")[0],
+          type: inferCashflowType(r.type ?? r.description ?? r.category, amount), category: r.category || "lainnya",
+          projectName: r.projectName || "", amount: String(Math.abs(amount)),
+          description: r.description || "", referenceNumber: r.referenceNumber || "",
+        };
+      });
       for (let i = 0; i < dbRows.length; i += BATCH) {
         const result = await db.insert(cashflowRecordsTable).values(dbRows.slice(i, i + BATCH)).returning();
         inserted += result.length;
@@ -565,7 +583,7 @@ router.get("/finance/cashflow", async (req, res) => {
       const amt = Number(row.total);
       if (row.type === "cash_in") byMonth[m].cashIn += amt;
       else byMonth[m].cashOut += amt;
-      byMonth[m].categories[row.category] = (byMonth[m].categories[row.category] ?? 0) + amt;
+      byMonth[m].categories[row.category] = (byMonth[m].categories[row.category] ?? 0) + (row.type === "cash_out" ? -amt : amt);
     }
 
     const MONTHS = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
@@ -639,6 +657,18 @@ router.post("/finance/kpp/:id/payment", async (req, res) => {
     const kppId = Number(req.params.id);
     const { paymentDate, principalPaid, interestPaid, notes } = req.body;
     const [row] = await db.insert(kppPaymentsTable).values({ kppId, paymentDate, principalPaid: String(principalPaid), interestPaid: String(interestPaid ?? 0), notes }).returning();
+    const [facility] = await db.select().from(kppFacilitiesTable).where(eq(kppFacilitiesTable.id, kppId));
+    if (facility) {
+      await recordFinanceCashflow({
+        transactionDate: paymentDate,
+        type: "cash_out",
+        category: "kpp",
+        amount: Number(principalPaid) + Number(interestPaid ?? 0),
+        projectName: facility.projectName,
+        description: `Pembayaran KPP ${facility.bankName}`,
+        referenceNumber: `KPP-${kppId}-${row.id}`,
+      });
+    }
     res.json(row);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -677,11 +707,11 @@ router.get("/finance/hutang", async (req, res) => {
 
       // By category (use remaining for aging)
       if (!byCategory[cat]) byCategory[cat] = { total: 0, lt30: 0, d30_60: 0, gt60: 0 };
-      byCategory[cat].total += orig;
+      byCategory[cat].total += remaining;
       if (due) {
-        if (due <= d30) byCategory[cat].lt30 += orig;
-        else if (due <= d60) byCategory[cat].d30_60 += orig;
-        else byCategory[cat].gt60 += orig;
+        if (due <= d30) byCategory[cat].lt30 += remaining;
+        else if (due <= d60) byCategory[cat].d30_60 += remaining;
+        else byCategory[cat].gt60 += remaining;
       }
 
       totalAll += orig;
@@ -865,7 +895,7 @@ router.get("/finance/forecast", async (req, res) => {
 
       const forecastOut = debts
         .filter(r => r.dueDate && r.dueDate.startsWith(monthStr))
-        .reduce((s, r) => s + Number(r.totalAmount), 0) + totalKppMonthly;
+        .reduce((s, r) => s + Number(r.remainingAmount ?? r.totalAmount), 0) + totalKppMonthly;
 
       const net = forecastIn - forecastOut;
       cumulative += net;
@@ -913,7 +943,7 @@ router.get("/finance/accounting", async (req, res) => {
     const labaBersih = labaOps - pajak;
 
     const [debts, receivables] = await Promise.all([
-      db.select({ total: sql<number>`coalesce(sum(total_amount::numeric),0)` }).from(debtRecordsTable).where(eq(debtRecordsTable.status, "outstanding")),
+      db.select({ total: sql<number>`coalesce(sum(coalesce(remaining_amount,total_amount)::numeric),0)` }).from(debtRecordsTable).where(eq(debtRecordsTable.status, "outstanding")),
       db.select({ total: sql<number>`coalesce(sum(total_amount::numeric),0)` }).from(receivableRecordsTable),
     ]);
 
@@ -1029,7 +1059,7 @@ router.post("/finance/ekspansi/analisis", async (req, res) => {
         .from(cashflowRecordsTable)
         .where(sql`EXTRACT(YEAR FROM transaction_date) = ${new Date().getFullYear()}`)
         .groupBy(cashflowRecordsTable.type),
-      db.select({ total: sql<number>`coalesce(sum(total_amount::numeric),0)` }).from(debtRecordsTable).where(eq(debtRecordsTable.status, "outstanding")),
+      db.select({ total: sql<number>`coalesce(sum(coalesce(remaining_amount,total_amount)::numeric),0)` }).from(debtRecordsTable).where(eq(debtRecordsTable.status, "outstanding")),
       db.select({ total: sql<number>`coalesce(sum(total_amount::numeric),0)` }).from(receivableRecordsTable),
     ]);
 
@@ -1233,7 +1263,7 @@ router.post("/finance/uploads/manual-save", async (req, res) => {
       const rows = entries.map((e: any) => {
         const amt = cn2(e.amount);
         if (!e.transactionDate && amt === 0) return null;
-        return { uploadId, transactionDate: e.transactionDate || now.toISOString().split("T")[0], type: e.type || "cash_in", category: String(e.category || "lainnya"), projectName: String(e.projectName || ""), amount: String(Math.abs(amt)), description: String(e.description || ""), referenceNumber: String(e.referenceNumber || "") };
+        return { uploadId, transactionDate: e.transactionDate || now.toISOString().split("T")[0], type: inferCashflowType(e.type, amt), category: String(e.category || "lainnya"), projectName: String(e.projectName || ""), amount: String(Math.abs(amt)), description: String(e.description || ""), referenceNumber: String(e.referenceNumber || "") };
       }).filter(Boolean);
       if (rows.length) { inserted = (await db.insert(cashflowRecordsTable).values(rows as any).returning()).length; }
     } else if (fileType === "rab") {

@@ -27,7 +27,7 @@ export default function ForecastCenter() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Forecast Center</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Forecast Cashflow</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Proyeksi cashflow 6 bulan ke depan berbasis data aktual</p>
       </div>
 

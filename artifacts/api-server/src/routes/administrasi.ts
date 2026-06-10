@@ -14,6 +14,7 @@ import {
   banksTable,
 } from "@workspace/db";
 import { eq, and, desc, or, like, sql } from "drizzle-orm";
+import { recordFinanceCashflow } from "../lib/finance-sync";
 
 const router: IRouter = Router();
 
@@ -93,6 +94,31 @@ function normalizeDocumentTemplate(document: (typeof DEFAULT_DOCUMENTS)[number],
     category: document.category,
     isRequired: document.isRequired,
   };
+}
+
+async function moveCustomerPipeline(
+  customerId: number,
+  toStatus: string,
+  changedBy = "system",
+  notes?: string | null,
+) {
+  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, customerId));
+  if (!customer || customer.pipelineStatus === toStatus) return customer ?? null;
+
+  const [updated] = await db.update(customersTable)
+    .set({ pipelineStatus: toStatus, statusUpdatedAt: new Date() })
+    .where(eq(customersTable.id, customerId))
+    .returning();
+
+  await db.insert(customerStatusHistoryTable).values({
+    customerId,
+    fromStatus: customer.pipelineStatus,
+    toStatus,
+    changedBy,
+    notes: notes ?? null,
+  });
+
+  return updated;
 }
 
 // ─── BANKS ─────────────────────────────────────────────────────────────────
@@ -411,6 +437,9 @@ router.get("/administrasi/bank-submissions", async (req, res) => {
 router.post("/administrasi/bank-submissions", async (req, res) => {
   try {
     const [sub] = await db.insert(bankSubmissionsTable).values(req.body).returning();
+    if (sub.customerId) {
+      await moveCustomerPipeline(sub.customerId, "SETOR_BANK", req.body.createdBy ?? "administrasi", `Setor bank ${sub.bank}`);
+    }
     res.status(201).json({ ...sub, createdAt: sub.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create bank submission");
@@ -445,6 +474,10 @@ router.get("/administrasi/ots", async (req, res) => {
 router.post("/administrasi/ots", async (req, res) => {
   try {
     const [rec] = await db.insert(otsRecordsTable).values(req.body).returning();
+    if (rec.customerId) {
+      const nextStatus = rec.result === "revisi" ? "REVISI" : "OTS";
+      await moveCustomerPipeline(rec.customerId, nextStatus, req.body.createdBy ?? "administrasi", `OTS ${rec.bank}`);
+    }
     res.status(201).json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create OTS record");
@@ -458,6 +491,10 @@ router.patch("/administrasi/ots/:id", async (req, res) => {
     if (!id) return res.status(400).json({ error: "Invalid OTS id" });
     const [rec] = await db.update(otsRecordsTable).set(req.body).where(eq(otsRecordsTable.id, id)).returning();
     if (!rec) return res.status(404).json({ error: "Not found" });
+    if (rec.customerId) {
+      const nextStatus = rec.result === "revisi" ? "REVISI" : "OTS";
+      await moveCustomerPipeline(rec.customerId, nextStatus, req.body.changedBy ?? "administrasi", `Update OTS ${rec.bank}`);
+    }
     res.json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update OTS record");
@@ -501,6 +538,9 @@ router.get("/administrasi/sp3k", async (req, res) => {
 router.post("/administrasi/sp3k", async (req, res) => {
   try {
     const [rec] = await db.insert(sp3kRecordsTable).values(req.body).returning();
+    if (rec.customerId && rec.status === "approved") {
+      await moveCustomerPipeline(rec.customerId, "SP3K", req.body.createdBy ?? "administrasi", `SP3K approved ${rec.bank}`);
+    }
     res.status(201).json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create SP3K record");
@@ -514,6 +554,9 @@ router.patch("/administrasi/sp3k/:id", async (req, res) => {
     if (!id) return res.status(400).json({ error: "Invalid SP3K id" });
     const [rec] = await db.update(sp3kRecordsTable).set(req.body).where(eq(sp3kRecordsTable.id, id)).returning();
     if (!rec) return res.status(404).json({ error: "Not found" });
+    if (rec.customerId && rec.status === "approved") {
+      await moveCustomerPipeline(rec.customerId, "SP3K", req.body.changedBy ?? "administrasi", `Update SP3K approved ${rec.bank}`);
+    }
     res.json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update SP3K record");
@@ -567,7 +610,7 @@ router.post("/administrasi/akad", async (req, res) => {
   try {
     const [rec] = await db.insert(akadRecordsTable).values(req.body).returning();
     if (req.body.customerId && req.body.status === "selesai") {
-      await db.update(customersTable).set({ pipelineStatus: "AKAD", statusUpdatedAt: new Date() }).where(eq(customersTable.id, req.body.customerId));
+      await moveCustomerPipeline(req.body.customerId, "AKAD", req.body.createdBy ?? "administrasi", `Akad selesai ${rec.bank}`);
     }
     res.status(201).json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
@@ -582,6 +625,9 @@ router.patch("/administrasi/akad/:id", async (req, res) => {
     if (!id) return res.status(400).json({ error: "Invalid akad id" });
     const [rec] = await db.update(akadRecordsTable).set(req.body).where(eq(akadRecordsTable.id, id)).returning();
     if (!rec) return res.status(404).json({ error: "Not found" });
+    if (rec.customerId && rec.status === "selesai") {
+      await moveCustomerPipeline(rec.customerId, "AKAD", req.body.changedBy ?? "administrasi", `Update akad selesai ${rec.bank}`);
+    }
     res.json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update Akad record");
@@ -655,7 +701,19 @@ router.post("/administrasi/ht", async (req, res) => {
   try {
     const [rec] = await db.insert(htRecordsTable).values(req.body).returning();
     if (req.body.customerId) {
-      await db.update(customersTable).set({ pipelineStatus: "HT_CAIR", statusUpdatedAt: new Date() }).where(eq(customersTable.id, req.body.customerId));
+      const customer = await moveCustomerPipeline(req.body.customerId, "HT_CAIR", req.body.createdBy ?? "administrasi", `HT cair ${rec.bank}`);
+      const amount = rec.htAmount ? Number(rec.htAmount) : 0;
+      if (customer && amount > 0) {
+        await recordFinanceCashflow({
+          transactionDate: rec.htDate ?? undefined,
+          type: "cash_in",
+          category: "ht",
+          amount,
+          description: `HT cair ${customer.nama}`,
+          referenceNumber: `HT-${rec.id}`,
+          projectId: customer.projectId,
+        });
+      }
     }
     res.status(201).json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {

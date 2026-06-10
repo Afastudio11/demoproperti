@@ -3,7 +3,8 @@ import { db } from "@workspace/db";
 import {
   projectsTable, landProspectsTable, feasibilityStudiesTable,
   legalDocumentsTable, leadsTable, customersTable, unitsTable,
-  constructionTasksTable, qcDefectsTable, materialsTable, handoversTable
+  constructionTasksTable, qcDefectsTable, handoversTable,
+  cashflowRecordsTable, prodMaterialMasterTable, prodMaterialInTable, prodMaterialOutTable
 } from "@workspace/db";
 import { eq, sql, lt } from "drizzle-orm";
 
@@ -55,15 +56,15 @@ router.get("/dashboard/kpi", async (req, res) => {
     ]);
 
     const totalLeads = leads.length;
-    const bookings = leads.filter(l => l.status === "booking").length;
-    const akad = leads.filter(l => l.status === "akad").length;
+    const bookings = leads.filter(l => l.status === "BOOKING").length;
+    const akad = customers.filter(c => c.pipelineStatus === "AKAD" || c.pipelineStatus === "HT_CAIR").length;
     const conversionRate = totalLeads > 0 ? (bookings / totalLeads) * 100 : 0;
     const bookingToAkad = bookings > 0 ? (akad / bookings) * 100 : 0;
 
     const pendingBerkas = customers.filter(c => !c.berkasLengkap).length;
-    const sp3kCount = customers.filter(c => c.statusKpr === "sp3k").length;
-    const akadCount = customers.filter(c => c.statusKpr === "akad").length;
-    const rejectedCustomers = customers.filter(c => c.statusKpr === "ditolak").length;
+    const sp3kCount = customers.filter(c => c.pipelineStatus === "SP3K").length;
+    const akadCount = customers.filter(c => c.pipelineStatus === "AKAD" || c.pipelineStatus === "HT_CAIR").length;
+    const rejectedCustomers = customers.filter(c => c.statusKpr === "ditolak" || c.pipelineStatus === "BATAL").length;
     const rejectRate = customers.length > 0 ? (rejectedCustomers / customers.length) * 100 : 0;
 
     const avgProgress = units.length > 0
@@ -94,18 +95,34 @@ router.get("/dashboard/kpi", async (req, res) => {
 });
 
 router.get("/dashboard/cashflow", async (_req, res) => {
-  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"];
-  const forecast = months.map((month, i) => ({
-    month,
-    income: 1500000000 + (i * 200000000),
-    expense: 900000000 + (i * 150000000),
-  }));
-  res.json({
-    totalIncome: 8500000000,
-    totalExpense: 5200000000,
-    netCashflow: 3300000000,
-    forecast,
-  });
+  try {
+    const rows = await db.select().from(cashflowRecordsTable);
+    const now = new Date();
+    const year = now.getFullYear();
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    const forecast = Array.from({ length: 6 }, (_, index) => {
+      const monthIndex = index;
+      const scoped = rows.filter((row) => {
+        const date = new Date(row.transactionDate);
+        return date.getFullYear() === year && date.getMonth() === monthIndex;
+      });
+      return {
+        month: monthNames[monthIndex],
+        income: scoped.filter(r => r.type === "cash_in").reduce((sum, r) => sum + Number(r.amount), 0),
+        expense: scoped.filter(r => r.type === "cash_out").reduce((sum, r) => sum + Number(r.amount), 0),
+      };
+    });
+    const totalIncome = rows.filter(r => r.type === "cash_in").reduce((sum, r) => sum + Number(r.amount), 0);
+    const totalExpense = rows.filter(r => r.type === "cash_out").reduce((sum, r) => sum + Number(r.amount), 0);
+    res.json({
+      totalIncome,
+      totalExpense,
+      netCashflow: totalIncome - totalExpense,
+      forecast,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 router.get("/dashboard/alerts", async (req, res) => {
@@ -115,13 +132,19 @@ router.get("/dashboard/alerts", async (req, res) => {
     let alertId = 1;
 
     for (const project of projects) {
-      const [materials, units, legalDocs] = await Promise.all([
-        db.select().from(materialsTable).where(eq(materialsTable.projectId, project.id)),
+      const [masters, materialIn, materialOut, units, legalDocs] = await Promise.all([
+        db.select().from(prodMaterialMasterTable),
+        db.select().from(prodMaterialInTable).where(eq(prodMaterialInTable.projectId, project.id)),
+        db.select().from(prodMaterialOutTable).where(eq(prodMaterialOutTable.projectId, project.id)),
         db.select().from(unitsTable).where(eq(unitsTable.projectId, project.id)),
         db.select().from(legalDocumentsTable).where(eq(legalDocumentsTable.projectId, project.id)),
       ]);
 
-      const belowMin = materials.filter(m => m.stok < m.minimumStock);
+      const belowMin = masters.filter(m => {
+        const totalIn = materialIn.filter(r => r.materialId === m.id).reduce((sum, r) => sum + r.quantity, 0);
+        const totalOut = materialOut.filter(r => r.materialId === m.id).reduce((sum, r) => sum + r.quantity, 0);
+        return totalIn - totalOut < m.minimumStock;
+      });
       if (belowMin.length > 0) {
         alerts.push({
           id: alertId++, type: "material", level: "red",

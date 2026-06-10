@@ -38,7 +38,7 @@ export default function CustomerNew() {
   const qc = useQueryClient();
   const [form, setForm] = useState({
     nama: "", nik: "", kontak: "", phone: "", pekerjaan: "",
-    unitBlock: "", stageCode: "", projectId: "", referralSource: "", picAdmin: "",
+    unitId: "", unitBlock: "", stageCode: "", projectId: "", referralSource: "", picAdmin: "",
     bank: "", paymentType: "KPR", pipelineStatus: "MINAT",
     dpAmount: "", loanAmount: "", htAmount: "", unitPrice: "",
     bookingDate: "", akadDate: "", htDate: "",
@@ -49,6 +49,11 @@ export default function CustomerNew() {
     queryKey: ["projects"],
     queryFn: () => fetch("/api/projects").then(r => r.json()),
   });
+  const { data: units = [] } = useQuery({
+    queryKey: ["units"],
+    queryFn: () => fetch("/api/units").then(r => r.json()),
+  });
+  const visibleUnits = units.filter((u: any) => !form.projectId || u.projectId === parseInt(form.projectId));
 
   const save = useMutation({
     mutationFn: (data: typeof form) => fetch("/api/administrasi/customers", {
@@ -57,6 +62,7 @@ export default function CustomerNew() {
       body: JSON.stringify({
         ...data,
         projectId: data.projectId ? parseInt(data.projectId) : null,
+        unitId: data.unitId ? parseInt(data.unitId) : null,
         dpAmount: data.dpAmount || null,
         loanAmount: data.loanAmount || null,
         htAmount: data.htAmount || null,
@@ -99,13 +105,29 @@ export default function CustomerNew() {
               </select>
             </Field>
             <Field label="Proyek">
-              <select className={selectCls} value={form.projectId} onChange={set("projectId")}>
+              <select className={selectCls} value={form.projectId} onChange={e => setForm(f => ({ ...f, projectId: e.target.value, unitId: "", unitBlock: "", stageCode: "" }))}>
                 <option value="">-- Pilih Proyek --</option>
                 {projects.map((p: any) => <option key={p.id} value={p.id}>{p.nama ?? p.name}</option>)}
               </select>
             </Field>
-            <Field label="Tahap / Stage Code"><input className={inputCls} placeholder="T1, T2, T3..." value={form.stageCode} onChange={set("stageCode")} /></Field>
-            <Field label="Blok / Nomor Unit"><input className={inputCls} placeholder="A.7, B.19, D1..." value={form.unitBlock} onChange={set("unitBlock")} /></Field>
+            <Field label="Unit">
+              <select className={selectCls} value={form.unitId} onChange={e => {
+                const unit = units.find((u: any) => String(u.id) === e.target.value);
+                setForm(f => ({
+                  ...f,
+                  unitId: e.target.value,
+                  projectId: unit?.projectId ? String(unit.projectId) : f.projectId,
+                  stageCode: unit?.stageCode ?? "",
+                  unitBlock: unit ? `${unit.blok}-${unit.nomor}` : "",
+                  unitPrice: unit?.harga ? String(unit.harga) : f.unitPrice,
+                }));
+              }}>
+                <option value="">-- Pilih Unit --</option>
+                {visibleUnits.map((u: any) => <option key={u.id} value={u.id}>{u.blok}-{u.nomor}{u.stageCode ? ` (${u.stageCode})` : ""}</option>)}
+              </select>
+            </Field>
+            <Field label="Tahap / Stage Code"><input className={inputCls} value={form.stageCode} readOnly /></Field>
+            <Field label="Blok / Nomor Unit"><input className={inputCls} value={form.unitBlock} readOnly /></Field>
             <Field label="Referensi (Nama Marketing)"><input className={inputCls} placeholder="UMMU, DINDA..." value={form.referralSource} onChange={set("referralSource")} /></Field>
             <Field label="PIC Admin">
               <select className={selectCls} value={form.picAdmin} onChange={set("picAdmin")}>

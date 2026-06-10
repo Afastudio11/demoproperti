@@ -4,7 +4,7 @@ import { Clock, Users, Filter, AlertCircle, CheckCircle2, Trash2 } from "lucide-
 import { apiJson } from "@/lib/api";
 
 const MONTHS = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
-const PROJECTS = ["SN RESIDENCE", "SEKALA INDUSTRY", "Semua"];
+type Project = { id: number; nama: string };
 
 type OvertimeRow = {
   id: number;
@@ -36,22 +36,28 @@ export default function HRLembur() {
 
   // Bulk input state
   const [bulkMode, setBulkMode] = useState(false);
-  const [bulkProject, setBulkProject] = useState("SN RESIDENCE");
+  const [bulkProject, setBulkProject] = useState("");
   const [bulkTab, setBulkTab] = useState<"lembur" | "terlambat">("lembur");
   // grid: employeeId -> day -> { lemburJam, terlambatMenit }
   const [bulkGrid, setBulkGrid] = useState<Record<number, Record<number, { lembur: string; terlambat: string }>>>({});
   const [bulkSaved, setBulkSaved] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
-  const params = new URLSearchParams({ month, year: year.toString(), ...(project !== "Semua" ? { project } : {}) });
-  const { data = [], isLoading } = useQuery<OvertimeRow[]>({
-    queryKey: ["hr-overtime", month, year, project],
-    queryFn: () => fetch(`/api/hr/overtime?${params}`).then(apiJson),
-  });
-
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["hr-employees"],
     queryFn: () => fetch("/api/hr/employees").then(apiJson),
+  });
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then(apiJson),
+  });
+  const projectOptions = ["Semua", ...projects.map(p => p.nama)];
+  const findProject = (name: string) => projects.find(p => p.nama === name);
+  const selectedProject = findProject(project);
+  const params = new URLSearchParams({ month, year: year.toString(), ...(selectedProject ? { projectId: String(selectedProject.id) } : {}) });
+  const { data = [], isLoading } = useQuery<OvertimeRow[]>({
+    queryKey: ["hr-overtime", month, year, selectedProject?.id ?? "all"],
+    queryFn: () => fetch(`/api/hr/overtime?${params}`).then(apiJson),
   });
 
   const deleteMut = useMutation({
@@ -85,7 +91,7 @@ export default function HRLembur() {
       grid[emp.id] = {};
     }
     setBulkGrid(grid);
-    setBulkProject(project !== "Semua" ? project : "SN RESIDENCE");
+    setBulkProject(project !== "Semua" ? project : (projects[0]?.nama ?? ""));
     setBulkMode(true);
     setBulkSaved(false);
     setBulkError(null);
@@ -110,7 +116,9 @@ export default function HRLembur() {
         const terlambat = parseInt(vals.terlambat) || 0;
         if (lembur > 0 || terlambat > 0) {
           records.push({
+            employeeId: emp.id,
             employeeName: emp.name,
+            projectId: findProject(bulkProject)?.id ?? null,
             project: bulkProject,
             month,
             year,
@@ -151,7 +159,7 @@ export default function HRLembur() {
         </select>
         <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} className="text-sm border rounded-md px-2 py-1.5 bg-background w-20" />
         <select value={project} onChange={e => setProject(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
-          {PROJECTS.map(p => <option key={p}>{p}</option>)}
+          {projectOptions.map(p => <option key={p}>{p}</option>)}
         </select>
         <div className="flex rounded-md border overflow-hidden ml-auto">
           {(["lembur","terlambat"] as const).map(v => (
@@ -191,7 +199,7 @@ export default function HRLembur() {
                 <span className="text-xs text-muted-foreground">Project:</span>
                 <select value={bulkProject} onChange={e => setBulkProject(e.target.value)}
                   className="text-xs border rounded px-2 py-1 bg-background">
-                  {["SN RESIDENCE","SEKALA INDUSTRY"].map(p => <option key={p}>{p}</option>)}
+                  {projects.map(p => <option key={p.id}>{p.nama}</option>)}
                 </select>
               </div>
               <div className="flex rounded-md border overflow-hidden">

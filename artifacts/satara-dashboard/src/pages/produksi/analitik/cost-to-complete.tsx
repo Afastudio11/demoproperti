@@ -7,10 +7,10 @@ const ANALITIK_TABS = [
   { name: "Velocity", path: "/produksi/analitik/velocity" },
   { name: "Baseline", path: "/produksi/analitik/baseline" },
   { name: "Cost to Complete", path: "/produksi/analitik/cost-to-complete" },
-  { name: "Cashflow Impact", path: "/produksi/analitik/cashflow-impact" },
+  { name: "Dampak Termin ke Cashflow", path: "/produksi/analitik/cashflow-impact" },
   { name: "Produktivitas", path: "/produksi/analitik/produktivitas" },
   { name: "Eligibilitas", path: "/produksi/analitik/eligibilitas" },
-  { name: "Forecast", path: "/produksi/analitik/forecast" },
+  { name: "Forecast Penyelesaian", path: "/produksi/analitik/forecast" },
 ];
 
 type Contract = { id: number; subkonName: string; stageCode: string | null; contractValue: number; totalRetention: number; status: string };
