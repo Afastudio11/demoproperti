@@ -29,6 +29,12 @@ export default function QcRework() {
     queryFn: async () => { const r = await fetch("/api/units"); return r.json() as Promise<Unit[]>; },
   });
 
+  const { data: subkonContracts } = useQuery({
+    queryKey: ["subkon-contracts"],
+    queryFn: async () => { const r = await fetch("/api/produksi/subkon/contracts"); return r.json() as Promise<{ id: number; subkonName: string }[]>; },
+  });
+  const subkonList = [...new Set((subkonContracts ?? []).map(c => c.subkonName))].sort();
+
   const { data: reworks, isLoading } = useQuery({
     queryKey: ["reworks"],
     queryFn: async () => { const r = await fetch("/api/produksi/qc/reworks"); return r.json() as Promise<Rework[]>; },
@@ -90,7 +96,10 @@ export default function QcRework() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Subkon</Label>
-              <Input value={form.subkonName} onChange={e => setForm(p => ({ ...p, subkonName: e.target.value }))} placeholder="Nama subkon..." className="h-8 text-sm" />
+              <Select value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih subkon..." /></SelectTrigger>
+                <SelectContent>{subkonList.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Item Pekerjaan</Label>

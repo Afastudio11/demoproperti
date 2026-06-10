@@ -24,6 +24,8 @@ export default function MaterialKeluar() {
   const { data: units } = useQuery({ queryKey: ["units-list"], queryFn: async () => { const r = await fetch("/api/units"); return r.json() as Promise<Unit[]>; } });
   const { data: materials } = useQuery({ queryKey: ["material-master"], queryFn: async () => { const r = await fetch("/api/produksi/material/master"); return r.json() as Promise<Material[]>; } });
   const { data: rows, isLoading } = useQuery({ queryKey: ["material-out"], queryFn: async () => { const r = await fetch("/api/produksi/material/out"); return r.json() as Promise<OutRow[]>; } });
+  const { data: subkonContracts } = useQuery({ queryKey: ["subkon-contracts"], queryFn: async () => { const r = await fetch("/api/produksi/subkon/contracts"); return r.json() as Promise<{ id: number; subkonName: string }[]>; } });
+  const subkonList = [...new Set((subkonContracts ?? []).map(c => c.subkonName))].sort();
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -68,7 +70,12 @@ export default function MaterialKeluar() {
             </div>
             <div className="space-y-1.5"><Label className="text-xs">Jumlah</Label><NumericInput decimals={3} value={parseFloat(form.quantity) || 0} onChange={v => setForm(p => ({ ...p, quantity: String(v) }))} className="h-8 text-sm" /></div>
             <div className="space-y-1.5"><Label className="text-xs">Diambil Oleh</Label><Input value={form.takenBy} onChange={e => setForm(p => ({ ...p, takenBy: e.target.value }))} className="h-8 text-sm" /></div>
-            <div className="space-y-1.5"><Label className="text-xs">Subkon</Label><Input value={form.subkonName} onChange={e => setForm(p => ({ ...p, subkonName: e.target.value }))} className="h-8 text-sm" /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Subkon</Label>
+              <Select value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih subkon..." /></SelectTrigger>
+                <SelectContent>{subkonList.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" size="sm" onClick={() => setShowForm(false)} className="h-8">Batal</Button>

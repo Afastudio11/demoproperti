@@ -60,6 +60,12 @@ export default function ProgressUnit() {
     },
   });
 
+  const { data: subkonContracts } = useQuery({
+    queryKey: ["subkon-contracts"],
+    queryFn: async () => { const r = await fetch("/api/produksi/subkon/contracts"); return r.json() as Promise<{ id: number; subkonName: string }[]>; },
+  });
+  const subkonList = [...new Set((subkonContracts ?? []).map(c => c.subkonName))].sort();
+
   const tambahUnitMutation = useMutation({
     mutationFn: async () => {
       const body = {
@@ -194,7 +200,10 @@ export default function ProgressUnit() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Nama Subkon</Label>
-                    <Input value={form.subkonName} onChange={e => setForm(p => ({ ...p, subkonName: e.target.value }))} placeholder="DG IWAN..." className="h-8 text-sm" />
+                    <Select value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih subkon..." /></SelectTrigger>
+                      <SelectContent>{subkonList.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Mulai Minggu ke-</Label>
