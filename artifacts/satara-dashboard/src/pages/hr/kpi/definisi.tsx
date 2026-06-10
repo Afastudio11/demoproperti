@@ -1,7 +1,7 @@
 import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Save, Edit2, Trash2 } from "lucide-react";
+import { Plus, X, Save, Edit2, Trash2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
@@ -24,12 +24,19 @@ const SEED_KPI = [
 
 const EMPTY = { position: "", division: DIVISIONS[0], kpiName: "", description: "", unit: "", monthlyTarget: 0, weight: 0, dataSource: "manual", sourceModule: "" };
 
+type FilterMode = "divisi" | "jabatan";
+
 export default function KpiDefinisi() {
   const qc = useQueryClient();
   const [form, setForm] = useState<any>(EMPTY);
   const [editId, setEditId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [filter, setFilter] = useState("");
+
+  // Filter state
+  const [filterMode, setFilterMode] = useState<FilterMode>("divisi");
+  const [filterDivisi, setFilterDivisi] = useState("");
+  const [filterJabatan, setFilterJabatan] = useState("");
+  const [searchText, setSearchText] = useState("");
 
   const { data: defs = [], isLoading } = useQuery<any[]>({ queryKey: ["hr-kpi-defs"], queryFn: () => fetch("/api/hr/kpi/definitions").then(apiJson) });
 
@@ -57,7 +64,27 @@ export default function KpiDefinisi() {
   function resetForm() { setForm(EMPTY); setEditId(null); setShowForm(false); }
   function startEdit(d: any) { setForm({ ...d }); setEditId(d.id); setShowForm(true); }
 
-  const filtered = filter ? defs.filter(d => d.division === filter || d.position.toLowerCase().includes(filter.toLowerCase())) : defs;
+  // Derived: unique jabatan list from all defs
+  const allJabatan = Array.from(new Set(defs.map(d => d.position))).sort();
+
+  // Filtering logic
+  let filtered = defs;
+  if (filterMode === "divisi" && filterDivisi) {
+    filtered = filtered.filter(d => d.division === filterDivisi);
+  }
+  if (filterMode === "jabatan" && filterJabatan) {
+    filtered = filtered.filter(d => d.position === filterJabatan);
+  }
+  if (searchText.trim()) {
+    const q = searchText.toLowerCase();
+    filtered = filtered.filter(d =>
+      d.kpiName.toLowerCase().includes(q) ||
+      d.position.toLowerCase().includes(q) ||
+      d.division.toLowerCase().includes(q)
+    );
+  }
+
+  // Group by position key
   const byPosition: Record<string, any[]> = {};
   for (const d of filtered) {
     const key = `${d.division} — ${d.position}`;
@@ -84,11 +111,52 @@ export default function KpiDefinisi() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <select value={filter} onChange={e => setFilter(e.target.value)} className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-          <option value="">Semua Divisi</option>
-          {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
+      {/* Filter toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Mode tabs */}
+        <div className="flex rounded-md border overflow-hidden">
+          {([["divisi","Per Divisi"],["jabatan","Per Jabatan"]] as [FilterMode, string][]).map(([mode, label]) => (
+            <button key={mode} onClick={() => { setFilterMode(mode); setFilterDivisi(""); setFilterJabatan(""); }}
+              className={`text-xs px-3 py-1.5 font-medium ${filterMode === mode ? "bg-foreground text-background" : "hover:bg-muted/50"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Divisi dropdown */}
+        {filterMode === "divisi" && (
+          <select value={filterDivisi} onChange={e => setFilterDivisi(e.target.value)}
+            className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background">
+            <option value="">Semua Divisi</option>
+            {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
+
+        {/* Jabatan dropdown */}
+        {filterMode === "jabatan" && (
+          <select value={filterJabatan} onChange={e => setFilterJabatan(e.target.value)}
+            className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background">
+            <option value="">Semua Jabatan</option>
+            {allJabatan.map(j => <option key={j} value={j}>{j}</option>)}
+          </select>
+        )}
+
+        {/* Search */}
+        <div className="relative flex items-center">
+          <Search className="size-3.5 absolute left-2.5 text-muted-foreground pointer-events-none" />
+          <input
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Cari nama KPI, jabatan..."
+            className="border rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background w-52"
+          />
+          {searchText && (
+            <button onClick={() => setSearchText("")} className="absolute right-2 text-muted-foreground hover:text-foreground">
+              <X className="size-3" />
+            </button>
+          )}
+        </div>
+
         <span className="text-xs text-muted-foreground">{filtered.length} KPI</span>
       </div>
 
@@ -96,7 +164,7 @@ export default function KpiDefinisi() {
         <div className="space-y-4">
           {Object.keys(byPosition).length === 0 && (
             <div className="bg-card border rounded-xl p-8 text-center text-muted-foreground text-sm">
-              Belum ada definisi KPI. Klik "Seed Data Awal" atau tambah manual.
+              {defs.length === 0 ? 'Belum ada definisi KPI. Klik "Seed Data Awal" atau tambah manual.' : "Tidak ada KPI yang cocok dengan filter."}
             </div>
           )}
           {Object.entries(byPosition).map(([key, items]) => {
