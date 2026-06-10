@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CheckSquare, Square, ChevronDown, ChevronUp, RefreshCw, Search, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import SubkonSelect from "@/components/subkon-select";
 
 const BASELINE: Record<number, number> = { 1: 10, 2: 25, 3: 40, 4: 55, 5: 70, 6: 85, 7: 95, 8: 100 };
 const TIPE_OPTIONS = ["Tipe 36", "Tipe 45", "Tipe 54", "Tipe 60", "Tipe 72", "Tipe 90"];
@@ -59,12 +60,6 @@ export default function ProgressUnit() {
       return res.json() as Promise<Project[]>;
     },
   });
-
-  const { data: subkonContracts } = useQuery({
-    queryKey: ["subkon-contracts"],
-    queryFn: async () => { const r = await fetch("/api/produksi/subkon/contracts"); return r.json() as Promise<{ id: number; subkonName: string }[]>; },
-  });
-  const subkonList = [...new Set((subkonContracts ?? []).map(c => c.subkonName))].sort();
 
   const tambahUnitMutation = useMutation({
     mutationFn: async () => {
@@ -200,10 +195,7 @@ export default function ProgressUnit() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Nama Subkon</Label>
-                    <Select value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih subkon..." /></SelectTrigger>
-                      <SelectContent>{subkonList.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <SubkonSelect value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))} projectId={form.projectId} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Mulai Minggu ke-</Label>

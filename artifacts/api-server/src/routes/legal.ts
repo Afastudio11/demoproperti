@@ -276,15 +276,9 @@ router.get("/legal/permits", async (req, res) => {
     const projects = await db.select().from(projectsTable);
 
     if (projectId) {
-      let permits = await db.select().from(permitDocumentsTable).where(eq(permitDocumentsTable.projectId, projectId));
-      // Seed defaults jika belum ada
-      if (permits.length === 0) {
-        const defaultValues = DEFAULT_PERMITS.map(dp => ({ projectId, permitGroup: dp.group, permitName: dp.name, institution: dp.institution }));
-        await db.insert(permitDocumentsTable).values(defaultValues);
-        permits = await db.select().from(permitDocumentsTable).where(eq(permitDocumentsTable.projectId, projectId));
-      }
+      const permits = await db.select().from(permitDocumentsTable).where(eq(permitDocumentsTable.projectId, projectId));
       const readiness = calcPermitReadiness(permits);
-      res.json({ permits, readiness, project: projects.find(p => p.id === projectId) });
+      res.json({ permits, readiness, project: projects.find(p => p.id === projectId), canSeedDefaults: permits.length === 0 });
     } else {
       const permits = await db.select().from(permitDocumentsTable);
       res.json({ permits, projects });
@@ -292,6 +286,29 @@ router.get("/legal/permits", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to list permits");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/legal/permits/seed-defaults", async (req, res) => {
+  try {
+    const projectId = parseInt(String(req.body.projectId ?? ""));
+    if (!Number.isFinite(projectId)) return res.status(400).json({ error: "Project wajib dipilih" });
+
+    const existing = await db.select().from(permitDocumentsTable).where(eq(permitDocumentsTable.projectId, projectId));
+    const existingNames = new Set(existing.map(p => p.permitName.toLowerCase()));
+    const missing = DEFAULT_PERMITS
+      .filter(dp => !existingNames.has(dp.name.toLowerCase()))
+      .map(dp => ({ projectId, permitGroup: dp.group, permitName: dp.name, institution: dp.institution }));
+
+    if (missing.length > 0) {
+      await db.insert(permitDocumentsTable).values(missing);
+    }
+
+    const permits = await db.select().from(permitDocumentsTable).where(eq(permitDocumentsTable.projectId, projectId));
+    res.status(201).json({ inserted: missing.length, permits, readiness: calcPermitReadiness(permits) });
+  } catch (err) {
+    req.log.error({ err }, "Failed to seed default permits");
+    res.status(400).json({ error: "Invalid request" });
   }
 });
 

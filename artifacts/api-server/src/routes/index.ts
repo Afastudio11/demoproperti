@@ -40,10 +40,24 @@ import brandingRouter from "./branding";
 import categoriesRouter from "./categories";
 import financeRouter from "./finance";
 import authRouter from "./auth";
+import { requireAuth, requireModuleAccess } from "../middleware/auth";
+import { createRateLimit } from "../middleware/rate-limit";
 
 const router: IRouter = Router();
+const loginRateLimit = createRateLimit({ keyPrefix: "auth-login", windowMs: 15 * 60 * 1000, max: 20 });
+const aiRateLimit = createRateLimit({ keyPrefix: "ai", windowMs: 60 * 1000, max: 12 });
 
 router.use(healthRouter);
+router.use("/auth/login", loginRateLimit);
+router.use(authRouter);
+router.use(requireAuth);
+router.use(requireModuleAccess);
+router.use((req, res, next) => {
+  if (req.path.startsWith("/ai") || req.path.includes("/ai-") || req.path.endsWith("/ai-recommendation")) {
+    return aiRateLimit(req, res, next);
+  }
+  return next();
+});
 router.use(dashboardRouter);
 router.use(projectsRouter);
 router.use(landProspectsRouter);
@@ -83,6 +97,5 @@ router.use(hrRouter);
 router.use(brandingRouter);
 router.use(categoriesRouter);
 router.use(financeRouter);
-router.use(authRouter);
 
 export default router;

@@ -3,6 +3,7 @@ import { AlertTriangle, Plus, ChevronDown, ChevronRight, Download, Trash2, Penci
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import ProjectNameSelect from "@/components/project-name-select";
 
 function fmtRp(n: number) {
   if (Math.abs(n) >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)} M`;
@@ -304,8 +305,16 @@ export default function HutangCenter() {
           <div className="rounded-xl border bg-background w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
             <h2 className="text-sm font-semibold">Tambah Data Hutang</h2>
             <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Nama Proyek</label>
+                <ProjectNameSelect
+                  value={form.projectName}
+                  onChange={value => setForm(p => ({ ...p, projectName: value }))}
+                  className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background"
+                  required
+                />
+              </div>
               {[
-                { key: "projectName", label: "Nama Proyek", type: "text", span: false },
                 { key: "stageInfo", label: "Tahap", type: "text", span: false },
                 { key: "creditorName", label: "Nama Kreditur/Pemilik", type: "text", span: true },
                 { key: "totalAmount", label: "Nilai Awal (Rp)", type: "number", span: false },
@@ -345,8 +354,16 @@ export default function HutangCenter() {
               <h2 className="text-sm font-semibold">Edit Data Hutang</h2>
             </div>
             <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Nama Proyek</label>
+                <ProjectNameSelect
+                  value={editForm.projectName ?? ""}
+                  onChange={value => setEditForm(p => ({ ...p, projectName: value }))}
+                  className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background"
+                  required
+                />
+              </div>
               {[
-                { key: "projectName", label: "Nama Proyek", type: "text", span: false },
                 { key: "stageInfo", label: "Tahap", type: "text", span: false },
                 { key: "creditorName", label: "Nama Kreditur/Pemilik", type: "text", span: true },
                 { key: "totalAmount", label: "Nilai Awal (Rp)", type: "number", span: false },

@@ -11,16 +11,20 @@ async function ensureSuperAdmin() {
   try {
     const users = await db.select().from(appUsersTable).limit(1);
     if (users.length === 0) {
-      const hash = await bcrypt.hash("satara123", 10);
+      const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+      if (!password) {
+        console.warn("Tidak ada user admin. Set BOOTSTRAP_ADMIN_PASSWORD untuk bootstrap super admin pertama.");
+        return;
+      }
       await db.insert(appUsersTable).values({
-        username: "admin",
-        name: "Super Admin",
-        passwordHash: hash,
+        username: process.env.BOOTSTRAP_ADMIN_USERNAME?.trim().toLowerCase() || "admin",
+        name: process.env.BOOTSTRAP_ADMIN_NAME?.trim() || "Super Admin",
+        passwordHash: await bcrypt.hash(password, 10),
         role: "super_admin",
         allowedModules: [],
         isActive: true,
       });
-      console.log("Default super admin created: admin / satara123");
+      console.log("Super admin awal dibuat dari environment bootstrap.");
     }
   } catch (e) {
     // table may not exist yet during initial migration

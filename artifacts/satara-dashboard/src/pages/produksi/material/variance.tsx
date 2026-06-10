@@ -3,13 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 type StokRow = { id: number; name: string; category: string; satuan: string; standardPerUnit: number | null; totalKeluar: number; unitPrice: number | null };
-type Unit = { id: number };
+type Unit = { id: number; progress: number };
 
 export default function MaterialVariance() {
   const { data: stok, isLoading } = useQuery({ queryKey: ["material-stok"], queryFn: async () => { const r = await fetch("/api/produksi/material/stok"); return r.json() as Promise<StokRow[]>; } });
   const { data: units } = useQuery({ queryKey: ["units-list"], queryFn: async () => { const r = await fetch("/api/units"); return r.json() as Promise<Unit[]>; } });
 
-  const unitCount = units?.length ?? 1;
+  const unitCount = Math.max(1, (units ?? []).filter(u => u.progress > 0).length);
 
   const rows = (stok ?? []).filter(s => s.standardPerUnit != null && s.totalKeluar > 0).map(s => {
     const standard = (s.standardPerUnit ?? 0) * unitCount;

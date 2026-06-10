@@ -9,20 +9,6 @@ import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-const BASELINE: Record<number, number> = { 1: 10, 2: 25, 3: 40, 4: 55, 5: 70, 6: 85, 7: 95, 8: 100 };
-
-function getProgressStatus(actual: number, weekStarted: number | null): string {
-  if (!weekStarted) return "on_track";
-  const now = new Date();
-  const weeksElapsed = Math.min(8, Math.ceil((now.getTime() - new Date().getTime()) / (7 * 24 * 3600 * 1000)) + (weekStarted - 1));
-  const w = Math.min(8, Math.max(1, weeksElapsed || weekStarted));
-  const target = BASELINE[w] ?? 100;
-  if (actual >= target + 5) return "ahead";
-  if (actual >= target - 5) return "on_track";
-  if (actual >= target - 15) return "warning";
-  return "critical";
-}
-
 router.get("/produksi/dashboard", async (req, res) => {
   try {
     const projects = await db.select().from(projectsTable);
@@ -62,7 +48,13 @@ router.get("/produksi/dashboard", async (req, res) => {
       const cp = payments.filter(p => p.contractId === c.id && p.status === "paid");
       const lastPayment = cp.sort((a, b) => b.terminNumber! - a.terminNumber!)[0];
       const velocity = lastPayment?.velocity ?? 0;
-      const progressAktual = lastPayment?.progressCurrent ?? 0;
+      const contractUnits = units.filter(u =>
+        u.contractId === c.id
+        || (u.projectId === c.projectId && (u.stageCode ?? "") === (c.stageCode ?? "") && (u.subkonName ?? "") === c.subkonName)
+      );
+      const progressAktual = contractUnits.length > 0
+        ? Math.round(contractUnits.reduce((sum, u) => sum + (u.progress ?? 0), 0) / contractUnits.length)
+        : 0;
       return {
         id: c.id,
         subkonName: c.subkonName,

@@ -11,11 +11,16 @@ export default function MaterialForecast() {
   const { data: units } = useQuery({ queryKey: ["units-list"], queryFn: async () => { const r = await fetch("/api/units"); return r.json() as Promise<Unit[]>; } });
 
   const activeUnits = (units ?? []).filter(u => u.progress > 0 && u.progress < 100).length;
-  const urgency = (stok ?? []).filter(s => s.isBelowMinimum).map(s => {
-    const need = Math.max(0, Math.round(((s.minimumStock * 2) - s.stokAktual) * 100) / 100);
+  const startedUnits = Math.max(1, (units ?? []).filter(u => u.progress > 0).length);
+  const urgency = (stok ?? []).map(s => {
+    const twoWeekNeed = s.standardPerUnit != null
+      ? (s.standardPerUnit * startedUnits * 0.25)
+      : s.minimumStock * 2;
+    const reorderPoint = Math.max(s.minimumStock, twoWeekNeed);
+    const need = Math.max(0, Math.round((reorderPoint - s.stokAktual) * 100) / 100);
     const cost = need * (s.unitPrice ?? 0);
     return { ...s, need, cost, urgencyLevel: s.stokAktual <= 0 ? "urgent" : s.stokAktual < s.minimumStock * 0.5 ? "high" : "medium" };
-  }).sort((a, b) => (b.urgencyLevel === "urgent" ? 2 : b.urgencyLevel === "high" ? 1 : 0) - (a.urgencyLevel === "urgent" ? 2 : a.urgencyLevel === "high" ? 1 : 0));
+  }).filter(s => s.need > 0).sort((a, b) => (b.urgencyLevel === "urgent" ? 2 : b.urgencyLevel === "high" ? 1 : 0) - (a.urgencyLevel === "urgent" ? 2 : a.urgencyLevel === "high" ? 1 : 0));
 
   const totalCost = urgency.reduce((s, r) => s + r.cost, 0);
 

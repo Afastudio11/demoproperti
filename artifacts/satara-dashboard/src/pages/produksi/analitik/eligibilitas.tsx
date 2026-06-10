@@ -14,7 +14,7 @@ const ANALITIK_TABS = [
 ];
 
 type Contract = { id: number; subkonName: string; stageCode: string | null; retentionStatus: string; maintenanceMonths: number; actualCompletionDate: string | null; status: string };
-type Payment = { id: number; contractId: number; status: string };
+type Payment = { id: number; contractId: number; status: string; progressCurrent: number };
 
 export default function AnalitikEligibilitas() {
   const { data: contracts } = useQuery({ queryKey: ["subkon-contracts"], queryFn: async () => { const r = await fetch("/api/produksi/subkon/contracts"); return r.json() as Promise<Contract[]>; } });

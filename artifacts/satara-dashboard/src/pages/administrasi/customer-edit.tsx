@@ -143,7 +143,7 @@ export default function CustomerEdit() {
             <Field label="Proyek">
               <select className={selectCls} value={form.projectId} onChange={set("projectId")}>
                 <option value="">-- Pilih Proyek --</option>
-                {projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {projects.map((p: any) => <option key={p.id} value={p.id}>{p.nama ?? p.name}</option>)}
               </select>
             </Field>
             <Field label="Tahap / Stage Code"><input className={inputCls} placeholder="T1, T2, T3..." value={form.stageCode} onChange={set("stageCode")} /></Field>

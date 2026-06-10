@@ -1,11 +1,24 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { subkonContractsTable, subkonPaymentsTable, paymentApprovalsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { listSubkonMaster, normalizeSubkonName } from "../lib/subkon-master";
+import { getContractFieldProgress } from "../lib/production-relations";
 
 const router: IRouter = Router();
 
 // ─── SUBKON CONTRACTS ────────────────────────────────────────────────────────
+
+router.get("/produksi/subkon/master", async (req, res) => {
+  try {
+    const projectId = req.query.projectId ? parseInt(req.query.projectId as string) : undefined;
+    const rows = await listSubkonMaster(projectId);
+    res.json(rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to list subkon master");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 router.get("/produksi/subkon/contracts", async (req, res) => {
   try {
@@ -38,6 +51,9 @@ router.post("/produksi/subkon/contracts", async (req, res) => {
       startDate?: string;
       targetEndDate?: string;
     };
+    const cleanSubkonName = normalizeSubkonName(subkonName);
+    if (!cleanSubkonName) return res.status(400).json({ error: "Nama subkon wajib diisi" });
+
     const contractValue = valuePerUnit * unitCount;
     const totalRetention = retentionPerUnit * unitCount;
     const netPayableValue = contractValue - totalRetention;
@@ -45,7 +61,7 @@ router.post("/produksi/subkon/contracts", async (req, res) => {
     const [row] = await db.insert(subkonContractsTable).values({
       projectId,
       stageCode: stageCode ?? null,
-      subkonName,
+      subkonName: cleanSubkonName,
       unitCount,
       valuePerUnit,
       contractValue,
@@ -69,7 +85,12 @@ router.post("/produksi/subkon/contracts", async (req, res) => {
 router.patch("/produksi/subkon/contracts/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [row] = await db.update(subkonContractsTable).set(req.body).where(eq(subkonContractsTable.id, id)).returning();
+    const body = { ...req.body };
+    if ("subkonName" in body) {
+      body.subkonName = normalizeSubkonName(body.subkonName);
+      if (!body.subkonName) return res.status(400).json({ error: "Nama subkon wajib diisi" });
+    }
+    const [row] = await db.update(subkonContractsTable).set(body).where(eq(subkonContractsTable.id, id)).returning();
     if (!row) return res.status(404).json({ error: "Not found" });
     res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (err) {
@@ -107,21 +128,25 @@ router.get("/produksi/subkon/payments", async (req, res) => {
 
 router.post("/produksi/subkon/payments", async (req, res) => {
   try {
-    const { contractId, period, progressCurrent, notes } = req.body as {
+    const { contractId, period, notes } = req.body as {
       contractId: number;
       period: string;
-      progressCurrent: number;
       notes?: string;
     };
 
     const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, contractId));
     if (!contract) return res.status(404).json({ error: "Contract not found" });
 
-    const prevPayments = await db.select().from(subkonPaymentsTable)
-      .where(and(eq(subkonPaymentsTable.contractId, contractId), eq(subkonPaymentsTable.status, "paid")));
-    const totalPaidBefore = prevPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
-    const progressPrevious = prevPayments.length > 0 ? Math.max(...prevPayments.map(p => p.progressCurrent)) : 0;
-    const terminNumber = prevPayments.length + 1;
+    const allPayments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.contractId, contractId));
+    const paidPayments = allPayments.filter(p => p.status === "paid");
+    const lockedPayments = allPayments.filter(p => ["pending_approval", "approved", "paid"].includes(p.status));
+    const totalPaidBefore = paidPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
+    const progressPrevious = lockedPayments.length > 0 ? Math.max(...lockedPayments.map(p => p.progressCurrent)) : 0;
+    const terminNumber = allPayments.reduce((max, p) => Math.max(max, p.terminNumber ?? 0), 0) + 1;
+    const progressCurrent = await getContractFieldProgress(contractId);
+    if (progressCurrent <= progressPrevious) {
+      return res.status(400).json({ error: "Progress lapangan belum naik dari termin terakhir" });
+    }
 
     const velocity = progressCurrent - progressPrevious;
     const grossEligibleAmount = (velocity / 100) * contract.contractValue;
@@ -196,7 +221,9 @@ router.patch("/produksi/subkon/approvals/:id", async (req, res) => {
     }).where(eq(paymentApprovalsTable.id, id)).returning();
     if (!row) return res.status(404).json({ error: "Not found" });
 
-    if (status === "approved") {
+    if (status === "rejected") {
+      await db.update(subkonPaymentsTable).set({ status: "rejected" }).where(eq(subkonPaymentsTable.id, row.paymentId));
+    } else if (status === "approved") {
       const approvals = await db.select().from(paymentApprovalsTable).where(eq(paymentApprovalsTable.paymentId, row.paymentId));
       const allApproved = approvals.every(a => a.status === "approved");
       if (allApproved) {
@@ -214,6 +241,9 @@ router.patch("/produksi/subkon/approvals/:id", async (req, res) => {
 router.patch("/produksi/subkon/payments/:id/mark-paid", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.status !== "approved") return res.status(400).json({ error: "Pembayaran harus disetujui sebelum ditandai paid" });
     const [row] = await db.update(subkonPaymentsTable).set({ status: "paid", paymentDate: new Date().toISOString().split("T")[0] }).where(eq(subkonPaymentsTable.id, id)).returning();
     if (!row) return res.status(404).json({ error: "Not found" });
     res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
@@ -242,10 +272,12 @@ router.get("/produksi/subkon/material-comparison", async (req, res) => {
     // Ambil hanya records yang punya subkon_name
     const outWithSubkon = filteredOut.filter(o => o.subkonName);
 
-    // Kelompokkan pemakaian per (subkonName + projectId + materialId)
+    // Kelompokkan pemakaian per kontrak jika tersedia; fallback ke pola lama untuk data historis.
     const usageMap: Record<string, number> = {};
     for (const o of outWithSubkon) {
-      const key = `${o.subkonName}__${o.projectId}__${o.materialId}`;
+      const key = o.contractId
+        ? `contract:${o.contractId}__${o.materialId}`
+        : `legacy:${o.subkonName}__${o.projectId}__${o.stageCode ?? ""}__${o.materialId}`;
       usageMap[key] = (usageMap[key] ?? 0) + o.quantity;
     }
 
@@ -265,8 +297,11 @@ router.get("/produksi/subkon/material-comparison", async (req, res) => {
     const result = filteredContracts
       .filter(c => c.subkonName)
       .map(c => {
-        // Cari material yang digunakan oleh subkon ini di proyek ini
-        const relevantKeys = Object.keys(usageMap).filter(k => k.startsWith(`${c.subkonName}__${c.projectId}__`));
+        // Cari material yang digunakan oleh kontrak ini; fallback data lama pakai nama/proyek/tahap.
+        const relevantKeys = Object.keys(usageMap).filter(k =>
+          k.startsWith(`contract:${c.id}__`)
+          || k.startsWith(`legacy:${c.subkonName}__${c.projectId}__${c.stageCode ?? ""}__`)
+        );
 
         // Denominator selalu unitCount — bandingkan total pemakaian vs total anggaran kontrak
         // Ini lebih adil karena material sering dikeluarkan bulk untuk semua unit sekaligus
@@ -274,7 +309,8 @@ router.get("/produksi/subkon/material-comparison", async (req, res) => {
         const denominator = c.unitCount; // selalu full contract scope
 
         const materials = relevantKeys.map(key => {
-          const materialId = parseInt(key.split("__")[2]);
+          const keyParts = key.split("__");
+          const materialId = parseInt(keyParts[keyParts.length - 1] ?? "");
           const master = masterMap.get(materialId);
           if (!master) return null;
 
@@ -330,7 +366,7 @@ router.get("/produksi/subkon/material-comparison", async (req, res) => {
           projectId: c.projectId,
           stageCode: c.stageCode,
           unitCount: c.unitCount,
-          unitsCompleted: denominator,
+          unitsCompleted,
           efficiencyScore,
           totalSelisihNilai,
           overallStatus,

@@ -4,6 +4,7 @@ import { planningMilestonesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 const router = Router();
+type PlanningMilestoneInsert = typeof planningMilestonesTable.$inferInsert;
 
 router.get("/planning/milestones", async (req, res) => {
   const projectId = req.query.projectId ? Number(req.query.projectId) : undefined;
@@ -19,10 +20,20 @@ router.post("/planning/milestones", async (req, res) => {
 });
 
 router.post("/planning/milestones/bulk", async (req, res) => {
-  const { projectId, milestones } = req.body as { projectId: number; milestones: Record<string, unknown>[] };
+  const { projectId, milestones } = req.body as { projectId: number; milestones: Partial<PlanningMilestoneInsert>[] };
+  if (!Number.isFinite(Number(projectId))) {
+    res.status(400).json({ error: "Project wajib dipilih" });
+    return;
+  }
+  const rowsToInsert = milestones.map((milestone) => {
+    if (!milestone.phase || !milestone.taskName) {
+      throw new Error("phase dan taskName wajib diisi untuk setiap milestone");
+    }
+    return { ...milestone, projectId: Number(projectId), phase: milestone.phase, taskName: milestone.taskName } satisfies PlanningMilestoneInsert;
+  });
   await db.delete(planningMilestonesTable).where(eq(planningMilestonesTable.projectId, projectId));
-  const rows = milestones.length > 0
-    ? await db.insert(planningMilestonesTable).values(milestones.map(m => ({ ...m, projectId }))).returning()
+  const rows = rowsToInsert.length > 0
+    ? await db.insert(planningMilestonesTable).values(rowsToInsert).returning()
     : [];
   res.json(rows);
 });

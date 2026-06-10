@@ -147,7 +147,7 @@ export default function TargetPage() {
           <div><label className="text-xs font-medium text-muted-foreground">Proyek</label>
             <select className={selectCls} value={form.projectId} onChange={set("projectId")}>
               <option value="">-- Semua Proyek --</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.nama ?? p.name}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">

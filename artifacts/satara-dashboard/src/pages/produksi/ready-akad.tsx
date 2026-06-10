@@ -148,7 +148,6 @@ export default function ReadyAkad() {
                   {filtered.map(u => {
                     const as = ADMIN_STATUS_LABELS[u.adminStatus] ?? ADMIN_STATUS_LABELS.stock;
                     const constructionOk = u.progress >= 100;
-                    const noDefects = true;
                     return (
                       <tr key={u.id} className="border-b hover:bg-muted/20 transition-colors">
                         <td className="py-2 px-4 font-medium">Blok {u.blok}-{u.nomor} {u.stageCode ? `[${u.stageCode}]` : ""}</td>

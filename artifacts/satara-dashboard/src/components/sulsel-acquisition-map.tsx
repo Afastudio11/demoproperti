@@ -1026,6 +1026,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
       fetchDesaGeoJson(ctrl.signal).catch(() => {});
       return () => ctrl.abort();
     }
+    return undefined;
   }, []);
 
   const placedCount = (prospects ?? []).filter((p) => p.lat != null || p.polygonCoords).length;

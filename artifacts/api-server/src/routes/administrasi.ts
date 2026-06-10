@@ -81,6 +81,20 @@ const DEFAULT_DOCUMENTS = [
   { name: "Formulir Aplikasi Bank", category: "pendukung", isRequired: true },
 ];
 
+function parseRequiredId(value: string): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function normalizeDocumentTemplate(document: (typeof DEFAULT_DOCUMENTS)[number], customerId: number) {
+  return {
+    customerId,
+    documentName: document.name,
+    category: document.category,
+    isRequired: document.isRequired,
+  };
+}
+
 // ─── BANKS ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_BANKS = [
@@ -229,6 +243,28 @@ router.get("/administrasi/customers", async (req, res) => {
   }
 });
 
+router.get("/administrasi/customers/master", async (req, res) => {
+  try {
+    const customers = await db.select({
+      id: customersTable.id,
+      nama: customersTable.nama,
+      unitBlock: customersTable.unitBlock,
+      projectId: customersTable.projectId,
+      stageCode: customersTable.stageCode,
+      bank: customersTable.bank,
+      pipelineStatus: customersTable.pipelineStatus,
+    }).from(customersTable).orderBy(customersTable.nama);
+
+    res.json(customers.map(c => ({
+      ...c,
+      label: `${c.nama}${c.unitBlock ? ` - ${c.unitBlock}` : ""}`,
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Failed to list customer master");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/administrasi/customers", async (req, res) => {
   try {
     const body = req.body;
@@ -255,7 +291,9 @@ router.post("/administrasi/customers", async (req, res) => {
 
 router.get("/administrasi/customers/:id", async (req, res) => {
   try {
-    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, parseInt(req.params.id)));
+    const id = parseRequiredId(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid customer id" });
+    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, id));
     if (!customer) return res.status(404).json({ error: "Not found" });
     res.json(serializeCustomer(customer));
   } catch (err) {
@@ -266,7 +304,8 @@ router.get("/administrasi/customers/:id", async (req, res) => {
 
 router.patch("/administrasi/customers/:id", async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseRequiredId(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid customer id" });
     const body = req.body;
     const [existing] = await db.select().from(customersTable).where(eq(customersTable.id, id));
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -295,9 +334,11 @@ router.patch("/administrasi/customers/:id", async (req, res) => {
 
 router.get("/administrasi/customers/:id/history", async (req, res) => {
   try {
+    const id = parseRequiredId(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid customer id" });
     const history = await db.select()
       .from(customerStatusHistoryTable)
-      .where(eq(customerStatusHistoryTable.customerId, parseInt(req.params.id)))
+      .where(eq(customerStatusHistoryTable.customerId, id))
       .orderBy(desc(customerStatusHistoryTable.changedAt));
     res.json(history.map(h => ({ ...h, changedAt: h.changedAt.toISOString() })));
   } catch (err) {
@@ -310,12 +351,13 @@ router.get("/administrasi/customers/:id/history", async (req, res) => {
 
 router.get("/administrasi/customers/:id/documents", async (req, res) => {
   try {
-    const customerId = parseInt(req.params.id);
+    const customerId = parseRequiredId(req.params.id);
+    if (!customerId) return res.status(400).json({ error: "Invalid customer id" });
     let docs = await db.select().from(customerDocumentsTable).where(eq(customerDocumentsTable.customerId, customerId));
 
     if (docs.length === 0) {
       const inserted = await db.insert(customerDocumentsTable).values(
-        DEFAULT_DOCUMENTS.map(d => ({ ...d, customerId }))
+        DEFAULT_DOCUMENTS.map(d => normalizeDocumentTemplate(d, customerId))
       ).returning();
       docs = inserted;
     }
@@ -333,10 +375,13 @@ router.get("/administrasi/customers/:id/documents", async (req, res) => {
 
 router.patch("/administrasi/documents/:docId", async (req, res) => {
   try {
+    const docId = parseRequiredId(req.params.docId);
+    if (!docId) return res.status(400).json({ error: "Invalid document id" });
     const [doc] = await db.update(customerDocumentsTable)
       .set({ ...req.body, uploadedAt: req.body.status !== "belum_ada" ? new Date() : null })
-      .where(eq(customerDocumentsTable.id, parseInt(req.params.docId)))
+      .where(eq(customerDocumentsTable.id, docId))
       .returning();
+    if (!doc) return res.status(404).json({ error: "Not found" });
     res.json({ ...doc, uploadedAt: doc.uploadedAt?.toISOString() ?? null, updatedAt: doc.updatedAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update document");
@@ -409,7 +454,10 @@ router.post("/administrasi/ots", async (req, res) => {
 
 router.patch("/administrasi/ots/:id", async (req, res) => {
   try {
-    const [rec] = await db.update(otsRecordsTable).set(req.body).where(eq(otsRecordsTable.id, parseInt(req.params.id))).returning();
+    const id = parseRequiredId(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid OTS id" });
+    const [rec] = await db.update(otsRecordsTable).set(req.body).where(eq(otsRecordsTable.id, id)).returning();
+    if (!rec) return res.status(404).json({ error: "Not found" });
     res.json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update OTS record");
@@ -462,7 +510,10 @@ router.post("/administrasi/sp3k", async (req, res) => {
 
 router.patch("/administrasi/sp3k/:id", async (req, res) => {
   try {
-    const [rec] = await db.update(sp3kRecordsTable).set(req.body).where(eq(sp3kRecordsTable.id, parseInt(req.params.id))).returning();
+    const id = parseRequiredId(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid SP3K id" });
+    const [rec] = await db.update(sp3kRecordsTable).set(req.body).where(eq(sp3kRecordsTable.id, id)).returning();
+    if (!rec) return res.status(404).json({ error: "Not found" });
     res.json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update SP3K record");
@@ -527,7 +578,10 @@ router.post("/administrasi/akad", async (req, res) => {
 
 router.patch("/administrasi/akad/:id", async (req, res) => {
   try {
-    const [rec] = await db.update(akadRecordsTable).set(req.body).where(eq(akadRecordsTable.id, parseInt(req.params.id))).returning();
+    const id = parseRequiredId(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid akad id" });
+    const [rec] = await db.update(akadRecordsTable).set(req.body).where(eq(akadRecordsTable.id, id)).returning();
+    if (!rec) return res.status(404).json({ error: "Not found" });
     res.json({ ...rec, createdAt: rec.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update Akad record");
@@ -826,10 +880,13 @@ router.post("/administrasi/complaints", async (req, res) => {
 
 router.patch("/administrasi/complaints/:id", async (req, res) => {
   try {
+    const id = parseRequiredId(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid complaint id" });
     const [complaint] = await db.update(customerComplaintsTable)
       .set(req.body)
-      .where(eq(customerComplaintsTable.id, parseInt(req.params.id)))
+      .where(eq(customerComplaintsTable.id, id))
       .returning();
+    if (!complaint) return res.status(404).json({ error: "Not found" });
     res.json({ ...complaint, createdAt: complaint.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update complaint");

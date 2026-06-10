@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
+import SubkonSelect from "@/components/subkon-select";
 
 type Material = { id: number; name: string; satuan: string };
 type Project = { id: number; nama: string };
-type Unit = { id: number; blok: string; nomor: string };
+type Unit = { id: number; projectId: number; contractId: number | null; stageCode: string | null; subkonName: string | null; blok: string; nomor: string };
 type OutRow = { id: number; projectId: number; unitId: number | null; materialId: number; quantity: number; takenBy: string | null; subkonName: string | null; dateOut: string; material: Material | null };
 
 export default function MaterialKeluar() {
@@ -24,13 +25,21 @@ export default function MaterialKeluar() {
   const { data: units } = useQuery({ queryKey: ["units-list"], queryFn: async () => { const r = await fetch("/api/units"); return r.json() as Promise<Unit[]>; } });
   const { data: materials } = useQuery({ queryKey: ["material-master"], queryFn: async () => { const r = await fetch("/api/produksi/material/master"); return r.json() as Promise<Material[]>; } });
   const { data: rows, isLoading } = useQuery({ queryKey: ["material-out"], queryFn: async () => { const r = await fetch("/api/produksi/material/out"); return r.json() as Promise<OutRow[]>; } });
-  const { data: subkonContracts } = useQuery({ queryKey: ["subkon-contracts"], queryFn: async () => { const r = await fetch("/api/produksi/subkon/contracts"); return r.json() as Promise<{ id: number; subkonName: string }[]>; } });
-  const subkonList = [...new Set((subkonContracts ?? []).map(c => c.subkonName))].sort();
 
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/produksi/material/out", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: parseInt(form.projectId), unitId: form.unitId ? parseInt(form.unitId) : null, materialId: parseInt(form.materialId), quantity: parseFloat(form.quantity), takenBy: form.takenBy || null, subkonName: form.subkonName || null, dateOut: form.dateOut }) });
+        body: JSON.stringify({
+          projectId: parseInt(form.projectId),
+          unitId: form.unitId ? parseInt(form.unitId) : null,
+          contractId: selectedUnit?.contractId ?? null,
+          stageCode: selectedUnit?.stageCode ?? null,
+          materialId: parseInt(form.materialId),
+          quantity: parseFloat(form.quantity),
+          takenBy: form.takenBy || null,
+          subkonName: selectedUnit?.subkonName ?? (form.subkonName || null),
+          dateOut: form.dateOut,
+        }) });
       if (!res.ok) throw new Error("Failed"); return res.json();
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["material-out"] }); qc.invalidateQueries({ queryKey: ["material-stok"] }); toast({ title: "Material keluar dicatat" }); setShowForm(false); },
@@ -39,6 +48,8 @@ export default function MaterialKeluar() {
 
   const projName = (id: number) => projects?.find(p => p.id === id)?.nama ?? "—";
   const unitName = (id: number | null) => { if (!id) return "—"; const u = units?.find(u => u.id === id); return u ? `Blok ${u.blok}-${u.nomor}` : "—"; };
+  const selectedUnit = units?.find(u => u.id === parseInt(form.unitId));
+  const visibleUnits = (units ?? []).filter(u => !form.projectId || String(u.projectId) === form.projectId);
 
   return (
     <div className="space-y-5">
@@ -51,15 +62,18 @@ export default function MaterialKeluar() {
         <Card className="border-primary/30"><CardContent className="pt-4 pb-4 space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5"><Label className="text-xs">Proyek</Label>
-              <Select value={form.projectId} onValueChange={v => setForm(p => ({ ...p, projectId: v }))}>
+              <Select value={form.projectId} onValueChange={v => setForm(p => ({ ...p, projectId: v, unitId: "", subkonName: "" }))}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih proyek..." /></SelectTrigger>
                 <SelectContent>{(projects ?? []).map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5"><Label className="text-xs">Unit (opsional)</Label>
-              <Select value={form.unitId} onValueChange={v => setForm(p => ({ ...p, unitId: v }))}>
+              <Select value={form.unitId} onValueChange={v => {
+                const unit = units?.find(u => u.id === parseInt(v));
+                setForm(p => ({ ...p, unitId: v, projectId: unit ? String(unit.projectId) : p.projectId, subkonName: unit?.subkonName ?? p.subkonName }));
+              }}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih unit..." /></SelectTrigger>
-                <SelectContent>{(units ?? []).map(u => <SelectItem key={u.id} value={String(u.id)}>Blok {u.blok}-{u.nomor}</SelectItem>)}</SelectContent>
+                <SelectContent>{visibleUnits.map(u => <SelectItem key={u.id} value={String(u.id)}>Blok {u.blok}-{u.nomor}{u.stageCode ? ` [${u.stageCode}]` : ""}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5"><Label className="text-xs">Material</Label>
@@ -71,10 +85,7 @@ export default function MaterialKeluar() {
             <div className="space-y-1.5"><Label className="text-xs">Jumlah</Label><NumericInput decimals={3} value={parseFloat(form.quantity) || 0} onChange={v => setForm(p => ({ ...p, quantity: String(v) }))} className="h-8 text-sm" /></div>
             <div className="space-y-1.5"><Label className="text-xs">Diambil Oleh</Label><Input value={form.takenBy} onChange={e => setForm(p => ({ ...p, takenBy: e.target.value }))} className="h-8 text-sm" /></div>
             <div className="space-y-1.5"><Label className="text-xs">Subkon</Label>
-              <Select value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih subkon..." /></SelectTrigger>
-                <SelectContent>{subkonList.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-              </Select>
+              <SubkonSelect value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))} projectId={form.projectId} disabled={!!selectedUnit?.subkonName} />
             </div>
           </div>
           <div className="flex gap-2 justify-end">

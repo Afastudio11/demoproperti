@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { unitQcTable, reworksTable, unitsTable } from "@workspace/db";
+import { qcDefectsTable, unitQcTable, reworksTable, unitsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { resolveKnownSubkonName } from "../lib/subkon-master";
+import { findSubkonContract, recalculateUnitProductionState } from "../lib/production-relations";
 
 const router: IRouter = Router();
 
@@ -54,9 +56,26 @@ router.patch("/produksi/qc/checklist/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     const [row] = await db.update(unitQcTable).set(req.body).where(eq(unitQcTable.id, id)).returning();
     if (!row) return res.status(404).json({ error: "Not found" });
+    const defects = await db.select().from(qcDefectsTable).where(eq(qcDefectsTable.unitId, row.unitId));
+    const linkedDefects = defects.filter(d => d.kategori === row.qcItem && (d.status === "open" || d.status === "in_repair"));
+    if (row.isPass) {
+      await Promise.all(linkedDefects.map(d => db.update(qcDefectsTable).set({
+        status: "closed",
+        verifiedBy: row.inspectedBy ?? d.verifiedBy,
+      }).where(eq(qcDefectsTable.id, d.id))));
+    } else if (linkedDefects.length === 0) {
+      await db.insert(qcDefectsTable).values({
+        unitId: row.unitId,
+        kategori: row.qcItem,
+        deskripsi: `Tidak lulus QC: ${row.qcItem}`,
+        status: "open",
+        verifiedBy: row.inspectedBy ?? null,
+      });
+    }
     const allItems = await db.select().from(unitQcTable).where(eq(unitQcTable.unitId, row.unitId));
     const passCount = allItems.filter(i => i.isPass).length;
     const qcScore = Math.round((passCount / allItems.length) * 100);
+    await recalculateUnitProductionState(row.unitId);
     res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), qcScore });
   } catch (err) {
     req.log.error({ err }, "Failed to update QC item");
@@ -85,23 +104,41 @@ router.get("/produksi/qc/reworks", async (req, res) => {
 
 router.post("/produksi/qc/reworks", async (req, res) => {
   try {
-    const [row] = await db.insert(reworksTable).values(req.body).returning();
+    const [unit] = await db.select().from(unitsTable).where(eq(unitsTable.id, Number(req.body.unitId)));
+    if (!unit) return res.status(404).json({ error: "Unit tidak ditemukan" });
+    const subkonName = await resolveKnownSubkonName(req.body.subkonName ?? unit.subkonName);
+    const contract = await findSubkonContract({
+      contractId: req.body.contractId ?? unit.contractId,
+      projectId: unit.projectId,
+      stageCode: unit.stageCode,
+      subkonName,
+    });
+    const [row] = await db.insert(reworksTable).values({
+      ...req.body,
+      contractId: contract?.id ?? null,
+      subkonName: contract?.subkonName ?? subkonName,
+    }).returning();
+    await recalculateUnitProductionState(row.unitId);
     res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create rework");
-    res.status(400).json({ error: "Invalid request" });
+    res.status((err as { statusCode?: number }).statusCode ?? 400).json({ error: (err as Error).message ?? "Invalid request" });
   }
 });
 
 router.patch("/produksi/qc/reworks/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [row] = await db.update(reworksTable).set(req.body).where(eq(reworksTable.id, id)).returning();
+    const body = "subkonName" in req.body
+      ? { ...req.body, subkonName: await resolveKnownSubkonName(req.body.subkonName) }
+      : req.body;
+    const [row] = await db.update(reworksTable).set(body).where(eq(reworksTable.id, id)).returning();
     if (!row) return res.status(404).json({ error: "Not found" });
+    await recalculateUnitProductionState(row.unitId);
     res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update rework");
-    res.status(400).json({ error: "Invalid request" });
+    res.status((err as { statusCode?: number }).statusCode ?? 400).json({ error: (err as Error).message ?? "Invalid request" });
   }
 });
 

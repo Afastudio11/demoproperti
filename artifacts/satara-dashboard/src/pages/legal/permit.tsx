@@ -84,6 +84,22 @@ export default function PermitTracker() {
     },
   });
 
+  const seedDefaults = useMutation({
+    mutationFn: () =>
+      fetch("/api/legal/permits/seed-defaults", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: selectedProject }),
+      }).then(r => {
+        if (!r.ok) throw new Error("Gagal inisialisasi permit");
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["permits", selectedProject] });
+      qc.invalidateQueries({ queryKey: ["legal-dashboard"] });
+    },
+  });
+
   const permits: any[] = data?.permits ?? [];
   const readiness: number = data?.readiness ?? 0;
   const projectName = data?.project?.nama ?? projects.find((p: any) => p.id === selectedProject)?.nama ?? "";
@@ -134,7 +150,18 @@ export default function PermitTracker() {
         </div>
       )}
 
-      {isLoading ? <div className="py-10 text-center text-sm text-muted-foreground">Memuat data izin...</div> : (
+      {isLoading ? <div className="py-10 text-center text-sm text-muted-foreground">Memuat data izin...</div> : permits.length === 0 ? (
+        <div className="bg-card border rounded-xl p-8 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">Belum ada daftar permit untuk proyek ini.</p>
+          <button
+            onClick={() => seedDefaults.mutate()}
+            disabled={!selectedProject || seedDefaults.isPending}
+            className="inline-flex items-center gap-1.5 text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-50"
+          >
+            <Plus className="size-3.5" /> {seedDefaults.isPending ? "Menyiapkan..." : "Inisialisasi Permit Default"}
+          </button>
+        </div>
+      ) : (
         byGroup.map(({ key, label, items }) => items.length === 0 ? null : (
           <div key={key} className="bg-card border rounded-xl overflow-hidden">
             <div className="px-4 py-2.5 border-b bg-muted/30 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</div>

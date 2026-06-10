@@ -162,7 +162,7 @@ export default function KomplainPage() {
           <div><label className="text-xs font-medium text-muted-foreground">Proyek</label>
             <select className={selectCls} value={form.projectId} onChange={set("projectId")}>
               <option value="">-- Pilih Proyek --</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.nama ?? p.name}</option>)}
             </select>
           </div>
           <div><label className="text-xs font-medium text-muted-foreground">Blok / Unit</label><input className={inputCls} placeholder="B.19, C.27..." value={form.unitBlock} onChange={set("unitBlock")} /></div>

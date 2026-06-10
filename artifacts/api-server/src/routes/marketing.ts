@@ -9,7 +9,7 @@ import {
   projectsTable,
 } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const router: IRouter = Router();
 

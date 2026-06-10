@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ProjectNameSelect from "@/components/project-name-select";
 
 const EMPTY = { projectName: "", positionName: "", headcount: 1, minCompetencyScore: 70, minKpiAchievement: 75 };
 
@@ -145,9 +146,16 @@ export default function Ekspansi() {
           <div className="bg-background rounded-xl border shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b"><h3 className="font-semibold">{editId ? "Edit" : "Tambah"} Kebutuhan Posisi Ekspansi</h3><button onClick={resetForm}><X className="size-4" /></button></div>
             <div className="p-4 space-y-3">
-              {[{ label: "Nama Proyek *", field: "projectName" }, { label: "Nama Posisi *", field: "positionName" }].map(({ label, field }) => (
-                <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><input value={form[field] ?? ""} onChange={e => setForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              ))}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nama Proyek *</label>
+                <ProjectNameSelect
+                  value={form.projectName ?? ""}
+                  onChange={value => setForm((f: any) => ({ ...f, projectName: value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  required
+                />
+              </div>
+              <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Nama Posisi *</label><input value={form.positionName ?? ""} onChange={e => setForm((f: any) => ({ ...f, positionName: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               <div className="grid grid-cols-3 gap-3">
                 {[{ label: "Headcount", field: "headcount" }, { label: "Min. KPI (%)", field: "minKpiAchievement" }, { label: "Min. Comp. Score", field: "minCompetencyScore" }].map(({ label, field }) => (
                   <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><input type="number" value={form[field] ?? 0} onChange={e => setForm((f: any) => ({ ...f, [field]: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={0} /></div>

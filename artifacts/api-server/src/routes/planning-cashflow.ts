@@ -4,6 +4,7 @@ import { planningCashflowTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 const router = Router();
+type PlanningCashflowInsert = typeof planningCashflowTable.$inferInsert;
 
 router.get("/planning/cashflow", async (req, res) => {
   const projectId = req.query.projectId ? Number(req.query.projectId) : undefined;
@@ -14,10 +15,21 @@ router.get("/planning/cashflow", async (req, res) => {
 });
 
 router.post("/planning/cashflow/bulk", async (req, res) => {
-  const { projectId, entries } = req.body as { projectId: number; entries: Record<string, unknown>[] };
+  const { projectId, entries } = req.body as { projectId: number; entries: Partial<PlanningCashflowInsert>[] };
+  if (!Number.isFinite(Number(projectId))) {
+    res.status(400).json({ error: "Project wajib dipilih" });
+    return;
+  }
+  const rowsToInsert = entries.map((entry, index) => {
+    const monthNumber = Number(entry.monthNumber ?? index + 1);
+    if (!Number.isFinite(monthNumber) || monthNumber <= 0) {
+      throw new Error("monthNumber wajib diisi untuk setiap cashflow");
+    }
+    return { ...entry, projectId: Number(projectId), monthNumber } satisfies PlanningCashflowInsert;
+  });
   await db.delete(planningCashflowTable).where(eq(planningCashflowTable.projectId, projectId));
-  const rows = entries.length > 0
-    ? await db.insert(planningCashflowTable).values(entries.map(e => ({ ...e, projectId }))).returning()
+  const rows = rowsToInsert.length > 0
+    ? await db.insert(planningCashflowTable).values(rowsToInsert).returning()
     : [];
   res.json(rows);
 });

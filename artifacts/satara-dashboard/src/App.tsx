@@ -1,9 +1,10 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { AuthProvider, useAuth, type AuthUser } from "@/contexts/auth-context";
 import Login from "@/pages/login";
+import LandingPage from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
@@ -29,7 +30,6 @@ import MarketingLead from "@/pages/marketing/lead";
 import MarketingLeadNew from "@/pages/marketing/lead-new";
 import MarketingLeadEdit from "@/pages/marketing/lead-edit";
 import MarketingLeadDetail from "@/pages/marketing/lead-detail";
-import MarketingBranding from "@/pages/marketing/branding";
 import MarketingCampaign from "@/pages/marketing/campaign";
 import MarketingSales from "@/pages/marketing/sales";
 import MarketingAbsorption from "@/pages/marketing/absorption";
@@ -142,8 +142,44 @@ import FinanceEkspansi from "@/pages/finance/ekspansi";
 
 const queryClient = new QueryClient();
 
+const MODULE_PATH_RULES: Array<{ module: string; matches: (path: string) => boolean }> = [
+  { module: "executive_overview", matches: (path) => path === "/dashboard" },
+  { module: "projects", matches: (path) => path === "/projects" || path.startsWith("/projects/") },
+  { module: "akuisisi", matches: (path) => path === "/akuisisi" || path.startsWith("/akuisisi/") },
+  { module: "perencanaan", matches: (path) => path === "/perencanaan" || path.startsWith("/perencanaan/") || path === "/slis" },
+  { module: "legal", matches: (path) => path === "/legal" || path.startsWith("/legal/") },
+  { module: "branding", matches: (path) => path === "/marketing/branding" },
+  { module: "marketing", matches: (path) => path === "/marketing" || path.startsWith("/marketing/") },
+  { module: "branding", matches: (path) => path === "/branding" || path.startsWith("/branding/") },
+  { module: "administrasi", matches: (path) => path === "/administrasi" || path.startsWith("/administrasi/") },
+  { module: "produksi", matches: (path) => path === "/produksi" || path.startsWith("/produksi/") },
+  { module: "hr", matches: (path) => path === "/hr" || path.startsWith("/hr/") },
+  { module: "finance", matches: (path) => path === "/finance" || path.startsWith("/finance/") },
+];
+
+function hasPageAccess(path: string, user: AuthUser) {
+  if (user.role === "super_admin") return true;
+  if (path === "/settings") return true;
+  const rule = MODULE_PATH_RULES.find((item) => item.matches(path));
+  return rule ? user.allowedModules.includes(rule.module) : true;
+}
+
+function AccessDenied() {
+  return (
+    <Layout>
+      <div className="rounded-lg border bg-card p-6">
+        <h1 className="text-lg font-semibold">Akses ditolak</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Akun ini belum diberi akses ke modul tersebut. Hubungi super admin untuk mengubah akses modul.
+        </p>
+      </div>
+    </Layout>
+  );
+}
+
 function AppRoutes() {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -156,14 +192,22 @@ function AppRoutes() {
     );
   }
 
+  if (location === "/") {
+    return <LandingPage />;
+  }
+
   if (!user) {
     return <Login />;
+  }
+
+  if (!hasPageAccess(location, user)) {
+    return <AccessDenied />;
   }
 
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/dashboard" component={Dashboard} />
         <Route path="/projects" component={Projects} />
         <Route path="/projects/:id" component={ProjectDetail} />
         <Route path="/akuisisi" component={Akuisisi} />
@@ -191,7 +235,7 @@ function AppRoutes() {
         <Route path="/marketing/lead/:id/edit" component={MarketingLeadEdit} />
         <Route path="/marketing/lead/:id" component={MarketingLeadDetail} />
         <Route path="/marketing/lead" component={MarketingLead} />
-        <Route path="/marketing/branding" component={MarketingBranding} />
+        <Route path="/marketing/branding" component={BrandingDashboard} />
         <Route path="/marketing/campaign" component={MarketingCampaign} />
         <Route path="/marketing/sales" component={MarketingSales} />
         <Route path="/marketing/absorption" component={MarketingAbsorption} />

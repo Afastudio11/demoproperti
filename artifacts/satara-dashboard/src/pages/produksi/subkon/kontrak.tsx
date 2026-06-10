@@ -53,7 +53,7 @@ export default function SubkonKontrak() {
         body: JSON.stringify({
           projectId: parseInt(form.projectId),
           stageCode: form.stageCode || null,
-          subkonName: form.subkonName,
+          subkonName: form.subkonName.trim().replace(/\s+/g, " "),
           unitCount: parseInt(form.unitCount),
           valuePerUnit: parseFloat(form.valuePerUnit),
           retentionPerUnit: parseFloat(form.retentionPerUnit),
@@ -157,7 +157,7 @@ export default function SubkonKontrak() {
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowForm(false)} className="h-8">Batal</Button>
-              <Button size="sm" onClick={() => createMutation.mutate()} disabled={!form.projectId || !form.subkonName || !form.unitCount || !form.valuePerUnit || createMutation.isPending} className="h-8">Simpan Kontrak</Button>
+              <Button size="sm" onClick={() => createMutation.mutate()} disabled={!form.projectId || !form.subkonName.trim() || !form.unitCount || !form.valuePerUnit || createMutation.isPending} className="h-8">Simpan Kontrak</Button>
             </div>
           </CardContent>
         </Card>

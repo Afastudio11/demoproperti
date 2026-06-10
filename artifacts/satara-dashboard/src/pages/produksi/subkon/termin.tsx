@@ -1,24 +1,22 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { DollarSign, Calculator, Plus, CheckCircle2, Clock, XCircle } from "lucide-react";
-import { NumericInput } from "@/components/ui/numeric-input";
+import { Calculator, Plus, CheckCircle2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 
 type Contract = {
-  id: number; subkonName: string; stageCode: string | null;
+  id: number; projectId: number; subkonName: string; stageCode: string | null;
   contractValue: number; totalRetention: number; netPayableValue: number;
   unitCount: number; status: string;
 };
+type Unit = { id: number; projectId: number; contractId: number | null; stageCode: string | null; subkonName: string | null; progress: number };
 type Payment = {
   id: number; contractId: number; terminNumber: number | null;
   progressPrevious: number; progressCurrent: number;
@@ -37,7 +35,6 @@ const STATUS_INFO: Record<string, { label: string; icon: React.ComponentType<{ c
 
 export default function SubkonTermin() {
   const [selectedContract, setSelectedContract] = useState<string>("");
-  const [progressCurrent, setProgressCurrent] = useState<string>("");
   const [period, setPeriod] = useState("tanggal_15");
   const [showForm, setShowForm] = useState(false);
   const { toast } = useToast();
@@ -61,12 +58,21 @@ export default function SubkonTermin() {
     },
   });
 
+  const { data: units } = useQuery({
+    queryKey: ["units-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/units");
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<Unit[]>;
+    },
+  });
+
   const submitMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/produksi/subkon/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contractId: parseInt(selectedContract), progressCurrent: parseFloat(progressCurrent), period }),
+        body: JSON.stringify({ contractId: parseInt(selectedContract), period }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -75,7 +81,6 @@ export default function SubkonTermin() {
       qc.invalidateQueries({ queryKey: ["subkon-payments"] });
       toast({ title: "Pengajuan termin berhasil disubmit untuk approval" });
       setShowForm(false);
-      setProgressCurrent("");
     },
     onError: () => toast({ title: "Gagal submit termin", variant: "destructive" }),
   });
@@ -93,9 +98,18 @@ export default function SubkonTermin() {
   });
 
   const contract = contracts?.find(c => c.id === parseInt(selectedContract));
-  const prevProgress = payments?.filter(p => p.contractId === parseInt(selectedContract) && p.status === "paid")
+  const contractUnits = contract
+    ? (units ?? []).filter(u => {
+        if (u.contractId === contract.id) return true;
+        return u.projectId === contract.projectId && (u.stageCode ?? "") === (contract.stageCode ?? "") && (u.subkonName ?? "") === contract.subkonName;
+      })
+    : [];
+  const fieldProgress = contractUnits.length > 0
+    ? Math.round((contractUnits.reduce((sum, u) => sum + (u.progress ?? 0), 0) / contractUnits.length) * 10) / 10
+    : 0;
+  const prevProgress = payments?.filter(p => p.contractId === parseInt(selectedContract) && ["pending_approval", "approved", "paid"].includes(p.status))
     .reduce((m, p) => Math.max(m, p.progressCurrent), 0) ?? 0;
-  const curProgress = parseFloat(progressCurrent) || 0;
+  const curProgress = fieldProgress;
   const velocity = curProgress - prevProgress;
   const gross = contract ? (velocity / 100) * contract.contractValue : 0;
   const retention = contract ? (velocity / 100) * contract.totalRetention : 0;
@@ -157,8 +171,8 @@ export default function SubkonTermin() {
                 <Input value={fmtPct(prevProgress)} disabled className="h-8 text-sm bg-muted" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Progress Saat Ini (%)</Label>
-                <NumericInput decimals={1} value={parseFloat(progressCurrent) || 0} onChange={v => setProgressCurrent(String(Math.min(100, Math.max(prevProgress, v))))} className="h-8 text-sm" />
+                <Label className="text-xs">Progress Lapangan Saat Ini</Label>
+                <Input value={contract ? `${fmtPct(fieldProgress)} (${contractUnits.length} unit)` : "Pilih kontrak"} disabled className="h-8 text-sm bg-muted" />
               </div>
             </div>
 
@@ -176,7 +190,7 @@ export default function SubkonTermin() {
 
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowForm(false)} className="h-8">Batal</Button>
-              <Button size="sm" onClick={() => submitMutation.mutate()} disabled={!selectedContract || curProgress <= prevProgress || submitMutation.isPending} className="h-8">
+              <Button size="sm" onClick={() => submitMutation.mutate()} disabled={!selectedContract || contractUnits.length === 0 || curProgress <= prevProgress || submitMutation.isPending} className="h-8">
                 Submit untuk Approval
               </Button>
             </div>

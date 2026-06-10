@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { qcDefectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateQcDefectBody, UpdateQcDefectBody } from "@workspace/api-zod";
+import { recalculateUnitProductionState } from "../lib/production-relations";
 
 const router: IRouter = Router();
 
@@ -27,6 +28,7 @@ router.post("/qc/defects", async (req, res) => {
   try {
     const body = CreateQcDefectBody.parse(req.body);
     const [defect] = await db.insert(qcDefectsTable).values(body).returning();
+    await recalculateUnitProductionState(defect.unitId);
     res.status(201).json({ ...defect, verifiedBy: defect.verifiedBy ?? null, createdAt: defect.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create QC defect");
@@ -39,6 +41,7 @@ router.patch("/qc/defects/:id", async (req, res) => {
     const body = UpdateQcDefectBody.parse(req.body);
     const [defect] = await db.update(qcDefectsTable).set(body).where(eq(qcDefectsTable.id, parseInt(req.params.id))).returning();
     if (!defect) return res.status(404).json({ error: "Not found" });
+    await recalculateUnitProductionState(defect.unitId);
     res.json({ ...defect, verifiedBy: defect.verifiedBy ?? null, createdAt: defect.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update QC defect");

@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Plus, DollarSign, Landmark, Calendar, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import ProjectNameSelect from "@/components/project-name-select";
 
 function fmtRp(n: number) {
   if (Math.abs(n) >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)} M`;
@@ -166,8 +167,16 @@ export default function KppTracker() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="rounded-xl border bg-background w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
             <h2 className="text-sm font-semibold">Tambah KPP Baru</h2>
+            <div>
+              <label className="text-xs text-muted-foreground">Nama Proyek</label>
+              <ProjectNameSelect
+                value={kppForm.projectName}
+                onChange={value => setKppForm(p => ({ ...p, projectName: value }))}
+                className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background"
+                required
+              />
+            </div>
             {[
-              { key: "projectName", label: "Nama Proyek", type: "text" },
               { key: "bankName", label: "Bank Pemberi KPP", type: "text" },
               { key: "plafon", label: "Plafon KPP (Rp)", type: "number" },
               { key: "firstDisbursementDate", label: "Tanggal Pencairan Pertama", type: "date" },

@@ -206,6 +206,18 @@ export interface LandProspect {
   /** @nullable */
   projectId: number | null;
   lokasi: string;
+  /** @nullable */
+  kelurahan?: string | null;
+  /** @nullable */
+  kecamatan?: string | null;
+  /** @nullable */
+  kabupaten?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  /** @nullable */
+  polygonCoords?: string | null;
   luas: number;
   hargaM2: number;
   status: LandProspectStatus;
@@ -383,6 +395,12 @@ export const LandProspectInputStatus = {
 export interface LandProspectInput {
   projectId?: number;
   lokasi: string;
+  kelurahan?: string;
+  kecamatan?: string;
+  kabupaten?: string;
+  lat?: number;
+  lng?: number;
+  polygonCoords?: string;
   luas: number;
   hargaM2: number;
   status: LandProspectInputStatus;
@@ -407,6 +425,12 @@ export const LandProspectUpdateStatus = {
 
 export interface LandProspectUpdate {
   status?: LandProspectUpdateStatus;
+  kelurahan?: string;
+  kecamatan?: string;
+  kabupaten?: string;
+  lat?: number;
+  lng?: number;
+  polygonCoords?: string;
   roi?: number;
   margin?: number;
   aksesJalan?: number;
@@ -1073,4 +1097,3 @@ export type ListHandoversParams = {
  */
 projectId?: number | null;
 };
-

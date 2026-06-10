@@ -11,11 +11,12 @@ import { useToast } from "@/hooks/use-toast";
 
 type Material = { id: number; name: string; satuan: string; category: string };
 type Project = { id: number; nama: string };
-type InRow = { id: number; projectId: number; materialId: number; quantity: number; supplier: string | null; documentNumber: string | null; dateIn: string; material: Material | null };
+type InRow = { id: number; projectId: number; stageCode: string | null; materialId: number; quantity: number; supplier: string | null; documentNumber: string | null; dateIn: string; material: Material | null };
+const STAGE_OPTIONS = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"];
 
 export default function MaterialMasuk() {
   const [showForm, setShowForm] = useState(true);
-  const [form, setForm] = useState({ projectId: "", materialId: "", quantity: "", supplier: "", documentNumber: "", dateIn: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState({ projectId: "", stageCode: "", materialId: "", quantity: "", supplier: "", documentNumber: "", dateIn: new Date().toISOString().split("T")[0] });
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -26,7 +27,7 @@ export default function MaterialMasuk() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/produksi/material/in", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: parseInt(form.projectId), materialId: parseInt(form.materialId), quantity: parseFloat(form.quantity), supplier: form.supplier || null, documentNumber: form.documentNumber || null, dateIn: form.dateIn }) });
+        body: JSON.stringify({ projectId: parseInt(form.projectId), stageCode: form.stageCode || null, materialId: parseInt(form.materialId), quantity: parseFloat(form.quantity), supplier: form.supplier || null, documentNumber: form.documentNumber || null, dateIn: form.dateIn }) });
       if (!res.ok) throw new Error("Failed"); return res.json();
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["material-in"] }); qc.invalidateQueries({ queryKey: ["material-stok"] }); toast({ title: "Material masuk dicatat" }); setShowForm(false); setForm(p => ({ ...p, quantity: "", supplier: "", documentNumber: "" })); },
@@ -57,6 +58,12 @@ export default function MaterialMasuk() {
                 <SelectContent>{(materials ?? []).map(m => <SelectItem key={m.id} value={String(m.id)}>{m.name} ({m.satuan})</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5"><Label className="text-xs">Tahap</Label>
+              <Select value={form.stageCode} onValueChange={v => setForm(p => ({ ...p, stageCode: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih tahap..." /></SelectTrigger>
+                <SelectContent>{STAGE_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5"><Label className="text-xs">Jumlah</Label>
               <NumericInput decimals={3} value={parseFloat(form.quantity) || 0} onChange={v => setForm(p => ({ ...p, quantity: String(v) }))} className="h-8 text-sm" />
             </div>
@@ -84,17 +91,19 @@ export default function MaterialMasuk() {
               <th className="text-left py-2.5 px-4">Tanggal</th>
               <th className="text-left py-2.5 px-2">Material</th>
               <th className="text-left py-2.5 px-2">Proyek</th>
+              <th className="text-left py-2.5 px-2">Tahap</th>
               <th className="text-right py-2.5 px-2">Jumlah</th>
               <th className="text-left py-2.5 px-2">Supplier</th>
               <th className="text-left py-2.5 px-4">No. Dokumen</th>
             </tr></thead>
             <tbody>
-              {(rows ?? []).length === 0 ? <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Belum ada data masuk</td></tr> :
+              {(rows ?? []).length === 0 ? <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">Belum ada data masuk</td></tr> :
               (rows ?? []).sort((a, b) => b.dateIn.localeCompare(a.dateIn)).map(r => (
                 <tr key={r.id} className="border-b hover:bg-muted/20">
                   <td className="py-2 px-4">{r.dateIn}</td>
                   <td className="py-2 px-2 font-medium">{r.material?.name ?? "—"}</td>
                   <td className="py-2 px-2 text-muted-foreground">{projName(r.projectId)}</td>
+                  <td className="py-2 px-2 text-muted-foreground">{r.stageCode ?? "—"}</td>
                   <td className="py-2 px-2 text-right text-emerald-600 font-medium">+{r.quantity} {r.material?.satuan}</td>
                   <td className="py-2 px-2 text-muted-foreground">{r.supplier ?? "—"}</td>
                   <td className="py-2 px-4 text-muted-foreground">{r.documentNumber ?? "—"}</td>

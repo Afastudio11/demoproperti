@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import SubkonSelect from "@/components/subkon-select";
 
-type Unit = { id: number; blok: string; nomor: string; tipe: string };
+type Unit = { id: number; contractId: number | null; subkonName: string | null; blok: string; nomor: string; tipe: string };
 type Rework = { id: number; unitId: number; subkonName: string | null; pekerjaanItem: string | null; description: string | null; foundDate: string | null; targetCompletion: string | null; actualCompletion: string | null; status: string; unit: Unit | null };
 
 const STATUS_ICONS: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
@@ -29,12 +30,6 @@ export default function QcRework() {
     queryFn: async () => { const r = await fetch("/api/units"); return r.json() as Promise<Unit[]>; },
   });
 
-  const { data: subkonContracts } = useQuery({
-    queryKey: ["subkon-contracts"],
-    queryFn: async () => { const r = await fetch("/api/produksi/subkon/contracts"); return r.json() as Promise<{ id: number; subkonName: string }[]>; },
-  });
-  const subkonList = [...new Set((subkonContracts ?? []).map(c => c.subkonName))].sort();
-
   const { data: reworks, isLoading } = useQuery({
     queryKey: ["reworks"],
     queryFn: async () => { const r = await fetch("/api/produksi/qc/reworks"); return r.json() as Promise<Rework[]>; },
@@ -44,7 +39,15 @@ export default function QcRework() {
     mutationFn: async () => {
       const res = await fetch("/api/produksi/qc/reworks", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ unitId: parseInt(form.unitId), subkonName: form.subkonName || null, pekerjaanItem: form.pekerjaanItem || null, description: form.description || null, foundDate: form.foundDate, targetCompletion: form.targetCompletion || null }),
+        body: JSON.stringify({
+          unitId: parseInt(form.unitId),
+          contractId: selectedUnit?.contractId ?? null,
+          subkonName: selectedUnit?.subkonName ?? (form.subkonName || null),
+          pekerjaanItem: form.pekerjaanItem || null,
+          description: form.description || null,
+          foundDate: form.foundDate,
+          targetCompletion: form.targetCompletion || null,
+        }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -67,6 +70,7 @@ export default function QcRework() {
   const filtered = (reworks ?? []).filter(r => filter === "all" || r.status === filter);
   const openCount = (reworks ?? []).filter(r => r.status === "open").length;
   const inProgressCount = (reworks ?? []).filter(r => r.status === "in_progress").length;
+  const selectedUnit = units?.find(u => u.id === parseInt(form.unitId));
 
   return (
     <div className="space-y-5">
@@ -89,17 +93,17 @@ export default function QcRework() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Unit</Label>
-              <Select value={form.unitId} onValueChange={v => setForm(p => ({ ...p, unitId: v }))}>
+              <Select value={form.unitId} onValueChange={v => {
+                const unit = units?.find(u => u.id === parseInt(v));
+                setForm(p => ({ ...p, unitId: v, subkonName: unit?.subkonName ?? p.subkonName }));
+              }}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih unit..." /></SelectTrigger>
                 <SelectContent>{(units ?? []).map(u => <SelectItem key={u.id} value={String(u.id)}>Blok {u.blok}-{u.nomor}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Subkon</Label>
-              <Select value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih subkon..." /></SelectTrigger>
-                <SelectContent>{subkonList.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-              </Select>
+              <SubkonSelect value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))} disabled={!!selectedUnit?.subkonName} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Item Pekerjaan</Label>

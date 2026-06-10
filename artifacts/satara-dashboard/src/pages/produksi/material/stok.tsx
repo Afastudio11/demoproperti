@@ -16,16 +16,33 @@ type StokRow = {
   totalMasuk: number; totalKeluar: number; stokAktual: number;
   nilaiStok: number; isBelowMinimum: boolean;
 };
+type Project = { id: number; nama: string };
+const STAGE_OPTIONS = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"];
 
 export default function MaterialStok() {
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
   const [filterAlert, setFilterAlert] = useState("all");
+  const [projectId, setProjectId] = useState("all");
+  const [stageCode, setStageCode] = useState("all");
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const res = await fetch("/api/projects");
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<Project[]>;
+    },
+  });
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["material-stok"],
+    queryKey: ["material-stok", projectId, stageCode],
     queryFn: async () => {
-      const res = await fetch("/api/produksi/material/stok");
+      const params = new URLSearchParams();
+      if (projectId !== "all") params.set("projectId", projectId);
+      if (stageCode !== "all") params.set("stageCode", stageCode);
+      const suffix = params.toString() ? `?${params.toString()}` : "";
+      const res = await fetch(`/api/produksi/material/stok${suffix}`);
       if (!res.ok) throw new Error("Failed");
       return res.json() as Promise<StokRow[]>;
     },
@@ -88,6 +105,20 @@ export default function MaterialStok() {
           <SelectContent>
             <SelectItem value="all">Semua Kategori</SelectItem>
             {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={projectId} onValueChange={(value) => { setProjectId(value); setStageCode("all"); }}>
+          <SelectTrigger className="h-8 w-48 text-sm"><SelectValue placeholder="Semua proyek" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Proyek</SelectItem>
+            {projects.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={stageCode} onValueChange={setStageCode}>
+          <SelectTrigger className="h-8 w-32 text-sm"><SelectValue placeholder="Tahap" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Tahap</SelectItem>
+            {STAGE_OPTIONS.map(stage => <SelectItem key={stage} value={stage}>{stage}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterAlert} onValueChange={setFilterAlert}>

@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { prodMaterialMasterTable, prodMaterialInTable, prodMaterialOutTable } from "@workspace/db";
+import { prodMaterialMasterTable, prodMaterialInTable, prodMaterialOutTable, unitsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { resolveKnownSubkonName } from "../lib/subkon-master";
+import { findSubkonContract } from "../lib/production-relations";
 
 const router: IRouter = Router();
 
@@ -110,6 +112,9 @@ router.get("/produksi/material/in", async (req, res) => {
       const pid = parseInt(req.query.projectId as string);
       rows = rows.filter(r => r.projectId === pid);
     }
+    if (typeof req.query.stageCode === "string" && req.query.stageCode) {
+      rows = rows.filter(r => (r.stageCode ?? "") === req.query.stageCode);
+    }
     const masters = await db.select().from(prodMaterialMasterTable);
     const enriched = rows.map(r => ({
       ...r,
@@ -142,6 +147,9 @@ router.get("/produksi/material/out", async (req, res) => {
       const pid = parseInt(req.query.projectId as string);
       rows = rows.filter(r => r.projectId === pid);
     }
+    if (typeof req.query.stageCode === "string" && req.query.stageCode) {
+      rows = rows.filter(r => (r.stageCode ?? "") === req.query.stageCode);
+    }
     const masters = await db.select().from(prodMaterialMasterTable);
     const enriched = rows.map(r => ({
       ...r,
@@ -157,11 +165,39 @@ router.get("/produksi/material/out", async (req, res) => {
 
 router.post("/produksi/material/out", async (req, res) => {
   try {
-    const [row] = await db.insert(prodMaterialOutTable).values(req.body).returning();
+    let projectId = Number(req.body.projectId);
+    let stageCode = typeof req.body.stageCode === "string" ? req.body.stageCode || null : null;
+    let subkonName = await resolveKnownSubkonName(req.body.subkonName);
+
+    if (req.body.unitId) {
+      const [unit] = await db.select().from(unitsTable).where(eq(unitsTable.id, Number(req.body.unitId)));
+      if (!unit) return res.status(404).json({ error: "Unit tidak ditemukan" });
+      if (Number.isFinite(projectId) && projectId !== unit.projectId) {
+        return res.status(400).json({ error: "Unit tidak sesuai dengan proyek yang dipilih" });
+      }
+      projectId = unit.projectId;
+      stageCode = unit.stageCode ?? stageCode;
+      subkonName = unit.subkonName ? await resolveKnownSubkonName(unit.subkonName) : subkonName;
+    }
+
+    const contract = await findSubkonContract({
+      contractId: req.body.contractId,
+      projectId,
+      stageCode,
+      subkonName,
+    });
+
+    const [row] = await db.insert(prodMaterialOutTable).values({
+      ...req.body,
+      projectId,
+      contractId: contract?.id ?? null,
+      stageCode,
+      subkonName: contract?.subkonName ?? subkonName,
+    }).returning();
     res.status(201).json({ ...row, createdAt: row.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create material out");
-    res.status(400).json({ error: "Invalid request" });
+    res.status((err as { statusCode?: number }).statusCode ?? 400).json({ error: (err as Error).message ?? "Invalid request" });
   }
 });
 
@@ -188,6 +224,10 @@ router.get("/produksi/material/stok", async (req, res) => {
       const pid = parseInt(req.query.projectId as string);
       inRows = inRows.filter(r => r.projectId === pid);
       outRows = outRows.filter(r => r.projectId === pid);
+    }
+    if (typeof req.query.stageCode === "string" && req.query.stageCode) {
+      inRows = inRows.filter(r => (r.stageCode ?? "") === req.query.stageCode);
+      outRows = outRows.filter(r => (r.stageCode ?? "") === req.query.stageCode);
     }
 
     const round2 = (n: number) => Math.round(n * 100) / 100;

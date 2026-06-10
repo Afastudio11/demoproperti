@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { constructionTasksTable, unitsTable, qcDefectsTable } from "@workspace/db";
+import { constructionTasksTable, qcDefectsTable, unitsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateConstructionTaskBody, UpdateConstructionTaskBody } from "@workspace/api-zod";
+import { recalculateUnitProductionState } from "../lib/production-relations";
 
 const router: IRouter = Router();
 
@@ -49,13 +50,7 @@ router.patch("/construction/tasks/:id", async (req, res) => {
     const [task] = await db.update(constructionTasksTable).set(body).where(eq(constructionTasksTable.id, parseInt(req.params.id))).returning();
     if (!task) return res.status(404).json({ error: "Not found" });
 
-    // Recalculate unit progress
-    const allTasks = await db.select().from(constructionTasksTable).where(eq(constructionTasksTable.unitId, task.unitId));
-    const progress = allTasks.reduce((sum, t) => sum + (t.status === "selesai" ? (t.bobot || 0) : 0), 0);
-    const openDefects = await db.select().from(qcDefectsTable).where(eq(qcDefectsTable.unitId, task.unitId));
-    const hasOpenDefects = openDefects.some(d => d.status === "open" || d.status === "in_repair");
-    const readyAkad = progress >= 100 && !hasOpenDefects;
-    await db.update(unitsTable).set({ progress, readyAkad }).where(eq(unitsTable.id, task.unitId));
+    await recalculateUnitProductionState(task.unitId);
 
     res.json({ ...task, tanggalMulai: task.tanggalMulai ?? null, tanggalSelesai: task.tanggalSelesai ?? null, catatan: task.catatan ?? null, createdAt: task.createdAt.toISOString() });
   } catch (err) {

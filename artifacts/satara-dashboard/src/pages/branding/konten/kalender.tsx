@@ -131,11 +131,11 @@ export default function BrandingKalender() {
                     <div className="font-medium text-slate-800 text-sm">{c.title}</div>
                     <div className="text-xs text-slate-500 mt-0.5">{CAT_LABELS[c.category] ?? c.category} · {c.platforms} · PIC: {c.pic}</div>
                   </div>
-                  <span className={cn("text-xs px-2 py-0.5 rounded font-medium", {
+                  <span className={cn("text-xs px-2 py-0.5 rounded font-medium", ({
                     idea: "bg-slate-100 text-slate-600", script: "bg-sky-100 text-sky-700",
                     shooting: "bg-blue-100 text-blue-700", editing: "bg-yellow-100 text-yellow-700",
                     review: "bg-orange-100 text-orange-700", approved: "bg-green-100 text-green-700", posted: "bg-emerald-100 text-emerald-700"
-                  }[c.productionStatus] ?? "bg-slate-100")}>{c.productionStatus}</span>
+                  } as Record<string, string>)[String(c.productionStatus)] ?? "bg-slate-100")}>{c.productionStatus}</span>
                 </div>
               ))}
             </div>

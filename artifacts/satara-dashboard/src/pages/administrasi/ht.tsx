@@ -35,7 +35,7 @@ export default function HtPage() {
 
   const { data: customers = [] } = useQuery({
     queryKey: ["administrasi-customers-all"],
-    queryFn: () => fetch("/api/administrasi/customers").then(r => r.json()),
+    queryFn: () => fetch("/api/administrasi/customers/master").then(r => r.json()),
   });
 
   const save = useMutation({

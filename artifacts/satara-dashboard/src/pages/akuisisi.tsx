@@ -1559,6 +1559,7 @@ function ProspectDetailPanel({
                 const totalRevenue = phases.reduce((s, p) => s + p.revenue, 0);
                 const totalProfit = phases.reduce((s, p) => s + p.profit, 0);
                 const landFull = maxUnitVal > 0 && totalBuilt >= maxUnitVal;
+                const aiUnitMax = up?.unitMax != null ? String(up.unitMax) : "";
 
                 const updateSim = (key: keyof typeof simInputs, val: string) => {
                   setSimInputs(prev => {
@@ -1649,9 +1650,9 @@ function ProspectDetailPanel({
                       <div className="border-t border-border/40 pt-2">
                         <div className="text-[9px] text-muted-foreground mb-1.5">
                           Kapasitas Lahan (maks unit yang bisa dibangun)
-                          {up?.unitMax && !simInputs.maxUnitLahan && (
-                            <button className="ml-1 text-[8px] text-blue-600 underline" onClick={() => updateSim("maxUnitLahan", String(up.unitMax))}>
-                              Dari AI: {String(up.unitMax)} unit
+                          {aiUnitMax && !simInputs.maxUnitLahan && (
+                            <button className="ml-1 text-[8px] text-blue-600 underline" onClick={() => updateSim("maxUnitLahan", aiUnitMax)}>
+                              Dari AI: {aiUnitMax} unit
                             </button>
                           )}
                         </div>
@@ -1662,7 +1663,7 @@ function ProspectDetailPanel({
                             max={9999}
                             value={simInputs.maxUnitLahan}
                             onChange={e => updateSim("maxUnitLahan", e.target.value.replace(/\D/g, ""))}
-                            placeholder={up?.unitMax ? String(up.unitMax) : "contoh: 500"}
+                            placeholder={aiUnitMax || "contoh: 500"}
                             className="w-24 text-[11px] px-2 py-1 border rounded bg-background focus:outline-none focus:ring-1 focus:ring-foreground/30"
                           />
                           <span className="text-[10px] text-muted-foreground">unit</span>
@@ -1683,7 +1684,7 @@ function ProspectDetailPanel({
                               modalAwal: prev.modalAwal || String(Math.round(prospect.luas * prospect.hargaM2)),
                               hargaJual: prev.hargaJual || String(Math.round(finSim.hargaJualFinal)),
                               biayaPerUnit: prev.biayaPerUnit || String(Math.round(finSim.hppPerUnit ?? finSim.biayaBangunFinal ?? 0)),
-                              maxUnitLahan: prev.maxUnitLahan || (up?.unitMax ? String(up.unitMax) : ""),
+                              maxUnitLahan: prev.maxUnitLahan || aiUnitMax,
                             };
                             try { localStorage.setItem(SIM_KEY, JSON.stringify(next)); } catch {}
                             return next;

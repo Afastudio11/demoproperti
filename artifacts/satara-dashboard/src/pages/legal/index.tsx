@@ -124,7 +124,7 @@ export default function LegalDashboard() {
             <thead>
               <tr className="border-b bg-muted/30">
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Izin</th>
-                {projects.map((p: any) => <th key={p.id} className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">{p.name.replace("SN Residence", "SN").replace("SN Hills", "Hills")}</th>)}
+                {projects.map((p: any) => <th key={p.id} className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">{(p.nama ?? p.name).replace("SN Residence", "SN").replace("SN Hills", "Hills")}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -218,7 +218,7 @@ export default function LegalDashboard() {
                   if (!pd || pd.stages.length === 0) return null;
                   return pd.stages.map((s: any, i: number) => (
                     <tr key={`${p.id}-${s.stageCode}`} className="border-b last:border-0 hover:bg-muted/20">
-                      <td className="px-3 py-2 text-xs">{i === 0 ? p.name : ""}</td>
+                      <td className="px-3 py-2 text-xs">{i === 0 ? (p.nama ?? p.name) : ""}</td>
                       <td className="px-3 py-2 font-mono text-xs font-semibold">{s.stageCode}</td>
                       <td className="px-3 py-2 text-xs">{s.targetSplit}</td>
                       <td className="px-3 py-2 text-xs font-semibold text-emerald-700">{s.realizedSplit}</td>

@@ -364,7 +364,7 @@ export default function Settings() {
 
           <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg p-3 border">
             <KeyRound className="size-3.5 shrink-0 mt-0.5" />
-            <span>Super Admin memiliki akses ke semua modul. Admin hanya bisa mengakses modul yang dicentang di sini. Default login: <strong>admin</strong> / <strong>satara123</strong></span>
+            <span>Super Admin memiliki akses ke semua modul. Admin hanya bisa mengakses modul yang dicentang di sini. Akun super admin awal harus dibuat melalui environment bootstrap server.</span>
           </div>
         </div>
       )}

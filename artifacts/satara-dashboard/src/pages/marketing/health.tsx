@@ -26,7 +26,7 @@ export default function MarketingHealthPage() {
 
   const { data: brandingKpis = [] } = useQuery<any[]>({
     queryKey: ["branding-kpi"],
-    queryFn: () => fetch("/api/marketing/branding-kpi").then(r => r.json()),
+    queryFn: () => fetch("/api/marketing/branding-kpi").then(r => r.ok ? r.json() : []),
   });
 
   const leads = dashboard?.totalLeads ?? 0;
