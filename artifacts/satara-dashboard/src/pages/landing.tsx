@@ -271,17 +271,6 @@ export default function LandingPage() {
               <span className="inline-block text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1 mb-6 font-display">
                 Visi &amp; Filosofi.
               </span>
-              
-              {/* Minimal SVG Graphic */}
-              <div className="mb-6 p-4 bg-stone rounded-lg border border-black/10">
-                <svg width="60" height="40" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <line x1="5" y1="35" x2="55" y2="35" stroke="#000000" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="15" y1="10" x2="45" y2="10" stroke="#000000" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="30" y1="10" x2="30" y2="35" stroke="#666666" strokeWidth="1.5" />
-                  <circle cx="15" cy="10" r="3" fill="#000000" />
-                  <circle cx="45" cy="10" r="3" fill="#000000" />
-                </svg>
-              </div>
 
               <p className="text-concrete text-sm leading-relaxed max-w-[240px]">
                 Menjamin keberlanjutan usaha melalui manajemen aset nyata secara disiplin.
@@ -310,16 +299,6 @@ export default function LandingPage() {
               <span className="text-[11px] font-bold text-concrete uppercase tracking-wider block mb-4">
                 Pembangunan Berkelanjutan
               </span>
-              
-              {/* Graphic vertical SVG */}
-              <div className="mb-6 p-4 bg-stone rounded-lg border border-black/10 self-stretch flex justify-center">
-                <svg width="40" height="60" viewBox="0 0 40 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="5" y="35" width="30" height="20" rx="3" stroke="#000000" strokeWidth="1.5" fill="#ffffff" />
-                  <rect x="10" y="15" width="20" height="20" rx="3" stroke="#000000" strokeWidth="1.5" fill="#ffffff" />
-                  <circle cx="20" cy="25" r="4" stroke="#000000" strokeWidth="1.5" />
-                  <line x1="20" y1="5" x2="20" y2="15" stroke="#666666" strokeWidth="1.5" />
-                </svg>
-              </div>
 
               <p className="text-concrete text-sm leading-relaxed">
                 Pembangunan berkelanjutan didukung oleh efisiensi modal yang disiplin dan mitigasi risiko yang ketat pada setiap tahap akuisisi serta pengembangan aset.
@@ -511,34 +490,20 @@ export default function LandingPage() {
             {/* Grid Layout (4/12 Blueprint, 8/12 Proyek Grid) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-stretch">
               
-              {/* Left Blueprint SVG Column (4/12) */}
-              <div className="lg:col-span-4 bg-stone rounded-xl border border-black/10 p-8 flex flex-col justify-between min-h-[300px]">
-                <div>
-                  <span className="text-xs font-semibold text-black uppercase tracking-wider block mb-4">Rencana Tata Ruang</span>
-                  <h3 className="text-lg font-bold text-black font-display mb-4">Skema Blueprint</h3>
+              {/* Left Photo Grid Column (4/12) */}
+              <div className="lg:col-span-4 grid grid-cols-2 gap-2 rounded-xl overflow-hidden">
+                <div className="overflow-hidden rounded-tl-xl aspect-square">
+                  <img src="/foto-sn-residence2.jpg" alt="SN Residence 2" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
                 </div>
-                
-                <div className="my-6 flex justify-center">
-                  <svg width="180" height="180" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    {/* Ground grid patterns */}
-                    <path d="M 0,20 L 120,20 M 0,40 L 120,40 M 0,60 L 120,60 M 0,80 L 120,80 M 0,100 L 120,100" stroke="#e0e0e0" strokeWidth="0.5" />
-                    <path d="M 20,0 L 20,120 M 40,0 L 40,120 M 60,0 L 60,120 M 80,0 L 80,120 M 100,0 L 100,120" stroke="#e0e0e0" strokeWidth="0.5" />
-                    
-                    {/* Architectural Blueprint Lines */}
-                    <rect x="20" y="30" width="80" height="70" stroke="#8e8e8e" strokeWidth="1" strokeDasharray="2 2" />
-                    <rect x="30" y="40" width="30" height="50" stroke="#333333" strokeWidth="1.5" />
-                    <rect x="65" y="40" width="25" height="25" stroke="#333333" strokeWidth="1.5" />
-                    <rect x="65" y="70" width="25" height="20" stroke="#666666" strokeWidth="1.5" />
-                    
-                    {/* Focus Circle */}
-                    <circle cx="45" cy="65" r="12" stroke="#333333" strokeWidth="1" strokeDasharray="3 3" />
-                    <circle cx="45" cy="65" r="2" fill="#333333" />
-                  </svg>
+                <div className="overflow-hidden rounded-tr-xl aspect-square">
+                  <img src="/foto-sn-rumah.jpg" alt="SN Rumah" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
                 </div>
-
-                <p className="text-concrete text-sm leading-relaxed">
-                  Pengawasan berkala untuk menjaga ketepatan realisasi struktur bangunan fisik sesuai standar mutu pengembang.
-                </p>
+                <div className="overflow-hidden rounded-bl-xl aspect-square">
+                  <img src="/foto-ruko.jpg" alt="Ruko" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                </div>
+                <div className="overflow-hidden rounded-br-xl aspect-square">
+                  <img src="/foto-proyek4.jpg" alt="Proyek Residensial" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                </div>
               </div>
 
               {/* Right Proyek 2x2 Grid Column (8/12) */}
