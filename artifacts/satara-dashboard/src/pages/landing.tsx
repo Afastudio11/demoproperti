@@ -121,14 +121,14 @@ export default function LandingPage() {
             <div className="hidden md:flex items-center gap-3">
               {user ? (
                 <Link
-                  href="/dashboard"
+                  href="/teamwork"
                   className="bg-white text-black hover:bg-transparent hover:text-white border border-white/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm font-display"
                 >
                   Dashboard
                 </Link>
               ) : (
                 <Link
-                  href="/dashboard"
+                  href="/teamwork"
                   className="bg-white text-black hover:bg-transparent hover:text-white border border-white/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm font-display"
                 >
                   Masuk
@@ -188,14 +188,14 @@ export default function LandingPage() {
               </a>
               {user ? (
                 <Link
-                  href="/dashboard"
+                  href="/teamwork"
                   className="bg-white text-black text-center py-2.5 rounded-lg text-sm font-medium hover:bg-transparent hover:text-white border border-white/20 transition-all duration-300 mt-2 font-display"
                 >
                   Dashboard
                 </Link>
               ) : (
                 <Link
-                  href="/dashboard"
+                  href="/teamwork"
                   className="bg-white text-black text-center py-2.5 rounded-lg text-sm font-medium hover:bg-transparent hover:text-white border border-white/20 transition-all duration-300 mt-2 font-display"
                 >
                   Masuk

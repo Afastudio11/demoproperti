@@ -23,7 +23,7 @@ declare global {
 const PUBLIC_API_PREFIXES = ["/healthz", "/auth/login", "/auth/logout", "/auth/me"];
 
 const MODULE_PATH_RULES: Array<{ module: string; matches: (path: string) => boolean }> = [
-  { module: "executive_overview", matches: (path) => path.startsWith("/dashboard") },
+  { module: "executive_overview", matches: (path) => path.startsWith("/teamwork") },
   { module: "projects", matches: (path) => path.startsWith("/projects") },
   { module: "akuisisi", matches: (path) => path.startsWith("/land-prospects") || path.startsWith("/ai/analyze-land") || path.startsWith("/ai/land-assessment") },
   { module: "perencanaan", matches: (path) => path.startsWith("/planning") || path.startsWith("/feasibility") || path.startsWith("/expansion") || path.startsWith("/ai/planning") || path.startsWith("/ai/expansion-roadmap") || path.startsWith("/ai/kabupaten-insight") || path.startsWith("/ai/slis-chat") },

@@ -26,7 +26,7 @@ import {
 
 // ─── Module key → nav item definition ────────────────────────────────────────
 const navItems = [
-  { moduleKey: "executive_overview", name: "Executive Overview", path: "/dashboard", icon: LayoutDashboard },
+  { moduleKey: "executive_overview", name: "Executive Overview", path: "/teamwork", icon: LayoutDashboard },
   { moduleKey: "projects", name: "Daftar Proyek", path: "/projects", icon: Building2 },
   { moduleKey: "akuisisi", name: "Akuisisi Lahan", path: "/akuisisi", icon: MapPin },
   { moduleKey: "perencanaan", name: "Perencanaan", path: "/perencanaan", icon: Calculator },

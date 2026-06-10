@@ -143,7 +143,7 @@ import FinanceEkspansi from "@/pages/finance/ekspansi";
 const queryClient = new QueryClient();
 
 const MODULE_PATH_RULES: Array<{ module: string; matches: (path: string) => boolean }> = [
-  { module: "executive_overview", matches: (path) => path === "/dashboard" },
+  { module: "executive_overview", matches: (path) => path === "/teamwork" },
   { module: "projects", matches: (path) => path === "/projects" || path.startsWith("/projects/") },
   { module: "akuisisi", matches: (path) => path === "/akuisisi" || path.startsWith("/akuisisi/") },
   { module: "perencanaan", matches: (path) => path === "/perencanaan" || path.startsWith("/perencanaan/") || path === "/slis" },
@@ -207,7 +207,7 @@ function AppRoutes() {
   return (
     <Layout>
       <Switch>
-        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/teamwork" component={Dashboard} />
         <Route path="/projects" component={Projects} />
         <Route path="/projects/:id" component={ProjectDetail} />
         <Route path="/akuisisi" component={Akuisisi} />
