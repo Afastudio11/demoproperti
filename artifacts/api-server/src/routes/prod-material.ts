@@ -190,11 +190,12 @@ router.get("/produksi/material/stok", async (req, res) => {
       outRows = outRows.filter(r => r.projectId === pid);
     }
 
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     const stok = masters.map(m => {
-      const totalMasuk = inRows.filter(r => r.materialId === m.id).reduce((s, r) => s + r.quantity, 0);
-      const totalKeluar = outRows.filter(r => r.materialId === m.id).reduce((s, r) => s + r.quantity, 0);
-      const stokAktual = totalMasuk - totalKeluar;
-      const nilaiStok = stokAktual * (m.unitPrice ?? 0);
+      const totalMasuk = round2(inRows.filter(r => r.materialId === m.id).reduce((s, r) => s + r.quantity, 0));
+      const totalKeluar = round2(outRows.filter(r => r.materialId === m.id).reduce((s, r) => s + r.quantity, 0));
+      const stokAktual = round2(totalMasuk - totalKeluar);
+      const nilaiStok = Math.round(stokAktual * (m.unitPrice ?? 0));
       const isBelowMinimum = stokAktual < m.minimumStock;
       return {
         ...m,

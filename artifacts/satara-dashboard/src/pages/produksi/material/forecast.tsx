@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, Package } from "lucide-react";
+import { fmtQty, fmtRupiah, fmtNumber } from "@/lib/format";
 
 type StokRow = { id: number; name: string; category: string; satuan: string; standardPerUnit: number | null; stokAktual: number; minimumStock: number; unitPrice: number | null; isBelowMinimum: boolean };
 type Unit = { id: number; progress: number };
@@ -12,7 +12,7 @@ export default function MaterialForecast() {
 
   const activeUnits = (units ?? []).filter(u => u.progress > 0 && u.progress < 100).length;
   const urgency = (stok ?? []).filter(s => s.isBelowMinimum).map(s => {
-    const need = Math.max(0, (s.minimumStock * 2) - s.stokAktual);
+    const need = Math.max(0, Math.round(((s.minimumStock * 2) - s.stokAktual) * 100) / 100);
     const cost = need * (s.unitPrice ?? 0);
     return { ...s, need, cost, urgencyLevel: s.stokAktual <= 0 ? "urgent" : s.stokAktual < s.minimumStock * 0.5 ? "high" : "medium" };
   }).sort((a, b) => (b.urgencyLevel === "urgent" ? 2 : b.urgencyLevel === "high" ? 1 : 0) - (a.urgencyLevel === "urgent" ? 2 : a.urgencyLevel === "high" ? 1 : 0));
@@ -28,7 +28,7 @@ export default function MaterialForecast() {
       <div className="grid grid-cols-3 gap-3">
         <Card className="border-red-500/20"><CardContent className="pt-3 pb-3"><p className="text-xs text-muted-foreground">Harus Dicure</p><p className="text-xl font-bold text-red-500">{urgency.filter(u => u.urgencyLevel === "urgent").length}</p></CardContent></Card>
         <Card className="border-amber-500/20"><CardContent className="pt-3 pb-3"><p className="text-xs text-muted-foreground">Prioritas Tinggi</p><p className="text-xl font-bold text-amber-500">{urgency.filter(u => u.urgencyLevel === "high").length}</p></CardContent></Card>
-        <Card><CardContent className="pt-3 pb-3"><p className="text-xs text-muted-foreground">Est. Biaya Pengadaan</p><p className="text-lg font-bold">Rp {(totalCost / 1_000_000).toFixed(1)} Jt</p></CardContent></Card>
+        <Card><CardContent className="pt-3 pb-3"><p className="text-xs text-muted-foreground">Est. Biaya Pengadaan</p><p className="text-lg font-bold">{fmtRupiah(totalCost)}</p></CardContent></Card>
       </div>
       {isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Memuat...</div> : urgency.length === 0 ? (
         <div className="py-12 text-center">
@@ -50,10 +50,10 @@ export default function MaterialForecast() {
               {urgency.map(r => (
                 <tr key={r.id} className={`border-b hover:bg-muted/20 ${r.urgencyLevel === "urgent" ? "bg-red-500/5" : r.urgencyLevel === "high" ? "bg-amber-500/5" : ""}`}>
                   <td className="py-2 px-4 font-medium">{r.name}</td>
-                  <td className={`py-2 px-2 text-right ${r.stokAktual <= 0 ? "text-red-500 font-bold" : "text-amber-500"}`}>{r.stokAktual} {r.satuan}</td>
-                  <td className="py-2 px-2 text-right text-muted-foreground">{r.minimumStock}</td>
-                  <td className="py-2 px-2 text-right font-semibold">{r.need} {r.satuan}</td>
-                  <td className="py-2 px-2 text-right">{r.cost > 0 ? `Rp ${(r.cost / 1_000_000).toFixed(1)} Jt` : "—"}</td>
+                  <td className={`py-2 px-2 text-right tabular-nums ${r.stokAktual <= 0 ? "text-red-500 font-bold" : "text-amber-500"}`}>{fmtQty(r.stokAktual)} {r.satuan}</td>
+                  <td className="py-2 px-2 text-right text-muted-foreground tabular-nums">{fmtNumber(r.minimumStock)}</td>
+                  <td className="py-2 px-2 text-right font-semibold tabular-nums">{fmtQty(r.need)} {r.satuan}</td>
+                  <td className="py-2 px-2 text-right tabular-nums">{r.cost > 0 ? fmtRupiah(r.cost) : "—"}</td>
                   <td className="py-2 px-4 text-center">
                     <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${r.urgencyLevel === "urgent" ? "text-red-500" : r.urgencyLevel === "high" ? "text-amber-500" : "text-blue-500"}`}>
                       {r.urgencyLevel === "urgent" && <AlertTriangle className="size-3" />}
