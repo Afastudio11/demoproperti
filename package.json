@@ -16,6 +16,7 @@
     "typescript": "~5.9.3"
   },
   "dependencies": {
+    "sharp": "^0.34.5",
     "xlsx": "^0.18.5"
   }
 }
