@@ -39,6 +39,7 @@ import hrRouter from "./hr";
 import brandingRouter from "./branding";
 import categoriesRouter from "./categories";
 import financeRouter from "./finance";
+import authRouter from "./auth";
 
 const router: IRouter = Router();
 
@@ -82,5 +83,6 @@ router.use(hrRouter);
 router.use(brandingRouter);
 router.use(categoriesRouter);
 router.use(financeRouter);
+router.use(authRouter);
 
 export default router;

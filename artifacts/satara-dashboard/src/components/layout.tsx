@@ -1,13 +1,13 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -16,66 +16,32 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard,
-  Building2,
-  MapPin,
-  Calculator,
-  FileText,
-  Magnet,
-  Users,
-  HardHat,
-  Key,
-  Settings,
-  ChevronsUpDown,
-  Bell,
-  Search,
-  BarChart3,
-  Package,
-  Calendar,
-  DollarSign,
-  TrendingUp,
-  CheckSquare,
-  Activity,
-  Shield,
-  Wrench,
-  ShieldCheck,
-  Layers,
-  FileCheck,
-  AlertTriangle,
-  Truck,
-  UserCog,
-  Megaphone,
-  Landmark,
+  LayoutDashboard, Building2, MapPin, Calculator, FileText, Magnet,
+  Users, HardHat, Key, Settings, ChevronsUpDown, BarChart3,
+  DollarSign, Shield, ShieldCheck, UserCog, Megaphone, Landmark, LogOut,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// ─── Module key → nav item definition ────────────────────────────────────────
 const navItems = [
-  { name: "Executive Overview", path: "/", icon: LayoutDashboard },
-  { name: "Daftar Proyek", path: "/projects", icon: Building2 },
-  { name: "Akuisisi Lahan", path: "/akuisisi", icon: MapPin },
-  { name: "Perencanaan", path: "/perencanaan", icon: Calculator },
-  { name: "Legal & Perizinan", path: "/legal", icon: FileText },
-  { name: "Marketing", path: "/marketing", icon: Magnet },
-  { name: "Branding", path: "/branding", icon: Megaphone },
-  { name: "Administrasi KPR", path: "/administrasi", icon: Users },
-  { name: "Produksi", path: "/produksi", icon: HardHat },
-  { name: "Human Resource", path: "/hr", icon: UserCog },
-  { name: "Finance & Accounting", path: "/finance", icon: Landmark },
-  { name: "Serah Terima", path: "/serah-terima", icon: Key },
-  { name: "Settings", path: "/settings", icon: Settings },
+  { moduleKey: "executive_overview", name: "Executive Overview", path: "/", icon: LayoutDashboard },
+  { moduleKey: "projects", name: "Daftar Proyek", path: "/projects", icon: Building2 },
+  { moduleKey: "akuisisi", name: "Akuisisi Lahan", path: "/akuisisi", icon: MapPin },
+  { moduleKey: "perencanaan", name: "Perencanaan", path: "/perencanaan", icon: Calculator },
+  { moduleKey: "legal", name: "Legal & Perizinan", path: "/legal", icon: FileText },
+  { moduleKey: "marketing", name: "Marketing", path: "/marketing", icon: Magnet },
+  { moduleKey: "branding", name: "Branding", path: "/branding", icon: Megaphone },
+  { moduleKey: "administrasi", name: "Administrasi KPR", path: "/administrasi", icon: Users },
+  { moduleKey: "produksi", name: "Produksi", path: "/produksi", icon: HardHat },
+  { moduleKey: "hr", name: "Human Resource", path: "/hr", icon: UserCog },
+  { moduleKey: "finance", name: "Finance & Accounting", path: "/finance", icon: Landmark },
+  { moduleKey: "serah_terima", name: "Serah Terima", path: "/serah-terima", icon: Key },
+  { moduleKey: "settings", name: "Settings", path: "/settings", icon: Settings },
 ];
 
-type SubNavItem =
-  | { type: "link"; name: string; path: string }
-  | { type: "group"; label: string };
+type SubNavItem = { type: "link"; name: string; path: string } | { type: "group"; label: string };
 
 const financeSubNav: SubNavItem[] = [
   { type: "link", name: "Finance Dashboard", path: "/finance" },
@@ -262,20 +228,14 @@ function renderSubNav(items: SubNavItem[], location: string) {
         if (sub.type === "group") {
           return (
             <div key={`group-${i}`} className="px-5 pt-2.5 pb-0.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                {sub.label}
-              </span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">{sub.label}</span>
             </div>
           );
         }
         const isSubActive = location === sub.path || (sub.path !== "/administrasi" && sub.path !== "/perencanaan" && sub.path !== "/produksi" && sub.path !== "/legal" && location.startsWith(sub.path + "/"));
         return (
           <SidebarMenuItem key={sub.path}>
-            <SidebarMenuButton
-              asChild
-              isActive={isSubActive}
-              className="h-6 pl-5"
-            >
+            <SidebarMenuButton asChild isActive={isSubActive} className="h-6 pl-5">
               <Link href={sub.path}>
                 <span className={`size-1.5 rounded-full shrink-0 ${isSubActive ? "bg-foreground" : "bg-muted-foreground/50"}`} />
                 <span className="text-xs">{sub.name}</span>
@@ -290,6 +250,16 @@ function renderSubNav(items: SubNavItem[], location: string) {
 
 function DashboardSidebar() {
   const [location, navigate] = useLocation();
+  const { user, logout } = useAuth();
+
+  const isSuperAdmin = user?.role === "super_admin";
+  const allowedModules = user?.allowedModules ?? [];
+
+  // Filter navItems: super admin sees all, admin sees only allowed
+  const visibleNavItems = navItems.filter(item =>
+    isSuperAdmin || allowedModules.includes(item.moduleKey)
+  );
+
   const isAkuisisi = location === "/akuisisi" || location.startsWith("/akuisisi/");
   const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/") || location === "/slis";
   const isLegal = location === "/legal" || location.startsWith("/legal/");
@@ -299,6 +269,10 @@ function DashboardSidebar() {
   const isHR = location === "/hr" || location.startsWith("/hr/");
   const isBranding = location === "/branding" || location.startsWith("/branding/");
   const isFinance = location === "/finance" || location.startsWith("/finance/");
+
+  async function handleLogout() {
+    await logout();
+  }
 
   return (
     <Sidebar className="lg:border-r-0!" collapsible="icon">
@@ -314,21 +288,27 @@ function DashboardSidebar() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
+            <div className="px-2 py-1.5">
+              <div className="text-sm font-medium">{user?.name}</div>
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                {user?.role === "super_admin" ? <ShieldCheck className="size-3" /> : <Shield className="size-3" />}
+                {user?.role === "super_admin" ? "Super Admin" : "Admin"}
+              </div>
+            </div>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate("/settings")}>
               <Settings className="size-4" />
               <span>Pengaturan</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
-              <Users className="size-4" />
-              <span>Kelola Pengguna</span>
-            </DropdownMenuItem>
+            {isSuperAdmin && (
+              <DropdownMenuItem onClick={() => navigate("/settings")}>
+                <Users className="size-4" />
+                <span>Kelola Pengguna</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => {
-                if (confirm("Keluar dari dashboard?")) window.location.href = "/";
-              }}
-            >
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
+              <LogOut className="size-4" />
               <span>Keluar</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -339,7 +319,7 @@ function DashboardSidebar() {
         <SidebarGroup className="p-0">
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const isAkuisisiItem = item.path === "/akuisisi";
                 const isPerencanaanItem = item.path === "/perencanaan";
                 const isLegalItem = item.path === "/legal";
@@ -365,18 +345,13 @@ function DashboardSidebar() {
                 return (
                   <React.Fragment key={item.path}>
                     <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        className="h-7"
-                      >
+                      <SidebarMenuButton asChild isActive={isActive} className="h-7">
                         <Link href={item.path}>
                           <item.icon className="size-3.5" />
                           <span className="text-sm">{item.name}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-
                     {isAkuisisiItem && isAkuisisi && renderSubNav(akuisisiSubNav, location)}
                     {isPerencanaanItem && isPerencanaan && renderSubNav(perencanaanSubNav, location)}
                     {isLegalItem && isLegal && renderSubNav(legalSubNav, location)}
@@ -395,11 +370,20 @@ function DashboardSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="px-2.5 pb-3 group-data-[collapsible=icon]:hidden">
-        <div className="flex flex-col gap-1.5 rounded-lg border p-3 text-sm bg-background">
-          <div className="text-xs font-semibold leading-tight">Satara Development</div>
-          <div className="text-[11px] text-muted-foreground">
-            Internal Operations Dashboard
+        <div className="flex items-center gap-2.5 rounded-lg border p-3 bg-background">
+          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
+            {user?.name?.charAt(0).toUpperCase()}
           </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold truncate">{user?.name}</div>
+            <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+              {user?.role === "super_admin" ? <ShieldCheck className="size-2.5" /> : <Shield className="size-2.5" />}
+              {user?.role === "super_admin" ? "Super Admin" : "Admin"}
+            </div>
+          </div>
+          <button onClick={handleLogout} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Keluar">
+            <LogOut className="size-3.5" />
+          </button>
         </div>
       </SidebarFooter>
     </Sidebar>
