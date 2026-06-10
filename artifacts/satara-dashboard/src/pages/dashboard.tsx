@@ -295,7 +295,7 @@ export default function Dashboard() {
     { label: "Produksi", score: prod.healthScore ?? 0, href: "/produksi" },
     { label: "Admin KPR", score: adminData?.healthScore ?? 0, href: "/administrasi" },
     { label: "HR", score: hcScore, href: "/hr" },
-    { label: "Marketing", score: leadsArr.length > 0 ? Math.min(100, convRate * 3 + 50) : 0, href: "/marketing" },
+    { label: "Marketing", score: leadsArr.length > 0 ? Math.min(100, Math.round(convRate * 5)) : 0, href: "/marketing" },
     { label: "Legal", score: legalArr.length > 0 ? Math.round((legalApproved / legalArr.length) * 100) : 0, href: "/legal" },
     { label: "Perencanaan", score: goCount > 0 ? Math.round((goCount / Math.max(feasArr.length, 1)) * 100) : 0, href: "/perencanaan" },
     { label: "Serah Terima", score: handoverArr.length > 0 ? Math.round((bastCount / handoverArr.length) * 100) : 0, href: "/serah-terima" },

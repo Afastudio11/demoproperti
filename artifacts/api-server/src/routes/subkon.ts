@@ -251,13 +251,12 @@ router.get("/produksi/subkon/material-comparison", async (req, res) => {
 
     const masterMap = new Map(masters.map(m => [m.id, m]));
 
-    // Helper: hitung unit selesai dari progress payment yang sudah approved/paid
-    // Abaikan "draft" karena belum dikonfirmasi
+    // Helper: hitung progress aktual dari payment
     const getUnitsCompleted = (contractId: number, unitCount: number): number => {
       const confirmedPayments = payments.filter(
-        p => p.contractId === contractId && (p.status === "approved" || p.status === "paid")
+        p => p.contractId === contractId && (p.status === "approved" || p.status === "paid" || p.status === "pending_approval")
       );
-      if (confirmedPayments.length === 0) return unitCount; // fallback: asumsi semua unit
+      if (confirmedPayments.length === 0) return 0;
       const maxProgress = Math.max(...confirmedPayments.map(p => p.progressCurrent ?? 0));
       return Math.round((maxProgress / 100) * unitCount);
     };
@@ -269,9 +268,10 @@ router.get("/produksi/subkon/material-comparison", async (req, res) => {
         // Cari material yang digunakan oleh subkon ini di proyek ini
         const relevantKeys = Object.keys(usageMap).filter(k => k.startsWith(`${c.subkonName}__${c.projectId}__`));
 
-        // Gunakan unit selesai sebagai pembagi (bukan total kontrak)
+        // Denominator selalu unitCount — bandingkan total pemakaian vs total anggaran kontrak
+        // Ini lebih adil karena material sering dikeluarkan bulk untuk semua unit sekaligus
         const unitsCompleted = getUnitsCompleted(c.id, c.unitCount);
-        const denominator = unitsCompleted > 0 ? unitsCompleted : c.unitCount;
+        const denominator = c.unitCount; // selalu full contract scope
 
         const materials = relevantKeys.map(key => {
           const materialId = parseInt(key.split("__")[2]);
@@ -311,11 +311,11 @@ router.get("/produksi/subkon/material-comparison", async (req, res) => {
           };
         }).filter(Boolean);
 
-        // Hitung skor efisiensi (100 = sempurna, kurang jika boros)
-        const avgDeviasi = materials.length > 0
-          ? materials.reduce((s, m) => s + (m!.deviasiPct > 0 ? m!.deviasiPct : 0), 0) / materials.length
-          : 0;
-        const efficiencyScore = Math.max(0, Math.round(100 - avgDeviasi * 2));
+        // Hitung skor efisiensi: rata-rata deviasi boros dibagi total material
+        // Skor 100 = semua material efisien, skor 0 = rata-rata boros 100%+
+        const totalBorosDeviasi = materials.reduce((s, m) => s + (m!.deviasiPct > 0 ? m!.deviasiPct : 0), 0);
+        const avgBorosDeviasi = materials.length > 0 ? totalBorosDeviasi / materials.length : 0;
+        const efficiencyScore = Math.max(0, Math.min(100, Math.round(100 - avgBorosDeviasi)));
         const totalSelisihNilai = materials.reduce((s, m) => s + (m!.selisihNilai ?? 0), 0);
 
         const overallStatus =

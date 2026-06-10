@@ -8,7 +8,7 @@ const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
 const fmtPct = (n: number) => `${Math.round(n)}%`;
 const fmtNum = (n: number, d = 1) => n.toLocaleString("id-ID", { maximumFractionDigits: d });
 
-type Contract = { id: number; subkonName: string; stageCode: string | null; unitCount: number; contractValue: number; totalRetention: number; status: string };
+type Contract = { id: number; subkonName: string; stageCode: string | null; unitCount: number; contractValue: number; totalRetention: number; status: string; projectId: number };
 type Payment = { id: number; contractId: number; terminNumber: number | null; progressCurrent: number; velocity: number | null; netPayment: number | null; status: string };
 
 type MaterialItem = {
@@ -72,6 +72,12 @@ export default function SubkonPerforma() {
   const [tab, setTab] = useState<"kinerja" | "material">("kinerja");
   const [projectFilter, setProjectFilter] = useState<number | null>(null);
   const [expandedSubkon, setExpandedSubkon] = useState<string | null>(null);
+
+  const { data: projects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => { const r = await fetch("/api/projects"); return r.json() as Promise<{ id: number; nama: string }[]>; },
+  });
+  const projectMap = Object.fromEntries((projects ?? []).map(p => [p.id, p.nama]));
 
   const { data: contracts, isLoading: loadingC } = useQuery({
     queryKey: ["subkon-contracts"],
@@ -207,7 +213,7 @@ export default function SubkonPerforma() {
                   onClick={() => setProjectFilter(pid)}
                   className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${projectFilter === pid ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
                 >
-                  Proyek {pid}
+                  {projectMap[pid] ?? `Proyek ${pid}`}
                 </button>
               ))}
             </div>
@@ -240,7 +246,7 @@ export default function SubkonPerforma() {
                             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                               <span className="font-medium text-sm">{s.subkonName}</span>
                               {s.stageCode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{s.stageCode}</span>}
-                              <span className="text-[10px] text-muted-foreground">Proyek {s.projectId}</span>
+                              <span className="text-[10px] text-muted-foreground">{projectMap[s.projectId] ?? `Proyek ${s.projectId}`}</span>
                               <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STATUS_BG[s.overallStatus]}`}>
                                 {STATUS_LABEL[s.overallStatus]}
                               </span>
@@ -264,9 +270,19 @@ export default function SubkonPerforma() {
                               })}
                             </div>
 
-                            <div className="flex items-center gap-4 text-xs">
+                            <div className="flex items-center gap-3 text-xs flex-wrap">
                               <span className="text-muted-foreground">{s.materials.length} material</span>
-                              <span className="text-muted-foreground">{s.unitsCompleted}/{s.unitCount} unit selesai</span>
+                              {(() => {
+                                const borosN = s.materials.filter(m => m.deviasiPct > 15).length;
+                                const efisienN = s.materials.filter(m => m.deviasiPct <= 5).length;
+                                return (
+                                  <>
+                                    {borosN > 0 && <span className="text-red-500">{borosN} boros</span>}
+                                    {efisienN > 0 && <span className="text-emerald-500">{efisienN} efisien</span>}
+                                  </>
+                                );
+                              })()}
+                              <span className="text-muted-foreground">{s.unitsCompleted}/{s.unitCount} unit</span>
                               {s.totalSelisihNilai !== 0 && (
                                 <span className={s.totalSelisihNilai > 0 ? "text-red-500" : "text-emerald-500"}>
                                   {s.totalSelisihNilai > 0 ? "+" : ""}{fmtRp(s.totalSelisihNilai)} vs standar
@@ -320,12 +336,12 @@ export default function SubkonPerforma() {
                                     {fmtNum(m.actualPerUnit)} {m.satuan}
                                   </td>
                                   <td className="px-3 py-2 text-right tabular-nums">
-                                    {/* Bar deviasi */}
+                                    {/* Bar deviasi — skala relatif terhadap deviasi terbesar di grup ini */}
                                     <div className="flex items-center justify-end gap-1.5">
                                       <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                                         <div
                                           className={`h-full rounded-full ${m.deviasiPct > 0 ? "bg-red-400" : "bg-emerald-400"}`}
-                                          style={{ width: `${Math.min(100, Math.abs(m.deviasiPct) * 4)}%` }}
+                                          style={{ width: `${Math.min(100, Math.abs(m.deviasiPct) / Math.max(...s.materials.map(x => Math.abs(x.deviasiPct)), 1) * 100)}%` }}
                                         />
                                       </div>
                                       <span className={`font-semibold ${m.deviasiPct > 0 ? "text-red-500" : "text-emerald-500"}`}>

@@ -165,6 +165,17 @@ router.post("/produksi/material/out", async (req, res) => {
   }
 });
 
+router.delete("/produksi/material/out/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(prodMaterialOutTable).where(eq(prodMaterialOutTable.id, id));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete material out");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── STOK GUDANG (computed) ───────────────────────────────────────────────────
 
 router.get("/produksi/material/stok", async (req, res) => {

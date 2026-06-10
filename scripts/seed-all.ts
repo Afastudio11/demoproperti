@@ -695,6 +695,49 @@ async function seedHR() {
   return empIds;
 }
 
+async function seedSubkonMaterialOut(projectIds: number[]) {
+  console.log("📦 Seed: Subkon Material Out (efisiensi realistis)...");
+
+  const matRows = await run(`SELECT id, name FROM prod_material_master`);
+  const matByName: Record<string, number> = {};
+  for (const r of matRows.rows) matByName[r.name] = r.id;
+
+  const assignments: [string, string, number][] = [
+    ["CV Bangunan Jaya", "Semen Portland", +18],
+    ["CV Bangunan Jaya", "Bata Merah", +12],
+    ["CV Bangunan Jaya", "Pasir Beton", +22],
+    ["CV Bangunan Jaya", "Batu Split 2/3", -5],
+    ["CV Bangunan Jaya", "Besi Beton D10", +8],
+    ["CV Bangunan Jaya", "Besi Beton D13", -8],
+    ["CV Mitra Kontruksi", "Keramik Lantai 40x40", -5],
+    ["CV Mitra Kontruksi", "Cat Tembok Dalam", -12],
+    ["UD Listrik Andalan", "Kabel NYM 2x2.5mm", -3],
+    ["CV Plumbing Sulsel", "Pipa PVC 4 inch", +5],
+    ["PT Landscape Hijau", "Pasir Beton", -10],
+  ];
+
+  const denom = 19;
+  const today = new Date();
+
+  for (let pi = 0; pi < 2; pi++) {
+    const pid = projectIds[pi];
+    for (const [subkonName, matName, deviasiPct] of assignments) {
+      const matId = matByName[matName];
+      if (!matId) continue;
+      const masterRes = await run(`SELECT standard_per_unit FROM prod_material_master WHERE id = $1`, [matId]);
+      if (!masterRes.rows.length) continue;
+      const standardPerUnit: number = masterRes.rows[0].standard_per_unit;
+      const totalQty = Math.round(standardPerUnit * (1 + deviasiPct / 100) * denom * 10) / 10;
+      const dateOut = new Date(today);
+      dateOut.setMonth(dateOut.getMonth() - (pi === 0 ? 2 : 1));
+      await run(
+        `INSERT INTO prod_material_out (project_id, material_id, quantity, subkon_name, taken_by, date_out) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [pid, matId, totalQty, subkonName, "Mandor Lapangan", dateOut.toISOString().split("T")[0]]
+      ).catch(() => {});
+    }
+  }
+}
+
 async function seedMonthlyTargets(projectIds: number[]) {
   console.log("🎯 Seed: Monthly Targets...");
   for (const pid of projectIds.slice(0,2)) {
@@ -724,6 +767,7 @@ async function main() {
     await seedQC(unitIds);
     await seedMaterials(projectIds);
     await seedSubkon(projectIds);
+    await seedSubkonMaterialOut(projectIds);
     await seedMarketing(projectIds);
     await seedPlanning(projectIds);
     await seedHandovers(unitIds, customerIds);
