@@ -404,7 +404,7 @@ export default function LandingPage() {
                 {/* Left Column: Photo Visual (2/12) */}
                 <div className="lg:col-span-2 hidden lg:flex justify-center">
                   <div className="rounded-lg overflow-hidden w-52 h-52 border border-white/10 shadow-sm">
-                    <img src="/foto-sekala.png" alt="Sekala" className="w-full h-full object-cover object-top" />
+                    <img src="/foto-sekala.jpg" alt="Sekala" className="w-full h-full object-cover object-top" />
                   </div>
                 </div>
 
@@ -433,7 +433,7 @@ export default function LandingPage() {
                 {/* Left Column: Photo Visual (2/12) */}
                 <div className="lg:col-span-2 hidden lg:flex justify-center">
                   <div className="rounded-lg overflow-hidden w-52 h-52 border border-white/10 shadow-sm">
-                    <img src="/foto-roemah-warga.png" alt="Roemah Warga" className="w-full h-full object-cover" />
+                    <img src="/foto-roemah-warga.jpg" alt="Roemah Warga" className="w-full h-full object-cover" />
                   </div>
                 </div>
 
