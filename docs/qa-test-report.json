@@ -1,120 +1,177 @@
 {
-  "generatedAt": "2026-06-10T13:14:35.051Z",
+  "generatedAt": "2026-06-10T13:24:20.375Z",
   "config": {
-    "appBase": "http://localhost:5173",
-    "apiBase": "http://localhost:5173/api",
-    "hasDatabaseUrl": false,
+    "appBase": "http://localhost:5000",
+    "apiBase": "http://localhost:8080/api",
+    "hasDatabaseUrl": true,
     "adminUsername": "qa_admin"
   },
   "summary": {
-    "passed": 134,
+    "passed": 163,
     "failed": 0,
-    "blocked": 20,
+    "blocked": 0,
     "warned": 0
   },
   "checks": [
     {
-      "id": "db.seed",
-      "status": "blocked",
-      "message": "DATABASE_URL belum diset, jadi akun admin QA dan fake database belum bisa dibuat."
+      "id": "db.connection",
+      "status": "pass",
+      "message": "Database bisa diakses."
+    },
+    {
+      "id": "db.compatColumns",
+      "status": "pass",
+      "message": "Kolom kompatibilitas sinkronisasi HR/material dipastikan ada."
+    },
+    {
+      "id": "db.seed.admin",
+      "status": "pass",
+      "message": "Akun admin QA siap: qa_admin."
+    },
+    {
+      "id": "db.seed.qaData",
+      "status": "pass",
+      "message": "Fake database QA untuk analisis lahan, material, subkon, unit, absensi, dan lembur sudah tersedia."
     },
     {
       "id": "api.health",
-      "status": "blocked",
-      "message": "API belum siap di http://localhost:5173/api. Status: 500.",
-      "detail": {
-        "body": ""
-      }
+      "status": "pass",
+      "message": "API health bisa diakses."
+    },
+    {
+      "id": "api.auth.login",
+      "status": "pass",
+      "message": "Login admin QA berhasil."
     },
     {
       "id": "api.get./projects",
-      "status": "blocked",
-      "message": "Daftar proyek belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Daftar proyek OK."
     },
     {
       "id": "api.get./planning/land",
-      "status": "blocked",
-      "message": "Planning lahan belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Planning lahan OK."
     },
     {
       "id": "api.get./land-prospects",
-      "status": "blocked",
-      "message": "Prospek lahan belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Prospek lahan OK."
     },
     {
       "id": "api.get./planning/market",
-      "status": "blocked",
-      "message": "Market planning belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Market planning OK."
     },
     {
       "id": "api.get./planning/feasibility",
-      "status": "blocked",
-      "message": "Feasibility planning belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Feasibility planning OK."
     },
     {
       "id": "api.get./planning/landbank",
-      "status": "blocked",
-      "message": "Landbank planning belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Landbank planning OK."
     },
     {
       "id": "api.get./produksi/subkon/master",
-      "status": "blocked",
-      "message": "Master subkon dari kontrak belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Master subkon dari kontrak OK."
     },
     {
       "id": "api.get./produksi/subkon/contracts",
-      "status": "blocked",
-      "message": "Kontrak subkon belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Kontrak subkon OK."
     },
     {
       "id": "api.get./produksi/material/master",
-      "status": "blocked",
-      "message": "Master material belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Master material OK."
     },
     {
       "id": "api.get./produksi/material/in",
-      "status": "blocked",
-      "message": "Material masuk belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Material masuk OK."
     },
     {
       "id": "api.get./produksi/material/out",
-      "status": "blocked",
-      "message": "Material keluar belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Material keluar OK."
     },
     {
       "id": "api.get./produksi/material/stok",
-      "status": "blocked",
-      "message": "Stok material terhitung belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Stok material terhitung OK."
     },
     {
       "id": "api.get./hr/employees",
-      "status": "blocked",
-      "message": "Master karyawan belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Master karyawan OK."
     },
     {
       "id": "api.get./hr/attendance",
-      "status": "blocked",
-      "message": "Absensi belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Absensi OK."
     },
     {
       "id": "api.get./hr/overtime",
-      "status": "blocked",
-      "message": "Lembur belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Lembur OK."
     },
     {
       "id": "api.get./hr/culture",
-      "status": "blocked",
-      "message": "Culture sync dari absensi belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Culture sync dari absensi OK."
     },
     {
       "id": "api.get./finance/cashflow",
-      "status": "blocked",
-      "message": "Cashflow finance belum dites karena API health gagal."
+      "status": "pass",
+      "message": "Cashflow finance OK."
     },
     {
-      "id": "api.get./dashboard/executive",
-      "status": "blocked",
-      "message": "Dashboard executive belum dites karena API health gagal."
+      "id": "api.get./dashboard/summary",
+      "status": "pass",
+      "message": "Dashboard executive summary OK."
+    },
+    {
+      "id": "flow.materialOut.destination",
+      "status": "pass",
+      "message": "Material keluar QA terdeteksi sampai tujuan proyek, kontrak, tahap, unit, subkon, dan master material.",
+      "detail": {
+        "sampleSize": 1
+      }
+    },
+    {
+      "id": "flow.materialStock.computed",
+      "status": "pass",
+      "message": "Stok material QA dihitung dari material masuk minus material keluar.",
+      "detail": {
+        "sampleSize": 1
+      }
+    },
+    {
+      "id": "flow.hrAttendance.employeeProject",
+      "status": "pass",
+      "message": "Absensi QA terhubung ke master karyawan dan proyek.",
+      "detail": {
+        "sampleSize": 1
+      }
+    },
+    {
+      "id": "flow.hrOvertime.employeeProject",
+      "status": "pass",
+      "message": "Lembur QA terhubung ke master karyawan dan proyek.",
+      "detail": {
+        "sampleSize": 1
+      }
+    },
+    {
+      "id": "flow.landAnalysis.downstream",
+      "status": "pass",
+      "message": "Analisis lahan QA mengalir ke landbank dengan projectId.",
+      "detail": {
+        "sampleSize": 1
+      }
     },
     {
       "id": "ui.route./teamwork",
@@ -787,7 +844,40 @@
       "message": "Route UI /finance/ekspansi mengembalikan HTML SPA."
     }
   ],
-  "seeded": {},
+  "seeded": {
+    "admin": {
+      "id": 2,
+      "username": "qa_admin"
+    },
+    "project": {
+      "id": 1,
+      "nama": "QA-SATARA Analisis Lahan Gowa",
+      "lokasi": "Somba Opu, Gowa",
+      "provinsi": "Sulawesi Selatan",
+      "kabupaten": "Gowa",
+      "kecamatan": "Somba Opu",
+      "desa": "Paccinongang",
+      "luas": 24000,
+      "total_unit": 96,
+      "fase": "FEASIBILITY",
+      "status": "active",
+      "target_start": "2026-06-10",
+      "target_end": "2027-02-28",
+      "lat": -5.189,
+      "lng": 119.456,
+      "created_at": "2026-06-10T13:17:51.638Z",
+      "updated_at": "2026-06-10T13:17:51.638Z"
+    },
+    "landId": 1,
+    "prospectId": 1,
+    "marketId": 1,
+    "feasibilityId": 1,
+    "landbankId": 1,
+    "materialId": 1,
+    "contractId": 1,
+    "unitId": 1,
+    "employeeId": 1
+  },
   "credentials": {
     "username": "qa_admin",
     "password": "qa_admin_12345",

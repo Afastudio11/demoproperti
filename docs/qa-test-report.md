@@ -1,52 +1,94 @@
 # QA Full Test Report
 
-Generated: 2026-06-10T13:14:35.051Z
+Generated: 2026-06-10T13:24:20.375Z
 
 ## Summary
 
-- Passed: 134
+- Passed: 163
 - Failed: 0
-- Blocked: 20
+- Blocked: 0
 - Warnings: 0
 
 ## Environment
 
-- APP_BASE: `http://localhost:5173`
-- API_BASE: `http://localhost:5173/api`
-- DATABASE_URL: missing
+- APP_BASE: `http://localhost:5000`
+- API_BASE: `http://localhost:8080/api`
+- DATABASE_URL: set
 - QA admin username: `qa_admin`
 - QA admin password: `qa_admin_12345`
 
 ## Seeded Data
 
 ```json
-{}
+{
+  "admin": {
+    "id": 2,
+    "username": "qa_admin"
+  },
+  "project": {
+    "id": 1,
+    "nama": "QA-SATARA Analisis Lahan Gowa",
+    "lokasi": "Somba Opu, Gowa",
+    "provinsi": "Sulawesi Selatan",
+    "kabupaten": "Gowa",
+    "kecamatan": "Somba Opu",
+    "desa": "Paccinongang",
+    "luas": 24000,
+    "total_unit": 96,
+    "fase": "FEASIBILITY",
+    "status": "active",
+    "target_start": "2026-06-10",
+    "target_end": "2027-02-28",
+    "lat": -5.189,
+    "lng": 119.456,
+    "created_at": "2026-06-10T13:17:51.638Z",
+    "updated_at": "2026-06-10T13:17:51.638Z"
+  },
+  "landId": 1,
+  "prospectId": 1,
+  "marketId": 1,
+  "feasibilityId": 1,
+  "landbankId": 1,
+  "materialId": 1,
+  "contractId": 1,
+  "unitId": 1,
+  "employeeId": 1
+}
 ```
 
 ## Checks
 
 | Status | Check | Result |
 | --- | --- | --- |
-| blocked | db.seed | DATABASE_URL belum diset, jadi akun admin QA dan fake database belum bisa dibuat. |
-| blocked | api.health | API belum siap di http://localhost:5173/api. Status: 500. |
-| blocked | api.get./projects | Daftar proyek belum dites karena API health gagal. |
-| blocked | api.get./planning/land | Planning lahan belum dites karena API health gagal. |
-| blocked | api.get./land-prospects | Prospek lahan belum dites karena API health gagal. |
-| blocked | api.get./planning/market | Market planning belum dites karena API health gagal. |
-| blocked | api.get./planning/feasibility | Feasibility planning belum dites karena API health gagal. |
-| blocked | api.get./planning/landbank | Landbank planning belum dites karena API health gagal. |
-| blocked | api.get./produksi/subkon/master | Master subkon dari kontrak belum dites karena API health gagal. |
-| blocked | api.get./produksi/subkon/contracts | Kontrak subkon belum dites karena API health gagal. |
-| blocked | api.get./produksi/material/master | Master material belum dites karena API health gagal. |
-| blocked | api.get./produksi/material/in | Material masuk belum dites karena API health gagal. |
-| blocked | api.get./produksi/material/out | Material keluar belum dites karena API health gagal. |
-| blocked | api.get./produksi/material/stok | Stok material terhitung belum dites karena API health gagal. |
-| blocked | api.get./hr/employees | Master karyawan belum dites karena API health gagal. |
-| blocked | api.get./hr/attendance | Absensi belum dites karena API health gagal. |
-| blocked | api.get./hr/overtime | Lembur belum dites karena API health gagal. |
-| blocked | api.get./hr/culture | Culture sync dari absensi belum dites karena API health gagal. |
-| blocked | api.get./finance/cashflow | Cashflow finance belum dites karena API health gagal. |
-| blocked | api.get./dashboard/executive | Dashboard executive belum dites karena API health gagal. |
+| pass | db.connection | Database bisa diakses. |
+| pass | db.compatColumns | Kolom kompatibilitas sinkronisasi HR/material dipastikan ada. |
+| pass | db.seed.admin | Akun admin QA siap: qa_admin. |
+| pass | db.seed.qaData | Fake database QA untuk analisis lahan, material, subkon, unit, absensi, dan lembur sudah tersedia. |
+| pass | api.health | API health bisa diakses. |
+| pass | api.auth.login | Login admin QA berhasil. |
+| pass | api.get./projects | Daftar proyek OK. |
+| pass | api.get./planning/land | Planning lahan OK. |
+| pass | api.get./land-prospects | Prospek lahan OK. |
+| pass | api.get./planning/market | Market planning OK. |
+| pass | api.get./planning/feasibility | Feasibility planning OK. |
+| pass | api.get./planning/landbank | Landbank planning OK. |
+| pass | api.get./produksi/subkon/master | Master subkon dari kontrak OK. |
+| pass | api.get./produksi/subkon/contracts | Kontrak subkon OK. |
+| pass | api.get./produksi/material/master | Master material OK. |
+| pass | api.get./produksi/material/in | Material masuk OK. |
+| pass | api.get./produksi/material/out | Material keluar OK. |
+| pass | api.get./produksi/material/stok | Stok material terhitung OK. |
+| pass | api.get./hr/employees | Master karyawan OK. |
+| pass | api.get./hr/attendance | Absensi OK. |
+| pass | api.get./hr/overtime | Lembur OK. |
+| pass | api.get./hr/culture | Culture sync dari absensi OK. |
+| pass | api.get./finance/cashflow | Cashflow finance OK. |
+| pass | api.get./dashboard/summary | Dashboard executive summary OK. |
+| pass | flow.materialOut.destination | Material keluar QA terdeteksi sampai tujuan proyek, kontrak, tahap, unit, subkon, dan master material. |
+| pass | flow.materialStock.computed | Stok material QA dihitung dari material masuk minus material keluar. |
+| pass | flow.hrAttendance.employeeProject | Absensi QA terhubung ke master karyawan dan proyek. |
+| pass | flow.hrOvertime.employeeProject | Lembur QA terhubung ke master karyawan dan proyek. |
+| pass | flow.landAnalysis.downstream | Analisis lahan QA mengalir ke landbank dengan projectId. |
 | pass | ui.route./teamwork | Route UI /teamwork mengembalikan HTML SPA. |
 | pass | ui.route./executive | Route UI /executive mengembalikan HTML SPA. |
 | pass | ui.route./projects | Route UI /projects mengembalikan HTML SPA. |

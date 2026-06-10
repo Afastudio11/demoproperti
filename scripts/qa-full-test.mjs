@@ -187,7 +187,7 @@ const apiGetChecks = [
   ["/hr/overtime", "Lembur"],
   ["/hr/culture", "Culture sync dari absensi"],
   ["/finance/cashflow", "Cashflow finance"],
-  ["/dashboard/executive", "Dashboard executive"],
+  ["/dashboard/summary", "Dashboard executive summary"],
 ];
 
 const seed = {
