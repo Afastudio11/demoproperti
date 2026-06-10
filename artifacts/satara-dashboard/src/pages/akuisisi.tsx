@@ -62,6 +62,13 @@ interface CompetitorEntry {
   kabupaten?: string;
   kelurahan?: string;
   totalUnit?: number;
+  hargaMin?: number;
+  hargaMax?: number;
+  progress?: number;
+  unitTerjual?: number;
+  jarak?: number;
+  kelebihan?: string;
+  isFromDb?: boolean;
 }
 
 function normalizeKab(s: string): string {
@@ -290,12 +297,40 @@ function ProspectDetailPanel({
   const [competitorScope, setCompetitorScope] = useState<"kecamatan" | "kabupaten">(
     prospect.kecamatan ? "kecamatan" : "kabupaten"
   );
+  const [dbCompetitors, setDbCompetitors] = useState<CompetitorEntry[]>([]);
+
+  useEffect(() => {
+    fetch("/api/marketing/competitors")
+      .then(r => r.json())
+      .then((data: Array<{ id: number; namaKompetitor: string; lokasi?: string; tipeUnit?: string; totalUnit?: number; hargaMin?: number; hargaMax?: number; unitTerjual?: number; progress?: number; jarak?: number; kelebihan?: string }>) => {
+        if (!Array.isArray(data)) return;
+        setDbCompetitors(data.map(c => ({
+          name: c.namaKompetitor,
+          type: c.tipeUnit ?? "—",
+          pengembang: c.namaKompetitor,
+          kabupaten: c.lokasi,
+          totalUnit: c.totalUnit,
+          hargaMin: c.hargaMin,
+          hargaMax: c.hargaMax,
+          progress: c.progress,
+          unitTerjual: c.unitTerjual,
+          jarak: c.jarak,
+          kelebihan: c.kelebihan,
+          isFromDb: true,
+        })));
+      })
+      .catch(() => {});
+  }, []);
+
   // Selalu ambil di level kabupaten agar data kompetitor tidak kosong
-  const competitorList = (() => {
+  const staticCompetitorList = (() => {
     const byKec = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kecamatan");
     const byKab = getCompetitorsFromData(prospect.kabupaten, prospect.kecamatan, "kabupaten");
     return byKab.length > 0 ? byKab : byKec;
   })();
+
+  // Merge: DB competitors (real, entered by marketing team) first, then static regional data
+  const competitorList = [...dbCompetitors, ...staticCompetitorList];
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const surveyDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dbLoadedRef = useRef(false);
@@ -515,6 +550,19 @@ function ProspectDetailPanel({
         checklistValues: vals,
         competitors: competitorList,
         competitorsKecamatan: competitorListKecamatan,
+        // Live competitor data dari tim Marketing (dengan harga, progress, jarak nyata)
+        liveCompetitors: dbCompetitors.map(c => ({
+          nama: c.name,
+          tipe: c.type,
+          lokasi: c.kabupaten,
+          hargaMin: c.hargaMin,
+          hargaMax: c.hargaMax,
+          totalUnit: c.totalUnit,
+          unitTerjual: c.unitTerjual,
+          progress: c.progress,
+          jarak: c.jarak,
+          kelebihan: c.kelebihan,
+        })),
         portfolioComparables,
         ...(terrainData ?? {}),
       };
@@ -1323,22 +1371,50 @@ function ProspectDetailPanel({
                 return (
                   <div className="space-y-2">
                     {/* Level summary */}
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <div className="border rounded-lg px-2.5 py-2 bg-background">
-                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Kompetitor di Kecamatan</div>
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Data Live Marketing</div>
+                        <div className="flex items-end gap-1.5 mt-0.5">
+                          <span className="text-[15px] font-bold text-emerald-600">{dbCompetitors.length}</span>
+                        </div>
+                        <div className="text-[9px] text-emerald-600 font-medium">Monitor Kompetitor</div>
+                      </div>
+                      <div className="border rounded-lg px-2.5 py-2 bg-background">
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Dok. Kecamatan</div>
                         <div className="flex items-end gap-1.5 mt-0.5">
                           <span className="text-[15px] font-bold">{kecLen}</span>
                         </div>
                         <div className="text-[9px] text-muted-foreground">{prospect.kecamatan ?? "—"}</div>
                       </div>
                       <div className="border rounded-lg px-2.5 py-2 bg-background">
-                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Kompetitor di Kabupaten</div>
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Dok. Kabupaten</div>
                         <div className="flex items-end gap-1.5 mt-0.5">
                           <span className="text-[15px] font-bold">{kabLen}</span>
                         </div>
                         <div className="text-[9px] text-muted-foreground">{prospect.kabupaten ?? "—"}</div>
                       </div>
                     </div>
+                    {/* Live DB competitor quick summary */}
+                    {dbCompetitors.length > 0 && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+                        <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1.5">
+                          Kompetitor Live dari Tim Marketing
+                        </div>
+                        <div className="space-y-1">
+                          {dbCompetitors.slice(0, 5).map((c, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[10px] py-0.5 border-b border-emerald-100 last:border-0">
+                              <span className="font-medium flex-1 truncate">{c.name}</span>
+                              {c.hargaMin != null && <span className="text-foreground/70 shrink-0">Rp{(c.hargaMin/1_000_000).toFixed(0)}jt</span>}
+                              {c.progress != null && <span className={cn("shrink-0 px-1 py-0.5 rounded text-[8px] font-bold border",
+                                c.progress >= 70 ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                              )}>{c.progress}%</span>}
+                            </div>
+                          ))}
+                          {dbCompetitors.length > 5 && <div className="text-[9px] text-muted-foreground">+{dbCompetitors.length - 5} lainnya</div>}
+                        </div>
+                      </div>
+                    )}
+
                     {ak?.tingkatPersaingan && (
                       <div className={cn("border rounded-lg px-2.5 py-2 text-center",
                         ak.tingkatPersaingan === "Tinggi" ? "bg-red-50 border-red-200" :
@@ -1883,7 +1959,7 @@ function ProspectDetailPanel({
       </div>
 
       {/* ── Kompetitor ── */}
-      {prospect.kabupaten && (
+      {(prospect.kabupaten || dbCompetitors.length > 0) && (
         <div className="border-t px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
@@ -1893,6 +1969,11 @@ function ProspectDetailPanel({
                 <Database className="size-2.5" />
                 Dokumen resmi
               </span>
+              {dbCompetitors.length > 0 && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
+                  {dbCompetitors.length} live data
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-muted-foreground mr-0.5">Lingkup:</span>
@@ -1907,14 +1988,60 @@ function ProspectDetailPanel({
             </div>
           </div>
 
+          {/* DB Competitors (live data from Marketing team) */}
+          {dbCompetitors.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-500 inline-block" />
+                Data Live dari Tim Marketing ({dbCompetitors.length})
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {dbCompetitors.map((c, i) => (
+                  <div key={i} className="flex items-start gap-2 border border-emerald-200 rounded-md px-2.5 py-2 bg-emerald-50/50">
+                    <div className="size-5 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 text-[9px] font-bold text-emerald-700 mt-0.5">{i + 1}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-medium leading-tight">{c.name}</span>
+                        <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">Live</span>
+                      </div>
+                      <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{c.type}{c.kabupaten ? ` · ${c.kabupaten}` : ""}{c.jarak ? ` · ${c.jarak}km` : ""}</div>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {c.hargaMin != null && (
+                          <span className="text-[9px] font-medium text-foreground/70">
+                            Rp{(c.hargaMin / 1_000_000).toFixed(0)}jt{c.hargaMax ? `–${(c.hargaMax / 1_000_000).toFixed(0)}jt` : ""}
+                          </span>
+                        )}
+                        {c.totalUnit != null && (
+                          <span className="text-[9px] text-muted-foreground">{c.totalUnit} unit</span>
+                        )}
+                        {c.progress != null && (
+                          <span className={cn("text-[8px] font-medium px-1 py-0.5 rounded border",
+                            c.progress >= 70 ? "bg-red-50 text-red-700 border-red-200" :
+                            c.progress >= 40 ? "bg-amber-50 text-amber-700 border-amber-200" :
+                            "bg-muted text-muted-foreground border-border"
+                          )}>{c.progress}% progres</span>
+                        )}
+                      </div>
+                      {c.kelebihan && (
+                        <div className="text-[9px] text-muted-foreground mt-0.5 italic truncate" title={c.kelebihan}>{c.kelebihan}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Static regional data */}
           {(() => {
-            const sorted = [...competitorList].sort((a, b) =>
+            const sorted = [...staticCompetitorList].sort((a, b) =>
               getDistanceTier(prospect.kecamatan, prospect.kabupaten, a.kecamatan, a.kabupaten) -
               getDistanceTier(prospect.kecamatan, prospect.kabupaten, b.kecamatan, b.kabupaten)
             );
             return sorted.length > 0 ? (
               <div className="space-y-1.5">
                 <div className="text-[10px] text-muted-foreground mb-2 flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-foreground/60 uppercase tracking-wider text-[9px]">Data Dokumen Resmi</span>
                   <span><strong>{sorted.length}</strong> perumahan di{" "}{competitorScope === "kecamatan" ? `Kec. ${prospect.kecamatan}` : prospect.kabupaten}</span>
                   {sorted.length > 40 && <span className="text-amber-600 font-medium">(40 pertama)</span>}
                   <span className="text-foreground/40">— terdekat ke terjauh</span>
@@ -1952,13 +2079,13 @@ function ProspectDetailPanel({
                   })}
                 </div>
               </div>
-            ) : (
+            ) : dbCompetitors.length === 0 ? (
               <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2.5 text-center">
                 {competitorScope === "kecamatan" && !prospect.kecamatan
                   ? "Isi kecamatan di data prospek untuk filter per kecamatan"
                   : `Tidak ada perumahan terdaftar di ${competitorScope === "kecamatan" ? `Kec. ${prospect.kecamatan}` : prospect.kabupaten}`}
               </div>
-            );
+            ) : null;
           })()}
         </div>
       )}
