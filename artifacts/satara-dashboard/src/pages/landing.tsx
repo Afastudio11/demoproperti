@@ -331,63 +331,40 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ANAK PERUSAHAAN (Logo Showcase - White Section) */}
-      <section className="bg-white py-20 px-6 md:px-12 lg:px-16 border-t border-black/10">
+      {/* ANAK PERUSAHAAN (Logo Only - Animated) */}
+      <section className="bg-white py-16 px-6 md:px-12 lg:px-16 border-t border-black/10">
         <div className="container mx-auto">
-          <FadeIn duration={1000} direction="up">
-            <div className="text-center mb-12">
-              <span className="inline-block text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1 mb-4 font-display">
-                Anak Perusahaan.
-              </span>
-              <p className="text-concrete text-sm max-w-xl mx-auto">
-                Unit bisnis operasional yang menjalankan pilar-pilar ekosistem Satara Group secara mandiri dan terukur.
-              </p>
-            </div>
-
-            <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-16 lg:gap-24">
-              {/* Roemah Warga */}
-              <div className="flex flex-col items-center gap-3 group">
-                <div className="h-16 flex items-center justify-center">
-                  <img
-                    src="/logo-roemah-warga.png"
-                    alt="Roemah Warga"
-                    className="h-14 w-auto object-contain mix-blend-multiply opacity-80 group-hover:opacity-100 transition-opacity duration-300"
-                  />
-                </div>
-                <span className="text-[10px] font-semibold text-concrete uppercase tracking-widest">Properti Komunitas</span>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-28">
+            <FadeIn delay={0} duration={800} direction="up">
+              <div className="group cursor-default">
+                <img
+                  src="/logo-roemah-warga.png"
+                  alt="Roemah Warga"
+                  className="h-12 w-auto object-contain mix-blend-multiply opacity-50 group-hover:opacity-90 transition-all duration-500 group-hover:scale-105"
+                />
               </div>
+            </FadeIn>
 
-              {/* Divider */}
-              <div className="hidden md:block w-px h-12 bg-black/10"></div>
-
-              {/* Sekala */}
-              <div className="flex flex-col items-center gap-3 group">
-                <div className="h-16 flex items-center justify-center">
-                  <img
-                    src="/logo-sekala.png"
-                    alt="Sekala"
-                    className="h-12 w-auto object-contain mix-blend-multiply opacity-80 group-hover:opacity-100 transition-opacity duration-300"
-                  />
-                </div>
-                <span className="text-[10px] font-semibold text-concrete uppercase tracking-widest">Fashion &amp; Kreatif</span>
+            <FadeIn delay={200} duration={800} direction="up">
+              <div className="group cursor-default">
+                <img
+                  src="/logo-sekala.png"
+                  alt="Sekala"
+                  className="h-10 w-auto object-contain mix-blend-multiply opacity-50 group-hover:opacity-90 transition-all duration-500 group-hover:scale-105"
+                />
               </div>
+            </FadeIn>
 
-              {/* Divider */}
-              <div className="hidden md:block w-px h-12 bg-black/10"></div>
-
-              {/* SN Residence Bantaeng */}
-              <div className="flex flex-col items-center gap-3 group">
-                <div className="h-16 flex items-center justify-center">
-                  <img
-                    src="/logo-sn-residence.png"
-                    alt="SN Residence Bantaeng"
-                    className="h-14 w-auto object-contain mix-blend-multiply opacity-80 group-hover:opacity-100 transition-opacity duration-300"
-                  />
-                </div>
-                <span className="text-[10px] font-semibold text-concrete uppercase tracking-widest">Residensial Premium</span>
+            <FadeIn delay={400} duration={800} direction="up">
+              <div className="group cursor-default">
+                <img
+                  src="/logo-sn-residence.png"
+                  alt="SN Residence Bantaeng"
+                  className="h-12 w-auto object-contain mix-blend-multiply opacity-50 group-hover:opacity-90 transition-all duration-500 group-hover:scale-105"
+                />
               </div>
-            </div>
-          </FadeIn>
+            </FadeIn>
+          </div>
         </div>
       </section>
 
