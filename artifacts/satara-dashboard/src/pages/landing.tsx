@@ -1,1371 +1,896 @@
-import { useState } from "react";
-import { Link } from "wouter";
-import { useAuth } from "@/contexts/auth-context";
+import { useState } from 'react';
+import { Link } from 'wouter';
+import { useAuth } from '@/contexts/auth-context';
+import { AnimatedHeading } from '../components/AnimatedHeading';
+import { FadeIn } from '../components/FadeIn';
 
 const landingCSS = `
-  /* Reset & CSS Variable Definition */
-  .landing-body * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-
+  /* Reset & Custom Styles inside landing-body */
   .landing-body {
-    font-family: 'Inter', sans-serif;
-    background-color: #ffffff;
-    color: #4a4a4a;
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-    width: 100%;
-    min-height: 100vh;
-  }
-
-  /* Typography Utilities */
-  .landing-body h1, 
-  .landing-body h2, 
-  .landing-body h3, 
-  .landing-body h4, 
-  .landing-body h5, 
-  .landing-body h6 {
-    font-family: 'Playfair Display', serif;
-    color: #333333;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-
-  .landing-body p {
-    font-family: 'Inter', sans-serif;
-    color: #4a4a4a;
-  }
-
-  /* Section & Container Rules */
-  .landing-body .container {
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 24px;
-  }
-
-  /* Alternating Background Sections */
-  .landing-body section {
-    padding: 48px 0; /* Mobile spacing vertical */
-  }
-
-  .landing-body section.bg-putih {
-    background-color: #ffffff;
-  }
-
-  .landing-body section.bg-stone {
-    background-color: #f0f0f0;
-  }
-
-  /* Desktop Spacing override */
-  @media (min-width: 768px) {
-    .landing-body section {
-      padding: 80px 0;
-    }
-  }
-
-  /* Badges & Tags */
-  .landing-body .badge {
-    display: inline-block;
-    background-color: #5e6a55;
-    color: #ffffff;
-    font-family: 'Inter', sans-serif;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 6px 12px;
-    border-radius: 4px; /* Tag/badge border-radius */
-    margin-bottom: 16px;
-  }
-
-  /* Buttons */
-  .landing-body .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-    padding: 12px 24px;
-    border-radius: 4px; /* Tombol border-radius */
-    transition: all 0.3s ease;
-    cursor: pointer;
-    text-align: center;
-  }
-
-  .landing-body .btn-wood {
-    background-color: #8f513a;
-    color: #ffffff;
-    border: 1px solid #8f513a;
-  }
-
-  .landing-body .btn-wood:hover {
-    background-color: #333333;
-    border-color: #333333;
-  }
-
-  .landing-body .btn-outline {
-    background-color: transparent;
-    color: #333333;
-    border: 1px solid #333333;
-  }
-
-  .landing-body .btn-outline:hover {
-    background-color: #333333;
-    color: #ffffff;
-  }
-
-  /* Cards generic */
-  .landing-body .card {
-    background-color: #ffffff;
-    border: 1px solid #f0f0f0;
-    border-radius: 12px; /* Card border-radius */
-    padding: 24px;
-    transition: all 0.3s ease;
-  }
-
-  .landing-body .card:hover {
-    transform: translateY(-4px);
-    border-color: #8e8e8e;
-  }
-
-  /* Header & Navigation */
-  .landing-body header {
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    background-color: #ffffff;
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .landing-body .nav-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 80px;
-  }
-
-  .landing-body .logo {
-    font-family: 'Playfair Display', serif;
-    font-size: 22px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: #333333;
-    text-decoration: none;
-  }
-
-  .landing-body .nav-menu {
-    display: none;
-  }
-
-  .landing-body .nav-cta {
-    display: none;
-  }
-
-  /* Mobile Menu Toggle Button */
-  .landing-body .menu-toggle {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    width: 24px;
-    height: 18px;
-    background: none;
-    border: none;
-    cursor: pointer;
-  }
-
-  .landing-body .menu-toggle span {
-    display: block;
-    width: 100%;
-    height: 2px;
-    background-color: #333333;
-    transition: all 0.3s ease;
-  }
-
-  /* Mobile active navigation container */
-  .landing-body .nav-menu.mobile-menu-active {
-    display: flex;
-    flex-direction: column;
-    position: absolute;
-    top: 80px;
-    left: 0;
-    width: 100%;
-    background-color: #ffffff;
-    border-bottom: 1px solid #f0f0f0;
-    padding: 24px;
-    gap: 16px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-  }
-
-  /* Desktop Navigation Style overrides */
-  @media (min-width: 768px) {
-    .landing-body .menu-toggle {
-      display: none;
-    }
-
-    .landing-body .nav-menu {
-      display: flex;
-      gap: 32px;
-    }
-
-    .landing-body .nav-link {
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      color: #333333;
-      text-decoration: none;
-      transition: color 0.2s ease;
-    }
-
-    .landing-body .nav-link:hover {
-      color: #8f513a;
-    }
-
-    .landing-body .nav-cta {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-  }
-
-  /* Hero Section CSS */
-  .landing-body .hero-wrapper {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 40px;
-    align-items: center;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .hero-wrapper {
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 64px;
-    }
-  }
-
-  .landing-body .hero-content h1 {
-    font-size: 32px;
-    margin-bottom: 24px;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .hero-content h1 {
-      font-size: 48px;
-      max-width: 580px;
-    }
-  }
-
-  .landing-body .hero-content p {
-    font-size: 16px;
-    margin-bottom: 32px;
-    color: #4a4a4a;
-  }
-
-  .landing-body .hero-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    margin-bottom: 40px;
-  }
-
-  .landing-body .hero-illustration {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: #f0f0f0;
-    border-radius: 12px;
-    padding: 32px;
-    border: 1px solid rgba(142, 142, 142, 0.2);
-  }
-
-  .landing-body .stats-container {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .stats-container {
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-  }
-
-  .landing-body .stat-card {
-    background-color: #f0f0f0;
-    border-radius: 12px;
-    padding: 24px;
-    border: 1px solid rgba(142, 142, 142, 0.2);
-  }
-
-  .landing-body .stat-val {
-    font-family: 'Playfair Display', serif;
-    font-size: 36px;
-    color: #8f513a;
-    font-weight: 700;
-    line-height: 1;
-    margin-bottom: 8px;
-  }
-
-  .landing-body .stat-lbl {
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    color: #4a4a4a;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  /* Visi & Filosofi CSS */
-  .landing-body .section-header {
-    max-width: 650px;
-    margin-bottom: 48px;
-  }
-
-  .landing-body .section-header h2 {
-    font-size: 28px;
-    margin-bottom: 16px;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .section-header h2 {
-      font-size: 36px;
-    }
-  }
-
-  .landing-body .section-header p {
-    color: #8e8e8e;
-    font-size: 16px;
-  }
-
-  .landing-body .vision-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .vision-grid {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-
-  .landing-body .vision-card {
-    background-color: #ffffff;
-    border: 1px solid rgba(142, 142, 142, 0.3);
-    border-radius: 12px;
-    padding: 32px;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  .landing-body .vision-card h3 {
-    font-size: 20px;
-    margin-bottom: 16px;
-    margin-top: 8px;
-  }
-
-  .landing-body .vision-card p {
-    font-size: 14px;
-    color: #4a4a4a;
-    flex-grow: 1;
-  }
-
-  /* Ekosistem Bisnis CSS */
-  .landing-body .ekosistem-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 32px;
-    margin-bottom: 40px;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .ekosistem-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  .landing-body .ekosistem-card {
-    background-color: #ffffff;
-    border: 1px solid rgba(142, 142, 142, 0.3);
-    border-radius: 12px;
-    padding: 32px;
-  }
-
-  .landing-body .ekosistem-card h3 {
-    font-size: 24px;
-    margin-top: 8px;
-    margin-bottom: 16px;
-  }
-
-  .landing-body .ekosistem-entities {
-    list-style: none;
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid #f0f0f0;
-  }
-
-  .landing-body .ekosistem-entities li {
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    margin-bottom: 12px;
-    padding-left: 20px;
     position: relative;
-  }
-
-  .landing-body .ekosistem-entities li::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 9px;
-    width: 6px;
-    height: 6px;
-    background-color: #8f513a;
-    border-radius: 50%;
-  }
-
-  .landing-body .expansion-card {
-    background-color: #f0f0f0;
-    border-radius: 8px; /* Component border-radius */
-    padding: 24px;
-    border: 1px solid rgba(142, 142, 142, 0.2);
-  }
-
-  .landing-body .expansion-card h4 {
-    font-family: 'Playfair Display', serif;
-    font-size: 18px;
-    margin-bottom: 12px;
-  }
-
-  .landing-body .expansion-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .landing-body .expansion-tag {
+    min-height: 100vh;
     background-color: #ffffff;
-    color: #333333;
+    color: #000000;
     font-family: 'Inter', sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 8px 16px;
-    border-radius: 4px; /* Tag/badge border-radius */
-    border: 1px solid rgba(142, 142, 142, 0.3);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Portofolio Properti CSS */
-  .landing-body .portfolio-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 24px;
+  .landing-body .font-display {
+    font-family: 'Montserrat', sans-serif;
   }
 
-  @media (min-width: 768px) {
-    .landing-body .portfolio-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
+  .landing-body .text-concrete {
+    color: #666666;
   }
 
-  .landing-body .portfolio-card {
-    display: flex;
-    flex-direction: column;
-    background-color: #ffffff;
-    border: 1px solid rgba(142, 142, 142, 0.3);
-    border-radius: 12px;
+  .landing-body .bg-stone {
+    background-color: #f5f5f5;
+  }
+
+  /* Custom Liquid Glass Glassmorphism Class */
+  .landing-body .liquid-glass {
+    background: rgba(0, 0, 0, 0.4);
+    background-blend-mode: luminosity;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: none;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    position: relative;
     overflow: hidden;
   }
 
-  .landing-body .portfolio-visual {
-    background-color: #f0f0f0;
-    height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .landing-body .portfolio-info {
-    padding: 32px;
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-  }
-
-  .landing-body .portfolio-info h3 {
-    font-size: 22px;
-    margin-top: 8px;
-    margin-bottom: 16px;
-  }
-
-  .landing-body .portfolio-info p {
-    font-size: 14px;
-    color: #4a4a4a;
-    margin-bottom: 24px;
-    flex-grow: 1;
-  }
-
-  /* Framework Pengembangan Proyek CSS (Timeline) */
-  .landing-body .timeline-container {
-    position: relative;
-    margin: 40px auto 0 auto;
-    padding-left: 32px;
-  }
-
-  .landing-body .timeline-container::before {
-    content: "";
+  .landing-body .liquid-glass::before {
+    content: '';
     position: absolute;
-    top: 0;
-    left: 7px;
-    bottom: 0;
-    width: 2px;
-    background-color: #f0f0f0;
-  }
-
-  .landing-body .timeline-step {
-    position: relative;
-    margin-bottom: 40px;
-  }
-
-  .landing-body .timeline-step:last-child {
-    margin-bottom: 0;
-  }
-
-  .landing-body .timeline-node {
-    position: absolute;
-    left: -32px;
-    top: 4px;
-    width: 16px;
-    height: 16px;
-    background-color: #ffffff;
-    border: 3px solid #8f513a;
-    border-radius: 50%;
-    z-index: 2;
-  }
-
-  .landing-body .timeline-content {
-    background-color: #ffffff;
-    border: 1px solid #f0f0f0;
-    border-radius: 8px; /* Component border-radius */
-    padding: 20px;
-    transition: all 0.3s ease;
-  }
-
-  .landing-body .timeline-content:hover {
-    border-color: #8f513a;
-    transform: translateX(4px);
-  }
-
-  .landing-body .timeline-num {
-    font-family: 'Playfair Display', serif;
-    font-size: 13px;
-    font-weight: 700;
-    color: #8f513a;
-    margin-bottom: 4px;
-  }
-
-  .landing-body .timeline-content h3 {
-    font-size: 18px;
-    margin-bottom: 8px;
-  }
-
-  .landing-body .timeline-content p {
-    font-size: 14px;
-    color: #4a4a4a;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .timeline-container {
-      padding-left: 0;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 24px;
-    }
-
-    .landing-body .timeline-container::before {
-      display: none;
-    }
-
-    .landing-body .timeline-step {
-      margin-bottom: 0;
-    }
-
-    .landing-body .timeline-node {
-      position: relative;
-      left: 0;
-      top: 0;
-      margin-bottom: 16px;
-    }
-
-    .landing-body .timeline-content {
-      border-top: 3px solid #f0f0f0;
-      border-radius: 8px;
-      height: calc(100% - 32px);
-    }
-
-    .landing-body .timeline-content:hover {
-      border-color: #8f513a;
-      transform: translateY(-4px);
-    }
-  }
-
-  /* Struktur Organisasi Holding CSS */
-  .landing-body .structure-wrapper {
-    background-color: #ffffff;
-    border: 1px solid rgba(142, 142, 142, 0.3);
-    border-radius: 12px;
-    padding: 32px;
-  }
-
-  .landing-body .structure-info {
-    text-align: center;
-    max-width: 700px;
-    margin: 0 auto 40px auto;
-  }
-
-  .landing-body .structure-info p {
-    font-size: 14px;
-    color: #4a4a4a;
-  }
-
-  .landing-body .structure-chart {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 32px;
-  }
-
-  .landing-body .chart-node {
-    background-color: #f0f0f0;
-    border: 1px solid rgba(142, 142, 142, 0.3);
-    border-radius: 8px;
-    padding: 20px;
-    width: 100%;
-    max-width: 280px;
-    text-align: center;
-  }
-
-  .landing-body .chart-node.ceo {
-    background-color: #ffffff;
-    border: 2px solid #8f513a;
-  }
-
-  .landing-body .node-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 16px;
-    font-weight: 700;
-    color: #333333;
-    margin-bottom: 4px;
-  }
-
-  .landing-body .node-name {
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    color: #4a4a4a;
-  }
-
-  .landing-body .chart-children {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-    width: 100%;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .chart-children {
-      grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
-    }
-  }
-
-  /* Sistem Reporting & Kontrol CSS */
-  .landing-body .control-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .control-grid {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-
-  .landing-body .control-card {
-    background-color: #f0f0f0;
-    border: 1px solid rgba(142, 142, 142, 0.2);
-    border-radius: 12px;
-    padding: 32px;
-    transition: all 0.3s ease;
-  }
-
-  .landing-body .control-card:hover {
-    border-color: #8f513a;
-  }
-
-  .landing-body .control-card h3 {
-    font-size: 20px;
-    margin-bottom: 12px;
-  }
-
-  .landing-body .control-card p {
-    font-size: 14px;
-    color: #4a4a4a;
-  }
-
-  /* Roadmap Pertumbuhan CSS */
-  .landing-body .roadmap-container {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .roadmap-container {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-
-  .landing-body .roadmap-card {
-    background-color: #ffffff;
-    border: 1px solid rgba(142, 142, 142, 0.3);
-    border-radius: 12px;
-    padding: 32px;
-    position: relative;
-  }
-
-  .landing-body .roadmap-phase {
-    font-family: 'Playfair Display', serif;
-    font-size: 13px;
-    font-weight: 700;
-    color: #8f513a;
-    margin-bottom: 8px;
-  }
-
-  .landing-body .roadmap-card h3 {
-    font-size: 20px;
-    margin-bottom: 16px;
-  }
-
-  .landing-body .roadmap-card p {
-    font-size: 14px;
-    color: #4a4a4a;
-  }
-
-  /* CTA Penutup CSS */
-  .landing-body .cta-card {
-    background-color: #f0f0f0;
-    border-radius: 12px;
-    padding: 40px 24px;
-    text-align: center;
-    border: 1px solid rgba(142, 142, 142, 0.2);
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .cta-card {
-      padding: 64px 48px;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-  }
-
-  .landing-body .cta-card h2 {
-    font-size: 28px;
-    margin-bottom: 16px;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .cta-card h2 {
-      font-size: 36px;
-    }
-  }
-
-  .landing-body .cta-card p {
-    font-size: 16px;
-    color: #4a4a4a;
-    max-width: 600px;
-    margin: 0 auto 32px auto;
-  }
-
-  .landing-body .cta-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 16px;
-  }
-
-  /* Footer CSS */
-  .landing-body footer {
-    background-color: #333333;
-    color: #8e8e8e;
-    padding: 40px 0;
-    border-top: 1px solid #333333;
-  }
-
-  .landing-body .footer-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    text-align: center;
-  }
-
-  @media (min-width: 768px) {
-    .landing-body .footer-container {
-      flex-direction: row;
-      justify-content: space-between;
-      text-align: left;
-    }
-  }
-
-  .landing-body .footer-logo {
-    font-family: 'Playfair Display', serif;
-    font-weight: 700;
-    font-size: 18px;
-    color: #ffffff;
-    letter-spacing: 0.5px;
-  }
-
-  .landing-body .footer-info {
-    font-size: 13px;
-    font-family: 'Inter', sans-serif;
-  }
-
-  .landing-body .footer-copy {
-    font-size: 12px;
-    color: #8e8e8e;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.4px;
+    background: linear-gradient(180deg,
+      rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 20%,
+      rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%,
+      rgba(255,255,255,0.1) 80%, rgba(255,255,255,0.3) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 `;
 
 export default function LandingPage() {
   const { user } = useAuth();
-  const [menuActive, setMenuActive] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  function toggleMenu() {
-    setMenuActive(!menuActive);
-  }
+  // Smooth scroll handler for anchor links
+  const handleScroll = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault();
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setMobileMenuOpen(false);
+  };
 
   return (
     <div className="landing-body">
       <style dangerouslySetInnerHTML={{ __html: landingCSS }} />
+      
+      {/* 1. NAVIGASI (Floating Liquid Glass Header) */}
+      <header className="fixed top-0 left-0 w-full z-50 px-6 md:px-12 lg:px-16 pt-6 pointer-events-none">
+        <div className="container mx-auto">
+          <div className="liquid-glass border border-white/20 rounded-xl px-6 py-3 flex items-center justify-between pointer-events-auto">
+            {/* Logo */}
+            <a href="#" className="flex items-center gap-3.5 text-2xl font-bold tracking-tight text-white font-display">
+              <img src="/logo.png" className="h-7 w-auto shrink-0" alt="Satara Group Logo" />
+              <span>SATARA GROUP</span>
+            </a>
 
-      {/* 1. NAVIGASI */}
-      <header>
-        <div className="container nav-container">
-          <a href="#" className="logo">SATARA GROUP</a>
-          
-          <nav className={`nav-menu ${menuActive ? "mobile-menu-active" : ""}`} id="navMenu">
-            <a href="#ekosistem" className="nav-link" onClick={() => setMenuActive(false)}>Ekosistem</a>
-            <a href="#proyek" className="nav-link" onClick={() => setMenuActive(false)}>Proyek</a>
-            <a href="#struktur" className="nav-link" onClick={() => setMenuActive(false)}>Struktur</a>
-            <a href="#roadmap" className="nav-link" onClick={() => setMenuActive(false)}>Roadmap</a>
-            {/* Nav link visible only on mobile inside toggle menu */}
-            {menuActive && (
-              user ? (
-                <Link href="/dashboard" className="nav-link" onClick={() => setMenuActive(false)}>Dashboard</Link>
+            {/* Desktop Menu */}
+            <nav className="hidden md:flex items-center gap-8">
+              <a
+                href="#ekosistem"
+                onClick={(e) => handleScroll(e, 'ekosistem')}
+                className="text-sm font-normal text-white/90 hover:text-white hover:scale-105 transition-all duration-200"
+              >
+                Ekosistem
+              </a>
+              <a
+                href="#proyek"
+                onClick={(e) => handleScroll(e, 'proyek')}
+                className="text-sm font-normal text-white/90 hover:text-white hover:scale-105 transition-all duration-200"
+              >
+                Proyek
+              </a>
+              <a
+                href="#struktur"
+                onClick={(e) => handleScroll(e, 'struktur')}
+                className="text-sm font-normal text-white/90 hover:text-white hover:scale-105 transition-all duration-200"
+              >
+                Struktur
+              </a>
+              <a
+                href="#roadmap"
+                onClick={(e) => handleScroll(e, 'roadmap')}
+                className="text-sm font-normal text-white/90 hover:text-white hover:scale-105 transition-all duration-200"
+              >
+                Roadmap
+              </a>
+            </nav>
+
+            {/* Desktop CTA */}
+            <div className="hidden md:flex items-center gap-3">
+              {user ? (
+                <Link
+                  href="/dashboard"
+                  className="bg-white text-black hover:bg-transparent hover:text-white border border-white/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm font-display"
+                >
+                  Dashboard
+                </Link>
               ) : (
-                <Link href="/dashboard" className="nav-link" onClick={() => setMenuActive(false)}>Masuk</Link>
-              )
-            )}
-          </nav>
+                <Link
+                  href="/dashboard"
+                  className="bg-white text-black hover:bg-transparent hover:text-white border border-white/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm font-display"
+                >
+                  Masuk
+                </Link>
+              )}
+              <a
+                href="#hubungi"
+                onClick={(e) => handleScroll(e, 'hubungi')}
+                className="text-white hover:bg-white/10 border border-white/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm font-display"
+              >
+                Hubungi Kami
+              </a>
+            </div>
 
-          <div className="nav-cta">
-            {user ? (
-              <Link href="/dashboard" className="btn btn-outline">Dashboard</Link>
-            ) : (
-              <Link href="/dashboard" className="btn btn-outline">Masuk</Link>
-            )}
-            <a href="#hubungi" className="btn btn-wood">Hubungi Kami</a>
+            {/* Mobile Burger Menu Toggle */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden flex flex-col justify-between w-6 h-4 bg-transparent border-none cursor-pointer focus:outline-none"
+              aria-label="Toggle Menu"
+            >
+              <span className={`block w-full h-[2px] bg-white transition-transform duration-300 ${mobileMenuOpen ? 'rotate-45 translate-y-[7px]' : ''}`}></span>
+              <span className={`block w-full h-[2px] bg-white transition-opacity duration-200 ${mobileMenuOpen ? 'opacity-0' : 'opacity-100'}`}></span>
+              <span className={`block w-full h-[2px] bg-white transition-transform duration-300 ${mobileMenuOpen ? '-rotate-45 -translate-y-[7px]' : ''}`}></span>
+            </button>
           </div>
 
-          <button className="menu-toggle" id="menuToggle" aria-label="Toggle Menu" onClick={toggleMenu}>
-            <span style={menuActive ? { transform: "rotate(45deg) translate(5px, 5px)" } : undefined}></span>
-            <span style={menuActive ? { opacity: "0" } : undefined}></span>
-            <span style={menuActive ? { transform: "rotate(-45deg) translate(5px, -5px)" } : undefined}></span>
-          </button>
+          {/* Mobile Menu Dropdown */}
+          {mobileMenuOpen && (
+            <div className="md:hidden mt-2 liquid-glass border border-white/20 rounded-xl p-6 flex flex-col gap-4 pointer-events-auto">
+              <a
+                href="#ekosistem"
+                onClick={(e) => handleScroll(e, 'ekosistem')}
+                className="text-sm font-medium text-white/90 hover:text-white py-1"
+              >
+                Ekosistem
+              </a>
+              <a
+                href="#proyek"
+                onClick={(e) => handleScroll(e, 'proyek')}
+                className="text-sm font-medium text-white/90 hover:text-white py-1"
+              >
+                Proyek
+              </a>
+              <a
+                href="#struktur"
+                onClick={(e) => handleScroll(e, 'struktur')}
+                className="text-sm font-medium text-white/90 hover:text-white py-1"
+              >
+                Struktur
+              </a>
+              <a
+                href="#roadmap"
+                onClick={(e) => handleScroll(e, 'roadmap')}
+                className="text-sm font-medium text-white/90 hover:text-white py-1"
+              >
+                Roadmap
+              </a>
+              {user ? (
+                <Link
+                  href="/dashboard"
+                  className="bg-white text-black text-center py-2.5 rounded-lg text-sm font-medium hover:bg-transparent hover:text-white border border-white/20 transition-all duration-300 mt-2 font-display"
+                >
+                  Dashboard
+                </Link>
+              ) : (
+                <Link
+                  href="/dashboard"
+                  className="bg-white text-black text-center py-2.5 rounded-lg text-sm font-medium hover:bg-transparent hover:text-white border border-white/20 transition-all duration-300 mt-2 font-display"
+                >
+                  Masuk
+                </Link>
+              )}
+              <a
+                href="#hubungi"
+                onClick={(e) => handleScroll(e, 'hubungi')}
+                className="border border-white/20 text-white text-center py-2.5 rounded-lg text-sm font-medium hover:bg-white hover:text-black transition-all duration-300 font-display"
+              >
+                Hubungi Kami
+              </a>
+            </div>
+          )}
         </div>
       </header>
 
       {/* 2. HERO SECTION */}
-      <section className="bg-putih">
-        <div className="container">
-          <div className="hero-wrapper">
-            <div className="hero-content">
-              <h1>Membangun Ekosistem Bisnis yang Bertumbuh di Atas Aset Nyata</h1>
-              <p>Satara Group mengintegrasikan pengembangan properti strategis dan industri kreatif fashion untuk menghasilkan pertumbuhan modal berkelanjutan. Melalui tata kelola holding yang disiplin, kami mentransformasikan aset fisik menjadi ekosistem bisnis yang menghasilkan arus kas berulang dan nilai jangka panjang.</p>
-              <div className="hero-actions">
-                <a href="#proyek" className="btn btn-wood">Jelajahi Proyek</a>
-                <a href="#hubungi" className="btn btn-outline">Unduh Company Profile</a>
-              </div>
-            </div>
+      <section className="relative min-h-screen flex flex-col justify-end overflow-hidden bg-black text-white px-6 md:px-12 lg:px-16 pb-12 lg:pb-16 pt-32">
+        {/* Video Background */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover z-0"
+          style={{
+            transform: 'translate3d(0, 0, 0)',
+            backfaceVisibility: 'hidden',
+            perspective: 1000,
+            willChange: 'transform'
+          }}
+          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260403_050628_c4e32401-fab4-4a27-b7a8-6e9291cd5959.mp4"
+        />
+
+        {/* Hero Left-aligned Bottom Container */}
+        <div className="relative z-10 container mx-auto">
+          <div className="max-w-6xl w-full flex flex-col items-start justify-end">
+            <AnimatedHeading
+              text={"Membangun Ekosistem\nBisnis di Atas Aset Nyata."}
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold font-display mb-6 tracking-tight text-white"
+            />
             
-            <div className="hero-illustration">
-              <svg width="100%" height="320" viewBox="0 0 400 320" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ maxWidth: "100%" }}>
-                {/* Grid background lines */}
-                <path d="M 0,40 L 400,40 M 0,80 L 400,80 M 0,120 L 400,120 M 0,160 L 400,160 M 0,200 L 400,200 M 0,240 L 400,240 M 0,280 L 400,280" stroke="#ffffff" strokeWidth="1" />
-                <path d="M 40,0 L 40,320 M 80,0 L 80,320 M 120,0 L 120,320 M 160,0 L 160,320 M 200,0 L 200,320 M 240,0 L 240,320 M 280,0 L 280,320 M 320,0 L 320,320 M 360,0 L 360,320" stroke="#ffffff" strokeWidth="1" />
-                
-                {/* Isometric architectural/fashion blocks */}
-                <rect x="70" y="100" width="120" height="150" rx="8" stroke="#333333" strokeWidth="2" fill="#ffffff" />
-                <rect x="130" y="60" width="140" height="190" rx="8" stroke="#5e6a55" strokeWidth="2" fill="#ffffff" fillOpacity="0.95" />
-                <rect x="210" y="140" width="100" height="110" rx="8" stroke="#8f513a" strokeWidth="2" fill="#ffffff" fillOpacity="0.95" />
-                
-                {/* Curve flow line representing fashion */}
-                <path d="M 40,210 C 120,170 200,270 360,150" stroke="#8f513a" strokeWidth="3" strokeLinecap="round" />
-                <path d="M 50,230 C 130,190 210,290 370,170" stroke="#8e8e8e" strokeWidth="1.5" strokeDasharray="4 4" />
-                
-                {/* Window details */}
-                <line x1="90" y1="130" x2="160" y2="130" stroke="#8e8e8e" strokeWidth="1.5" />
-                <line x1="90" y1="160" x2="160" y2="160" stroke="#8e8e8e" strokeWidth="1.5" />
-                <line x1="90" y1="190" x2="160" y2="190" stroke="#8e8e8e" strokeWidth="1.5" />
-                
-                <line x1="150" y1="90" x2="250" y2="90" stroke="#8e8e8e" strokeWidth="1.5" />
-                <line x1="150" y1="120" x2="250" y2="120" stroke="#8e8e8e" strokeWidth="1.5" />
-                <line x1="150" y1="150" x2="250" y2="150" stroke="#8e8e8e" strokeWidth="1.5" />
-                
-                {/* Focal points */}
-                <circle cx="270" cy="100" r="16" stroke="#8f513a" strokeWidth="1.5" strokeDasharray="2 2" />
-                <circle cx="270" cy="100" r="4" fill="#8f513a" />
-              </svg>
-            </div>
-          </div>
-          
-          {/* Key Statistics Horizontal Grid */}
-          <div className="stats-container">
-            <div className="stat-card">
-              <div className="stat-val">24</div>
-              <div className="stat-lbl">Kabupaten Target Ekspansi Sulawesi Selatan</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-val">±34%</div>
-              <div className="stat-lbl">Target Rasio Profitabilitas Margin Developer</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-val">1.000</div>
-              <div className="stat-lbl">Target Unit per Tahun pada Fase Jangka Menengah</div>
-            </div>
+            <FadeIn delay={800} duration={1000}>
+              <p className="text-base md:text-lg text-gray-300 mb-8 max-w-2xl leading-relaxed">
+                Satara Group mengintegrasikan pengembangan properti strategis dan industri kreatif fashion untuk menghasilkan pertumbuhan modal berkelanjutan. Melalui tata kelola holding yang disiplin, kami mentransformasikan aset fisik menjadi ekosistem bisnis yang menghasilkan arus kas berulang.
+              </p>
+            </FadeIn>
+
+            <FadeIn delay={1200} duration={1000}>
+              <div className="flex flex-wrap gap-4">
+                <a
+                  href="#proyek"
+                  onClick={(e) => handleScroll(e, 'proyek')}
+                  className="bg-white text-black px-8 py-3.5 rounded-lg font-medium hover:bg-transparent hover:text-white border border-white/20 transition-all duration-300 shadow-md font-display"
+                >
+                  Jelajahi Proyek
+                </a>
+              </div>
+            </FadeIn>
           </div>
         </div>
       </section>
 
-      {/* 3. VISI & FILOSOFI */}
-      <section className="bg-stone" id="filosofi">
-        <div className="container">
-          <div className="section-header">
-            <span className="badge">Visi dan Filosofi</span>
-            <h2>Landasan Fundamental Operasional Kami</h2>
-            <p>Prinsip bisnis jangka panjang yang menyeimbangkan antara ekspansi agresif dengan kehati-hatian finansial.</p>
-          </div>
-
-          <div className="vision-grid">
-            {/* Kartu 1: Vision Statement */}
-            <div className="vision-card">
-              <span className="badge" style={{ alignSelf: "flex-start" }}>Pilar Utama</span>
-              <h3>Vision Statement</h3>
-              <p>Menjadi holding company terkemuka yang membangun ekosistem bisnis terintegrasi melalui pilar properti, fashion, dan manajemen aset guna menghasilkan pendapatan berulang (recurring income) yang kokoh dan berkelanjutan.</p>
-            </div>
-
-            {/* Kartu 2: Core Philosophy */}
-            <div className="vision-card">
-              <span className="badge" style={{ alignSelf: "flex-start" }}>Metodologi</span>
-              <h3>Core Philosophy</h3>
-              <p>Pembangunan berkelanjutan (sustainable development) didukung oleh efisiensi modal yang disiplin dan mitigasi risiko yang ketat pada setiap tahap akuisisi serta pengembangan aset.</p>
-            </div>
-
-            {/* Kartu 3: Corporate Values */}
-            <div className="vision-card">
-              <span className="badge" style={{ alignSelf: "flex-start" }}>Kriteria Utama</span>
-              <h3>Corporate Values</h3>
-              <p>Membangun bisnis yang scalable (dapat ditingkatkan), systemized (terstandardisasi dengan SOP ketat), dan integrated (saling mendukung dalam ekosistem Satara Group) untuk menjamin keberlanjutan usaha jangka panjang.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. EKOSISTEM BISNIS */}
-      <section className="bg-putih" id="ekosistem">
-        <div className="container">
-          <div className="section-header">
-            <span className="badge">Struktur Bisnis</span>
-            <h2>Ekosistem Dua Pilar Satara Group</h2>
-            <p>Sinergi strategis antara infrastruktur fisik dan industri kreatif untuk mengoptimalkan potensi pasar.</p>
-          </div>
-
-          <div className="ekosistem-grid">
-            {/* Satara Development */}
-            <div className="ekosistem-card">
-              <span className="badge">Property Pilar</span>
-              <h3>Satara Development</h3>
-              <p>Pilar utama pengembangan properti yang berfokus pada penyediaan hunian berkualitas tinggi, kawasan komersial terpadu, dan pengelolaan aset strategis di Sulawesi Selatan.</p>
-              <ul className="ekosistem-entities">
-                <li>PT Berkah Bintang Pratama</li>
-                <li>PT Satara Property</li>
-              </ul>
-            </div>
-
-            {/* Satara Fashion */}
-            <div className="ekosistem-card">
-              <span className="badge">Creative Pilar</span>
-              <h3>Satara Fashion</h3>
-              <p>Divisi industri kreatif yang bergerak di bidang retail fashion modern dengan pendekatan desain kontemporer dan sistem distribusi berbasis teknologi.</p>
-              <ul className="ekosistem-entities">
-                <li>Sekala</li>
-                <li>Senada</li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Future Expansion */}
-          <div className="expansion-card">
-            <h4>Future Expansion</h4>
-            <p style={{ fontSize: "14px", marginBottom: "16px" }}>Jalur pertumbuhan masa depan kami mencakup ekspansi ke sektor berikut guna memperkuat portofolio pendapatan berulang:</p>
-            <div className="expansion-tags">
-              <span className="expansion-tag">Hospitality</span>
-              <span className="expansion-tag">Commercial Area</span>
-              <span className="expansion-tag">Asset Management</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. PORTOFOLIO PROPERTI */}
-      <section className="bg-stone" id="proyek">
-        <div className="container">
-          <div className="section-header">
-            <span className="badge">Portofolio</span>
-            <h2>Aset Nyata yang Telah Dikembangkan</h2>
-            <p>Infrastruktur properti yang menjawab kebutuhan perumahan rakyat, hiburan komersial, dan instrumen investasi.</p>
-          </div>
-
-          <div className="portfolio-grid">
-            {/* Proyek 1 */}
-            <div className="portfolio-card">
-              <div className="portfolio-visual">
-                <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M10 110H110" stroke="#8f513a" strokeWidth="2" strokeLinecap="round" />
-                  <path d="M20 110V50L60 20L100 50V110" stroke="#333333" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="M45 110V80H75V110" stroke="#8e8e8e" strokeWidth="2" strokeLinejoin="round" />
-                  <rect x="35" y="55" width="16" height="16" stroke="#8e8e8e" strokeWidth="2" />
-                  <rect x="69" y="55" width="16" height="16" stroke="#8e8e8e" strokeWidth="2" />
+      {/* 3. VISI & FILOSOFI (Asymmetrical Editorial Style - White Section) */}
+      <section className="bg-white py-24 px-6 md:px-12 lg:px-16 border-t border-black/10" id="filosofi">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            
+            {/* Left Column (3/12) */}
+            <div className="lg:col-span-3 flex flex-col items-start">
+              <span className="inline-block text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1 mb-6 font-display">
+                Visi &amp; Filosofi.
+              </span>
+              
+              {/* Minimal SVG Graphic */}
+              <div className="mb-6 p-4 bg-stone rounded-lg border border-black/10">
+                <svg width="60" height="40" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <line x1="5" y1="35" x2="55" y2="35" stroke="#000000" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="15" y1="10" x2="45" y2="10" stroke="#000000" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="30" y1="10" x2="30" y2="35" stroke="#666666" strokeWidth="1.5" />
+                  <circle cx="15" cy="10" r="3" fill="#000000" />
+                  <circle cx="45" cy="10" r="3" fill="#000000" />
                 </svg>
               </div>
-              <div className="portfolio-info">
-                <span className="badge" style={{ alignSelf: "flex-start" }}>Flagship Project</span>
-                <h3>SN Residence 1-4 {"&"} SHM Project</h3>
-                <p>Proyek perumahan flagship kami yang berlokasi strategis di Kabupaten Bantaeng. Dirancang khusus untuk mendukung skema pembiayaan MBR (Masyarakat Berpenghasilan Rendah) dengan legalitas Sertifikat Hak Milik (SHM) yang lengkap sejak awal.</p>
-              </div>
+
+              <p className="text-concrete text-sm leading-relaxed max-w-[240px]">
+                Menjamin keberlanjutan usaha melalui manajemen aset nyata secara disiplin.
+              </p>
             </div>
 
-            {/* Proyek 2 */}
-            <div className="portfolio-card">
-              <div className="portfolio-visual">
-                <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M5 110H115" stroke="#8f513a" strokeWidth="2" strokeLinecap="round" />
-                  <path d="M15 110V65L40 45L65 65V110" stroke="#333333" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="M65 110V75L85 60L105 75V110" stroke="#5e6a55" strokeWidth="2" strokeLinejoin="round" />
-                  <rect x="30" y="75" width="16" height="20" stroke="#8e8e8e" strokeWidth="2" />
-                  <rect x="77" y="85" width="12" height="14" stroke="#8e8e8e" strokeWidth="2" />
-                </svg>
-              </div>
-              <div className="portfolio-info">
-                <span className="badge" style={{ alignSelf: "flex-start" }}>Community Housing</span>
-                <h3>Roemah Warga</h3>
-                <p>Konsep hunian komunitas berdensitas sedang yang dirancang khusus untuk perluasan regional di wilayah Sulawesi Selatan. Mengutamakan integrasi tata ruang sosial, jalan lingkungan yang memadai, dan akses fasilitas dasar bersama.</p>
-              </div>
+            {/* Center Column: Large Vision Statement (6/12) */}
+            <div className="lg:col-span-6 flex flex-col items-start pt-2 lg:pt-0">
+              <p className="text-xl md:text-2xl lg:text-3xl font-bold text-black font-display leading-relaxed">
+                Menjadi holding company terkemuka yang membangun ekosistem bisnis terintegrasi melalui pilar properti, fashion, dan manajemen aset guna menghasilkan pendapatan berulang yang kokoh dan berkelanjutan.
+              </p>
+              
+              <div className="w-full h-[1px] bg-black/10 my-8"></div>
+              
+              <a
+                href="#ekosistem"
+                onClick={(e) => handleScroll(e, 'ekosistem')}
+                className="inline-flex items-center text-sm font-bold text-black hover:opacity-70 transition-opacity group font-display"
+              >
+                Selengkapnya <span className="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+              </a>
             </div>
 
-            {/* Proyek 3 */}
-            <div className="portfolio-card">
-              <div className="portfolio-visual">
-                <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M10 110H110" stroke="#8f513a" strokeWidth="2" strokeLinecap="round" />
-                  <path d="M25 110V40H95V110" stroke="#333333" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="M25 40L60 15L95 40" stroke="#8f513a" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="M50 110V85H70V110" stroke="#8e8e8e" strokeWidth="2" strokeLinejoin="round" />
-                  <circle cx="60" cy="55" r="8" stroke="#8e8e8e" strokeWidth="2" />
+            {/* Right Column (3/12) */}
+            <div className="lg:col-span-3 flex flex-col items-start pt-4 lg:pt-0">
+              <span className="text-[11px] font-bold text-concrete uppercase tracking-wider block mb-4">
+                Pembangunan Berkelanjutan
+              </span>
+              
+              {/* Graphic vertical SVG */}
+              <div className="mb-6 p-4 bg-stone rounded-lg border border-black/10 self-stretch flex justify-center">
+                <svg width="40" height="60" viewBox="0 0 40 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="5" y="35" width="30" height="20" rx="3" stroke="#000000" strokeWidth="1.5" fill="#ffffff" />
+                  <rect x="10" y="15" width="20" height="20" rx="3" stroke="#000000" strokeWidth="1.5" fill="#ffffff" />
+                  <circle cx="20" cy="25" r="4" stroke="#000000" strokeWidth="1.5" />
+                  <line x1="20" y1="5" x2="20" y2="15" stroke="#666666" strokeWidth="1.5" />
                 </svg>
               </div>
-              <div className="portfolio-info">
-                <span className="badge" style={{ alignSelf: "flex-start" }}>Leisure {"&"} Hospitality</span>
-                <h3>Villa Sinoa</h3>
-                <p>Destinasi peristirahatan privat yang berlokasi di dataran tinggi Sinoa. Mengusung konsep arsitektur tropis yang menyatu dengan bentang alam sekitar, dikelola secara profesional untuk memaksimalkan yield pendapatan berulang.</p>
-              </div>
+
+              <p className="text-concrete text-sm leading-relaxed">
+                Pembangunan berkelanjutan didukung oleh efisiensi modal yang disiplin dan mitigasi risiko yang ketat pada setiap tahap akuisisi serta pengembangan aset.
+              </p>
             </div>
 
-            {/* Proyek 4 */}
-            <div className="portfolio-card">
-              <div className="portfolio-visual">
-                <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M5 110H115" stroke="#8f513a" strokeWidth="2" strokeLinecap="round" />
-                  <rect x="15" y="30" width="40" height="80" stroke="#333333" strokeWidth="2" />
-                  <rect x="65" y="50" width="40" height="60" stroke="#5e6a55" strokeWidth="2" />
-                  <path d="M30 110V95H40V110" stroke="#8e8e8e" strokeWidth="2" />
-                  <path d="M80 110V95H90V110" stroke="#8e8e8e" strokeWidth="2" />
-                  <rect x="25" y="45" width="20" height="15" stroke="#8e8e8e" strokeWidth="2" />
-                  <rect x="25" y="70" width="20" height="15" stroke="#8e8e8e" strokeWidth="2" />
-                  <rect x="75" y="65" width="20" height="15" stroke="#8e8e8e" strokeWidth="2" />
-                </svg>
-              </div>
-              <div className="portfolio-info">
-                <span className="badge" style={{ alignSelf: "flex-start" }}>Commercial Asset</span>
-                <h3>Rumah Bernyanyi {"&"} Kost/Rental</h3>
-                <p>Pengembangan properti komersial bernilai ekonomi tinggi di pusat kota. Menggabungkan sarana hiburan keluarga sehat dengan kompleks hunian sewa (kost eksekutif) untuk mengamankan arus kas operasional harian dan bulanan secara stabil.</p>
-              </div>
             </div>
-          </div>
+          </FadeIn>
         </div>
       </section>
 
-      {/* 6. FRAMEWORK PENGEMBANGAN PROYEK */}
-      <section className="bg-putih" id="framework">
-        <div className="container">
-          <div className="section-header">
-            <span className="badge">Metodologi Kerja</span>
-            <h2>Framework Pembangunan Proyek</h2>
-            <p>Siklus operasional delapan tahap yang sistematis dari proses akuisisi lahan hingga manajemen purna jual.</p>
-          </div>
-
-          <div className="timeline-container">
-            {/* Tahap 1 */}
-            <div className="timeline-step">
-              <div className="timeline-node"></div>
-              <div className="timeline-content">
-                <div className="timeline-num">Tahap 01</div>
-                <h3>Pencarian Lahan</h3>
-                <p>Land banking taktis, negosiasi langsung dengan pemilik lahan, serta pemetaan potensi lokasi strategis.</p>
+      {/* 4. EKOSISTEM BISNIS (Service List Row Style - Black Section) */}
+      <section className="bg-black py-24 px-6 md:px-12 lg:px-16 border-t border-white/10 text-white" id="ekosistem">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            {/* Header */}
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-6 mb-16">
+              <div className="max-w-2xl">
+                <span className="inline-block text-xs font-bold text-white uppercase tracking-wider border-b border-white pb-1 mb-6 font-display">
+                  Ekosistem Bisnis.
+                </span>
+                <h2 className="text-3xl md:text-4xl font-bold text-white font-display">
+                  Integrasi Infrastruktur Fisik &amp; Industri Kreatif
+                </h2>
+              </div>
+              {/* Large Diagonal Arrow */}
+              <div className="hidden lg:block shrink-0 mb-2">
+                <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12.5 37.5L37.5 12.5M37.5 12.5H18.75M37.5 12.5V31.25" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
             </div>
 
-            {/* Tahap 2 */}
-            <div className="timeline-step">
-              <div className="timeline-node"></div>
-              <div className="timeline-content">
-                <div className="timeline-num">Tahap 02</div>
-                <h3>Feasibility Study</h3>
-                <p>Pembuatan masterplan, siteplan terperinci, proyeksi keuangan (forecasting), dan penganggaran ketat.</p>
-              </div>
-            </div>
+            {/* Rows */}
+            <div className="flex flex-col border-t border-white/20 text-white">
+              
+              {/* Row 01: Satara Development */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
+                {/* Left Column: Sketch Visual (2/12) */}
+                <div className="lg:col-span-2 hidden lg:flex justify-center">
+                  <div className="bg-neutral-900 p-4 rounded-lg border border-white/10 shadow-sm w-36 h-36 flex items-center justify-center">
+                    <svg width="80" height="80" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="20" y="40" width="80" height="60" rx="4" stroke="#ffffff" strokeWidth="1.5" fill="#222222" />
+                      <path d="M15 40L60 15L105 40" stroke="#ffffff" strokeWidth="2" strokeLinejoin="round" />
+                      <line x1="40" y1="100" x2="40" y2="70" stroke="#888888" strokeWidth="1.5" />
+                      <line x1="80" y1="100" x2="80" y2="70" stroke="#888888" strokeWidth="1.5" />
+                      <circle cx="60" cy="55" r="8" stroke="#ffffff" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                </div>
 
-            {/* Tahap 3 */}
-            <div className="timeline-step">
-              <div className="timeline-node"></div>
-              <div className="timeline-content">
-                <div className="timeline-num">Tahap 03</div>
-                <h3>Legal {"&"} Perizinan</h3>
-                <p>Pengurusan Sertifikat Hak Milik (SHM), Akta Jual Beli (AJB), Persetujuan Bangunan Gedung (PBG), kerja sama legal perbankan, dan dukungan proses akad.</p>
-              </div>
-            </div>
+                {/* Middle Column: Details (8/12) */}
+                <div className="lg:col-span-8 flex flex-col items-start">
+                  <div className="flex items-center gap-4 mb-3">
+                    <span className="text-sm font-bold text-white font-display">01.</span>
+                    <span className="border border-white/30 text-white text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded">
+                      PT Berkah Bintang Pratama + PT Satara Property
+                    </span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white font-display mb-3">Satara Development</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed max-w-3xl">
+                    Pilar utama pengembangan properti yang berfokus pada penyediaan hunian berkualitas tinggi, kawasan komersial terpadu, dan pengelolaan aset strategis di Sulawesi Selatan.
+                  </p>
+                </div>
 
-            {/* Tahap 4 */}
-            <div className="timeline-step">
-              <div className="timeline-node"></div>
-              <div className="timeline-content">
-                <div className="timeline-num">Tahap 04</div>
-                <h3>Marketing Opening</h3>
-                <p>Strategi perolehan prospek konsumen (lead generation), pengelolaan corong penjualan (sales funnel), and pembukaan pemesanan unit (booking).</p>
+                {/* Right Column: CTA (2/12) */}
+                <div className="lg:col-span-2 flex justify-start lg:justify-end">
+                  <a
+                    href="#proyek"
+                    onClick={(e) => handleScroll(e, 'proyek')}
+                    className="bg-white text-black hover:bg-transparent hover:text-white border border-white px-6 py-2.5 rounded text-sm font-bold uppercase tracking-wider transition-all duration-300 font-display"
+                  >
+                    Lihat Proyek
+                  </a>
+                </div>
               </div>
-            </div>
 
-            {/* Tahap 5 */}
-            <div className="timeline-step">
-              <div className="timeline-node"></div>
-              <div className="timeline-content">
-                <div className="timeline-num">Tahap 05</div>
-                <h3>Pembangunan</h3>
-                <p>Kontrol kualitas konstruksi (quality control), pengawasan kemajuan fisik di lapangan, serta manajemen mandor yang terukur.</p>
-              </div>
-            </div>
+              {/* Row 02: Satara Fashion */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
+                {/* Left Column: Sketch Visual (2/12) */}
+                <div className="lg:col-span-2 hidden lg:flex justify-center">
+                  <div className="bg-neutral-900 p-4 rounded-lg border border-white/10 shadow-sm w-36 h-36 flex items-center justify-center">
+                    <svg width="80" height="80" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M20 90C40 70 80 100 100 50" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M30 100C50 80 90 110 110 60" stroke="#888888" strokeWidth="1.5" strokeDasharray="3 3" />
+                      <circle cx="100" cy="50" r="5" fill="#ffffff" />
+                      <circle cx="20" cy="90" r="5" fill="#888888" />
+                    </svg>
+                  </div>
+                </div>
 
-            {/* Tahap 6 */}
-            <div className="timeline-step">
-              <div className="timeline-node"></div>
-              <div className="timeline-content">
-                <div className="timeline-num">Tahap 06</div>
-                <h3>Akad</h3>
-                <p>Titik krusial masuknya arus kas (cash inflow) dan percepatan siklus konversi kas (cash conversion cycle).</p>
-              </div>
-            </div>
+                {/* Middle Column: Details (8/12) */}
+                <div className="lg:col-span-8 flex flex-col items-start">
+                  <div className="flex items-center gap-4 mb-3">
+                    <span className="text-sm font-bold text-white font-display">02.</span>
+                    <span className="border border-white/30 text-white text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded">
+                      Sekala + Senada
+                    </span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white font-display mb-3">Satara Fashion</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed max-w-3xl">
+                    Divisi industri kreatif yang bergerak di bidang retail fashion modern dengan pendekatan desain kontemporer dan sistem distribusi berbasis teknologi.
+                  </p>
+                </div>
 
-            {/* Tahap 7 */}
-            <div className="timeline-step">
-              <div className="timeline-node"></div>
-              <div className="timeline-content">
-                <div className="timeline-num">Tahap 07</div>
-                <h3>Serah Terima</h3>
-                <p>Penyerahan unit properti secara resmi kepada konsumen (handover unit) dilengkapi dokumentasi berita acara akhir.</p>
+                {/* Right Column: Placeholder (2/12) */}
+                <div className="lg:col-span-2 flex justify-start lg:justify-end">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Active Pilar</span>
+                </div>
               </div>
-            </div>
 
-            {/* Tahap 8 */}
-            <div className="timeline-step">
-              <div className="timeline-node"></div>
-              <div className="timeline-content">
-                <div className="timeline-num">Tahap 08</div>
-                <h3>After Sales</h3>
-                <p>Pengelolaan keluhan konsumen, pemberian garansi konstruksi fisik, dan pelayanan purna jual yang berkelanjutan.</p>
+              {/* Row 03: Future Expansion */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-b border-white/20 items-center">
+                {/* Left Column: Sketch Visual (2/12) */}
+                <div className="lg:col-span-2 hidden lg:flex justify-center">
+                  <div className="bg-neutral-900 p-4 rounded-lg border border-white/10 shadow-sm w-36 h-36 flex items-center justify-center">
+                    <svg width="80" height="80" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="25" y="25" width="30" height="30" rx="3" stroke="#888888" strokeWidth="1.5" />
+                      <rect x="65" y="25" width="30" height="30" rx="3" stroke="#888888" strokeWidth="1.5" />
+                      <rect x="45" y="65" width="30" height="30" rx="3" stroke="#ffffff" strokeWidth="1.5" />
+                      <path d="M40 55L50 65M80 55L70 65" stroke="#ffffff" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Middle Column: Details (8/12) */}
+                <div className="lg:col-span-8 flex flex-col items-start">
+                  <div className="flex items-center gap-4 mb-3">
+                    <span className="text-sm font-bold text-white font-display">03.</span>
+                    <span className="border border-white/30 text-white text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded">
+                      Hospitality, Commercial Area, Asset Management
+                    </span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white font-display mb-3">Future Expansion</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed max-w-3xl">
+                    Jalur pertumbuhan masa depan kami mencakup ekspansi ke sektor perhotelan, area komersial, dan manajemen aset secara berkelanjutan untuk memperkokoh diversifikasi arus pendapatan.
+                  </p>
+                </div>
+
+                {/* Right Column: Tags (2/12) */}
+                <div className="lg:col-span-2 flex justify-start lg:justify-end">
+                  <span className="text-xs font-bold text-white uppercase tracking-widest">Future Roadmap</span>
+                </div>
               </div>
+
             </div>
-          </div>
+          </FadeIn>
         </div>
       </section>
 
-      {/* 7. STRUKTUR ORGANISASI HOLDING */}
-      <section className="bg-stone" id="struktur">
-        <div className="container">
-          <div className="section-header">
-            <span className="badge">Tata Kelola</span>
-            <h2>Struktur Organisasi Holding</h2>
-            <p>Penyelarasan peran strategis untuk memastikan tata kelola terpadu dan efisiensi pengambilan keputusan.</p>
-          </div>
-
-          <div className="structure-wrapper">
-            <div className="structure-info">
-              <p>Holding company Satara Group berfokus penuh pada fungsi governance (tata kelola perusahaan) dan scaling (peningkatan skala bisnis secara strategis), sementara aktivitas operasional taktis didelegasikan secara mandiri kepada anak perusahaan.</p>
+      {/* 5. PORTOFOLIO PROPERTI (Asymmetric Grid & Large Blueprint Style - White Section) */}
+      <section className="bg-white py-24 px-6 md:px-12 lg:px-16" id="proyek">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            {/* Header */}
+            <div className="max-w-2xl mb-16">
+              <span className="inline-block text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1 mb-6 font-display">
+                Portofolio Properti.
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold text-black font-display mb-4">
+                Aset Nyata dengan Yield Berkelanjutan
+              </h2>
+              <p className="text-concrete text-sm md:text-base">
+                Infrastruktur properti yang menjawab kebutuhan perumahan rakyat, hiburan komersial, dan instrumen investasi.
+              </p>
             </div>
 
-            <div className="structure-chart">
+            {/* Grid Layout (4/12 Blueprint, 8/12 Proyek Grid) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-stretch">
+              
+              {/* Left Blueprint SVG Column (4/12) */}
+              <div className="lg:col-span-4 bg-stone rounded-xl border border-black/10 p-8 flex flex-col justify-between min-h-[300px]">
+                <div>
+                  <span className="text-xs font-semibold text-black uppercase tracking-wider block mb-4">Rencana Tata Ruang</span>
+                  <h3 className="text-lg font-bold text-black font-display mb-4">Skema Blueprint</h3>
+                </div>
+                
+                <div className="my-6 flex justify-center">
+                  <svg width="180" height="180" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    {/* Ground grid patterns */}
+                    <path d="M 0,20 L 120,20 M 0,40 L 120,40 M 0,60 L 120,60 M 0,80 L 120,80 M 0,100 L 120,100" stroke="#e0e0e0" strokeWidth="0.5" />
+                    <path d="M 20,0 L 20,120 M 40,0 L 40,120 M 60,0 L 60,120 M 80,0 L 80,120 M 100,0 L 100,120" stroke="#e0e0e0" strokeWidth="0.5" />
+                    
+                    {/* Architectural Blueprint Lines */}
+                    <rect x="20" y="30" width="80" height="70" stroke="#8e8e8e" strokeWidth="1" strokeDasharray="2 2" />
+                    <rect x="30" y="40" width="30" height="50" stroke="#333333" strokeWidth="1.5" />
+                    <rect x="65" y="40" width="25" height="25" stroke="#333333" strokeWidth="1.5" />
+                    <rect x="65" y="70" width="25" height="20" stroke="#666666" strokeWidth="1.5" />
+                    
+                    {/* Focus Circle */}
+                    <circle cx="45" cy="65" r="12" stroke="#333333" strokeWidth="1" strokeDasharray="3 3" />
+                    <circle cx="45" cy="65" r="2" fill="#333333" />
+                  </svg>
+                </div>
+
+                <p className="text-concrete text-sm leading-relaxed">
+                  Pengawasan berkala untuk menjaga ketepatan realisasi struktur bangunan fisik sesuai standar mutu pengembang.
+                </p>
+              </div>
+
+              {/* Right Proyek 2x2 Grid Column (8/12) */}
+              <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                {/* Proyek 1 */}
+                <div className="border-b border-black/10 pb-6 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-black uppercase tracking-wider block mb-2">Bantaeng - Flagship</span>
+                    <h4 className="text-xl font-bold text-black font-display mb-2">SN Residence 1-4 &amp; SHM Project</h4>
+                    <p className="text-concrete text-sm leading-relaxed mb-4">
+                      Proyek perumahan flagship kami yang dirancang khusus untuk mendukung program KPR dan MBR (Masyarakat Berpenghasilan Rendah) dengan legalitas Sertifikat Hak Milik penuh.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-black font-display">100% Sertifikat Hak Milik</span>
+                </div>
+
+                {/* Proyek 2 */}
+                <div className="border-b border-black/10 pb-6 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-black uppercase tracking-wider block mb-2">Ekspansi Regional - Komunitas</span>
+                    <h4 className="text-xl font-bold text-black font-display mb-2">Roemah Warga</h4>
+                    <p className="text-concrete text-sm leading-relaxed mb-4">
+                      Konsep hunian komunitas berdensitas sedang yang mengedepankan aspek kebersamaan, ruang publik hijau, dan aksesibilitas tinggi untuk ekspansi di Sulawesi Selatan.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-black font-display">Ruang Komunitas Terpadu</span>
+                </div>
+
+                {/* Proyek 3 */}
+                <div className="border-b border-black/10 pb-6 md:border-none md:pb-0 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-black uppercase tracking-wider block mb-2">Sinoa - Leisure &amp; Hospitality</span>
+                    <h4 className="text-xl font-bold text-black font-display mb-2">Villa Sinoa</h4>
+                    <p className="text-concrete text-sm leading-relaxed mb-4">
+                      Proyek peristirahatan eksklusif di dataran tinggi yang dirancang untuk menghasilkan yield sewa berulang melalui pengelolaan villa jangka pendek.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-black font-display">Recurring Yield</span>
+                </div>
+
+                {/* Proyek 4 */}
+                <div className="pb-6 md:pb-0 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-black uppercase tracking-wider block mb-2">Pusat Kota - Komersial</span>
+                    <h4 className="text-xl font-bold text-black font-display mb-2">Rumah Bernyanyi &amp; Kost/Rental</h4>
+                    <p className="text-concrete text-sm leading-relaxed mb-4">
+                      Pengembangan properti komersial yang menggabungkan pusat hiburan keluarga dengan hunian sewa (kost eksekutif) untuk mengamankan arus kas masuk.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-black font-display">Daily &amp; Monthly Arus Kas</span>
+                </div>
+
+              </div>
+
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* 6. FRAMEWORK PENGEMBANGAN PROYEK (Grid Ramping - Black Section) */}
+      <section className="bg-black py-24 px-6 md:px-12 lg:px-16 border-t border-white/10 text-white" id="framework">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            {/* Header */}
+            <div className="max-w-2xl mb-16">
+              <span className="inline-block text-xs font-bold text-white uppercase tracking-wider border-b border-white pb-1 mb-6 font-display">
+                Metodologi Kerja.
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold text-white font-display mb-4">
+                Framework Pembangunan Proyek
+              </h2>
+              <p className="text-gray-400 text-sm md:text-base">
+                Siklus operasional delapan tahap yang sistematis dari proses akuisisi lahan hingga manajemen purna jual.
+              </p>
+            </div>
+
+            {/* Grid Layout (4 Columns on Desktop, 1 on Mobile) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
+              
+              {/* Tahap 1 */}
+              <div className="border-t border-white/20 pt-6 flex flex-col">
+                <span className="text-xs font-bold text-white font-display mb-2">01.</span>
+                <h3 className="text-base font-bold text-white font-display mb-2">Pencarian Lahan</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Land banking taktis, negosiasi langsung dengan pemilik lahan, serta pemetaan potensi lokasi strategis.
+                </p>
+              </div>
+
+              {/* Tahap 2 */}
+              <div className="border-t border-white/20 pt-6 flex flex-col">
+                <span className="text-xs font-bold text-white font-display mb-2">02.</span>
+                <h3 className="text-base font-bold text-white font-display mb-2">Feasibility Study</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Pembuatan masterplan, siteplan terperinci, proyeksi keuangan (forecasting), and penganggaran ketat.
+                </p>
+              </div>
+
+              {/* Tahap 3 */}
+              <div className="border-t border-white/20 pt-6 flex flex-col">
+                <span className="text-xs font-bold text-white font-display mb-2">03.</span>
+                <h3 className="text-base font-bold text-white font-display mb-2">Legal &amp; Perizinan</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Pengurusan Sertifikat Hak Milik (SHM), Akta Jual Beli (AJB), Persetujuan Bangunan Gedung (PBG), kerja sama legal perbankan, dan dukungan proses akad.
+                </p>
+              </div>
+
+              {/* Tahap 4 */}
+              <div className="border-t border-white/20 pt-6 flex flex-col">
+                <span className="text-xs font-bold text-white font-display mb-2">04.</span>
+                <h3 className="text-base font-bold text-white font-display mb-2">Marketing Opening</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Strategi perolehan prospek konsumen (lead generation), pengelolaan corong penjualan (sales funnel), and pembukaan pemesanan unit (booking).
+                </p>
+              </div>
+
+              {/* Tahap 5 */}
+              <div className="border-t border-white/20 pt-6 flex flex-col">
+                <span className="text-xs font-bold text-white font-display mb-2">05.</span>
+                <h3 className="text-base font-bold text-white font-display mb-2">Pembangunan</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Kontrol kualitas konstruksi (quality control), pengawasan kemajuan fisik di lapangan, serta manajemen mandor yang terukur.
+                </p>
+              </div>
+
+              {/* Tahap 6 */}
+              <div className="border-t border-white/20 pt-6 flex flex-col">
+                <span className="text-xs font-bold text-white font-display mb-2">06.</span>
+                <h3 className="text-base font-bold text-white font-display mb-2">Akad</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Titik krusial masuknya arus kas (cash inflow) dan percepatan siklus konversi kas (cash conversion cycle).
+                </p>
+              </div>
+
+              {/* Tahap 7 */}
+              <div className="border-t border-white/20 pt-6 flex flex-col">
+                <span className="text-xs font-bold text-white font-display mb-2">07.</span>
+                <h3 className="text-base font-bold text-white font-display mb-2">Serah Terima</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Penyerahan unit properti secara resmi kepada konsumen (handover unit) dilengkapi dokumentasi berita acara akhir.
+                </p>
+              </div>
+
+              {/* Tahap 8 */}
+              <div className="border-t border-white/20 pt-6 flex flex-col">
+                <span className="text-xs font-bold text-white font-display mb-2">08.</span>
+                <h3 className="text-base font-bold text-white font-display mb-2">After Sales</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Pengelolaan keluhan konsumen, pemberian garansi konstruksi fisik, dan pelayanan purna jual yang berkelanjutan.
+                </p>
+              </div>
+
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* 7. STRUKTUR ORGANISASI HOLDING (List Asimetris Style - White Section) */}
+      <section className="bg-white py-24 px-6 md:px-12 lg:px-16 border-t border-black/10" id="struktur">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+            
+            {/* Left Column Description (4/12) */}
+            <div className="lg:col-span-4 flex flex-col items-start">
+              <span className="inline-block text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1 mb-6 font-display">
+                Tata Kelola Holding.
+              </span>
+              <h2 className="text-3xl font-bold text-black font-display mb-6">
+                Struktur Organisasi Holding
+              </h2>
+              <p className="text-concrete text-sm leading-relaxed mb-6">
+                Holding company Satara Group berfokus penuh pada fungsi tata kelola (governance) dan peningkatan skala bisnis secara strategis (scaling), sementara aktivitas operasional harian diserahkan secara mandiri kepada anak perusahaan.
+              </p>
+            </div>
+
+            {/* Right Column List (8/12) */}
+            <div className="lg:col-span-8 flex flex-col border-t border-black/10">
+              
               {/* CEO */}
-              <div className="chart-node ceo">
-                <div className="node-title">CEO / Founder</div>
-                <div className="node-name">A. Arya Setiawan Junior</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 py-6 border-b border-black/10 items-center gap-4">
+                <span className="text-xs font-bold text-black font-display uppercase tracking-wider">CEO / Founder</span>
+                <span className="text-lg font-bold text-black font-display sm:col-span-2">A. Arya Setiawan Junior</span>
               </div>
 
-              {/* Tiga Garis Hubung Vertikal & Horizontal via CSS Grid */}
-              <div className="chart-children">
-                {/* Fungsi 1 */}
-                <div className="chart-node">
-                  <div className="node-title">HRGA</div>
-                  <div className="node-name">Gilang</div>
-                </div>
+              {/* HRGA */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 py-6 border-b border-black/10 items-center gap-4">
+                <span className="text-xs font-bold text-concrete uppercase tracking-wider">HRGA Function</span>
+                <span className="text-lg font-bold text-black font-display sm:col-span-2">Gilang</span>
+              </div>
 
-                {/* Fungsi 2 */}
-                <div className="chart-node">
-                  <div className="node-title">Finance</div>
-                  <div className="node-name">Zaskia {"&"} Annisa</div>
-                </div>
+              {/* Finance */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 py-6 border-b border-black/10 items-center gap-4">
+                <span className="text-xs font-bold text-concrete uppercase tracking-wider">Finance &amp; Accounts</span>
+                <span className="text-lg font-bold text-black font-display sm:col-span-2">Zaskia &amp; Annisa</span>
+              </div>
 
-                {/* Fungsi 3 */}
-                <div className="chart-node">
-                  <div className="node-title">Branding</div>
-                  <div className="node-name">Mahdi</div>
-                </div>
+              {/* Branding */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 py-6 border-b border-black/10 items-center gap-4">
+                <span className="text-xs font-bold text-concrete uppercase tracking-wider">Branding &amp; Communication</span>
+                <span className="text-lg font-bold text-black font-display sm:col-span-2">Mahdi</span>
+              </div>
 
-                {/* Fungsi 4 */}
-                <div className="chart-node">
-                  <div className="node-title">Strategic Control</div>
-                  <div className="node-name">Holding Oversight</div>
-                </div>
+              {/* Strategic Control */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 py-6 border-b border-black/10 items-center gap-4">
+                <span className="text-xs font-bold text-concrete uppercase tracking-wider">Strategic Control</span>
+                <span className="text-lg font-bold text-black font-display sm:col-span-2">Holding Oversight</span>
+              </div>
+
+            </div>
+
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* 8. SISTEM REPORTING & KONTROL (Card Ramping Style - Black Section) */}
+      <section className="bg-black py-24 px-6 md:px-12 lg:px-16 border-t border-white/10 text-white">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            {/* Header */}
+            <div className="max-w-2xl mb-16">
+              <span className="inline-block text-xs font-bold text-white uppercase tracking-wider border-b border-white pb-1 mb-6 font-display">
+                Sistem Kontrol.
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold text-white font-display mb-4">
+                Mekanisme Pengendalian Kinerja
+              </h2>
+              <p className="text-gray-400 text-sm md:text-base">
+                Disiplin reporting yang ketat untuk menjamin transparansi data keuangan dan operasional secara periodik.
+              </p>
+            </div>
+
+            {/* 3 Columns Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              
+              {/* Card 1 */}
+              <div className="liquid-glass border border-white/20 p-8 rounded-xl">
+                <span className="inline-block bg-white text-black text-[9px] font-semibold uppercase tracking-wider px-2 py-1 rounded mb-4">
+                  Evaluasi Mingguan
+                </span>
+                <h3 className="text-lg font-bold text-white font-display mb-3">Weekly Report</h3>
+                <p className="text-gray-300 text-xs leading-relaxed">
+                  Evaluasi mingguan terpadu di seluruh divisi operasional anak perusahaan untuk memantau kemajuan pembangunan fisik, pencapaian penjualan harian, dan penyelesaian administrasi legal secara real-time.
+                </p>
+              </div>
+
+              {/* Card 2 */}
+              <div className="liquid-glass border border-white/20 p-8 rounded-xl">
+                <span className="inline-block bg-white text-black text-[9px] font-semibold uppercase tracking-wider px-2 py-1 rounded mb-4">
+                  Penilaian Bulanan
+                </span>
+                <h3 className="text-lg font-bold text-white font-display mb-3">Monthly Board Review</h3>
+                <p className="text-gray-300 text-xs leading-relaxed">
+                  Penilaian bulanan jajaran direksi terhadap kesehatan arus kas (cashflow), pergerakan siklus konversi kas, kemajuan target perizinan daerah, serta evaluasi komparatif performa antardivisi.
+                </p>
+              </div>
+
+              {/* Card 3 */}
+              <div className="liquid-glass border border-white/20 p-8 rounded-xl">
+                <span className="inline-block bg-white text-black text-[9px] font-semibold uppercase tracking-wider px-2 py-1 rounded mb-4">
+                  Pusat Kontrol Digital
+                </span>
+                <h3 className="text-lg font-bold text-white font-display mb-3">Cross-Division KPI Dashboard</h3>
+                <p className="text-gray-300 text-xs leading-relaxed">
+                  Papan instrumen digital terpusat yang mengintegrasikan data Key Performance Indicator lintas divisi utama (Sales, Produksi, Legal, dan Finance) guna mengantisipasi hambatan operasional sedini mungkin.
+                </p>
+              </div>
+
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* 9. ROADMAP PERTUMBUHAN (White Section) */}
+      <section className="bg-white py-24 px-6 md:px-12 lg:px-16 border-t border-black/10" id="roadmap">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            {/* Header */}
+            <div className="max-w-2xl mb-16">
+              <span className="inline-block text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1 mb-6 font-display">
+                Rencana Kerja.
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold text-black font-display mb-4">
+                Roadmap Pertumbuhan Satara Group
+              </h2>
+              <p className="text-concrete text-sm md:text-base">
+                Tahapan strategis jangka pendek hingga panjang untuk merealisasikan dominasi pasar dan perluasan portofolio.
+              </p>
+            </div>
+
+            {/* Grid Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              
+              {/* Fase 1 */}
+              <div className="border-t border-black/10 pt-8 flex flex-col">
+                <div className="text-xs font-bold text-black font-display uppercase mb-1">Fase 01</div>
+                <h3 className="text-lg font-bold text-black font-display mb-4">Stabilisasi &amp; Sistem</h3>
+                <div className="text-[10px] font-semibold text-concrete uppercase tracking-wider mb-4">Jangka Pendek (1-2 Tahun)</div>
+                <p className="text-concrete text-xs leading-relaxed">
+                  Fokus pada stabilisasi tata kelola manajemen internal, penyusunan Standar Operasional Prosedur (SOP) terstandardisasi di seluruh anak perusahaan, peluncuran KPI dashboard terpadu, serta inisiasi ekspansi awal proyek perumahan regional di kabupaten sekitar.
+                </p>
+              </div>
+
+              {/* Fase 2 */}
+              <div className="border-t border-black/10 pt-8 flex flex-col">
+                <div className="text-xs font-bold text-black font-display uppercase mb-1">Fase 02</div>
+                <h3 className="text-lg font-bold text-black font-display mb-4">Akselerasi &amp; Dominasi</h3>
+                <div className="text-[10px] font-semibold text-concrete uppercase tracking-wider mb-4">Jangka Menengah (3-5 Tahun)</div>
+                <p className="text-concrete text-xs leading-relaxed">
+                  Mencapai kapasitas pembangunan dan penjualan 1.000 unit per tahun, memperkuat dominasi pasar properti residensial di regional Sulawesi Selatan, serta meningkatkan volume pendapatan berulang (recurring income) secara signifikan dari portofolio komersial.
+                </p>
+              </div>
+
+              {/* Fase 3 */}
+              <div className="border-t border-black/10 pt-8 flex flex-col">
+                <div className="text-xs font-bold text-black font-display uppercase mb-1">Fase 03</div>
+                <h3 className="text-lg font-bold text-black font-display mb-4">Ekspansi &amp; Integrasi</h3>
+                <div className="text-[10px] font-semibold text-concrete uppercase tracking-wider mb-4">Jangka Panjang (5-10 Tahun)</div>
+                <p className="text-concrete text-xs leading-relaxed">
+                  Transformasi menyeluruh menjadi pengembang regional berskala nasional, merintis pengembangan kawasan kota mandiri terintegrasi (integrated township), serta memposisikan Satara Group sebagai asset holding company yang terdiversifikasi kuat.
+                </p>
+              </div>
+
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* 10. CTA PENUTUP (Black Section) */}
+      <section className="bg-black py-24 px-6 md:px-12 lg:px-16 border-t border-white/10" id="hubungi">
+        <div className="container mx-auto">
+          <FadeIn duration={1000} direction="up">
+            <div className="bg-white text-black rounded-xl p-8 md:p-16 text-center max-w-4xl mx-auto border border-black/10 shadow-sm">
+              <h2 className="text-3xl md:text-4xl font-bold text-black font-display mb-4">
+                Kolaborasi Strategis untuk Pertumbuhan Bersama
+              </h2>
+              <p className="text-concrete text-sm md:text-base max-w-2xl mx-auto mb-8 leading-relaxed">
+                Satara Group mengundang para pemilik lahan potensial, lembaga keuangan, dan mitra strategis untuk bersama-sama menciptakan nilai tambah di atas aset nyata melalui sistem manajemen proyek yang terukur.
+              </p>
+              <div className="flex flex-wrap justify-center gap-4">
+                <a
+                  href="#"
+                  className="bg-black text-white px-8 py-3 rounded-lg font-medium hover:bg-transparent hover:text-black border border-black transition-all duration-300 shadow-sm font-display"
+                >
+                  Ajukan Kerjasama
+                </a>
+                <a
+                  href="#"
+                  className="border border-black text-black bg-transparent px-8 py-3 rounded-lg font-medium hover:bg-black hover:text-white transition-all duration-300 font-display"
+                >
+                  Pertanyaan Umum
+                </a>
               </div>
             </div>
-          </div>
+          </FadeIn>
         </div>
       </section>
 
-      {/* 8. SISTEM REPORTING & KONTROL */}
-      <section className="bg-putih">
-        <div className="container">
-          <div className="section-header">
-            <span className="badge">Sistem Kontrol</span>
-            <h2>Mekanisme Pengendalian Kinerja</h2>
-            <p>Disiplin reporting yang ketat untuk menjamin transparansi data keuangan dan operasional secara periodik.</p>
+      {/* 11. FOOTER (Black Section) */}
+      <footer className="bg-black text-gray-400 py-12 px-6 md:px-12 lg:px-16 border-t border-white/10">
+        <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex flex-col items-center md:items-start">
+            <div className="flex items-center gap-3.5 mb-2">
+              <img src="/logo.png" className="h-7 w-auto shrink-0" alt="Satara Group Logo" />
+              <div className="text-xl font-bold text-white font-display">SATARA GROUP</div>
+            </div>
+            <div className="text-xs text-gray-500">Membangun Ekosistem Bisnis yang Bertumbuh di Atas Aset Nyata</div>
           </div>
 
-          <div className="control-grid">
-            {/* Card 1 */}
-            <div className="control-card">
-              <span className="badge" style={{ backgroundColor: "#8f513a" }}>Mingguan</span>
-              <h3>Weekly Report</h3>
-              <p>Evaluasi mingguan terpadu di seluruh divisi operasional anak perusahaan untuk memantau kemajuan pembangunan fisik, pencapaian penjualan harian, dan penyelesaian administrasi legal secara real-time.</p>
-            </div>
-
-            {/* Card 2 */}
-            <div className="control-card">
-              <span className="badge" style={{ backgroundColor: "#8f513a" }}>Bulanan</span>
-              <h3>Monthly Board Review</h3>
-              <p>Penilaian bulanan jajaran direksi terhadap kesehatan arus kas (cashflow), pergerakan siklus konversi kas, kemajuan target perizinan daerah, serta evaluasi komparatif performa antardivisi.</p>
-            </div>
-
-            {/* Card 3 */}
-            <div className="control-card">
-              <span className="badge" style={{ backgroundColor: "#8f513a" }}>Terintegrasi</span>
-              <h3>Cross-Division KPI Dashboard</h3>
-              <p>Papan instrumen digital terpusat yang mengintegrasikan data Key Performance Indicator lintas divisi utama (Sales, Produksi, Legal, dan Finance) guna mengantisipasi hambatan operasional sedini mungkin.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 9. ROADMAP PERTUMBUHAN */}
-      <section className="bg-stone" id="roadmap">
-        <div className="container">
-          <div className="section-header">
-            <span className="badge">Rencana Kerja</span>
-            <h2>Roadmap Pertumbuhan Satara Group</h2>
-            <p>Tahapan strategis jangka pendek hingga panjang untuk merealisasikan dominasi pasar dan perluasan portofolio.</p>
-          </div>
-
-          <div className="roadmap-container">
-            {/* Fase 1 */}
-            <div className="roadmap-card">
-              <div className="roadmap-phase">Fase 01</div>
-              <h3>Stabilisasi {"&"} Sistem</h3>
-              <p style={{ fontSize: "12px", color: "#8e8e8e", marginBottom: "12px", fontWeight: "600" }}>JANGKA PENDEK (1-2 TAHUN)</p>
-              <p>Fokus pada stabilisasi tata kelola manajemen internal, penyusunan Standar Operasional Prosedur (SOP) terstandardisasi di seluruh anak perusahaan, peluncuran KPI dashboard terpadu, serta inisiasi ekspansi awal proyek perumahan regional di kabupaten sekitar.</p>
-            </div>
-
-            {/* Fase 2 */}
-            <div className="roadmap-card">
-              <div className="roadmap-phase">Fase 02</div>
-              <h3>Akselerasi {"&"} Dominasi</h3>
-              <p style={{ fontSize: "12px", color: "#8e8e8e", marginBottom: "12px", fontWeight: "600" }}>JANGKA MENENGAH (3-5 TAHUN)</p>
-              <p>Mencapai kapasitas pembangunan dan penjualan 1.000 unit per tahun, memperkuat dominasi pasar properti residensial di regional Sulawesi Selatan, serta meningkatkan volume pendapatan berulang (recurring income) secara signifikan dari portofolio komersial.</p>
-            </div>
-
-            {/* Fase 3 */}
-            <div className="roadmap-card">
-              <div className="roadmap-phase">Fase 03</div>
-              <h3>Ekspansi {"&"} Integrasi</h3>
-              <p style={{ fontSize: "12px", color: "#8e8e8e", marginBottom: "12px", fontWeight: "600" }}>JANGKA PANJANG (5-10 TAHUN)</p>
-              <p>Transformasi menyeluruh menjadi pengembang regional berskala nasional, merintis pengembangan kawasan kota mandiri terintegrasi (integrated township), serta memposisikan Satara Group sebagai asset holding company yang terdiversifikasi kuat.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 10. CTA PENUTUP */}
-      <section className="bg-putih" id="hubungi">
-        <div className="container">
-          <div className="cta-card">
-            <h2>Kolaborasi Strategis untuk Pertumbuhan Bersama</h2>
-            <p>Satara Group mengundang para pemilik lahan potensial, lembaga keuangan, dan mitra strategis untuk bersama-sama menciptakan nilai tambah di atas aset nyata melalui sistem manajemen proyek yang terukur.</p>
-            <div className="cta-buttons">
-              <a href="#" className="btn btn-wood">Ajukan Kerjasama</a>
-              <a href="#" className="btn btn-outline">Pertanyaan Umum</a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 11. FOOTER */}
-      <footer>
-        <div className="container footer-container">
-          <div>
-            <div className="footer-logo">SATARA GROUP</div>
-            <div className="footer-info" style={{ marginTop: "8px" }}>Membangun Ekosistem Bisnis yang Bertumbuh di Atas Aset Nyata</div>
-          </div>
-          
-          <div style={{ marginTop: "20px", marginBottom: "20px", textAlign: "center", fontSize: "13px", fontFamily: "'Inter', sans-serif" }}>
-            Kantor Pusat: Bantaeng, Sulawesi Selatan, Indonesia
-          </div>
-
-          <div>
-            <div className="footer-copy">© {new Date().getFullYear()} Satara Group. Semua Hak Dilindungi.</div>
+          <div className="text-xs text-center md:text-right">
+            <div className="mb-2 text-gray-400">Kantor Pusat: Bantaeng, Sulawesi Selatan, Indonesia</div>
+            <div className="text-[11px] text-gray-600">&copy; {new Date().getFullYear()} Satara Group. Semua Hak Dilindungi.</div>
           </div>
         </div>
       </footer>
