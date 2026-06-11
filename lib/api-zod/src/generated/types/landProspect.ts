@@ -13,6 +13,18 @@ export interface LandProspect {
   /** @nullable */
   projectId: number | null;
   lokasi: string;
+  /** @nullable */
+  kelurahan?: string | null;
+  /** @nullable */
+  kecamatan?: string | null;
+  /** @nullable */
+  kabupaten?: string | null;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
+  /** @nullable */
+  polygonCoords?: string | null;
   luas: number;
   hargaM2: number;
   status: LandProspectStatus;

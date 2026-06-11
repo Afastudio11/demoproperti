@@ -1226,6 +1226,12 @@ components:
         id: { type: integer }
         projectId: { type: ["integer", "null"] }
         lokasi: { type: string }
+        kelurahan: { type: ["string", "null"] }
+        kecamatan: { type: ["string", "null"] }
+        kabupaten: { type: ["string", "null"] }
+        lat: { type: ["number", "null"] }
+        lng: { type: ["number", "null"] }
+        polygonCoords: { type: ["string", "null"] }
         luas: { type: number }
         hargaM2: { type: number }
         status:
@@ -1246,6 +1252,12 @@ components:
       properties:
         projectId: { type: integer }
         lokasi: { type: string }
+        kelurahan: { type: string }
+        kecamatan: { type: string }
+        kabupaten: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        polygonCoords: { type: string }
         luas: { type: number }
         hargaM2: { type: number }
         status:
@@ -1262,6 +1274,12 @@ components:
         status:
           type: string
           enum: [prospek_baru, survey, analisis_kompetitor, negosiasi, legal_checking, pks_mou, ditolak]
+        kelurahan: { type: string }
+        kecamatan: { type: string }
+        kabupaten: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        polygonCoords: { type: string }
         roi: { type: number }
         margin: { type: number }
         aksesJalan: { type: number }

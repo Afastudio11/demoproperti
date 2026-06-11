@@ -9,6 +9,12 @@ import type { LandProspectUpdateStatus } from './landProspectUpdateStatus';
 
 export interface LandProspectUpdate {
   status?: LandProspectUpdateStatus;
+  kelurahan?: string;
+  kecamatan?: string;
+  kabupaten?: string;
+  lat?: number;
+  lng?: number;
+  polygonCoords?: string;
   roi?: number;
   margin?: number;
   aksesJalan?: number;
