@@ -28,11 +28,16 @@ RUN NODE_ENV=production PORT=3000 \
     pnpm --filter @workspace/satara-dashboard run build
 RUN pnpm --filter @workspace/api-server run build
 
-# ── Stage 5: runtime (minimal production image) ───────────────────────────────
+# ── Stage 5: prune (production-only node_modules for runtime) ──────────────────
+FROM deps AS prune
+RUN pnpm --filter @workspace/api-server deploy --prod /app/pruned
+
+# ── Stage 6: runtime (minimal production image) ───────────────────────────────
 FROM node:20-alpine AS runtime
 WORKDIR /app
 COPY --from=build /app/artifacts/api-server/dist      ./dist
 COPY --from=build /app/artifacts/satara-dashboard/dist/public ./public
+COPY --from=prune /app/pruned/node_modules             ./node_modules
 ENV NODE_ENV=production \
     PORT=3000 \
     STATIC_DIR=/app/public
