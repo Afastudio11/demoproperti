@@ -30,7 +30,7 @@ RUN pnpm --filter @workspace/api-server run build
 
 # ── Stage 5: prune (production-only node_modules for runtime) ──────────────────
 FROM deps AS prune
-RUN pnpm --filter @workspace/api-server deploy --prod /app/pruned
+RUN pnpm --filter @workspace/api-server deploy --legacy --prod /app/pruned
 
 # ── Stage 6: runtime (minimal production image) ───────────────────────────────
 FROM node:20-alpine AS runtime
