@@ -272,8 +272,8 @@ async function downloadReceipt(items: Approval[]) {
   doc.text("RANTAI PERSETUJUAN (CHAIN OF APPROVAL)", M, y);
   y += 5;
 
-  const stepOrder = ["pengawas", "qc", "manager", "finance"];
-  const stepW2 = (W - 2 * M - 9) / 4;
+  const stepOrder = items.map(item => item.step);
+  const stepW2 = (W - 2 * M - Math.max(0, stepOrder.length - 1) * 3) / Math.max(1, stepOrder.length);
 
   stepOrder.forEach((stepKey, idx) => {
     const found = items.find(i => i.step === stepKey);

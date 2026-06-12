@@ -864,7 +864,7 @@ router.post("/finance/approval/subkon/:paymentId/resubmit", async (req, res) => 
       await db.update(paymentApprovalsTable).set({ status: "pending", approvedBy: null, approvedAt: null, notes: null })
         .where(eq(paymentApprovalsTable.id, a.id));
     }
-    const [updated] = await db.update(subkonPaymentsTable).set({ status: "pending" }).where(eq(subkonPaymentsTable.id, paymentId)).returning();
+    const [updated] = await db.update(subkonPaymentsTable).set({ status: "pending_approval" }).where(eq(subkonPaymentsTable.id, paymentId)).returning();
     await writeAudit("finance", "subkon_payment", paymentId, "resubmit", payment, updated, req.body.submittedBy ?? "produksi");
     res.json({ ok: true, payment: { ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() } });
   } catch (e: any) {
