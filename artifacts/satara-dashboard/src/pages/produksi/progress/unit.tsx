@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { CheckSquare, Square, ChevronDown, ChevronUp, RefreshCw, Search, Plus } from "lucide-react";
+import { CheckSquare, Square, ChevronDown, ChevronUp, RefreshCw, Search, Plus, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import SubkonSelect from "@/components/subkon-select";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const BASELINE: Record<number, number> = { 1: 10, 2: 25, 3: 40, 4: 55, 5: 70, 6: 85, 7: 95, 8: 100 };
 const TIPE_OPTIONS = ["Tipe 36", "Tipe 45", "Tipe 54", "Tipe 60", "Tipe 72", "Tipe 90"];
@@ -32,6 +34,14 @@ type ProjectRow = { projectId: number; projectName: string; totalUnits: number; 
 type Project = { id: number; nama: string };
 
 const fmtPct = (n: number) => `${Math.round(n)}%`;
+const statusColor = (progress: number, status?: string) => {
+  const raw = String(status ?? "").toLowerCase();
+  if (raw.includes("akad") || raw.includes("terjual")) return { fill: [59, 130, 246] as [number, number, number], label: "Terjual/Akad" };
+  if (progress >= 100 || raw.includes("selesai")) return { fill: [34, 197, 94] as [number, number, number], label: "Selesai" };
+  if (progress > 0 || raw.includes("sedang")) return { fill: [245, 158, 11] as [number, number, number], label: "Sedang Dibangun" };
+  if (raw.includes("akan")) return { fill: [244, 114, 182] as [number, number, number], label: "Akan Dibangun" };
+  return { fill: [168, 85, 247] as [number, number, number], label: "Belum Dibuka" };
+};
 
 export default function ProgressUnit() {
   const [search, setSearch] = useState("");
@@ -40,6 +50,7 @@ export default function ProgressUnit() {
   const [expandedUnit, setExpandedUnit] = useState<number | null>(null);
   const [showTambahUnit, setShowTambahUnit] = useState(false);
   const [form, setForm] = useState({ projectId: "", stageCode: "T1", blok: "", nomor: "", tipe: "Tipe 36", subkonName: "", weekStarted: "" });
+  const [quickProgress, setQuickProgress] = useState<Record<number, number>>({});
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -59,6 +70,18 @@ export default function ProgressUnit() {
       if (!res.ok) throw new Error("Failed");
       return res.json() as Promise<Project[]>;
     },
+  });
+  const siteplanProjectId = filterProject !== "all" ? filterProject : "";
+  const { data: siteplans = [] } = useQuery({
+    queryKey: ["planning-siteplan", siteplanProjectId],
+    queryFn: () => fetch(`/api/planning/siteplan?projectId=${siteplanProjectId}`).then(r => r.json()),
+    enabled: !!siteplanProjectId,
+  });
+  const activeSiteplan = (siteplans as any[])[0] ?? null;
+  const { data: siteplanShapes = [] } = useQuery({
+    queryKey: ["planning-siteplan-shapes", activeSiteplan?.id],
+    queryFn: () => fetch(`/api/planning/siteplan/${activeSiteplan.id}/shapes`).then(r => r.json()),
+    enabled: !!activeSiteplan?.id,
   });
 
   const tambahUnitMutation = useMutation({
@@ -125,8 +148,113 @@ export default function ProgressUnit() {
       toast({ title: "Minggu konstruksi disimpan" });
     },
   });
+  const quickMutation = useMutation({
+    mutationFn: async ({ unitId, progress, status }: { unitId: number; progress?: number; status?: string }) => {
+      const res = await fetch(`/api/units/${unitId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...(progress !== undefined ? { progress } : {}), ...(status ? { status } : {}) }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["progress-summary"] });
+      qc.invalidateQueries({ queryKey: ["planning-siteplan-shapes"] });
+      toast({ title: "Progress unit diperbarui" });
+    },
+  });
 
   const allUnits: (UnitRow & { projectName: string })[] = (data ?? []).flatMap(p => p.units.map(u => ({ ...u, projectName: p.projectName })));
+  const unitShapes = (siteplanShapes as any[]).filter(s => s.shapeType === "unit");
+
+  function exportSiteplanPdf() {
+    if (!activeSiteplan?.imageDataUrl) return;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const projectName = projectList.find(p => String(p.projectId) === siteplanProjectId)?.projectName ?? "Semua Proyek";
+    const date = new Date().toLocaleDateString("id-ID");
+    const docNo = `SPP-BANK-${String(projectName).replace(/[^A-Z0-9]/gi, "").slice(0, 12).toUpperCase()}-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+    const completed = filtered.filter(u => u.progress >= 100).length;
+    const active = filtered.filter(u => u.progress > 0 && u.progress < 100).length;
+    const avg = filtered.length ? Math.round(filtered.reduce((s, u) => s + u.progress, 0) / filtered.length) : 0;
+
+    doc.setFontSize(15);
+    doc.text("Laporan Progress Siteplan", 12, 14);
+    doc.setFontSize(9);
+    doc.text(`Proyek: ${projectName}`, 12, 21);
+    doc.text(`Tanggal Export: ${date}`, 12, 26);
+    doc.text(`No Dokumen: ${docNo}`, 200, 21);
+    doc.text("Template: Ringkas Bank", 200, 26);
+
+    const mapX = 12;
+    const mapY = 33;
+    const mapW = 178;
+    const mapH = 105;
+    const imageFormat = String(activeSiteplan.imageDataUrl).startsWith("data:image/png") ? "PNG" : "JPEG";
+    doc.addImage(activeSiteplan.imageDataUrl, imageFormat, mapX, mapY, mapW, mapH, undefined, "FAST");
+    unitShapes.forEach(shape => {
+      const unit = allUnits.find(u => shape.unitId ? u.id === shape.unitId : `${u.blok}-${u.nomor}`.toLowerCase() === String(shape.label).toLowerCase());
+      const progress = unit?.progress ?? shape.progress ?? 0;
+      const style = statusColor(progress, shape.unitStatus);
+      const pts = Array.isArray(shape.polygon) ? shape.polygon : [];
+      if (pts.length < 3) return;
+      doc.setFillColor(style.fill[0], style.fill[1], style.fill[2]);
+      doc.setDrawColor(17, 24, 39);
+      doc.lines(pts.slice(1).map((p: any, i: number) => [
+        ((p.x - pts[i].x) / 100) * mapW,
+        ((p.y - pts[i].y) / 100) * mapH,
+      ]), mapX + (pts[0].x / 100) * mapW, mapY + (pts[0].y / 100) * mapH, [1, 1], "FD", true);
+      doc.setFontSize(5.5);
+      doc.text(`${shape.label} ${Math.round(progress)}%`, mapX + (pts[0].x / 100) * mapW + 1, mapY + (pts[0].y / 100) * mapH + 3);
+    });
+
+    autoTable(doc, {
+      startY: 34,
+      margin: { left: 198 },
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 1.6 },
+      head: [["Ringkasan", "Nilai"]],
+      body: [
+        ["Total Unit", String(filtered.length)],
+        ["Selesai", String(completed)],
+        ["Sedang Dibangun", String(active)],
+        ["Belum Mulai", String(Math.max(0, filtered.length - completed - active))],
+        ["Rata-rata Progress", `${avg}%`],
+      ],
+    });
+    autoTable(doc, {
+      startY: 78,
+      margin: { left: 198 },
+      theme: "grid",
+      styles: { fontSize: 7.5, cellPadding: 1.4 },
+      head: [["Legenda", "Status"]],
+      body: [
+        ["Hijau", "Selesai"],
+        ["Kuning", "Sedang Dibangun"],
+        ["Pink", "Akan Dibangun"],
+        ["Ungu", "Belum Dibuka"],
+        ["Biru", "Terjual/Akad"],
+      ],
+    });
+
+    autoTable(doc, {
+      startY: 146,
+      head: [["Unit", "Tipe", "Subkon", "Progress", "Minggu", "Checklist", "Status"]],
+      body: filtered.map(u => {
+        const done = u.tasks.filter(t => t.status === "selesai").length;
+        return [`${u.blok}-${u.nomor}`, u.tipe, u.subkonName ?? "-", `${Math.round(u.progress)}%`, u.weekStarted ? `M${u.weekStarted}` : "-", `${done}/${u.tasks.length}`, getStatus(u.progress, u.weekStarted).label];
+      }),
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [17, 24, 39] },
+      margin: { left: 12, right: 12 },
+    });
+
+    doc.setFontSize(8);
+    doc.text("Dibuat oleh Supervisor", 12, 198);
+    doc.text("Diperiksa Produksi", 80, 198);
+    doc.text("Disetujui Manager", 145, 198);
+    doc.save(`${docNo}.pdf`);
+  }
 
   const filtered = allUnits.filter(u => {
     if (filterProject !== "all" && String(u.projectId) !== filterProject) return false;
@@ -222,6 +350,11 @@ export default function ProgressUnit() {
               </div>
             </DialogContent>
           </Dialog>
+          {activeSiteplan?.imageDataUrl && (
+            <Button variant="outline" size="sm" onClick={exportSiteplanPdf} className="gap-1.5 h-8">
+              <Download className="size-3.5" /> Export PDF Bank
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 h-8">
             <RefreshCw className="size-3.5" />
           </Button>
@@ -268,7 +401,37 @@ export default function ProgressUnit() {
           )}
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-4">
+          {activeSiteplan?.imageDataUrl && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Monitoring Siteplan</CardTitle></CardHeader>
+              <CardContent>
+                <div className="relative overflow-hidden rounded-lg border bg-muted">
+                  <img src={activeSiteplan.imageDataUrl} alt="Siteplan" className="w-full select-none" />
+                  <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    {unitShapes.map(shape => {
+                      const unit = allUnits.find(u => shape.unitId ? u.id === shape.unitId : `${u.blok}-${u.nomor}`.toLowerCase() === String(shape.label).toLowerCase());
+                      const progress = unit?.progress ?? shape.progress ?? 0;
+                      const style = statusColor(progress, shape.unitStatus);
+                      const fill = `rgba(${style.fill[0]},${style.fill[1]},${style.fill[2]},.35)`;
+                      return <polygon key={shape.id} points={(shape.polygon ?? []).map((p: any) => `${p.x},${p.y}`).join(" ")} fill={fill} stroke="#111827" strokeWidth="0.25" />;
+                    })}
+                  </svg>
+                  {unitShapes.map(shape => {
+                    const first = shape.polygon?.[0];
+                    if (!first) return null;
+                    const unit = allUnits.find(u => shape.unitId ? u.id === shape.unitId : `${u.blok}-${u.nomor}`.toLowerCase() === String(shape.label).toLowerCase());
+                    return (
+                      <button key={shape.id} className="absolute rounded bg-background/85 px-1 text-[10px] font-semibold shadow-sm" style={{ left: `${first.x}%`, top: `${first.y}%` }} onClick={() => unit && setExpandedUnit(unit.id)}>
+                        {shape.label} · {Math.round(unit?.progress ?? shape.progress ?? 0)}%
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          <div className="space-y-1.5">
           {filtered.map((unit) => {
             const st = getStatus(unit.progress, unit.weekStarted);
             const isExpanded = expandedUnit === unit.id;
@@ -324,6 +487,12 @@ export default function ProgressUnit() {
                       </Select>
                       {unit.subkonName && <span className="text-[10px] text-muted-foreground ml-auto">Subkon: {unit.subkonName}</span>}
                     </div>
+                    <div className="flex flex-wrap items-center gap-2 mb-3 rounded-md bg-muted/30 p-2">
+                      <span className="text-xs text-muted-foreground">Update cepat progress</span>
+                      <Input className="h-7 w-20 text-xs" type="number" min={0} max={100} value={quickProgress[unit.id] ?? unit.progress} onChange={e => setQuickProgress(p => ({ ...p, [unit.id]: Number(e.target.value) }))} />
+                      <Button size="sm" className="h-7 text-xs" onClick={() => quickMutation.mutate({ unitId: unit.id, progress: quickProgress[unit.id] ?? unit.progress })}>Simpan %</Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => quickMutation.mutate({ unitId: unit.id, progress: 100, status: "akad" })}>Tandai Selesai</Button>
+                    </div>
 
                     {(seedMutation.isPending && hasNoTasks) ? (
                       <div className="text-xs text-muted-foreground py-2 text-center">Menginisialisasi checklist 26 item...</div>
@@ -367,6 +536,7 @@ export default function ProgressUnit() {
               </Card>
             );
           })}
+          </div>
         </div>
       )}
     </div>

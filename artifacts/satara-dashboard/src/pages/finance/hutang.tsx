@@ -16,7 +16,7 @@ function fmtPct(paid: number, total: number) {
   return Math.round((paid / total) * 100);
 }
 
-const EMPTY = { creditorName: "", category: "supplier", totalAmount: "", paidAmount: "", dueDate: "", notes: "", projectName: "", stageInfo: "" };
+const EMPTY = { creditorName: "", category: "kredit", totalAmount: "", paidAmount: "", dueDate: "", notes: "", projectName: "", stageInfo: "", collateral: "", interestRate: "", interestDueDay: "", akadDisbursementStatus: "belum_cair", manualReduction: "" };
 
 export default function HutangCenter() {
   const qc = useQueryClient();
@@ -70,6 +70,11 @@ export default function HutangCenter() {
       notes: r.notes ?? "",
       dueDate: r.dueDate ?? "",
       category: r.category ?? "supplier",
+      collateral: r.metadata?.collateral ?? "",
+      interestRate: r.metadata?.interestRate ?? "",
+      interestDueDay: r.metadata?.interestDueDay ?? "",
+      akadDisbursementStatus: r.metadata?.akadDisbursementStatus ?? "belum_cair",
+      manualReduction: r.metadata?.manualReduction ?? "",
     });
   }
 
@@ -117,8 +122,8 @@ export default function HutangCenter() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Hutang Center</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Monitoring kewajiban hutang pembebasan lahan per proyek</p>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Kredit & Investment</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Monitoring kredit, agunan, bunga, pengurangan akad, dan investment per proyek</p>
         </div>
         <div className="flex items-center gap-2">
           {!isEmpty && (
@@ -129,7 +134,7 @@ export default function HutangCenter() {
           )}
           <button onClick={() => setShowForm(true)}
             className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
-            <Plus className="size-3.5" />Tambah Hutang
+            <Plus className="size-3.5" />Tambah Kredit/Investment
           </button>
         </div>
       </div>
@@ -137,8 +142,8 @@ export default function HutangCenter() {
       {isEmpty && !isLoading ? (
         <div className="rounded-xl border-2 border-dashed p-8 text-center">
           <AlertTriangle className="size-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-sm font-medium">Data hutang belum tersedia</p>
-          <p className="text-xs text-muted-foreground mt-1">Upload file hutang di Upload Center atau tambah data manual</p>
+          <p className="text-sm font-medium">Data kredit/investment belum tersedia</p>
+          <p className="text-xs text-muted-foreground mt-1">Upload file atau tambah data manual</p>
         </div>
       ) : (
         <>
@@ -146,7 +151,7 @@ export default function HutangCenter() {
             <div className="rounded-xl border bg-card p-4">
               <div className="text-xs text-muted-foreground mb-1.5">Total Nilai Awal</div>
               <div className="text-xl font-bold tabular-nums">{fmtRp(totalAll)}</div>
-              <div className="text-[11px] text-muted-foreground mt-1">{projects.length} proyek · {records.length} kreditur</div>
+              <div className="text-[11px] text-muted-foreground mt-1">{projects.length} proyek · {records.length} record</div>
             </div>
             <div className="rounded-xl border bg-card p-4">
               <div className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
@@ -191,7 +196,7 @@ export default function HutangCenter() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3">
                           <span className="font-semibold text-sm">{proj}</span>
-                          <span className="text-xs text-muted-foreground">{pd.items.length} kreditur</span>
+                          <span className="text-xs text-muted-foreground">{pd.items.length} record</span>
                         </div>
                         <div className="mt-2 flex items-center gap-3">
                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -214,7 +219,7 @@ export default function HutangCenter() {
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="border-b bg-muted/30">
-                              {["Tahap", "Nama Pemilik/Kreditur", "Nilai Awal", "Terbayar", "Sisa Kewajiban", "Status", "Keterangan", ""].map(h => (
+                              {["Tahap", "Kreditur/Investor", "Kategori", "Agunan", "Bunga", "Nilai Awal", "Terbayar", "Sisa", "Status", ""].map(h => (
                                 <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                               ))}
                             </tr>
@@ -226,6 +231,9 @@ export default function HutangCenter() {
                                 <tr key={r.id} className={cn("border-b last:border-0 group", remaining <= 0 && "bg-emerald-50/30 dark:bg-emerald-950/10")}>
                                   <td className="px-3 py-2 text-muted-foreground">{r.stageInfo || "-"}</td>
                                   <td className="px-3 py-2 font-medium max-w-[180px] truncate">{r.creditorName}</td>
+                                  <td className="px-3 py-2 text-muted-foreground">{r.category}</td>
+                                  <td className="px-3 py-2 text-muted-foreground max-w-[140px] truncate">{r.metadata?.collateral || "-"}</td>
+                                  <td className="px-3 py-2 text-muted-foreground">{r.metadata?.interestRate ? `${r.metadata.interestRate}%/bln` : "-"}</td>
                                   <td className="px-3 py-2 tabular-nums">{fmtRp(Number(r.totalAmount))}</td>
                                   <td className="px-3 py-2 tabular-nums text-emerald-600 font-medium">{fmtRp(Number(r.paidAmount ?? 0))}</td>
                                   <td className={cn("px-3 py-2 tabular-nums font-medium", remaining > 0 ? "text-amber-500" : "text-emerald-500")}>{fmtRp(remaining)}</td>
@@ -235,7 +243,6 @@ export default function HutangCenter() {
                                       {r.status === "paid" ? "Lunas" : "Belum Lunas"}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-2 text-muted-foreground max-w-[150px] truncate">{r.notes || "-"}</td>
                                   <td className="px-3 py-2">{rowActions(r)}</td>
                                 </tr>
                               );
@@ -243,11 +250,11 @@ export default function HutangCenter() {
                           </tbody>
                           <tfoot>
                             <tr className="bg-muted/30 font-semibold">
-                              <td colSpan={2} className="px-3 py-2 text-xs">Subtotal {proj}</td>
+                              <td colSpan={5} className="px-3 py-2 text-xs">Subtotal {proj}</td>
                               <td className="px-3 py-2 tabular-nums text-xs">{fmtRp(pd.totalAmount)}</td>
                               <td className="px-3 py-2 tabular-nums text-xs text-emerald-600">{fmtRp(pd.paidAmount)}</td>
                               <td className={cn("px-3 py-2 tabular-nums text-xs", pd.remainingAmount > 0 ? "text-amber-500" : "text-emerald-500")}>{fmtRp(pd.remainingAmount)}</td>
-                              <td colSpan={3} className="px-3 py-2 text-xs text-muted-foreground">{pd.items.filter((i: any) => i.status === "paid").length}/{pd.items.length} lunas</td>
+                              <td colSpan={2} className="px-3 py-2 text-xs text-muted-foreground">{pd.items.filter((i: any) => i.status === "paid").length}/{pd.items.length} lunas</td>
                             </tr>
                           </tfoot>
                         </table>
@@ -265,7 +272,7 @@ export default function HutangCenter() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      {["Proyek", "Tahap", "Kreditur", "Nilai Awal", "Terbayar", "Sisa", "Status", ""].map(h => (
+                      {["Proyek", "Tahap", "Kreditur/Investor", "Kategori", "Agunan", "Nilai Awal", "Terbayar", "Sisa", "Status", ""].map(h => (
                         <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -278,6 +285,8 @@ export default function HutangCenter() {
                           <td className="px-4 py-2 font-medium">{r.projectName || "-"}</td>
                           <td className="px-4 py-2 text-muted-foreground">{r.stageInfo || "-"}</td>
                           <td className="px-4 py-2 max-w-[160px] truncate">{r.creditorName}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{r.category}</td>
+                          <td className="px-4 py-2 text-muted-foreground max-w-[140px] truncate">{r.metadata?.collateral || "-"}</td>
                           <td className="px-4 py-2 tabular-nums">{fmtRp(Number(r.totalAmount))}</td>
                           <td className="px-4 py-2 tabular-nums text-emerald-600">{fmtRp(Number(r.paidAmount ?? 0))}</td>
                           <td className={cn("px-4 py-2 tabular-nums font-medium", remaining > 0 ? "text-amber-500" : "text-emerald-500")}>{fmtRp(remaining)}</td>
@@ -303,7 +312,7 @@ export default function HutangCenter() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="rounded-xl border bg-background w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-sm font-semibold">Tambah Data Hutang</h2>
+            <h2 className="text-sm font-semibold">Tambah Kredit / Investment</h2>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground">Nama Proyek</label>
@@ -316,9 +325,15 @@ export default function HutangCenter() {
               </div>
               {[
                 { key: "stageInfo", label: "Tahap", type: "text", span: false },
-                { key: "creditorName", label: "Nama Kreditur/Pemilik", type: "text", span: true },
-                { key: "totalAmount", label: "Nilai Awal (Rp)", type: "number", span: false },
-                { key: "paidAmount", label: "Sudah Terbayar (Rp)", type: "number", span: false },
+                { key: "creditorName", label: "Nama Kreditur/Investor", type: "text", span: true },
+                { key: "category", label: "Kategori (kredit/investment)", type: "text", span: false },
+                { key: "totalAmount", label: "Plafon/Nilai Awal (Rp)", type: "number", span: false },
+                { key: "paidAmount", label: "Pengurangan/Paid (Rp)", type: "number", span: false },
+                { key: "collateral", label: "Agunan", type: "text", span: false },
+                { key: "interestRate", label: "Bunga Bulanan (%)", type: "number", span: false },
+                { key: "interestDueDay", label: "Tempo Bunga Tgl", type: "number", span: false },
+                { key: "manualReduction", label: "Pengurangan Manual Akad", type: "number", span: false },
+                { key: "akadDisbursementStatus", label: "Status Akad Cair", type: "text", span: false },
                 { key: "dueDate", label: "Jatuh Tempo", type: "date", span: false },
               ].map(f => (
                 <div key={f.key} className={f.span ? "col-span-2" : ""}>
@@ -335,7 +350,7 @@ export default function HutangCenter() {
                 rows={2} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background resize-none" />
             </div>
             <div className="flex gap-2 pt-1">
-              <button onClick={() => addDebt.mutate(form)} disabled={addDebt.isPending}
+              <button onClick={() => addDebt.mutate({ ...form, paidAmount: Number(form.paidAmount || 0) + Number(form.manualReduction || 0), metadata: { collateral: form.collateral, interestRate: form.interestRate, interestDueDay: form.interestDueDay, manualReduction: form.manualReduction, akadDisbursementStatus: form.akadDisbursementStatus } })} disabled={addDebt.isPending}
                 className="flex-1 bg-foreground text-background text-sm py-2 rounded-md hover:opacity-90 disabled:opacity-50">
                 {addDebt.isPending ? "Menyimpan..." : "Simpan"}
               </button>
@@ -351,7 +366,7 @@ export default function HutangCenter() {
           <div className="rounded-xl border bg-background w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-2">
               <Pencil className="size-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Edit Data Hutang</h2>
+              <h2 className="text-sm font-semibold">Edit Kredit / Investment</h2>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -365,9 +380,15 @@ export default function HutangCenter() {
               </div>
               {[
                 { key: "stageInfo", label: "Tahap", type: "text", span: false },
-                { key: "creditorName", label: "Nama Kreditur/Pemilik", type: "text", span: true },
-                { key: "totalAmount", label: "Nilai Awal (Rp)", type: "number", span: false },
-                { key: "paidAmount", label: "Sudah Terbayar (Rp)", type: "number", span: false },
+                { key: "creditorName", label: "Nama Kreditur/Investor", type: "text", span: true },
+                { key: "category", label: "Kategori", type: "text", span: false },
+                { key: "totalAmount", label: "Plafon/Nilai Awal (Rp)", type: "number", span: false },
+                { key: "paidAmount", label: "Pengurangan/Paid (Rp)", type: "number", span: false },
+                { key: "collateral", label: "Agunan", type: "text", span: false },
+                { key: "interestRate", label: "Bunga Bulanan (%)", type: "number", span: false },
+                { key: "interestDueDay", label: "Tempo Bunga Tgl", type: "number", span: false },
+                { key: "manualReduction", label: "Pengurangan Manual Akad", type: "number", span: false },
+                { key: "akadDisbursementStatus", label: "Status Akad Cair", type: "text", span: false },
                 { key: "dueDate", label: "Jatuh Tempo", type: "date", span: false },
               ].map(f => (
                 <div key={f.key} className={f.span ? "col-span-2" : ""}>
@@ -384,7 +405,7 @@ export default function HutangCenter() {
                 rows={2} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background resize-none" />
             </div>
             <div className="flex gap-2 pt-1">
-              <button onClick={() => updateDebt.mutate({ id: editingRecord.id, ...editForm })} disabled={updateDebt.isPending}
+              <button onClick={() => updateDebt.mutate({ id: editingRecord.id, ...editForm, metadata: { collateral: editForm.collateral, interestRate: editForm.interestRate, interestDueDay: editForm.interestDueDay, manualReduction: editForm.manualReduction, akadDisbursementStatus: editForm.akadDisbursementStatus } })} disabled={updateDebt.isPending}
                 className="flex-1 bg-foreground text-background text-sm py-2 rounded-md hover:opacity-90 disabled:opacity-50">
                 {updateDebt.isPending ? "Menyimpan..." : "Simpan Perubahan"}
               </button>

@@ -42,10 +42,13 @@ export default defineConfig(async ({ command }) => {
         : []),
     ],
     resolve: {
-      alias: {
-        "@": path.resolve(import.meta.dirname, "src"),
-        "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
-      },
+      alias: [
+        { find: "@", replacement: path.resolve(import.meta.dirname, "src") },
+        { find: "@assets", replacement: path.resolve(import.meta.dirname, "..", "..", "attached_assets") },
+        { find: /^lodash\/(.+)$/, replacement: `${path.resolve(import.meta.dirname, "node_modules/lodash")}/$1.js` },
+        { find: "detect-node-es", replacement: path.resolve(import.meta.dirname, "src/lib/browser-shims/detect-node-es.ts") },
+        { find: "performance-now", replacement: path.resolve(import.meta.dirname, "src/lib/browser-shims/performance-now.ts") },
+      ],
       dedupe: ["react", "react-dom"],
     },
     root: path.resolve(import.meta.dirname),

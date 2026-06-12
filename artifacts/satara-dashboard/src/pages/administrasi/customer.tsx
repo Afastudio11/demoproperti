@@ -70,7 +70,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function exportCsv(customers: any[]) {
-  const headers = ["No", "Blok/Unit", "Nama", "Pekerjaan", "Bank", "PIC", "Status", "Tanggal Status", "Aging (hari)", "Telepon"];
+  const headers = ["No", "Blok/Unit", "Nama", "Pekerjaan", "Bank", "PIC", "Status", "Progress Rumah", "Tanggal Status", "Aging (hari)", "Telepon"];
   const rows = customers.map((c, i) => [
     i + 1,
     c.unitBlock ?? "",
@@ -79,6 +79,7 @@ function exportCsv(customers: any[]) {
     c.bank ?? "",
     c.picAdmin ?? "",
     STATUS_LABELS[c.pipelineStatus ?? ""] ?? c.pipelineStatus ?? "",
+    c.progressRumah == null ? "" : `${Math.round(c.progressRumah)}%`,
     c.statusUpdatedAt ? new Date(c.statusUpdatedAt).toLocaleDateString("id-ID") : "",
     c.aging ?? 0,
     c.phone ?? "",
@@ -184,16 +185,16 @@ export default function CustomerList() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                {["No", "Blok/Unit", "Nama", "Pekerjaan", "Bank", "PIC", "Status", "Aging", "Aksi"].map(h => (
+                {["No", "Blok/Unit", "Nama", "Pekerjaan", "Bank", "PIC", "Status", "Progress Rumah", "Aging", "Aksi"].map(h => (
                   <th key={h} className="px-3 py-2.5 text-left text-[11px] font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">Memuat...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground text-sm">Memuat...</td></tr>
               ) : customers.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">Tidak ada customer.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground text-sm">Tidak ada customer.</td></tr>
               ) : customers.map((c: any, i: number) => (
                 <tr key={c.id} className={cn("border-b last:border-0 hover:bg-muted/20 transition-colors", AGING_ROW[c.agingLevel ?? "normal"])}>
                   <td className="px-3 py-2.5 text-muted-foreground text-xs">{i + 1}</td>
@@ -218,6 +219,18 @@ export default function CustomerList() {
                         <option key={s} value={s}>{STATUS_LABELS[s]}</option>
                       ))}
                     </select>
+                  </td>
+                  <td className="px-3 py-2.5 min-w-32">
+                    {c.progressRumah == null ? (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500" style={{ width: `${Math.max(0, Math.min(100, c.progressRumah))}%` }} />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">{Math.round(c.progressRumah)}%</span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2.5">
                     <AgingBadge days={c.aging ?? 0} />

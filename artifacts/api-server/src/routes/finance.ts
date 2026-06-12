@@ -7,10 +7,20 @@ import {
   kppFacilitiesTable,
   kppPaymentsTable,
   debtRecordsTable,
+  akadDisbursementsTable,
+  financeAkadDisbursementLedgerTable,
+  appAuditLogsTable,
   receivableRecordsTable,
   auditFindingsTable,
   financeAlertsTable,
   expansionAnalysesTable,
+  akadRecordsTable,
+  customersTable,
+  unitsTable,
+  paymentApprovalsTable,
+  subkonPaymentsTable,
+  subkonContractsTable,
+  projectsTable,
 } from "@workspace/db";
 import { eq, desc, sql, and, lte, gte, lt } from "drizzle-orm";
 import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
@@ -20,6 +30,54 @@ const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number; info:
   (globalThis as any).require("pdf-parse");
 
 const router = Router();
+
+async function writeAudit(module: string, entityType: string, entityId: number | string, action: string, before: unknown, after: unknown, actor = "system", notes?: string) {
+  try {
+    await db.insert(appAuditLogsTable).values({
+      module,
+      entityType,
+      entityId: String(entityId),
+      action,
+      actor,
+      before,
+      after,
+      notes: notes ?? null,
+    });
+  } catch {
+    // Audit logging must not block the operational transaction.
+  }
+}
+
+async function reduceProjectCredit(projectId: number | null | undefined, amount: number, sourceNote: string) {
+  if (!projectId || amount <= 0) return;
+  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
+  if (!project) return;
+  const debts = await db.select().from(debtRecordsTable);
+  const candidates = debts
+    .filter(d => String(d.projectName ?? "").toLowerCase() === project.nama.toLowerCase())
+    .filter(d => ["kredit", "credit", "hutang", "bank"].includes(String(d.category ?? "").toLowerCase()))
+    .filter(d => Number(d.remainingAmount ?? d.totalAmount ?? 0) > 0);
+  let remainingReduction = amount;
+  for (const debt of candidates) {
+    if (remainingReduction <= 0) break;
+    const currentPaid = Number(debt.paidAmount ?? 0);
+    const currentRemaining = Number(debt.remainingAmount ?? Math.max(0, Number(debt.totalAmount ?? 0) - currentPaid));
+    const reduction = Math.min(currentRemaining, remainingReduction);
+    const nextPaid = currentPaid + reduction;
+    const nextRemaining = Math.max(0, currentRemaining - reduction);
+    const metadata = { ...(debt.metadata as Record<string, unknown> | null ?? {}), lastAkadReduction: reduction, lastAkadReductionNote: sourceNote };
+    const [row] = await db.update(debtRecordsTable).set({
+      paidAmount: String(nextPaid),
+      remainingAmount: String(nextRemaining),
+      status: nextRemaining <= 0 ? "paid" : "outstanding",
+      metadata,
+      lockedAt: nextRemaining <= 0 ? new Date() : debt.lockedAt,
+      lockedBy: nextRemaining <= 0 ? "system-akad" : debt.lockedBy,
+    }).where(eq(debtRecordsTable.id, debt.id)).returning();
+    await writeAudit("finance", "debt", debt.id, "akad_auto_reduction", debt, row, "finance", sourceNote);
+    remainingReduction -= reduction;
+  }
+}
 
 function inferCashflowType(input: unknown, amount: number): "cash_in" | "cash_out" {
   const raw = String(input ?? "").toLowerCase();
@@ -703,7 +761,7 @@ router.get("/finance/hutang", async (req, res) => {
       byProject[proj].totalAmount += orig;
       byProject[proj].paidAmount += paid;
       byProject[proj].remainingAmount += remaining;
-      byProject[proj].items.push({ ...r, totalAmount: orig, paidAmount: paid, remainingAmount: remaining });
+      byProject[proj].items.push({ ...r, metadata: r.metadata ?? {}, totalAmount: orig, paidAmount: paid, remainingAmount: remaining });
 
       // By category (use remaining for aging)
       if (!byCategory[cat]) byCategory[cat] = { total: 0, lt30: 0, d30_60: 0, gt60: 0 };
@@ -719,7 +777,7 @@ router.get("/finance/hutang", async (req, res) => {
       totalRemaining += remaining;
     }
 
-    res.json({ byProject, byCategory, total: totalAll, totalPaid, totalRemaining, records });
+    res.json({ byProject, byCategory, total: totalAll, totalPaid, totalRemaining, records: records.map(r => ({ ...r, metadata: r.metadata ?? {} })) });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -727,18 +785,183 @@ router.get("/finance/hutang", async (req, res) => {
 
 router.post("/finance/hutang", async (req, res) => {
   try {
-    const { creditorName, category, totalAmount, paidAmount, remainingAmount, projectName, stageInfo, dueDate, notes } = req.body;
+    const { creditorName, category, totalAmount, paidAmount, remainingAmount, projectName, stageInfo, dueDate, notes, metadata } = req.body;
     const paid = Number(paidAmount ?? 0);
     const orig = Number(totalAmount ?? 0);
     const remaining = Number(remainingAmount ?? (orig - paid));
     const status = remaining <= 0 ? "paid" : "outstanding";
     const [row] = await db.insert(debtRecordsTable).values({
       creditorName, category, totalAmount: String(orig), paidAmount: String(paid),
-      remainingAmount: String(remaining), projectName, stageInfo, dueDate, notes, status,
+      remainingAmount: String(remaining), projectName, stageInfo, dueDate, notes, status, metadata: metadata ?? {},
     }).returning();
+    await writeAudit("finance", "debt", row.id, "create", null, row, "finance", notes);
     res.json(row);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── FINANCE APPROVAL MIRROR ─────────────────────────────────────────────────
+router.get("/finance/approval/subkon", async (_req, res) => {
+  try {
+    const approvals = await db.select().from(paymentApprovalsTable).orderBy(paymentApprovalsTable.createdAt);
+    const payments = await db.select().from(subkonPaymentsTable);
+    const contracts = await db.select().from(subkonContractsTable);
+    const rows = approvals.map(a => {
+      const payment = payments.find(p => p.id === a.paymentId);
+      const contract = payment ? contracts.find(c => c.id === payment.contractId) : null;
+      return {
+        ...a,
+        createdAt: a.createdAt.toISOString(),
+        approvedAt: a.approvedAt?.toISOString() ?? null,
+        payment: payment ? { ...payment, createdAt: payment.createdAt.toISOString(), updatedAt: payment.updatedAt.toISOString() } : null,
+        contract: contract ? { ...contract, createdAt: contract.createdAt.toISOString(), updatedAt: contract.updatedAt.toISOString() } : null,
+      };
+    });
+    res.json(rows);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.patch("/finance/approval/subkon/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { status, approvedBy, notes } = req.body as { status: string; approvedBy?: string; notes?: string };
+    const [before] = await db.select().from(paymentApprovalsTable).where(eq(paymentApprovalsTable.id, id));
+    const [row] = await db.update(paymentApprovalsTable).set({
+      status,
+      approvedBy: approvedBy ?? "Finance",
+      approvedAt: status !== "pending" ? new Date() : null,
+      notes: notes ?? null,
+    }).where(eq(paymentApprovalsTable.id, id)).returning();
+    if (!row) return res.status(404).json({ error: "Not found" });
+    if (status === "rejected") {
+      await db.update(subkonPaymentsTable).set({ status: "rejected" }).where(eq(subkonPaymentsTable.id, row.paymentId));
+    } else if (status === "approved") {
+      const approvals = await db.select().from(paymentApprovalsTable).where(eq(paymentApprovalsTable.paymentId, row.paymentId));
+      if (approvals.every(a => a.status === "approved")) {
+        await db.update(subkonPaymentsTable).set({ status: "approved" }).where(eq(subkonPaymentsTable.id, row.paymentId));
+      }
+    }
+    await writeAudit("finance", "payment_approval", id, status, before ?? null, row, approvedBy ?? "Finance", notes);
+    res.json({ ...row, createdAt: row.createdAt.toISOString(), approvedAt: row.approvedAt?.toISOString() ?? null });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.patch("/finance/approval/subkon-payments/:id/mark-paid", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.status !== "approved" && existing.status !== "paid") return res.status(400).json({ error: "Pembayaran harus approved" });
+    const paymentDate = req.body.paymentDate ?? new Date().toISOString().split("T")[0];
+    const [row] = await db.update(subkonPaymentsTable).set({ status: "paid", paymentDate }).where(eq(subkonPaymentsTable.id, id)).returning();
+    const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, row.contractId));
+    if (contract && row.netPayment && row.netPayment > 0) {
+      await recordFinanceCashflow({
+        transactionDate: paymentDate,
+        type: "cash_out",
+        category: "subkon",
+        amount: row.netPayment,
+        description: `Pembayaran termin ${row.terminNumber ?? "-"} ${contract.subkonName}`,
+        referenceNumber: `SUBKON-${row.contractId}-${row.id}`,
+        projectId: contract.projectId,
+      });
+    }
+    await writeAudit("finance", "subkon_payment", id, "mark_paid", existing, row, "Finance", `Pembayaran termin ${row.terminNumber ?? "-"}`);
+    res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), contract });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ─── AKAD CAIR TRACKER ───────────────────────────────────────────────────────
+router.get("/finance/akad-cair", async (_req, res) => {
+  try {
+    const [akads, disbursements, customers, units] = await Promise.all([
+      db.select().from(akadRecordsTable).orderBy(desc(akadRecordsTable.createdAt)),
+      db.select().from(akadDisbursementsTable),
+      db.select().from(customersTable),
+      db.select().from(unitsTable),
+    ]);
+    const rows = akads.map(a => {
+      const customer = customers.find(c => c.id === a.customerId) ?? null;
+      const unit = customer?.unitId
+        ? units.find(u => u.id === customer.unitId)
+        : units.find(u => u.projectId === customer?.projectId && `${u.blok}-${u.nomor}`.toLowerCase() === String(customer?.unitBlock ?? "").toLowerCase());
+      const finance = disbursements.find(d => d.akadId === a.id) ?? null;
+      const akadAmount = a.akadAmount ? Number(a.akadAmount) : 0;
+      const nominalCair = finance?.nominalCair ? Number(finance.nominalCair) : 0;
+      return {
+        ...a,
+        akadAmount,
+        createdAt: a.createdAt.toISOString(),
+        customerName: customer?.nama ?? "-",
+        projectId: customer?.projectId ?? unit?.projectId ?? null,
+        unitBlock: customer?.unitBlock ?? (unit ? `${unit.blok}-${unit.nomor}` : "-"),
+        progressRumah: unit?.progress ?? 0,
+        finance: finance ? { ...finance, nominalCair, createdAt: finance.createdAt.toISOString(), updatedAt: finance.updatedAt.toISOString() } : null,
+        statusCair: finance?.statusCair ?? "belum_cair",
+        nominalCair,
+        sisaBelumCair: Math.max(0, akadAmount - nominalCair),
+      };
+    });
+    res.json({ records: rows });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.patch("/finance/akad-cair/:akadId", async (req, res) => {
+  try {
+    const akadId = Number(req.params.akadId);
+    const [akad] = await db.select().from(akadRecordsTable).where(eq(akadRecordsTable.id, akadId));
+    if (!akad) return res.status(404).json({ error: "Akad tidak ditemukan" });
+    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, akad.customerId));
+    const existing = await db.select().from(akadDisbursementsTable).where(eq(akadDisbursementsTable.akadId, akadId));
+    const values = {
+      akadId,
+      customerId: akad.customerId,
+      projectId: customer?.projectId ?? null,
+      statusCair: req.body.statusCair ?? "belum_cair",
+      tanggalCair: req.body.tanggalCair || null,
+      nominalCair: String(Number(req.body.nominalCair ?? 0)),
+      bankDeduction: String(Number(req.body.bankDeduction ?? 0)),
+      destinationAccount: req.body.destinationAccount ?? null,
+      proofUrl: req.body.proofUrl ?? null,
+      notes: req.body.notes ?? null,
+      updatedBy: req.body.updatedBy ?? "finance",
+    };
+    const before = existing[0] ?? null;
+    const previousNominal = before?.nominalCair ? Number(before.nominalCair) : 0;
+    const nextNominal = Number(req.body.nominalCair ?? 0);
+    const [row] = existing.length
+      ? await db.update(akadDisbursementsTable).set(values).where(eq(akadDisbursementsTable.id, existing[0].id)).returning()
+      : await db.insert(akadDisbursementsTable).values(values).returning();
+    const delta = Math.max(0, nextNominal - previousNominal);
+    if (delta > 0 && values.tanggalCair) {
+      const [ledger] = await db.insert(financeAkadDisbursementLedgerTable).values({
+        akadId,
+        disbursementId: row.id,
+        customerId: akad.customerId,
+        projectId: customer?.projectId ?? null,
+        tanggalCair: values.tanggalCair,
+        nominalCair: String(delta),
+        bankDeduction: values.bankDeduction,
+        destinationAccount: values.destinationAccount,
+        proofUrl: values.proofUrl,
+        notes: values.notes,
+        createdBy: values.updatedBy,
+      }).returning();
+      await reduceProjectCredit(customer?.projectId, delta, `Akad cair #${akadId} ledger #${ledger.id}`);
+    }
+    await writeAudit("finance", "akad_disbursement", akadId, "update_akad_cair", before, row, values.updatedBy, values.notes ?? undefined);
+    res.json({ ...row, nominalCair: Number(row.nominalCair ?? 0), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
   }
 });
 
@@ -1510,12 +1733,15 @@ router.post("/finance/uploads/ai-preview", async (req, res) => {
 router.put("/finance/hutang/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { creditorName, category, totalAmount, paidAmount, projectName, stageInfo, dueDate, notes } = req.body;
+    const { creditorName, category, totalAmount, paidAmount, projectName, stageInfo, dueDate, notes, metadata } = req.body;
+    const [before] = await db.select().from(debtRecordsTable).where(eq(debtRecordsTable.id, id));
+    if (before?.lockedAt) return res.status(423).json({ error: "Record kredit sudah locked/lunas. Buat transaksi koreksi untuk revisi." });
     const orig = Number(totalAmount ?? 0); const paid = Number(paidAmount ?? 0);
     const remaining = Math.max(0, orig - paid);
     const [row] = await db.update(debtRecordsTable)
-      .set({ creditorName, category: category || "supplier", totalAmount: String(orig), paidAmount: String(paid), remainingAmount: String(remaining), projectName: projectName || null, stageInfo: stageInfo || null, dueDate: dueDate || null, notes: notes || "", status: remaining <= 0 ? "paid" : "outstanding" })
+      .set({ creditorName, category: category || "supplier", totalAmount: String(orig), paidAmount: String(paid), remainingAmount: String(remaining), projectName: projectName || null, stageInfo: stageInfo || null, dueDate: dueDate || null, notes: notes || "", metadata: metadata ?? {}, status: remaining <= 0 ? "paid" : "outstanding", lockedAt: remaining <= 0 ? new Date() : null, lockedBy: remaining <= 0 ? "finance" : null })
       .where(eq(debtRecordsTable.id, id)).returning();
+    await writeAudit("finance", "debt", id, "update", before ?? null, row, "finance", notes);
     res.json(row);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

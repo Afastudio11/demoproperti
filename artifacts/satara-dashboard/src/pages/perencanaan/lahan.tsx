@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
-import { Save, Download, MapPin } from "lucide-react";
+import { Save, Download, MapPin, Plus, Trash2, Upload } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -36,6 +36,11 @@ export default function LahanPage() {
   const [savedId, setSavedId] = useState<number | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [autoImported, setAutoImported] = useState(false);
+  const [activeSiteplanId, setActiveSiteplanId] = useState<number | null>(null);
+  const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "" });
+  const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
+  const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
+  const imageRef = useRef<HTMLDivElement | null>(null);
 
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
@@ -43,10 +48,26 @@ export default function LahanPage() {
   const urlProspectId = searchParams.get("prospectId") ? parseInt(searchParams.get("prospectId")!) : null;
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
+  const { data: units = [] } = useQuery({
+    queryKey: ["units", form.projectId],
+    queryFn: () => fetch(`/api/units?projectId=${form.projectId}`).then(r => r.json()),
+    enabled: !!form.projectId,
+  });
   const { data: prospects } = useQuery({
     queryKey: ["land-prospects"],
     queryFn: () => fetch("/api/land-prospects").then(r => r.json()),
     enabled: showImport || !!urlProspectId,
+  });
+  const { data: siteplans = [], refetch: refetchSiteplans } = useQuery({
+    queryKey: ["planning-siteplan", form.projectId],
+    queryFn: () => fetch(`/api/planning/siteplan?projectId=${form.projectId}`).then(r => r.json()),
+    enabled: !!form.projectId,
+  });
+  const selectedSiteplan = (siteplans as any[]).find(s => s.id === activeSiteplanId) ?? (siteplans as any[])[0] ?? null;
+  const { data: siteplanShapes = [], refetch: refetchShapes } = useQuery({
+    queryKey: ["planning-siteplan-shapes", selectedSiteplan?.id],
+    queryFn: () => fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`).then(r => r.json()),
+    enabled: !!selectedSiteplan?.id,
   });
 
   const selectProject = async (id: number) => {
@@ -143,6 +164,83 @@ export default function LahanPage() {
     await qc.invalidateQueries({ queryKey: ["planning-land"] });
     toast({ title: "Analisis lahan tersimpan" });
   };
+
+  async function uploadSiteplan(file: File) {
+    if (!form.projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const resp = await fetch("/api/planning/siteplan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: form.projectId, title: file.name, imageDataUrl: reader.result }),
+      });
+      const row = await resp.json();
+      setActiveSiteplanId(row.id);
+      await refetchSiteplans();
+      toast({ title: "Siteplan berhasil diupload" });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function addPoint(e: React.MouseEvent<HTMLDivElement>) {
+    if (!imageRef.current || !selectedSiteplan) return;
+    const rect = imageRef.current.getBoundingClientRect();
+    const x = Math.round(((e.clientX - rect.left) / rect.width) * 1000) / 10;
+    const y = Math.round(((e.clientY - rect.top) / rect.height) * 1000) / 10;
+    setDraftPoints(p => [...p, { x, y }]);
+  }
+
+  async function saveShape() {
+    if (!selectedSiteplan || draftPoints.length < 3 || !shapeDraft.label) {
+      toast({ title: "Isi label dan minimal 3 titik polygon", variant: "destructive" });
+      return;
+    }
+    const payload = { ...shapeDraft, unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null, polygon: draftPoints };
+    await fetch(editingShapeId ? `/api/planning/siteplan/shapes/${editingShapeId}` : `/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+      method: editingShapeId ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setDraftPoints([]);
+    setEditingShapeId(null);
+    setShapeDraft(p => ({ ...p, label: "", ownerName: "", blockCode: "", notes: "", unitId: "", progress: 0 }));
+    await refetchShapes();
+    toast({ title: editingShapeId ? "Shape siteplan diperbarui" : "Shape siteplan disimpan" });
+  }
+
+  function startEditShape(shape: any) {
+    setEditingShapeId(shape.id);
+    setShapeDraft({
+      shapeType: shape.shapeType ?? "unit",
+      label: shape.label ?? "",
+      ownerName: shape.ownerName ?? "",
+      landArea: Number(shape.landArea ?? 0),
+      price: Number(shape.price ?? 0),
+      legalStatus: shape.legalStatus ?? "",
+      purchaseStatus: shape.purchaseStatus ?? "belum_dibeli",
+      plannedUnits: Number(shape.plannedUnits ?? 1),
+      blockCode: shape.blockCode ?? "",
+      unitType: shape.unitType ?? "",
+      subkonName: shape.subkonName ?? "",
+      unitStatus: shape.unitStatus ?? "belum_dibuka",
+      unitId: shape.unitId ? String(shape.unitId) : "",
+      progress: Number(shape.progress ?? 0),
+      notes: shape.notes ?? "",
+    });
+    setDraftPoints(Array.isArray(shape.polygon) ? shape.polygon : []);
+  }
+
+  function moveDraft(dx: number, dy: number) {
+    setDraftPoints(points => points.map(p => ({
+      x: Math.max(0, Math.min(100, Math.round((p.x + dx) * 10) / 10)),
+      y: Math.max(0, Math.min(100, Math.round((p.y + dy) * 10) / 10)),
+    })));
+  }
+
+  async function deleteShape(id: number) {
+    await fetch(`/api/planning/siteplan/shapes/${id}`, { method: "DELETE" });
+    await refetchShapes();
+  }
 
   const projectList = Array.isArray(projects) ? projects : [];
   const prospectList = Array.isArray(prospects) ? prospects : [];
@@ -347,6 +445,80 @@ export default function LahanPage() {
           )}
         </div>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Siteplan & Pembagian Blok/Unit</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-sm cursor-pointer hover:bg-muted">
+              <Upload className="size-3.5" /> Upload Siteplan
+              <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadSiteplan(f); }} />
+            </label>
+            {siteplans.length > 0 && (
+              <Select value={String(selectedSiteplan?.id ?? "")} onValueChange={v => setActiveSiteplanId(Number(v))}>
+                <SelectTrigger className="h-8 w-64 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>{(siteplans as any[]).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.title}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
+            <Button size="sm" variant="outline" className="h-8" onClick={() => { setDraftPoints([]); setEditingShapeId(null); }}>Reset Titik</Button>
+          </div>
+
+          {selectedSiteplan?.imageDataUrl ? (
+            <div className="grid lg:grid-cols-[1fr_320px] gap-4">
+              <div ref={imageRef} onClick={addPoint} className="relative overflow-hidden rounded-lg border bg-muted cursor-crosshair">
+                <img src={selectedSiteplan.imageDataUrl} alt="Siteplan" className="w-full select-none pointer-events-none" />
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+	                  {(siteplanShapes as any[]).map(shape => (
+	                    <polygon key={shape.id} points={(shape.polygon ?? []).map((p: any) => `${p.x},${p.y}`).join(" ")} fill={shape.id === editingShapeId ? "rgba(245,158,11,.3)" : shape.shapeType === "unit" ? "rgba(59,130,246,.25)" : "rgba(16,185,129,.25)"} stroke={shape.id === editingShapeId ? "#f59e0b" : shape.shapeType === "unit" ? "#2563eb" : "#059669"} strokeWidth="0.3" />
+	                  ))}
+                  {draftPoints.length > 0 && <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="rgba(245,158,11,.25)" stroke="#f59e0b" strokeWidth="0.4" />}
+                  {draftPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="0.8" fill="#f59e0b" onClick={(e) => { e.stopPropagation(); setDraftPoints(points => points.filter((_, idx) => idx !== i)); }} />)}
+                </svg>
+                {(siteplanShapes as any[]).map(shape => {
+                  const first = shape.polygon?.[0];
+                  if (!first) return null;
+	                  return <button key={`label-${shape.id}`} type="button" onClick={(e) => { e.stopPropagation(); startEditShape(shape); }} className="absolute text-[10px] font-bold bg-background/80 px-1 rounded" style={{ left: `${first.x}%`, top: `${first.y}%` }}>{shape.label}</button>;
+	                })}
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1"><Label className="text-xs">Tipe Shape</Label><Select value={shapeDraft.shapeType} onValueChange={v => setShapeDraft(p => ({ ...p, shapeType: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unit">Unit Rumah</SelectItem><SelectItem value="bidang">Bidang Lahan</SelectItem><SelectItem value="blok">Blok/Cluster</SelectItem><SelectItem value="fasum">Jalan/Fasum</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">Label</Label><Input className="h-8 text-sm" value={shapeDraft.label} onChange={e => setShapeDraft(p => ({ ...p, label: e.target.value }))} placeholder="A-01 / Bidang 1" /></div>
+                  <div className="space-y-1"><Label className="text-xs">Pemilik</Label><Input className="h-8 text-sm" value={shapeDraft.ownerName} onChange={e => setShapeDraft(p => ({ ...p, ownerName: e.target.value }))} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Status Beli</Label><Select value={shapeDraft.purchaseStatus} onValueChange={v => setShapeDraft(p => ({ ...p, purchaseStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibeli", "proses_nego", "dp", "lunas", "sudah_dibeli", "milik_sendiri"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">Luas</Label><NumericInput className="h-8 text-sm" value={shapeDraft.landArea} onChange={v => setShapeDraft(p => ({ ...p, landArea: v }))} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Rencana Unit</Label><NumericInput className="h-8 text-sm" value={shapeDraft.plannedUnits} onChange={v => setShapeDraft(p => ({ ...p, plannedUnits: Math.round(v) }))} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Tipe Rumah</Label><Input className="h-8 text-sm" value={shapeDraft.unitType} onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))} /></div>
+	                  <div className="space-y-1"><Label className="text-xs">Status Unit</Label><Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+	                  <div className="space-y-1 col-span-2"><Label className="text-xs">Link Unit Produksi</Label><Select value={shapeDraft.unitId || "none"} onValueChange={v => {
+	                    const unit = (units as any[]).find(u => String(u.id) === v);
+	                    setShapeDraft(p => ({ ...p, unitId: v === "none" ? "" : v, label: unit ? `${unit.blok}-${unit.nomor}` : p.label, unitType: unit?.tipe ?? p.unitType, subkonName: unit?.subkonName ?? p.subkonName, progress: unit?.progress ?? p.progress }));
+	                  }}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Belum link</SelectItem>{(units as any[]).map(u => <SelectItem key={u.id} value={String(u.id)}>{u.blok}-{u.nomor} · {u.tipe}</SelectItem>)}</SelectContent></Select></div>
+	                </div>
+	                {editingShapeId && (
+	                  <div className="grid grid-cols-4 gap-1">
+	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, -1)}>Atas</Button>
+	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(-1, 0)}>Kiri</Button>
+	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(1, 0)}>Kanan</Button>
+	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, 1)}>Bawah</Button>
+	                  </div>
+	                )}
+	                <Button size="sm" onClick={saveShape} disabled={draftPoints.length < 3 || !shapeDraft.label} className="w-full"><Plus className="size-3.5 mr-1" /> {editingShapeId ? "Update Shape" : "Simpan Shape"} ({draftPoints.length} titik)</Button>
+                <div className="rounded-md border divide-y max-h-56 overflow-auto">
+                  {(siteplanShapes as any[]).length === 0 ? <p className="p-3 text-xs text-muted-foreground">Belum ada shape.</p> : (siteplanShapes as any[]).map(shape => (
+                    <div key={shape.id} className="flex items-center justify-between gap-2 p-2">
+	                      <button className="text-left" onClick={() => startEditShape(shape)}><p className="text-xs font-medium">{shape.label}</p><p className="text-[10px] text-muted-foreground">{shape.shapeType} · {shape.purchaseStatus ?? shape.unitStatus}{shape.unitId ? " · linked" : " · belum link"}</p></button>
+	                      <button className="text-red-500" onClick={() => deleteShape(shape.id)}><Trash2 className="size-3.5" /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Upload gambar siteplan untuk mulai menggambar ulang bidang, blok, dan unit rumah.</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

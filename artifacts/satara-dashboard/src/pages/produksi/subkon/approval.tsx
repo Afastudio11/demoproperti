@@ -1,9 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Clock, ShieldCheck } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
 
@@ -18,31 +16,12 @@ const STEPS: Record<string, string> = {
 };
 
 export default function SubkonApproval() {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-
   const { data: approvals, isLoading } = useQuery({
     queryKey: ["payment-approvals"],
     queryFn: async () => {
       const res = await fetch("/api/produksi/subkon/approvals");
       if (!res.ok) throw new Error("Failed");
       return res.json() as Promise<Approval[]>;
-    },
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: "approved" | "rejected" }) => {
-      const res = await fetch(`/api/produksi/subkon/approvals/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, approvedBy: "Admin" }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["payment-approvals"] });
-      toast({ title: vars.status === "approved" ? "Disetujui" : "Ditolak" });
     },
   });
 
@@ -58,8 +37,8 @@ export default function SubkonApproval() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-lg font-bold">Approval Pembayaran Subkon</h1>
-        <p className="text-sm text-muted-foreground">4 tahap approval: Pengawas → QC → Manager → Finance</p>
+        <h1 className="text-lg font-bold">Monitoring Approval Pembayaran Subkon</h1>
+        <p className="text-sm text-muted-foreground">Produksi melihat status approval. Aksi approve/reject dilakukan oleh Finance.</p>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -107,12 +86,7 @@ export default function SubkonApproval() {
                           {step.status === "approved" ? <CheckCircle2 className="size-3.5 text-emerald-500" /> : step.status === "rejected" ? <XCircle className="size-3.5 text-red-500" /> : <Clock className="size-3.5 text-amber-500" />}
                           <span className="text-xs font-medium">{STEPS[step.step] ?? step.step}</span>
                         </div>
-                        {step.status === "pending" && (
-                          <div className="flex gap-1">
-                            <Button size="sm" className="h-6 text-[10px] px-2 flex-1" onClick={() => approveMutation.mutate({ id: step.id, status: "approved" })}>Setuju</Button>
-                            <Button size="sm" variant="destructive" className="h-6 text-[10px] px-2" onClick={() => approveMutation.mutate({ id: step.id, status: "rejected" })}>Tolak</Button>
-                          </div>
-                        )}
+                        {step.status === "pending" && <Badge variant="outline" className="text-[10px]">Menunggu Finance</Badge>}
                         {step.status !== "pending" && step.approvedBy && (
                           <p className="text-[10px] text-muted-foreground">oleh: {step.approvedBy}</p>
                         )}

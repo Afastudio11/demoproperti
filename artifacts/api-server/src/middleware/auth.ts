@@ -34,7 +34,7 @@ const MODULE_PATH_RULES: Array<{ module: string; matches: (path: string) => bool
   { module: "administrasi", matches: (path) => path.startsWith("/administrasi") || path.startsWith("/customers") },
   { module: "produksi", matches: (path) => path.startsWith("/produksi") || path.startsWith("/units") || path.startsWith("/construction") || path.startsWith("/qc") || path.startsWith("/materials") || path.startsWith("/handovers") },
   { module: "hr", matches: (path) => path.startsWith("/hr") },
-  { module: "finance", matches: (path) => path.startsWith("/finance") },
+  { module: "finance", matches: (path) => path.startsWith("/finance") || path.startsWith("/data-quality") },
 ];
 
 function normalizeModules(value: unknown): string[] {

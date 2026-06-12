@@ -9,14 +9,16 @@ import { Building2, Save, RefreshCw, Plus, Check, X, Loader2 } from "lucide-reac
 import { NumericInput } from "@/components/ui/numeric-input";
 import { useToast } from "@/hooks/use-toast";
 import { useCategoryOptions } from "@/components/category-select";
+import SubkonSelect from "@/components/subkon-select";
 
-type FasumRow = { id: number; projectId: number; stageCode: string | null; fasumType: string; progressPercent: number; notes: string | null; updatedBy: string | null };
+type FasumRow = { id: number; projectId: number; stageCode: string | null; fasumType: string; subkonName: string | null; progressPercent: number; notes: string | null; updatedBy: string | null };
 type Project = { id: number; nama: string };
 
 const DEFAULT_FASUM_TYPES = ["Jalan", "Drainase", "Taman", "IPAL", "Masjid", "Gorong-gorong", "Gerbang", "Selokan", "Gazebo", "Paving Block"];
 
 export default function FasumPage() {
   const [selectedProject, setSelectedProject] = useState<string>("");
+  const [selectedSubkon, setSelectedSubkon] = useState<string>("");
   const [updatedBy, setUpdatedBy] = useState("");
   const [edits, setEdits] = useState<Record<string, { progress: number; notes: string }>>({});
   const [addingType, setAddingType] = useState(false);
@@ -57,6 +59,7 @@ export default function FasumPage() {
           progressPercent: edit.progress,
           notes: edit.notes || null,
           updatedBy: updatedBy || null,
+          subkonName: selectedSubkon || null,
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -95,7 +98,7 @@ export default function FasumPage() {
         <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 h-8"><RefreshCw className="size-3.5" /></Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Pilih Proyek</Label>
           <Select value={selectedProject} onValueChange={setSelectedProject}>
@@ -108,6 +111,10 @@ export default function FasumPage() {
         <div className="space-y-1.5">
           <Label className="text-xs">Diupdate Oleh</Label>
           <Input value={updatedBy} onChange={e => setUpdatedBy(e.target.value)} placeholder="Nama PIC..." className="h-8 text-sm" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Subkon Pelaksana</Label>
+          <SubkonSelect value={selectedSubkon} onValueChange={setSelectedSubkon} projectId={selectedProject} />
         </div>
       </div>
 
@@ -135,7 +142,7 @@ export default function FasumPage() {
               <CardContent className="pt-3 pb-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">{type}</span>
-                  {row?.updatedBy && <span className="text-[10px] text-muted-foreground">oleh: {row.updatedBy}</span>}
+                  <span className="text-[10px] text-muted-foreground">{row?.subkonName || selectedSubkon || "Subkon belum diisi"}</span>
                 </div>
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">

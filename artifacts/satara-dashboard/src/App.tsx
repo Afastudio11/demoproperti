@@ -72,6 +72,7 @@ import SubkonTermin from "@/pages/produksi/subkon/termin";
 import SubkonApproval from "@/pages/produksi/subkon/approval";
 import SubkonPerforma from "@/pages/produksi/subkon/performa";
 import MaterialMaster from "@/pages/produksi/material/master";
+import MaterialAcuan from "@/pages/produksi/material/acuan";
 import MaterialMasuk from "@/pages/produksi/material/masuk";
 import MaterialKeluar from "@/pages/produksi/material/keluar";
 import MaterialStok from "@/pages/produksi/material/stok";
@@ -89,6 +90,7 @@ import AnalitikCashflowImpact from "@/pages/produksi/analitik/cashflow-impact";
 import AnalitikProduktivitas from "@/pages/produksi/analitik/produktivitas";
 import AnalitikEligibilitas from "@/pages/produksi/analitik/eligibilitas";
 import AnalitikForecast from "@/pages/produksi/analitik/forecast";
+import AnalitikProduksi from "@/pages/produksi/analitik";
 import ProduksiHealth from "@/pages/produksi/health";
 import HRDashboard from "@/pages/hr/index";
 import HROrganisasi from "@/pages/hr/organisasi";
@@ -132,6 +134,8 @@ import FinanceCashflow from "@/pages/finance/cashflow";
 import FinanceProyek from "@/pages/finance/proyek";
 import FinanceKpp from "@/pages/finance/kpp";
 import FinanceHutang from "@/pages/finance/hutang";
+import FinanceApproval from "@/pages/finance/approval";
+import FinanceAkadCair from "@/pages/finance/akad-cair";
 import FinancePiutang from "@/pages/finance/piutang";
 import FinanceRab from "@/pages/finance/rab";
 import FinanceProfitabilitas from "@/pages/finance/profitabilitas";
@@ -140,6 +144,7 @@ import FinanceAccounting from "@/pages/finance/accounting";
 import FinanceAudit from "@/pages/finance/audit";
 import FinanceWarning from "@/pages/finance/warning";
 import FinanceEkspansi from "@/pages/finance/ekspansi";
+import FinanceDataQuality from "@/pages/finance/data-quality";
 
 const queryClient = new QueryClient();
 
@@ -286,6 +291,7 @@ function AppRoutes() {
         <Route path="/produksi/subkon/approval" component={SubkonApproval} />
         <Route path="/produksi/subkon/performa" component={SubkonPerforma} />
         <Route path="/produksi/material/master" component={MaterialMaster} />
+        <Route path="/produksi/material/acuan" component={MaterialAcuan} />
         <Route path="/produksi/material/masuk" component={MaterialMasuk} />
         <Route path="/produksi/material/keluar" component={MaterialKeluar} />
         <Route path="/produksi/material/stok" component={MaterialStok} />
@@ -296,13 +302,14 @@ function AppRoutes() {
         <Route path="/produksi/qc/rework" component={QcRework} />
         <Route path="/produksi/qc/defect" component={QcDefect} />
         <Route path="/produksi/ready-akad" component={ReadyAkad} />
-        <Route path="/produksi/analitik/velocity" component={AnalitikVelocity} />
-        <Route path="/produksi/analitik/baseline" component={AnalitikBaseline} />
-        <Route path="/produksi/analitik/cost-to-complete" component={AnalitikCostToComplete} />
-        <Route path="/produksi/analitik/cashflow-impact" component={AnalitikCashflowImpact} />
-        <Route path="/produksi/analitik/produktivitas" component={AnalitikProduktivitas} />
-        <Route path="/produksi/analitik/eligibilitas" component={AnalitikEligibilitas} />
-        <Route path="/produksi/analitik/forecast" component={AnalitikForecast} />
+        <Route path="/produksi/analitik" component={AnalitikProduksi} />
+        <Route path="/produksi/analitik/velocity" component={AnalitikProduksi} />
+        <Route path="/produksi/analitik/baseline" component={AnalitikProduksi} />
+        <Route path="/produksi/analitik/cost-to-complete" component={AnalitikProduksi} />
+        <Route path="/produksi/analitik/cashflow-impact" component={AnalitikProduksi} />
+        <Route path="/produksi/analitik/produktivitas" component={AnalitikProduksi} />
+        <Route path="/produksi/analitik/eligibilitas" component={AnalitikProduksi} />
+        <Route path="/produksi/analitik/forecast" component={AnalitikProduksi} />
         <Route path="/produksi/health" component={ProduksiHealth} />
         <Route path="/settings" component={Settings} />
         <Route path="/slis" component={SLIS} />
@@ -348,12 +355,15 @@ function AppRoutes() {
         <Route path="/finance/proyek" component={FinanceProyek} />
         <Route path="/finance/kpp" component={FinanceKpp} />
         <Route path="/finance/hutang" component={FinanceHutang} />
+        <Route path="/finance/approval" component={FinanceApproval} />
+        <Route path="/finance/akad-cair" component={FinanceAkadCair} />
         <Route path="/finance/piutang" component={FinancePiutang} />
         <Route path="/finance/rab" component={FinanceRab} />
         <Route path="/finance/profitabilitas" component={FinanceProfitabilitas} />
         <Route path="/finance/forecast" component={FinanceForecast} />
         <Route path="/finance/accounting" component={FinanceAccounting} />
         <Route path="/finance/audit" component={FinanceAudit} />
+        <Route path="/finance/data-quality" component={FinanceDataQuality} />
         <Route path="/finance/warning" component={FinanceWarning} />
         <Route path="/finance/ekspansi" component={FinanceEkspansi} />
         <Route component={NotFound} />

@@ -1,6 +1,7 @@
 -- ============================================================
 -- SATARA DASHBOARD - SEED DATA LENGKAP
--- 5 Proyek + Data Semua Menu & Sub-Menu
+-- 5 Proyek + Akuisisi Lahan + Data Semua Menu & Sub-Menu
+-- Missing modules sudah digabung ke file ini.
 -- Jalankan: psql $DATABASE_URL -f seed-data.sql
 -- ============================================================
 
@@ -22,13 +23,16 @@ TRUNCATE TABLE
   legal_issue_history, legal_issues, legal_documents,
   permit_status_history, permit_documents,
   land_legal_checklist, land_stages, shm_split_records,
+  land_prospects,
   planning_competitors, planning_market,
   planning_sdm, planning_product, planning_land,
+  planning_land_bank, planning_expansion,
   planning_feasibility, planning_cashflow, planning_milestones,
   finance_expansion_analyses, finance_alerts, finance_audit_findings,
   finance_receivable_records, finance_debt_records,
   finance_kpp_payments, finance_kpp_facilities,
   finance_rab_items, finance_cashflow_records, finance_uploads,
+  hr_employees,
   hr_flight_risk_records, hr_succession_plans, hr_workload_records,
   hr_culture_records, hr_compensation_records,
   hr_training_participants, hr_training_programs,
@@ -38,7 +42,8 @@ TRUNCATE TABLE
   hr_individual_issues, hr_overtime_records, hr_attendance_records,
   hr_productivity_records, hr_career_paths, hr_expansion_needs,
   materials, units, customers,
-  projects
+  projects,
+  app_users
 CASCADE;
 
 -- Reset sequences
@@ -50,6 +55,19 @@ SELECT setval('materials_id_seq', 1, false);
 SELECT setval('subkon_contracts_id_seq', 1, false);
 SELECT setval('subkon_payments_id_seq', 1, false);
 SELECT setval('hr_employees_id_seq', 1, false);
+SELECT setval('land_prospects_id_seq', 1, false);
+SELECT setval('planning_land_bank_id_seq', 1, false);
+SELECT setval('planning_expansion_id_seq', 1, false);
+SELECT setval('app_users_id_seq', 1, false);
+
+
+-- ==============================================================
+-- 0. LOGIN USER
+-- ==============================================================
+-- username: admin
+-- password: admin12345
+INSERT INTO app_users (id, username, name, password_hash, role, allowed_modules, is_active) VALUES
+(1, 'admin', 'Super Admin Satara', '$2b$10$KhGcBghlvRIzO6bu/uIXhuG.b5fDa2VeaAxt.DRzplx6guQIZhf/C', 'super_admin', '[]'::jsonb, true);
 
 
 -- ==============================================================
@@ -64,44 +82,119 @@ INSERT INTO projects (id, nama, lokasi, provinsi, kabupaten, kecamatan, desa, lu
 
 
 -- ==============================================================
+-- 1A. AKUISISI LAHAN - LAND PROSPECTS
+-- ==============================================================
+INSERT INTO land_prospects (
+  id, project_id, lokasi, luas, harga_m2, status, roi, margin, akses_jalan,
+  risk_level, catatan, lat, lng, kelurahan, kecamatan, kabupaten, polygon_coords,
+  checklist_items, checklist_values, survey_data, ai_result, full_ai_result
+) VALUES
+(1,  1, 'Lahan Dg. Rani - Sungguminasa',        8500,  315000, 'pks_mou',             31.4, 24.8, 6.5, 'green',  'Sudah MoU, cocok sebagai perluasan tahap T3 Gowa.', -5.1970, 119.4571, 'Sungguminasa', 'Somba Opu',       'Gowa',     '[[-5.1973,119.4564],[-5.1967,119.4567],[-5.1969,119.4578],[-5.1976,119.4575]]',
+ '["survey_lokasi","cek_shm","analisis_kompetitor","nego_harga","draft_mou"]'::jsonb,
+ '{"survey_lokasi":"selesai 2024-03-05","cek_shm":"SHM 2 bidang, clear","analisis_kompetitor":"demand FLPP tinggi","nego_harga":"deal Rp315rb/m2","draft_mou":"ditandatangani"}'::jsonb,
+ '{"bentukLahan":"persegi panjang","statusLegal":"SHM atas nama pemilik","topografi":"datar","kondisiJalan":"jalan beton 6,5 meter","utilitas":["listrik","air PDAM","drainase"],"peilBanjir":"aman","namaPemilik":"Dg. Rani","kontakPemilik":"081244100001"}'::jsonb,
+ '{"verdict":"Sangat Direkomendasikan","score":88,"roiEstimasi":31.4,"paybackBulan":18,"ringkasan":"Lahan siap akuisisi dengan legal bersih dan akses kuat."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":348000,"potensiUnit":60,"risks":[{"risiko":"akses material","level":"rendah"}],"outputs":["proposal_akuisisi","site_analysis","legal_checking_doc","estimasi_hpp","pks_mou_doc"]}'::jsonb),
+(2,  2, 'Lahan Pak Haris - Mandai Barat',       6200,  280000, 'legal_checking',      27.2, 21.5, 5.2, 'yellow', 'Perlu cek batas dengan pemilik sebelah sebelum AJB.', -4.9934, 119.5711, 'Hasanuddin',  'Mandai',          'Maros',    '[[-4.9940,119.5704],[-4.9929,119.5707],[-4.9928,119.5719],[-4.9942,119.5717]]',
+ '["survey_lokasi","cek_shm","analisis_kompetitor","nego_harga"]'::jsonb,
+ '{"survey_lokasi":"selesai","cek_shm":"SHM ada, batas perlu ukur ulang","analisis_kompetitor":"kompetitor radius 3km aktif","nego_harga":"target turun 5%"}'::jsonb,
+ '{"bentukLahan":"trapesium","statusLegal":"SHM, perlu ukur ulang","topografi":"sedikit miring","kondisiJalan":"aspal 5 meter","utilitas":["listrik","sumur bor"],"peilBanjir":"rendah","namaPemilik":"Pak Haris","kontakPemilik":"081244100002"}'::jsonb,
+ '{"verdict":"Direkomendasikan","score":78,"roiEstimasi":27.2,"paybackBulan":22,"ringkasan":"Layak jika batas dan harga final terkunci."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":302000,"potensiUnit":50,"risks":[{"risiko":"batas lahan","level":"sedang"}]}'::jsonb),
+(3,  3, 'Lahan Hj. Nurlina - Palleko',          10200, 235000, 'negosiasi',           29.8, 23.1, 5.8, 'green',  'Harga masih bisa turun karena pembayaran cepat.', -5.4303, 119.3973, 'Palleko',      'Polombangkeng',   'Takalar',  '[[-5.4309,119.3968],[-5.4298,119.3970],[-5.4299,119.3981],[-5.4310,119.3980]]',
+ '["survey_lokasi","cek_shm","analisis_kompetitor"]'::jsonb,
+ '{"survey_lokasi":"selesai","cek_shm":"clear","analisis_kompetitor":"absorpsi subsidi stabil"}'::jsonb,
+ '{"bentukLahan":"melebar","statusLegal":"SHM clear","topografi":"datar","kondisiJalan":"aspal 5,8 meter","utilitas":["listrik","air tanah"],"peilBanjir":"aman","namaPemilik":"Hj. Nurlina","kontakPemilik":"081244100003"}'::jsonb,
+ '{"verdict":"Sangat Direkomendasikan","score":84,"roiEstimasi":29.8,"paybackBulan":20,"ringkasan":"Cocok untuk pengembangan tahap lanjutan Takalar."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":260000,"potensiUnit":80,"risks":[{"risiko":"kecepatan izin","level":"rendah"}]}'::jsonb),
+(4,  4, 'Lahan Pak Burhan - Antang Timur',       4800,  520000, 'survey',              18.6, 15.4, 4.2, 'red',    'Akses sempit dan harga tinggi, perlu review keras.', -5.1477, 119.4530, 'Antang',      'Manggala',        'Makassar', '[[-5.1482,119.4524],[-5.1472,119.4527],[-5.1473,119.4535],[-5.1484,119.4534]]',
+ '["survey_lokasi"]'::jsonb,
+ '{"survey_lokasi":"selesai, akses sempit"}'::jsonb,
+ '{"bentukLahan":"memanjang","statusLegal":"SHM, perlu cek akses jalan","topografi":"datar","kondisiJalan":"paving 4,2 meter","utilitas":["listrik","PDAM"],"peilBanjir":"perlu cek drainase","namaPemilik":"Pak Burhan","kontakPemilik":"081244100004"}'::jsonb,
+ '{"verdict":"Perlu Review","score":61,"roiEstimasi":18.6,"paybackBulan":31,"ringkasan":"Tidak masuk target margin kecuali harga turun signifikan."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":415000,"potensiUnit":40,"risks":[{"risiko":"harga tanah","level":"tinggi"},{"risiko":"akses jalan","level":"sedang"}]}'::jsonb),
+(5,  5, 'Lahan La Mappa - Macege Selatan',       7600,  210000, 'pks_mou',             33.5, 25.7, 6.0, 'green',  'Cadangan landbank Bone, siap pecah tahap baru.', -4.5388, 120.3235, 'Macege',      'Tanete Riattang', 'Bone',     '[[-4.5394,120.3229],[-4.5381,120.3230],[-4.5382,120.3241],[-4.5395,120.3240]]',
+ '["survey_lokasi","cek_shm","analisis_kompetitor","nego_harga","draft_mou"]'::jsonb,
+ '{"survey_lokasi":"selesai","cek_shm":"clear","analisis_kompetitor":"stok kompetitor menipis","nego_harga":"deal","draft_mou":"siap AJB"}'::jsonb,
+ '{"bentukLahan":"kotak","statusLegal":"SHM clear","topografi":"datar","kondisiJalan":"aspal 6 meter","utilitas":["listrik","sumur bor","drainase"],"peilBanjir":"aman","namaPemilik":"La Mappa","kontakPemilik":"081244100005"}'::jsonb,
+ '{"verdict":"Sangat Direkomendasikan","score":90,"roiEstimasi":33.5,"paybackBulan":16,"ringkasan":"Akuisisi paling kuat untuk ekspansi Bone."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":250000,"potensiUnit":70,"risks":[{"risiko":"jarak logistik","level":"rendah"}]}'::jsonb),
+(6,  NULL, 'Lahan Bu Ratna - Bontonompo',        12500, 185000, 'prospek_baru',        30.1, 22.9, 5.0, 'yellow', 'Prospek baru di koridor Gowa selatan, butuh survey teknis.', -5.3162, 119.4249, 'Bontonompo', 'Bontonompo',      'Gowa',     NULL,
+ '["survey_lokasi"]'::jsonb, '{"survey_lokasi":"jadwal minggu depan"}'::jsonb,
+ '{"bentukLahan":"belum diukur detail","statusLegal":"info awal SHM","topografi":"datar","kondisiJalan":"aspal 5 meter","utilitas":["listrik"],"peilBanjir":"belum dicek","namaPemilik":"Bu Ratna","kontakPemilik":"081244100006"}'::jsonb,
+ '{"verdict":"Direkomendasikan","score":75,"roiEstimasi":30.1,"ringkasan":"Menarik karena harga rendah, perlu legal checking."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":220000,"potensiUnit":92}'::jsonb),
+(7,  NULL, 'Lahan Pak Taufik - Moncongloe',      9400,  245000, 'analisis_kompetitor', 26.0, 20.2, 5.5, 'yellow', 'Lokasi berkembang, kompetitor mulai ramai.', -5.0715, 119.5502, 'Moncongloe',  'Moncongloe',      'Maros',    NULL,
+ '["survey_lokasi","analisis_kompetitor"]'::jsonb, '{"survey_lokasi":"selesai","analisis_kompetitor":"perlu update harga kompetitor"}'::jsonb,
+ '{"bentukLahan":"persegi","statusLegal":"SHM 1 bidang","topografi":"landai","kondisiJalan":"aspal 5,5 meter","utilitas":["listrik","air tanah"],"peilBanjir":"rendah","namaPemilik":"Pak Taufik","kontakPemilik":"081244100007"}'::jsonb,
+ '{"verdict":"Direkomendasikan","score":77,"roiEstimasi":26,"ringkasan":"Cukup layak untuk pipeline 2026."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":268000,"potensiUnit":68}'::jsonb),
+(8,  NULL, 'Lahan Hj. Rosmini - Pattallassang',  15800, 170000, 'survey',              32.7, 24.4, 4.8, 'yellow', 'Lahan besar, akses perlu pelebaran.', -5.2104, 119.5055, 'Pallantikang','Pattallassang',  'Gowa',     NULL,
+ '["survey_lokasi"]'::jsonb, '{"survey_lokasi":"selesai, akses 4,8m"}'::jsonb,
+ '{"bentukLahan":"melebar","statusLegal":"SHM dan girik, perlu pemetaan","topografi":"datar","kondisiJalan":"aspal 4,8 meter","utilitas":["listrik"],"peilBanjir":"aman","namaPemilik":"Hj. Rosmini","kontakPemilik":"081244100008"}'::jsonb,
+ '{"verdict":"Direkomendasikan","score":80,"roiEstimasi":32.7,"ringkasan":"Potensi unit besar, legal perlu dirapikan."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":205000,"potensiUnit":118}'::jsonb),
+(9,  NULL, 'Lahan Pak Amir - Biringkanaya',      5600,  610000, 'ditolak',             12.4, 10.8, 4.0, 'red',    'Ditolak sementara karena harga dan akses tidak masuk.', -5.0921, 119.5207, 'Pai',         'Biringkanaya',    'Makassar', NULL,
+ '["survey_lokasi","analisis_kompetitor"]'::jsonb, '{"survey_lokasi":"selesai","analisis_kompetitor":"harga kompetitor terlalu dekat"}'::jsonb,
+ '{"bentukLahan":"memanjang","statusLegal":"SHM","topografi":"datar","kondisiJalan":"lorong 4 meter","utilitas":["listrik","PDAM"],"peilBanjir":"sedang","namaPemilik":"Pak Amir","kontakPemilik":"081244100009"}'::jsonb,
+ '{"verdict":"Tidak Direkomendasikan","score":48,"roiEstimasi":12.4,"ringkasan":"Harga jauh di atas batas akuisisi."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":430000,"potensiUnit":34}'::jsonb),
+(10, NULL, 'Lahan Pak Syarif - Bajeng',          13200, 195000, 'negosiasi',           28.9, 22.1, 5.7, 'green',  'Harga sudah mendekati batas layak, negosiasi termin pembayaran.', -5.2976, 119.4558, 'Limbung',     'Bajeng',          'Gowa',     NULL,
+ '["survey_lokasi","cek_shm","analisis_kompetitor","nego_harga"]'::jsonb, '{"survey_lokasi":"selesai","cek_shm":"clear","analisis_kompetitor":"pasar subsidi kuat","nego_harga":"proses"}'::jsonb,
+ '{"bentukLahan":"kotak","statusLegal":"SHM clear","topografi":"datar","kondisiJalan":"aspal 5,7 meter","utilitas":["listrik","air tanah"],"peilBanjir":"aman","namaPemilik":"Pak Syarif","kontakPemilik":"081244100010"}'::jsonb,
+ '{"verdict":"Sangat Direkomendasikan","score":83,"roiEstimasi":28.9,"ringkasan":"Masuk target akuisisi setelah harga final dikunci."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":218000,"potensiUnit":96}'::jsonb),
+(11, NULL, 'Lahan Bu Hasma - Turikale',          7300,  260000, 'legal_checking',      25.6, 19.6, 6.0, 'yellow', 'Menunggu hasil cek waris dan surat kuasa jual.', -4.9810, 119.5775, 'Taroada',     'Turikale',        'Maros',    NULL,
+ '["survey_lokasi","cek_shm","analisis_kompetitor"]'::jsonb, '{"survey_lokasi":"selesai","cek_shm":"cek waris","analisis_kompetitor":"layak"}'::jsonb,
+ '{"bentukLahan":"persegi","statusLegal":"SHM waris","topografi":"datar","kondisiJalan":"aspal 6 meter","utilitas":["listrik","PDAM"],"peilBanjir":"rendah","namaPemilik":"Bu Hasma","kontakPemilik":"081244100011"}'::jsonb,
+ '{"verdict":"Direkomendasikan","score":74,"roiEstimasi":25.6,"ringkasan":"Layak setelah dokumen waris lengkap."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":278000,"potensiUnit":54}'::jsonb),
+(12, NULL, 'Lahan Pak Ilyas - Tanete Riattang',  11800, 205000, 'prospek_baru',        31.0, 23.8, 5.3, 'green',  'Prospek ekspansi Bone dekat akses utama.', -4.5459, 120.3271, 'Watampone',   'Tanete Riattang', 'Bone',     NULL,
+ '["survey_lokasi"]'::jsonb, '{"survey_lokasi":"belum, jadwal survey dibuat"}'::jsonb,
+ '{"bentukLahan":"belum final","statusLegal":"info awal SHM","topografi":"datar","kondisiJalan":"aspal 5,3 meter","utilitas":["listrik"],"peilBanjir":"belum dicek","namaPemilik":"Pak Ilyas","kontakPemilik":"081244100012"}'::jsonb,
+ '{"verdict":"Direkomendasikan","score":79,"roiEstimasi":31,"ringkasan":"Masuk pipeline awal karena harga dan lokasi menarik."}'::jsonb,
+ '{"source":"seed-data.sql","maxHargaM2":242000,"potensiUnit":86}'::jsonb);
+
+
+-- ==============================================================
 -- 2. UNITS (10 per proyek = 50 total)
 -- ==============================================================
 -- Proyek 1 - Satara Residence Gowa (unit 1-10)
 INSERT INTO units (id, project_id, blok, nomor, tipe, harga, status, progress, ready_akad, stage_code, kavling_number, admin_status, ht_value, week_started, subkon_name) VALUES
-(1,  1, 'A', '01', 'Tipe 36/72',  285000000, 'booked',    85, true,  'T1', 'A-01', 'akad',    285000000, 4,  'CV Bangun Jaya'),
-(2,  1, 'A', '02', 'Tipe 36/72',  285000000, 'booked',    78, false, 'T1', 'A-02', 'berkas',  285000000, 4,  'CV Bangun Jaya'),
-(3,  1, 'A', '03', 'Tipe 45/90',  345000000, 'sold',      100,true,  'T1', 'A-03', 'ht',      345000000, 3,  'CV Bangun Jaya'),
-(4,  1, 'B', '01', 'Tipe 36/72',  285000000, 'available', 55, false, 'T2', 'B-01', 'stock',   NULL,      6,  'CV Mitra Konstruksi'),
-(5,  1, 'B', '02', 'Tipe 45/90',  345000000, 'booked',    60, false, 'T2', 'B-02', 'sp3k',    NULL,      6,  'CV Mitra Konstruksi'),
-(6,  1, 'B', '03', 'Tipe 36/72',  285000000, 'available', 40, false, 'T2', 'B-03', 'stock',   NULL,      7,  'CV Mitra Konstruksi'),
-(7,  1, 'C', '01', 'Tipe 54/108', 420000000, 'sold',      100,true,  'T1', 'C-01', 'serah_terima', 420000000, 2, 'CV Bangun Jaya'),
-(8,  1, 'C', '02', 'Tipe 54/108', 420000000, 'booked',    90, true,  'T1', 'C-02', 'akad',    420000000, 2,  'CV Bangun Jaya'),
-(9,  1, 'C', '03', 'Tipe 36/72',  285000000, 'available', 30, false, 'T2', 'C-03', 'stock',   NULL,      8,  'CV Mitra Konstruksi'),
-(10, 1, 'D', '01', 'Tipe 45/90',  345000000, 'available', 25, false, 'T2', 'D-01', 'stock',   NULL,      8,  'CV Mitra Konstruksi'),
+(1,  1, 'A', '01', 'Tipe 36/72',  285000000, 'booked',    85, true,  'T1', 'A-01', 'akad',    285000000, 4,  'Irwan Saputra'),
+(2,  1, 'A', '02', 'Tipe 36/72',  285000000, 'booked',    78, false, 'T1', 'A-02', 'berkas',  285000000, 4,  'Irwan Saputra'),
+(3,  1, 'A', '03', 'Tipe 45/90',  345000000, 'sold',      100,true,  'T1', 'A-03', 'ht',      345000000, 3,  'Irwan Saputra'),
+(4,  1, 'B', '01', 'Tipe 36/72',  285000000, 'available', 55, false, 'T2', 'B-01', 'stock',   NULL,      6,  'Fajar Nugraha'),
+(5,  1, 'B', '02', 'Tipe 45/90',  345000000, 'booked',    60, false, 'T2', 'B-02', 'sp3k',    NULL,      6,  'Fajar Nugraha'),
+(6,  1, 'B', '03', 'Tipe 36/72',  285000000, 'available', 40, false, 'T2', 'B-03', 'stock',   NULL,      7,  'Fajar Nugraha'),
+(7,  1, 'C', '01', 'Tipe 54/108', 420000000, 'sold',      100,true,  'T1', 'C-01', 'serah_terima', 420000000, 2, 'Irwan Saputra'),
+(8,  1, 'C', '02', 'Tipe 54/108', 420000000, 'booked',    90, true,  'T1', 'C-02', 'akad',    420000000, 2,  'Irwan Saputra'),
+(9,  1, 'C', '03', 'Tipe 36/72',  285000000, 'available', 30, false, 'T2', 'C-03', 'stock',   NULL,      8,  'Fajar Nugraha'),
+(10, 1, 'D', '01', 'Tipe 45/90',  345000000, 'available', 25, false, 'T2', 'D-01', 'stock',   NULL,      8,  'Fajar Nugraha'),
 
 -- Proyek 2 - Satara Hills Maros (unit 11-20)
-(11, 2, 'A', '01', 'Tipe 36/72',  260000000, 'booked',    15, false, 'T1', 'A-01', 'berkas',  NULL,      10, 'CV Graha Utama'),
-(12, 2, 'A', '02', 'Tipe 36/72',  260000000, 'booked',    10, false, 'T1', 'A-02', 'sp3k',    NULL,      10, 'CV Graha Utama'),
+(11, 2, 'A', '01', 'Tipe 36/72',  260000000, 'booked',    15, false, 'T1', 'A-01', 'berkas',  NULL,      10, 'Wahyu Pratama'),
+(12, 2, 'A', '02', 'Tipe 36/72',  260000000, 'booked',    10, false, 'T1', 'A-02', 'sp3k',    NULL,      10, 'Wahyu Pratama'),
 (13, 2, 'A', '03', 'Tipe 45/90',  320000000, 'available', 0,  false, 'T1', 'A-03', 'stock',   NULL,      NULL, NULL),
-(14, 2, 'B', '01', 'Tipe 36/72',  260000000, 'booked',    5,  false, 'T1', 'B-01', 'ots',     NULL,      11, 'CV Graha Utama'),
+(14, 2, 'B', '01', 'Tipe 36/72',  260000000, 'booked',    5,  false, 'T1', 'B-01', 'ots',     NULL,      11, 'Wahyu Pratama'),
 (15, 2, 'B', '02', 'Tipe 45/90',  320000000, 'available', 0,  false, 'T1', 'B-02', 'stock',   NULL,      NULL, NULL),
-(16, 2, 'B', '03', 'Tipe 36/72',  260000000, 'booked',    8,  false, 'T1', 'B-03', 'berkas',  NULL,      11, 'CV Graha Utama'),
+(16, 2, 'B', '03', 'Tipe 36/72',  260000000, 'booked',    8,  false, 'T1', 'B-03', 'berkas',  NULL,      11, 'Wahyu Pratama'),
 (17, 2, 'C', '01', 'Tipe 54/108', 395000000, 'available', 0,  false, 'T1', 'C-01', 'stock',   NULL,      NULL, NULL),
 (18, 2, 'C', '02', 'Tipe 36/72',  260000000, 'available', 0,  false, 'T1', 'C-02', 'stock',   NULL,      NULL, NULL),
-(19, 2, 'C', '03', 'Tipe 45/90',  320000000, 'booked',    12, false, 'T1', 'C-03', 'bi_checking', NULL,  12, 'CV Graha Utama'),
+(19, 2, 'C', '03', 'Tipe 45/90',  320000000, 'booked',    12, false, 'T1', 'C-03', 'bi_checking', NULL,  12, 'Wahyu Pratama'),
 (20, 2, 'D', '01', 'Tipe 36/72',  260000000, 'available', 0,  false, 'T1', 'D-01', 'stock',   NULL,      NULL, NULL),
 
 -- Proyek 3 - Satara Garden Takalar (unit 21-30)
-(21, 3, 'A', '01', 'Tipe 36/72',  270000000, 'sold',      100,true,  'T1', 'A-01', 'serah_terima', 270000000, 1, 'PT Bangun Prima'),
-(22, 3, 'A', '02', 'Tipe 36/72',  270000000, 'sold',      100,true,  'T1', 'A-02', 'serah_terima', 270000000, 1, 'PT Bangun Prima'),
-(23, 3, 'A', '03', 'Tipe 45/90',  335000000, 'booked',    95, true,  'T1', 'A-03', 'akad',    335000000, 2,  'PT Bangun Prima'),
-(24, 3, 'B', '01', 'Tipe 36/72',  270000000, 'booked',    88, false, 'T1', 'B-01', 'berkas',  270000000, 2,  'PT Bangun Prima'),
-(25, 3, 'B', '02', 'Tipe 45/90',  335000000, 'booked',    75, false, 'T2', 'B-02', 'sp3k',    NULL,      5,  'CV Karya Mandiri'),
-(26, 3, 'B', '03', 'Tipe 36/72',  270000000, 'available', 60, false, 'T2', 'B-03', 'stock',   NULL,      5,  'CV Karya Mandiri'),
-(27, 3, 'C', '01', 'Tipe 54/108', 410000000, 'booked',    70, false, 'T2', 'C-01', 'ots',     NULL,      5,  'CV Karya Mandiri'),
-(28, 3, 'C', '02', 'Tipe 36/72',  270000000, 'available', 50, false, 'T2', 'C-02', 'stock',   NULL,      6,  'CV Karya Mandiri'),
-(29, 3, 'D', '01', 'Tipe 45/90',  335000000, 'available', 35, false, 'T2', 'D-01', 'stock',   NULL,      7,  'CV Karya Mandiri'),
-(30, 3, 'D', '02', 'Tipe 36/72',  270000000, 'available', 20, false, 'T2', 'D-02', 'stock',   NULL,      8,  'CV Karya Mandiri'),
+(21, 3, 'A', '01', 'Tipe 36/72',  270000000, 'sold',      100,true,  'T1', 'A-01', 'serah_terima', 270000000, 1, 'Abdul Rahman'),
+(22, 3, 'A', '02', 'Tipe 36/72',  270000000, 'sold',      100,true,  'T1', 'A-02', 'serah_terima', 270000000, 1, 'Abdul Rahman'),
+(23, 3, 'A', '03', 'Tipe 45/90',  335000000, 'booked',    95, true,  'T1', 'A-03', 'akad',    335000000, 2,  'Abdul Rahman'),
+(24, 3, 'B', '01', 'Tipe 36/72',  270000000, 'booked',    88, false, 'T1', 'B-01', 'berkas',  270000000, 2,  'Abdul Rahman'),
+(25, 3, 'B', '02', 'Tipe 45/90',  335000000, 'booked',    75, false, 'T2', 'B-02', 'sp3k',    NULL,      5,  'Samsul Bahri'),
+(26, 3, 'B', '03', 'Tipe 36/72',  270000000, 'available', 60, false, 'T2', 'B-03', 'stock',   NULL,      5,  'Samsul Bahri'),
+(27, 3, 'C', '01', 'Tipe 54/108', 410000000, 'booked',    70, false, 'T2', 'C-01', 'ots',     NULL,      5,  'Samsul Bahri'),
+(28, 3, 'C', '02', 'Tipe 36/72',  270000000, 'available', 50, false, 'T2', 'C-02', 'stock',   NULL,      6,  'Samsul Bahri'),
+(29, 3, 'D', '01', 'Tipe 45/90',  335000000, 'available', 35, false, 'T2', 'D-01', 'stock',   NULL,      7,  'Samsul Bahri'),
+(30, 3, 'D', '02', 'Tipe 36/72',  270000000, 'available', 20, false, 'T2', 'D-02', 'stock',   NULL,      8,  'Samsul Bahri'),
 
 -- Proyek 4 - Satara City Makassar (unit 31-40)
 (31, 4, 'A', '01', 'Tipe 36/72',  310000000, 'available', 0,  false, 'T1', 'A-01', 'stock',   NULL,      NULL, NULL),
@@ -116,16 +209,16 @@ INSERT INTO units (id, project_id, blok, nomor, tipe, harga, status, progress, r
 (40, 4, 'D', '02', 'Tipe 36/72',  310000000, 'available', 0,  false, 'T1', 'D-02', 'stock',   NULL,      NULL, NULL),
 
 -- Proyek 5 - Satara Park Bone (unit 41-50)
-(41, 5, 'A', '01', 'Tipe 36/72',  255000000, 'sold',      100, true,  'T1', 'A-01', 'serah_terima', 255000000, 1, 'CV Bone Konstruksi'),
-(42, 5, 'A', '02', 'Tipe 36/72',  255000000, 'sold',      100, true,  'T1', 'A-02', 'serah_terima', 255000000, 1, 'CV Bone Konstruksi'),
-(43, 5, 'A', '03', 'Tipe 45/90',  315000000, 'sold',      100, true,  'T1', 'A-03', 'serah_terima', 315000000, 1, 'CV Bone Konstruksi'),
-(44, 5, 'B', '01', 'Tipe 36/72',  255000000, 'sold',      100, true,  'T1', 'B-01', 'serah_terima', 255000000, 2, 'CV Bone Konstruksi'),
-(45, 5, 'B', '02', 'Tipe 36/72',  255000000, 'booked',    100, true,  'T1', 'B-02', 'akad',    255000000, 2,  'CV Bone Konstruksi'),
-(46, 5, 'B', '03', 'Tipe 45/90',  315000000, 'booked',    100, true,  'T1', 'B-03', 'akad',    315000000, 2,  'CV Bone Konstruksi'),
-(47, 5, 'C', '01', 'Tipe 54/108', 385000000, 'booked',    98,  true,  'T1', 'C-01', 'ht',      385000000, 3,  'CV Bone Konstruksi'),
-(48, 5, 'C', '02', 'Tipe 36/72',  255000000, 'sold',      100, true,  'T1', 'C-02', 'serah_terima', 255000000, 3, 'CV Bone Konstruksi'),
-(49, 5, 'D', '01', 'Tipe 45/90',  315000000, 'available', 85,  false, 'T2', 'D-01', 'stock',   NULL,      8,   'CV Karya Bone'),
-(50, 5, 'D', '02', 'Tipe 36/72',  255000000, 'available', 70,  false, 'T2', 'D-02', 'stock',   NULL,      9,   'CV Karya Bone');
+(41, 5, 'A', '01', 'Tipe 36/72',  255000000, 'sold',      100, true,  'T1', 'A-01', 'serah_terima', 255000000, 1, 'Haerul Anwar'),
+(42, 5, 'A', '02', 'Tipe 36/72',  255000000, 'sold',      100, true,  'T1', 'A-02', 'serah_terima', 255000000, 1, 'Haerul Anwar'),
+(43, 5, 'A', '03', 'Tipe 45/90',  315000000, 'sold',      100, true,  'T1', 'A-03', 'serah_terima', 315000000, 1, 'Haerul Anwar'),
+(44, 5, 'B', '01', 'Tipe 36/72',  255000000, 'sold',      100, true,  'T1', 'B-01', 'serah_terima', 255000000, 2, 'Haerul Anwar'),
+(45, 5, 'B', '02', 'Tipe 36/72',  255000000, 'booked',    100, true,  'T1', 'B-02', 'akad',    255000000, 2,  'Haerul Anwar'),
+(46, 5, 'B', '03', 'Tipe 45/90',  315000000, 'booked',    100, true,  'T1', 'B-03', 'akad',    315000000, 2,  'Haerul Anwar'),
+(47, 5, 'C', '01', 'Tipe 54/108', 385000000, 'booked',    98,  true,  'T1', 'C-01', 'ht',      385000000, 3,  'Haerul Anwar'),
+(48, 5, 'C', '02', 'Tipe 36/72',  255000000, 'sold',      100, true,  'T1', 'C-02', 'serah_terima', 255000000, 3, 'Haerul Anwar'),
+(49, 5, 'D', '01', 'Tipe 45/90',  315000000, 'available', 85,  false, 'T2', 'D-01', 'stock',   NULL,      8,   'Ardiansyah Latif'),
+(50, 5, 'D', '02', 'Tipe 36/72',  255000000, 'available', 70,  false, 'T2', 'D-02', 'stock',   NULL,      9,   'Ardiansyah Latif');
 
 
 -- ==============================================================
@@ -188,13 +281,13 @@ INSERT INTO monthly_targets (project_id, year, month, target_akad, target_berkas
 -- 5. SUBKON CONTRACTS & PAYMENTS
 -- ==============================================================
 INSERT INTO subkon_contracts (id, project_id, stage_code, subkon_name, unit_count, value_per_unit, contract_value, retention_per_unit, total_retention, net_payable_value, maintenance_months, start_date, target_end_date, actual_completion_date, retention_release_date, retention_status, status) VALUES
-(1,  1, 'T1', 'CV Bangun Jaya',       8,  18000000, 144000000, 500000, 4000000, 140000000, 3, '2023-03-01', '2023-12-31', '2023-12-15', '2024-03-15', 'dilepas',  'selesai'),
-(2,  1, 'T2', 'CV Mitra Konstruksi',  5,  17500000, 87500000,  500000, 2500000, 85000000,  3, '2024-01-15', '2024-09-30', NULL,          NULL,          'ditahan',  'aktif'),
-(3,  2, 'T1', 'CV Graha Utama',       6,  17000000, 102000000, 500000, 3000000, 99000000,  3, '2024-01-01', '2024-10-31', NULL,          NULL,          'ditahan',  'aktif'),
-(4,  3, 'T1', 'PT Bangun Prima',      8,  18500000, 148000000, 500000, 4000000, 144000000, 3, '2022-10-01', '2023-07-31', '2023-07-20', '2023-10-20', 'dilepas',  'selesai'),
-(5,  3, 'T2', 'CV Karya Mandiri',     5,  17000000, 85000000,  500000, 2500000, 82500000,  3, '2023-08-01', '2024-05-31', NULL,          NULL,          'ditahan',  'aktif'),
-(6,  5, 'T1', 'CV Bone Konstruksi',   8,  16500000, 132000000, 500000, 4000000, 128000000, 6, '2021-07-01', '2022-06-30', '2022-06-25', '2022-12-25', 'dilepas',  'selesai'),
-(7,  5, 'T2', 'CV Karya Bone',        2,  16000000, 32000000,  500000, 1000000, 31000000,  3, '2023-06-01', '2024-03-31', NULL,          NULL,          'ditahan',  'aktif');
+(1,  1, 'T1', 'Irwan Saputra',       8,  18000000, 144000000, 500000, 4000000, 140000000, 3, '2023-03-01', '2023-12-31', '2023-12-15', '2024-03-15', 'dilepas',  'selesai'),
+(2,  1, 'T2', 'Fajar Nugraha',  5,  17500000, 87500000,  500000, 2500000, 85000000,  3, '2024-01-15', '2024-09-30', NULL,          NULL,          'ditahan',  'aktif'),
+(3,  2, 'T1', 'Wahyu Pratama',       6,  17000000, 102000000, 500000, 3000000, 99000000,  3, '2024-01-01', '2024-10-31', NULL,          NULL,          'ditahan',  'aktif'),
+(4,  3, 'T1', 'Abdul Rahman',      8,  18500000, 148000000, 500000, 4000000, 144000000, 3, '2022-10-01', '2023-07-31', '2023-07-20', '2023-10-20', 'dilepas',  'selesai'),
+(5,  3, 'T2', 'Samsul Bahri',     5,  17000000, 85000000,  500000, 2500000, 82500000,  3, '2023-08-01', '2024-05-31', NULL,          NULL,          'ditahan',  'aktif'),
+(6,  5, 'T1', 'Haerul Anwar',   8,  16500000, 132000000, 500000, 4000000, 128000000, 6, '2021-07-01', '2022-06-30', '2022-06-25', '2022-12-25', 'dilepas',  'selesai'),
+(7,  5, 'T2', 'Ardiansyah Latif',        2,  16000000, 32000000,  500000, 1000000, 31000000,  3, '2023-06-01', '2024-03-31', NULL,          NULL,          'ditahan',  'aktif');
 
 INSERT INTO subkon_payments (contract_id, payment_type, termin_number, payment_date, period, progress_previous, progress_current, velocity, gross_eligible_amount, retention_deducted, net_payment, total_paid_before, status, notes) VALUES
 (1, 'termin', 1, '2023-06-10', '2023-05', 0,    30, 30, 43200000,  1200000, 42000000, 0,         'dibayar',  'Termin 1 - 30%'),
@@ -301,11 +394,11 @@ INSERT INTO unit_qc (unit_id, qc_item, is_pass, notes, inspected_by, inspected_a
 (8,  'Atap & Talang',          true,  NULL,                         'Agus Pramono', '2024-04-01');
 
 INSERT INTO reworks (unit_id, contract_id, subkon_name, pekerjaan_item, description, found_date, target_completion, actual_completion, status) VALUES
-(2,  2, 'CV Mitra Konstruksi', 'Plesteran',    'Retak rambut di sudut dinding, perlu grouting', '2024-04-15', '2024-05-01', NULL,         'open'),
-(4,  2, 'CV Mitra Konstruksi', 'Atap',         'Genteng geser, perlu dirapikan',                '2024-04-20', '2024-05-05', NULL,         'open'),
-(8,  1, 'CV Bangun Jaya',      'Finishing Cat','Cat mengelupas, perlu dicat ulang',              '2024-03-10', '2024-03-20', '2024-03-18', 'closed'),
-(23, 4, 'PT Bangun Prima',     'Sloof',        'Crack kecil disuntik epoxy',                    '2023-06-01', '2023-06-10', '2023-06-08', 'closed'),
-(45, 6, 'CV Bone Konstruksi',  'Dinding',      'Retak sambungan kolom digrouting',              '2022-04-01', '2022-04-10', '2022-04-08', 'closed');
+(2,  2, 'Fajar Nugraha', 'Plesteran',    'Retak rambut di sudut dinding, perlu grouting', '2024-04-15', '2024-05-01', NULL,         'open'),
+(4,  2, 'Fajar Nugraha', 'Atap',         'Genteng geser, perlu dirapikan',                '2024-04-20', '2024-05-05', NULL,         'open'),
+(8,  1, 'Irwan Saputra',      'Finishing Cat','Cat mengelupas, perlu dicat ulang',              '2024-03-10', '2024-03-20', '2024-03-18', 'closed'),
+(23, 4, 'Abdul Rahman',     'Sloof',        'Crack kecil disuntik epoxy',                    '2023-06-01', '2023-06-10', '2023-06-08', 'closed'),
+(45, 6, 'Haerul Anwar',  'Dinding',      'Retak sambungan kolom digrouting',              '2022-04-01', '2022-04-10', '2022-04-08', 'closed');
 
 
 -- ==============================================================
@@ -397,23 +490,40 @@ INSERT INTO customer_complaints (project_id, unit_block, customer_id, complaint,
 (5, 'B-02', 29, 'Air tidak mengalir ke lantai 2',                 'Sanitasi', 'berat',   'Rizki Firmansyah','2022-04-10','selesai', '2022-04-05','Pompa air diperbaiki'),
 (1, 'C-01', 6,  'Keramik teras retak',                            'Bangunan', 'ringan',  'Agus Pramono', '2024-01-15', 'selesai',  '2024-01-10','Keramik diganti');
 
+INSERT INTO customer_status_history (customer_id, from_status, to_status, changed_by, changed_at, notes) VALUES
+(1,  'BERKAS', 'SP3K',    'Putri', '2024-02-15 10:00:00+08', 'SP3K BTN sudah keluar'),
+(1,  'SP3K',   'AKAD',    'Putri', '2024-03-05 14:30:00+08', 'Akad dijadwalkan dan selesai'),
+(3,  'AKAD',   'HT',      'Putri', '2024-04-10 09:00:00+08', 'HT sudah terbit'),
+(7,  'MINAT',  'BERKAS',  'Mega',  '2024-02-12 11:20:00+08', 'Berkas KPR lengkap awal'),
+(15, 'SP3K',   'AKAD',    'Siti',  '2023-05-20 13:00:00+08', 'Akad Takalar selesai'),
+(25, 'AKAD',   'SELESAI', 'Rina',  '2022-03-10 15:00:00+08', 'HT dan BAST selesai');
+
+INSERT INTO customer_documents (customer_id, document_name, category, is_required, status, file_url, notes, uploaded_at) VALUES
+(1,  'KTP Suami/Istri',        'identitas',    true,  'verified', '/demo/docs/customer-1-ktp.pdf',       'Data cocok dengan Dukcapil', '2024-01-12 09:00:00+08'),
+(1,  'Slip Gaji 3 Bulan',      'income',       true,  'verified', '/demo/docs/customer-1-slip-gaji.pdf', 'Payroll stabil',             '2024-01-12 09:15:00+08'),
+(2,  'Surat Keterangan Kerja', 'income',       true,  'pending',  '/demo/docs/customer-2-skk.pdf',       'Menunggu cap perusahaan',    '2024-01-24 10:30:00+08'),
+(4,  'NPWP',                   'pajak',        true,  'verified', '/demo/docs/customer-4-npwp.pdf',      NULL,                         '2024-02-02 11:00:00+08'),
+(7,  'Buku Nikah',             'identitas',    true,  'missing',  NULL,                                 'Customer janji kirim ulang',  NULL),
+(13, 'Form BAST',              'serah_terima', false, 'verified', '/demo/docs/customer-13-bast.pdf',     'Sudah tanda tangan',         '2023-07-15 16:00:00+08'),
+(25, 'Sertifikat HT',          'legal',        true,  'verified', '/demo/docs/customer-25-ht.pdf',       'Dokumen akhir diterima',     '2022-03-10 14:00:00+08');
+
 
 -- ==============================================================
 -- 11. MATERIALS (5 per proyek)
 -- ==============================================================
 INSERT INTO materials (id, project_id, item, stok, satuan, vendor, harga, minimum_stock) VALUES
 (1,  1, 'Semen Portland',     150, 'sak',  'Toko Bahan Bangunan Jaya', 75000,  50),
-(2,  1, 'Besi Beton 10mm',    80,  'btg',  'CV Besi Sulsel',           85000,  30),
+(2,  1, 'Besi Beton 10mm',    80,  'btg',  'Supplier Besi Sulsel',           85000,  30),
 (3,  1, 'Pasir Sungai',       200, 'm³',   'Tambang Maros',            180000, 80),
 (4,  1, 'Keramik 40x40',      500, 'dos',  'Toko Keramik Maju',        85000,  150),
 (5,  1, 'Cat Tembok 5kg',     120, 'klg',  'Toko Cat Sejahtera',       95000,  40),
 (6,  2, 'Semen Portland',     90,  'sak',  'Toko Bahan Bangunan Jaya', 75000,  50),
-(7,  2, 'Besi Beton 10mm',    50,  'btg',  'CV Besi Sulsel',           85000,  20),
+(7,  2, 'Besi Beton 10mm',    50,  'btg',  'Supplier Besi Sulsel',           85000,  20),
 (8,  2, 'Pasir Sungai',       100, 'm³',   'Tambang Maros',            180000, 50),
 (9,  2, 'Batako',             2000,'bh',   'Pabrik Batako Maros',       3500,  500),
 (10, 2, 'Genteng Beton',      800, 'bh',   'Genteng Cisangkan',         8500,  200),
 (11, 3, 'Semen Portland',     200, 'sak',  'Toko Material Takalar',    75000,  80),
-(12, 3, 'Besi Beton 10mm',    120, 'btg',  'CV Besi Sulsel',           85000,  40),
+(12, 3, 'Besi Beton 10mm',    120, 'btg',  'Supplier Besi Sulsel',           85000,  40),
 (13, 3, 'Pasir Sungai',       300, 'm³',   'Tambang Jeneponto',        170000, 100),
 (14, 3, 'Keramik 40x40',      800, 'dos',  'Toko Keramik Maju',        85000,  200),
 (15, 3, 'Cat Tembok 5kg',     200, 'klg',  'Toko Cat Sejahtera',       95000,  60),
@@ -421,7 +531,7 @@ INSERT INTO materials (id, project_id, item, stok, satuan, vendor, harga, minimu
 (17, 4, 'Pasir Sungai',       50,  'm³',   'Tambang Maros',            180000, 20),
 (18, 4, 'Batu Kali',          40,  'm³',   'Supplier Makassar',        250000, 15),
 (19, 5, 'Semen Portland',     100, 'sak',  'Toko Material Bone',       77000,  40),
-(20, 5, 'Besi Beton 10mm',    60,  'btg',  'CV Besi Bone',             87000,  20),
+(20, 5, 'Besi Beton 10mm',    60,  'btg',  'Supplier Besi Bone',             87000,  20),
 (21, 5, 'Pasir Sungai',       150, 'm³',   'Tambang Bone',             160000, 50),
 (22, 5, 'Keramik 40x40',      200, 'dos',  'Toko Keramik Bone',        87000,  50),
 (23, 5, 'Cat Tembok 5kg',     80,  'klg',  'Toko Cat Bone',            97000,  30);
@@ -443,21 +553,21 @@ INSERT INTO prod_material_master (id, name, category, satuan, standard_per_unit,
 (10, 'Kayu Bekisting',     'Bekisting',  'm²',   8,    85000, 20);
 
 INSERT INTO prod_material_in (project_id, contract_id, stage_code, unit_id, material_id, quantity, supplier, subkon_name, document_number, notes, date_in) VALUES
-(1, 1, 'T1', NULL, 1, 100, 'Toko Bahan Bangunan Jaya', 'CV Bangun Jaya',      'SJ/2024/01/001', NULL, '2024-01-15'),
-(1, 1, 'T1', NULL, 2, 60,  'CV Besi Sulsel',           'CV Bangun Jaya',      'SJ/2024/01/002', NULL, '2024-01-16'),
-(1, 1, 'T1', NULL, 3, 80,  'Tambang Maros',            'CV Bangun Jaya',      'SJ/2024/01/003', NULL, '2024-01-17'),
-(1, 2, 'T2', NULL, 1, 80,  'Toko Bahan Bangunan Jaya', 'CV Mitra Konstruksi', 'SJ/2024/03/001', NULL, '2024-03-10'),
-(1, 2, 'T2', NULL, 4, 200, 'Pabrik Batako Maros',      'CV Mitra Konstruksi', 'SJ/2024/03/002', NULL, '2024-03-11'),
-(3, 4, 'T1', NULL, 1, 150, 'Toko Material Takalar',    'PT Bangun Prima',     'SJ/2022/11/001', NULL, '2022-11-01'),
-(3, 4, 'T1', NULL, 2, 90,  'CV Besi Sulsel',           'PT Bangun Prima',     'SJ/2022/11/002', NULL, '2022-11-02'),
-(5, 6, 'T1', NULL, 1, 120, 'Toko Material Bone',       'CV Bone Konstruksi',  'SJ/2021/08/001', NULL, '2021-08-01');
+(1, 1, 'T1', NULL, 1, 100, 'Toko Bahan Bangunan Jaya', 'Irwan Saputra',      'SJ/2024/01/001', NULL, '2024-01-15'),
+(1, 1, 'T1', NULL, 2, 60,  'Supplier Besi Sulsel',           'Irwan Saputra',      'SJ/2024/01/002', NULL, '2024-01-16'),
+(1, 1, 'T1', NULL, 3, 80,  'Tambang Maros',            'Irwan Saputra',      'SJ/2024/01/003', NULL, '2024-01-17'),
+(1, 2, 'T2', NULL, 1, 80,  'Toko Bahan Bangunan Jaya', 'Fajar Nugraha', 'SJ/2024/03/001', NULL, '2024-03-10'),
+(1, 2, 'T2', NULL, 4, 200, 'Pabrik Batako Maros',      'Fajar Nugraha', 'SJ/2024/03/002', NULL, '2024-03-11'),
+(3, 4, 'T1', NULL, 1, 150, 'Toko Material Takalar',    'Abdul Rahman',     'SJ/2022/11/001', NULL, '2022-11-01'),
+(3, 4, 'T1', NULL, 2, 90,  'Supplier Besi Sulsel',           'Abdul Rahman',     'SJ/2022/11/002', NULL, '2022-11-02'),
+(5, 6, 'T1', NULL, 1, 120, 'Toko Material Bone',       'Haerul Anwar',  'SJ/2021/08/001', NULL, '2021-08-01');
 
 INSERT INTO prod_material_out (project_id, contract_id, stage_code, unit_id, material_id, quantity, taken_by, subkon_name, date_out, notes) VALUES
-(1, 1, 'T1', 1, 1, 8,   'Mandor Sukri', 'CV Bangun Jaya',      '2024-01-20', 'Untuk unit A-01'),
-(1, 1, 'T1', 3, 1, 8,   'Mandor Sukri', 'CV Bangun Jaya',      '2024-01-21', 'Untuk unit A-03'),
-(1, 2, 'T2', 4, 1, 8,   'Mandor Arifin','CV Mitra Konstruksi', '2024-03-15', 'Untuk unit B-01'),
-(3, 4, 'T1', 21, 1, 8,  'Mandor Hamid', 'PT Bangun Prima',     '2022-11-05', 'Untuk unit A-01 Takalar'),
-(5, 6, 'T1', 41, 1, 8,  'Mandor Sappe', 'CV Bone Konstruksi',  '2021-08-05', 'Unit A-01 Bone');
+(1, 1, 'T1', 1, 1, 8,   'Mandor Sukri', 'Irwan Saputra',      '2024-01-20', 'Untuk unit A-01'),
+(1, 1, 'T1', 3, 1, 8,   'Mandor Sukri', 'Irwan Saputra',      '2024-01-21', 'Untuk unit A-03'),
+(1, 2, 'T2', 4, 1, 8,   'Mandor Arifin','Fajar Nugraha', '2024-03-15', 'Untuk unit B-01'),
+(3, 4, 'T1', 21, 1, 8,  'Mandor Hamid', 'Abdul Rahman',     '2022-11-05', 'Untuk unit A-01 Takalar'),
+(5, 6, 'T1', 41, 1, 8,  'Mandor Sappe', 'Haerul Anwar',  '2021-08-05', 'Unit A-01 Bone');
 
 
 -- ==============================================================
@@ -603,6 +713,30 @@ INSERT INTO branding_content_items (title, category, project_related, platforms,
 ('KPR Proses Mudah - Edukasi',       'Edukasi',      NULL,                     'Instagram, TikTok', 'Infografis','Citra Dewi','2024-05-10','2024-05-15', NULL,          'produksi','Proses KPR cuma 5 langkah!',                250000),
 ('Open House Makassar Juni 2024',    'Event',        'Satara City Makassar',   'Semua Platform',    'Video',  'Citra Dewi', '2024-06-01', '2024-06-05', NULL,          'revisi',  'Yuk hadir di Open House Satara!',           600000);
 
+INSERT INTO branding_content_status_history (content_id, from_status, to_status, changed_by, notes) VALUES
+(1, 'produksi', 'review',  'Citra Dewi', 'Video testimoni selesai diedit'),
+(1, 'review',   'terbit',  'Bayu Setiawan', 'Caption dan thumbnail disetujui'),
+(2, 'produksi', 'terbit',  'Citra Dewi', 'Konten progress publish tepat waktu'),
+(3, 'idea',     'terbit',  'Yuni Astuti', 'Konten launching dipercepat untuk event'),
+(4, 'idea',     'produksi','Citra Dewi', 'Materi edukasi sedang dibuat'),
+(5, 'produksi', 'revisi',  'Bayu Setiawan', 'Perlu tambah CTA open house');
+
+INSERT INTO branding_content_performance (content_id, platform, reach, impression, engagement, saves, shares, comments, content_score, notes) VALUES
+(1, 'Instagram', 18500, 42000, 3200, 410, 185, 96, 88, 'Testimoni kuat, banyak DM tanya unit Gowa'),
+(1, 'TikTok',    24000, 61000, 4800, 360, 250, 130, 90, 'Hook 3 detik pertama efektif'),
+(2, 'Instagram', 11200, 28000, 1800, 220, 105, 44, 78, 'Konten progress memberi trust construction'),
+(3, 'Instagram', 26500, 73000, 5100, 640, 310, 180, 91, 'Launching Maros menghasilkan banyak lead'),
+(3, 'Facebook',  12800, 35000, 1600, 110, 95, 38, 74, 'Audience keluarga lebih responsif'),
+(4, 'Instagram', 0,     0,     0,    0,   0,   0,  NULL, 'Belum publish'),
+(5, 'TikTok',    0,     0,     0,    0,   0,   0,  NULL, 'Masih revisi');
+
+INSERT INTO branding_content_roi (content_id, leads_from_content, bookings_from_content, akad_from_content, estimated_akad_value, notes) VALUES
+(1, 8, 2, 1, 285000000, 'Testimoni Gowa membantu closing customer referral'),
+(2, 5, 1, 0, 0,         'Progress Takalar menaikkan trust tapi belum akad'),
+(3, 18, 4, 1, 260000000,'Launching Maros memberi pipeline paling kuat'),
+(4, 0, 0, 0, 0,         'Belum publish'),
+(5, 0, 0, 0, 0,         'Menunggu revisi kreatif');
+
 INSERT INTO branding_social_media_kpi (period_year, period_month, platform, reach, impression, engagement, saves, shares, new_followers, total_followers, content_count) VALUES
 (2024, 1, 'Instagram', 45000, 120000, 3200, 450, 280, 200, 8500, 15),
 (2024, 2, 'Instagram', 52000, 138000, 3800, 520, 310, 320, 9200, 16),
@@ -668,6 +802,14 @@ INSERT INTO legal_issues (project_id, title, object_description, category, risk_
 (4, 'Tumpang tindih batas dengan lahan BPN',   'Lahan T1 blok C',       'klaim_kepemilikan','high',  'Perlu klarifikasi dengan BPN Makassar terkait koordinat.',            'sidang',   'Fajar Nugroho', '2024-01-15', '2024-08-31', NULL),
 (5, 'SHM unit B-03 belum tiba',                'SHM Unit B-03',         'masalah_shm',     'low',    'Proses pecah SHM unit B-03 terlambat 2 bulan dari jadwal.',           'selesai',  'Fajar Nugroho', '2023-01-10', '2023-03-31', '2023-03-25');
 
+INSERT INTO legal_issue_history (issue_id, from_status, to_status, changed_by, notes, changed_at) VALUES
+(1, NULL,       'aktif',   'Fajar Nugroho', 'Issue batas lahan dibuka setelah komplain tetangga.', '2024-02-01 09:30:00+08'),
+(1, 'aktif',    'mediasi', 'Fajar Nugroho', 'Survey ulang BPN selesai, lanjut mediasi pemilik sebelah.', '2024-03-05 15:00:00+08'),
+(2, NULL,       'aktif',   'Wahyu Hidayat', 'Izin akses jalan T2 perlu persetujuan tertulis.', '2023-10-15 10:00:00+08'),
+(3, NULL,       'aktif',   'Fajar Nugroho', 'Koordinat BPN belum match dengan site plan.', '2024-01-15 11:00:00+08'),
+(3, 'aktif',    'sidang',  'Fajar Nugroho', 'Perlu klarifikasi formal dengan BPN Makassar.', '2024-03-22 13:30:00+08'),
+(4, 'aktif',    'selesai', 'Fajar Nugroho', 'SHM B-03 diterima dari BPN.', '2023-03-25 16:00:00+08');
+
 INSERT INTO permit_documents (project_id, permit_group, permit_name, institution, status, submission_date, target_date, actual_date, document_number, pic, notes) VALUES
 (1, 'perizinan_dasar',    'KKPR',    'ATRBPN Gowa',       'selesai',           '2022-10-01', '2023-01-01', '2023-01-15', 'KKPR/7306/2023/001', 'Fajar Nugroho',  NULL),
 (1, 'perizinan_dasar',    'AMDAL',   'DLH Gowa',          'selesai',           '2022-11-01', '2023-03-01', '2023-02-20', 'AMDAL/7306/2023/002','Wahyu Hidayat',  NULL),
@@ -683,6 +825,14 @@ INSERT INTO permit_documents (project_id, permit_group, permit_name, institution
 (5, 'perizinan_dasar',    'KKPR',    'ATRBPN Bone',       'selesai',           '2021-03-01', '2021-06-01', '2021-05-28', 'KKPR/7415/2021/002', 'Fajar Nugroho',  NULL),
 (5, 'perizinan_bangunan', 'PBG',     'DPMPTSP Bone',      'selesai',           '2021-05-01', '2021-08-01', '2021-07-25', 'PBG/7415/2021/010',  'Wahyu Hidayat',  NULL),
 (5, 'izin_teknis',        'SLF',     'Dinas PU Bone',     'selesai',           '2022-06-01', '2022-09-01', '2022-08-20', 'SLF/7415/2022/005',  'Wahyu Hidayat',  NULL);
+
+INSERT INTO permit_status_history (permit_id, from_status, to_status, changed_by, notes, changed_at) VALUES
+(1, NULL,             'dalam_proses', 'Fajar Nugroho', 'Berkas KKPR Gowa masuk ATRBPN.', '2022-10-01 09:00:00+08'),
+(1, 'dalam_proses',   'selesai',      'Fajar Nugroho', 'KKPR Gowa terbit.', '2023-01-15 14:00:00+08'),
+(4, NULL,             'dalam_proses', 'Wahyu Hidayat', 'PBG T2 Gowa masuk DPMPTSP.', '2024-02-01 10:00:00+08'),
+(7, NULL,             'dalam_proses', 'Wahyu Hidayat', 'PBG Maros diproses.', '2024-01-15 10:30:00+08'),
+(10, NULL,            'dalam_proses', 'Fajar Nugroho', 'KKPR Makassar diajukan.', '2024-03-01 09:45:00+08'),
+(11, NULL,            'selesai',      'Fajar Nugroho', 'KKPR Bone sudah lengkap sejak fase awal.', '2021-05-28 15:00:00+08');
 
 INSERT INTO land_stages (id, project_id, stage_code, stage_identity, land_area, target_kavlings, certificate_number, stage_status, notes) VALUES
 (1, 1, 'T1', 'H. Abdullah Dg. Tappa', 4500, 30, 'SHM No. 1234/Sungguminasa', 'selesai',         'Sudah balik nama atas nama perusahaan'),
@@ -817,6 +967,23 @@ INSERT INTO planning_competitors (market_id, name, price, product_type, units, a
 (4, 'Antang City View',     335000000, 'Tipe 45-54', 50, 2.5, 0.8),
 (5, 'Bone Regency',         242000000, 'Tipe 36', 80, 4.2, 3.5);
 
+INSERT INTO planning_land_bank (project_id, name, status, land_area, available_units, acquisition_price, target_start_date, notes) VALUES
+(1, 'Cadangan T3 Sungguminasa - Dg. Rani',        'ready_to_develop', 8500,  60, 2677500000, '2024-09-01', 'Sudah MoU dari pipeline akuisisi, disiapkan untuk tahap T3 Gowa.'),
+(2, 'Mandai Barat - Pak Haris',                   'legal_review',     6200,  50, 1736000000, '2025-01-15', 'Menunggu ukur ulang batas barat sebelum AJB.'),
+(3, 'Palleko Selatan - Hj. Nurlina',              'negotiation',      10200, 80, 2397000000, '2024-08-15', 'Harga final masih negosiasi, cocok untuk buffer stok Takalar.'),
+(4, 'Antang Timur - Pak Burhan',                  'watchlist',        4800,  40, 2496000000, '2026-01-10', 'Masuk watchlist saja karena harga dan akses belum ideal.'),
+(5, 'Macege Selatan - La Mappa',                  'ready_to_develop', 7600,  70, 1596000000, '2024-07-01', 'Landbank paling siap untuk ekspansi Bone.'),
+(NULL, 'Bontonompo Selatan - Bu Ratna',           'prospect',         12500, 92, 2312500000, '2026-03-01', 'Prospek awal koridor Gowa selatan, belum dipromote ke proyek.'),
+(NULL, 'Pattallassang Pallantikang - Hj. Rosmini','legal_review',     15800, 118, 2686000000, '2026-02-01', 'Legal campuran SHM/girik perlu dirapikan sebelum masuk proyek.'),
+(NULL, 'Bajeng Limbung - Pak Syarif',             'negotiation',      13200, 96, 2574000000, '2025-11-01', 'Masuk pipeline karena margin masih sehat.');
+
+INSERT INTO planning_expansion (scenario_name, description, estimated_roi, risk_score, cashflow_impact, sdm_score, sop_score, dashboard_score) VALUES
+('Ekspansi Gowa Selatan 2026', 'Akuisisi Bontonompo dan Bajeng untuk menjaga stok subsidi setelah Gowa T2 habis.', 29.5, 34, 'Butuh kas awal Rp4,8M, bisa ditutup dari termin KPP dan booking T2.', 82, 88, 86),
+('Perkuat Bone Setelah Serah Terima', 'Menggunakan trust proyek Bone lama untuk launching tahap baru dari lahan Macege Selatan.', 33.5, 26, 'Kebutuhan modal ringan karena harga tanah lebih rendah dan demand existing kuat.', 78, 85, 89),
+('Makassar Urban Infill', 'Tetap monitor lahan kecil Antang/Biringkanaya, hanya jalan jika harga turun minimal 18%.', 18.2, 68, 'Tidak direkomendasikan untuk kas 2024 karena peak funding terlalu tinggi.', 70, 76, 61),
+('Koridor Mandai-Moncongloe', 'Kombinasi lahan Mandai dan Moncongloe untuk menangkap spillover pekerja bandara dan gudang.', 26.8, 43, 'Butuh kontrol legal dan akses, layak setelah tahap Maros terserap 45%.', 80, 82, 78),
+('Pattallassang Skala Besar', 'Lahan besar cocok untuk mixed cluster, tetapi legal perlu dipisah sebelum feasibility final.', 32.7, 48, 'Cashflow berat di muka, disarankan JV atau pembayaran bertahap.', 74, 80, 77);
+
 
 -- ==============================================================
 -- 20. FINANCE DATA
@@ -835,13 +1002,13 @@ INSERT INTO finance_cashflow_records (upload_id, transaction_date, type, categor
 (1, '2024-01-05',  'masuk',  'KPR/HT',       'Satara Park Bone',      255000000, 'HT Unit A-01 Bone',           'HT/2024/01/001'),
 (1, '2024-01-08',  'masuk',  'KPR/HT',       'Satara Park Bone',      255000000, 'HT Unit A-02 Bone',           'HT/2024/01/002'),
 (1, '2024-01-10',  'masuk',  'DP',           'Satara Residence Gowa', 28500000,  'DP Cust Sari Dewi',           'DP/2024/01/001'),
-(1, '2024-01-15',  'keluar', 'Konstruksi',   'Satara Residence Gowa', 80000000,  'Termin 1 CV Bangun Jaya',     'PAY/2024/01/001'),
+(1, '2024-01-15',  'keluar', 'Konstruksi',   'Satara Residence Gowa', 80000000,  'Termin 1 Irwan Saputra',     'PAY/2024/01/001'),
 (1, '2024-01-20',  'keluar', 'Operasional',  'Satara Development',    25000000,  'Gaji & Operasional Januari',  'OPS/2024/01/001'),
 (1, '2024-01-25',  'masuk',  'Booking Fee',  'Satara Hills Maros',    5000000,   'BF Unit A-01 Maros',          'BF/2024/01/001'),
 -- Februari 2024
 (2, '2024-02-01',  'masuk',  'KPR/HT',       'Satara Residence Gowa', 310500000, 'HT Unit A-03 Gowa - Indah',   'HT/2024/02/001'),
 (2, '2024-02-05',  'masuk',  'DP',           'Satara Hills Maros',    26000000,  'DP Fandi Ahmad Maros',        'DP/2024/02/001'),
-(2, '2024-02-10',  'keluar', 'Konstruksi',   'Satara Hills Maros',    120000000, 'Termin 1 CV Graha Utama',     'PAY/2024/02/001'),
+(2, '2024-02-10',  'keluar', 'Konstruksi',   'Satara Hills Maros',    120000000, 'Termin 1 Wahyu Pratama',     'PAY/2024/02/001'),
 (2, '2024-02-15',  'keluar', 'Marketing',    'Satara Hills Maros',    180000000, 'Grand Launching Maros',       'MKT/2024/02/001'),
 (2, '2024-02-20',  'masuk',  'Booking Fee',  'Satara Hills Maros',    15000000,  'BF 3 unit Maros',             'BF/2024/02/001'),
 (2, '2024-02-28',  'keluar', 'Operasional',  'Satara Development',    28000000,  'Gaji & Operasional Februari', 'OPS/2024/02/001'),
@@ -898,8 +1065,8 @@ INSERT INTO finance_kpp_payments (kpp_id, payment_date, principal_paid, interest
 INSERT INTO finance_debt_records (upload_id, project_name, stage_info, creditor_name, category, total_amount, paid_amount, remaining_amount, due_date, status, notes) VALUES
 (6, 'Satara Residence Gowa',  'T1', 'Bank BTN',           'KPP',           5000000000, 4200000000, 800000000,  '2025-02-01', 'outstanding', 'Sisa 6 bulan'),
 (6, 'Satara Hills Maros',     'T1', 'Bank BRI',           'KPP',           4000000000, 250000000,  3750000000, '2026-03-01', 'outstanding', 'Baru bulan 2'),
-(6, 'Satara Residence Gowa',  'T2', 'CV Mitra Konstruksi','Hutang Subkon',  45000000,   21250000,   23750000,   '2024-09-01', 'outstanding', 'Menunggu termin 2'),
-(6, 'Satara Hills Maros',     'T1', 'CV Graha Utama',     'Hutang Subkon',  51000000,   19800000,   31200000,   '2024-10-01', 'outstanding', NULL),
+(6, 'Satara Residence Gowa',  'T2', 'Fajar Nugraha','Hutang Subkon',  45000000,   21250000,   23750000,   '2024-09-01', 'outstanding', 'Menunggu termin 2'),
+(6, 'Satara Hills Maros',     'T1', 'Wahyu Pratama',     'Hutang Subkon',  51000000,   19800000,   31200000,   '2024-10-01', 'outstanding', NULL),
 (6, 'Satara Development',     NULL, 'Supplier Semen Jaya','Hutang Supplier',85000000,   60000000,   25000000,   '2024-05-30', 'outstanding', 'Net 30 hari'),
 (6, 'Satara City Makassar',   'T1', 'Notaris H. Mappasatu','Biaya Legal',   35000000,   20000000,   15000000,   '2024-07-01', 'outstanding', NULL);
 
@@ -909,18 +1076,18 @@ INSERT INTO finance_receivable_records (upload_id, debtor_name, category, total_
 (7, 'Customer DP - Aminah Putri',         'DP',       42000000,  NULL,          'current', 'DP sudah masuk'),
 (7, 'BTN - SP3K Rudi Santoso',           'SP3K',     310500000, '2024-06-20', 'current', 'Menunggu akad'),
 (7, 'BRI - Realisasi Akad Maros x3',     'KPR/HT',  780000000, '2024-07-01', 'current', 'Pipeline kuat'),
-(7, 'Retensi CV Bangun Jaya',            'Retensi',   4000000,  '2024-03-15', 'overdue', 'Sudah jatuh tempo'),
-(7, 'Retensi CV Bone Konstruksi T1',     'Retensi',   4000000,  '2022-12-25', 'settled', 'Sudah dibayar');
+(7, 'Retensi Irwan Saputra',            'Retensi',   4000000,  '2024-03-15', 'overdue', 'Sudah jatuh tempo'),
+(7, 'Retensi Haerul Anwar T1',     'Retensi',   4000000,  '2022-12-25', 'settled', 'Sudah dibayar');
 
 INSERT INTO finance_audit_findings (upload_id, finding_type, description, transaction_date, amount, status, reviewed_by, resolution_notes) VALUES
 (5, 'Selisih RAB',        'RAB finishing T1 Gowa realisasi kurang Rp10jt dari anggaran',  '2024-02-15', 10000000,  'ditutup',  'Hendra Kusuma', 'Selisih wajar, dalam toleransi 3%'),
 (6, 'Keterlambatan Bayar','Invoice subkon Maros terlambat 15 hari dari jatuh tempo',      '2024-03-10', 19800000,  'proses',   'Hendra Kusuma', 'Menunggu approval direktur'),
 (6, 'Dokumen Tidak Lengkap','SPK subkon T2 belum ditandatangani lengkap',                 '2024-01-20', NULL,       'baru',     NULL,             NULL),
-(7, 'Piutang Jatuh Tempo','Retensi CV Bangun Jaya sudah melewati tanggal pelepasan',      '2024-03-15', 4000000,   'proses',   'Hendra Kusuma', 'Koordinasi dengan subkon');
+(7, 'Piutang Jatuh Tempo','Retensi Irwan Saputra sudah melewati tanggal pelepasan',      '2024-03-15', 4000000,   'proses',   'Hendra Kusuma', 'Koordinasi dengan subkon');
 
 INSERT INTO finance_alerts (alert_type, level, message, amount, related_module, is_read, action_notes) VALUES
 ('kas_rendah',         'warning', 'Saldo kas mendekati batas minimum proyek Maros',          500000000, 'cashflow',   false, NULL),
-('hutang_jatuh_tempo', 'danger',  'Retensi CV Bangun Jaya Rp4jt lewat jatuh tempo',          4000000,   'hutang',     false, NULL),
+('hutang_jatuh_tempo', 'danger',  'Retensi Irwan Saputra Rp4jt lewat jatuh tempo',          4000000,   'hutang',     false, NULL),
 ('target_sales',       'info',    'Pencapaian sales Maros baru 24% dari target Q2',           NULL,      'marketing',  true,  'Sudah dilaporkan ke direksi'),
 ('kpp_cicilan',        'warning', 'Cicilan KPP Maros jatuh tempo 3 hari lagi',               198000000, 'kpp',        false, NULL),
 ('rework_backlog',     'info',    '3 unit Gowa masih memiliki defect terbuka',                NULL,      'konstruksi', false, NULL),
@@ -965,11 +1132,11 @@ INSERT INTO hr_recruitment_needs (position_name, division, location, headcount_n
 
 INSERT INTO hr_recruitment_candidates (need_id, name, phone, source, stage, stage_date, recruiter_notes) VALUES
 (1, 'Ahmad Ridwan',        '0812001001', 'LinkedIn',   'wawancara_2',    '2024-05-15', 'Kandidat kuat, pengalaman relevan'),
-(1, 'Deni Kusuma',         '0812001002', 'Referral',   'screening_cv',   '2024-05-10', 'CV bagus, perlu dicek referensi'),
+(1, 'Deni Kusuma',         '0812001002', 'Referral',   'screening_cv',   '2024-05-10', 'Resume bagus, perlu dicek referensi'),
 (2, 'Rina Puspita',        '0812001003', 'Jobstreet',  'offering',       '2024-05-20', 'Siap bergabung'),
 (2, 'Hamdan Bakri',        '0812001004', 'Walk-in',    'psikotes',       '2024-05-12', 'Hasil psikotes bagus'),
 (3, 'Muh. Farhan',         '0812001005', 'LinkedIn',   'wawancara_1',    '2024-05-18', 'Background keuangan proptek'),
-(4, 'Syamsul Bahri',       '0812001006', 'Referral',   'screening_cv',   '2024-06-01', 'Masih proses review CV'),
+(4, 'Syamsul Bahri',       '0812001006', 'Referral',   'screening_cv',   '2024-06-01', 'Masih proses review resume'),
 (5, 'Nurfadilah Aziz',     '0812001007', 'Jobstreet',  'bergabung',      '2024-05-05', 'Sudah bergabung 5 Mei 2024');
 
 INSERT INTO hr_kpi_definitions (id, position, division, kpi_name, description, unit, monthly_target, weight, data_source, source_module) VALUES
@@ -1188,12 +1355,41 @@ INSERT INTO hr_individual_issues (project_id, project, tanggal, divisi, nama, ma
 
 
 -- ==============================================================
+-- Sinkronisasi serial sequence setelah insert id eksplisit
+-- ==============================================================
+DO $$
+DECLARE
+  rec record;
+BEGIN
+  FOR rec IN
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND column_default LIKE 'nextval(%'
+  LOOP
+    EXECUTE format(
+      'SELECT setval(pg_get_serial_sequence(%L, %L), COALESCE((SELECT MAX(%I) FROM %I), 1), (SELECT MAX(%I) FROM %I) IS NOT NULL)',
+      rec.table_name,
+      rec.column_name,
+      rec.column_name,
+      rec.table_name,
+      rec.column_name,
+      rec.table_name
+    );
+  END LOOP;
+END $$;
+
+
+-- ==============================================================
 -- Verifikasi data berhasil diinput
 -- ==============================================================
 SELECT 'Projects'    AS tabel, COUNT(*) AS total FROM projects
 UNION ALL SELECT 'Units',        COUNT(*) FROM units
 UNION ALL SELECT 'Customers',    COUNT(*) FROM customers
 UNION ALL SELECT 'Leads',        COUNT(*) FROM leads
+UNION ALL SELECT 'Land Prospects', COUNT(*) FROM land_prospects
+UNION ALL SELECT 'Planning Landbank', COUNT(*) FROM planning_land_bank
+UNION ALL SELECT 'Planning Expansion', COUNT(*) FROM planning_expansion
 UNION ALL SELECT 'Employees',    COUNT(*) FROM hr_employees
 UNION ALL SELECT 'Materials',    COUNT(*) FROM materials
 UNION ALL SELECT 'Campaigns',    COUNT(*) FROM campaigns

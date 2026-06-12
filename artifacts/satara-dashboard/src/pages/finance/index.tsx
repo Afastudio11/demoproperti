@@ -160,7 +160,9 @@ export default function FinanceDashboard() {
         {[
           { label: "Cashflow Center", path: "/finance/cashflow" },
           { label: "KPP Tracker", path: "/finance/kpp" },
-          { label: "Hutang Center", path: "/finance/hutang" },
+          { label: "Kredit & Investment", path: "/finance/hutang" },
+          { label: "Approval Subkon", path: "/finance/approval" },
+          { label: "Akad Cair", path: "/finance/akad-cair" },
           { label: "Audit Center", path: "/finance/audit" },
         ].map(item => (
           <Link key={item.path} href={item.path}>

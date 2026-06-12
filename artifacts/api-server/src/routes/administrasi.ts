@@ -12,6 +12,7 @@ import {
   monthlyTargetsTable,
   customerComplaintsTable,
   banksTable,
+  unitsTable,
 } from "@workspace/db";
 import { eq, and, desc, or, like, sql } from "drizzle-orm";
 import { recordFinanceCashflow } from "../lib/finance-sync";
@@ -246,6 +247,7 @@ router.get("/administrasi/dashboard", async (req, res) => {
 router.get("/administrasi/customers", async (req, res) => {
   try {
     let customers = await db.select().from(customersTable);
+    const units = await db.select().from(unitsTable);
     const { status, projectId, bank, picAdmin, search } = req.query as Record<string, string>;
 
     if (status) customers = customers.filter(c => c.pipelineStatus === status);
@@ -262,7 +264,12 @@ router.get("/administrasi/customers", async (req, res) => {
       );
     }
 
-    res.json(customers.map(serializeCustomer));
+    res.json(customers.map(c => {
+      const unit = c.unitId
+        ? units.find(u => u.id === c.unitId)
+        : units.find(u => u.projectId === c.projectId && `${u.blok}-${u.nomor}`.toLowerCase() === String(c.unitBlock ?? "").toLowerCase());
+      return { ...serializeCustomer(c), progressRumah: unit?.progress ?? null, unitProgress: unit?.progress ?? null };
+    }));
   } catch (err) {
     req.log.error({ err }, "Failed to list administrasi customers");
     res.status(500).json({ error: "Internal server error" });

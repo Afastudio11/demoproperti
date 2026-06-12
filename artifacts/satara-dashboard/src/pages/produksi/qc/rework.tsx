@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { Plus, AlertTriangle, CheckCircle2, Clock, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import SubkonSelect from "@/components/subkon-select";
 
 type Unit = { id: number; contractId: number | null; subkonName: string | null; blok: string; nomor: string; tipe: string };
 type Rework = { id: number; unitId: number; subkonName: string | null; pekerjaanItem: string | null; description: string | null; foundDate: string | null; targetCompletion: string | null; actualCompletion: string | null; status: string; unit: Unit | null };
+type Material = { id: number; name: string; satuan: string };
 
 const STATUS_ICONS: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
   open: { icon: AlertTriangle, color: "text-red-500", label: "Open" },
@@ -21,6 +22,7 @@ const STATUS_ICONS: Record<string, { icon: React.ComponentType<{ className?: str
 export default function QcRework() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ unitId: "", subkonName: "", pekerjaanItem: "", description: "", foundDate: new Date().toISOString().split("T")[0], targetCompletion: "" });
+  const [materials, setMaterials] = useState<Array<{ materialId: string; quantity: string; notes: string }>>([]);
   const [filter, setFilter] = useState("all");
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -34,6 +36,10 @@ export default function QcRework() {
     queryKey: ["reworks"],
     queryFn: async () => { const r = await fetch("/api/produksi/qc/reworks"); return r.json() as Promise<Rework[]>; },
   });
+  const { data: materialMaster } = useQuery({
+    queryKey: ["material-master"],
+    queryFn: async () => { const r = await fetch("/api/produksi/material/master"); return r.json() as Promise<Material[]>; },
+  });
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -42,17 +48,18 @@ export default function QcRework() {
         body: JSON.stringify({
           unitId: parseInt(form.unitId),
           contractId: selectedUnit?.contractId ?? null,
-          subkonName: selectedUnit?.subkonName ?? (form.subkonName || null),
+          subkonName: form.subkonName || selectedUnit?.subkonName || null,
           pekerjaanItem: form.pekerjaanItem || null,
           description: form.description || null,
           foundDate: form.foundDate,
           targetCompletion: form.targetCompletion || null,
+          materials: materials.map(m => ({ materialId: parseInt(m.materialId), quantity: parseFloat(m.quantity), notes: m.notes, dateOut: form.foundDate })),
         }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reworks"] }); toast({ title: "Rework berhasil dicatat" }); setShowForm(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reworks"] }); qc.invalidateQueries({ queryKey: ["material-out"] }); toast({ title: "Rework berhasil dicatat" }); setShowForm(false); setMaterials([]); },
   });
 
   const updateMutation = useMutation({
@@ -103,7 +110,8 @@ export default function QcRework() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Subkon</Label>
-              <SubkonSelect value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))} disabled={!!selectedUnit?.subkonName} />
+              <SubkonSelect value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))} />
+              {selectedUnit?.subkonName && <p className="text-[10px] text-muted-foreground">Default unit: {selectedUnit.subkonName}. Bisa diganti untuk rework.</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Item Pekerjaan</Label>
@@ -117,6 +125,23 @@ export default function QcRework() {
               <Label className="text-xs">Target Selesai</Label>
               <Input type="date" value={form.targetCompletion} onChange={e => setForm(p => ({ ...p, targetCompletion: e.target.value }))} className="h-8 text-sm" />
             </div>
+          </div>
+          <div className="space-y-2 border-t pt-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Material Rework (otomatis masuk Material Keluar)</Label>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setMaterials(p => [...p, { materialId: "", quantity: "", notes: "" }])}><Plus className="size-3 mr-1" /> Material</Button>
+            </div>
+            {materials.map((m, i) => (
+              <div key={i} className="grid grid-cols-[1fr_100px_1fr_auto] gap-2">
+                <Select value={m.materialId} onValueChange={v => setMaterials(p => p.map((x, idx) => idx === i ? { ...x, materialId: v } : x))}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih material" /></SelectTrigger>
+                  <SelectContent>{(materialMaster ?? []).map(mt => <SelectItem key={mt.id} value={String(mt.id)}>{mt.name} ({mt.satuan})</SelectItem>)}</SelectContent>
+                </Select>
+                <Input className="h-8 text-sm" type="number" value={m.quantity} onChange={e => setMaterials(p => p.map((x, idx) => idx === i ? { ...x, quantity: e.target.value } : x))} placeholder="Qty" />
+                <Input className="h-8 text-sm" value={m.notes} onChange={e => setMaterials(p => p.map((x, idx) => idx === i ? { ...x, notes: e.target.value } : x))} placeholder="Catatan" />
+                <Button size="sm" variant="ghost" className="h-8 px-2 text-red-500" onClick={() => setMaterials(p => p.filter((_, idx) => idx !== i))}><Trash2 className="size-3.5" /></Button>
+              </div>
+            ))}
           </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" size="sm" onClick={() => setShowForm(false)} className="h-8">Batal</Button>

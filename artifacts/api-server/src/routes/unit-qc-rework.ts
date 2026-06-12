@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { qcDefectsTable, unitQcTable, reworksTable, unitsTable } from "@workspace/db";
+import { prodMaterialOutTable, qcDefectsTable, unitQcTable, reworksTable, unitsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { resolveKnownSubkonName } from "../lib/subkon-master";
 import { findSubkonContract, recalculateUnitProductionState } from "../lib/production-relations";
@@ -118,6 +118,27 @@ router.post("/produksi/qc/reworks", async (req, res) => {
       contractId: contract?.id ?? null,
       subkonName: contract?.subkonName ?? subkonName,
     }).returning();
+    const materials = Array.isArray(req.body.materials) ? req.body.materials : [];
+    if (materials.length > 0) {
+      await db.insert(prodMaterialOutTable).values(materials
+        .filter((m: any) => m.materialId && Number(m.quantity) > 0)
+        .map((m: any) => ({
+          projectId: unit.projectId,
+          unitId: unit.id,
+          contractId: contract?.id ?? null,
+          stageCode: unit.stageCode ?? null,
+          materialId: Number(m.materialId),
+          quantity: Number(m.quantity),
+          batchUnitCount: 1,
+          batchUnits: `Blok ${unit.blok}-${unit.nomor}`,
+          takenBy: m.takenBy ?? "Rework",
+          subkonName: contract?.subkonName ?? subkonName,
+          sourceType: "rework",
+          sourceId: row.id,
+          dateOut: m.dateOut ?? req.body.foundDate ?? new Date().toISOString().split("T")[0],
+          notes: m.notes ?? `Material rework: ${req.body.pekerjaanItem ?? req.body.description ?? "rework"}`,
+        })));
+    }
     await recalculateUnitProductionState(row.unitId);
     res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (err) {

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import {
   prodMaterialMasterTable,
+  prodMaterialStandardsTable,
   prodMaterialInTable,
   prodMaterialOutTable,
   unitsTable,
@@ -145,6 +146,97 @@ router.post("/produksi/material/master", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to create material");
     res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// ─── PROJECT MATERIAL STANDARDS (Acuan per proyek/subkon) ───────────────────
+
+router.get("/produksi/material/standards", async (req, res) => {
+  try {
+    let rows = await db.select().from(prodMaterialStandardsTable).orderBy(prodMaterialStandardsTable.category);
+    if (req.query.projectId) rows = rows.filter(r => r.projectId === Number(req.query.projectId));
+    if (typeof req.query.stageCode === "string" && req.query.stageCode) rows = rows.filter(r => (r.stageCode ?? "") === req.query.stageCode);
+    if (typeof req.query.subkonName === "string" && req.query.subkonName) rows = rows.filter(r => (r.subkonName ?? "") === req.query.subkonName);
+    res.json(rows.map(r => ({ ...r, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() })));
+  } catch (err) {
+    req.log.error({ err }, "Failed to list material standards");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/produksi/material/standards", async (req, res) => {
+  try {
+    const subkonName = await resolveKnownSubkonName(req.body.subkonName);
+    const [row] = await db.insert(prodMaterialStandardsTable).values({
+      ...req.body,
+      subkonName,
+      referenceUnitCount: Number(req.body.referenceUnitCount ?? 1),
+      plannedQuantity: Number(req.body.plannedQuantity ?? 0),
+      usedQuantity: Number(req.body.usedQuantity ?? 0),
+    }).returning();
+    res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Failed to create material standard");
+    res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+router.patch("/produksi/material/standards/:id", async (req, res) => {
+  try {
+    const body = { ...req.body };
+    if ("subkonName" in body) body.subkonName = await resolveKnownSubkonName(body.subkonName);
+    const [row] = await db.update(prodMaterialStandardsTable).set(body).where(eq(prodMaterialStandardsTable.id, Number(req.params.id))).returning();
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update material standard");
+    res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+router.delete("/produksi/material/standards/:id", async (req, res) => {
+  try {
+    await db.delete(prodMaterialStandardsTable).where(eq(prodMaterialStandardsTable.id, Number(req.params.id)));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete material standard");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/produksi/material/productivity", async (req, res) => {
+  try {
+    const projectId = req.query.projectId ? Number(req.query.projectId) : null;
+    const standards = (await db.select().from(prodMaterialStandardsTable)).filter(r => !projectId || r.projectId === projectId);
+    const outs = (await db.select().from(prodMaterialOutTable)).filter(r => !projectId || r.projectId === projectId);
+    const masters = await db.select().from(prodMaterialMasterTable);
+    const rows = standards.map(s => {
+      const standardPerUnit = (s.plannedQuantity ?? 0) / Math.max(1, s.referenceUnitCount ?? 1);
+      const relatedOut = outs.filter(o =>
+        (o.stageCode ?? "") === (s.stageCode ?? "")
+        && (o.subkonName ?? "") === (s.subkonName ?? "")
+        && masters.find(m => m.id === o.materialId)?.name === s.materialName
+      );
+      const actual = relatedOut.reduce((sum, o) => sum + o.quantity, 0);
+      const unitCount = relatedOut.reduce((max, o) => Math.max(max, o.batchUnitCount ?? 1), s.referenceUnitCount ?? 1);
+      const planned = standardPerUnit * Math.max(1, unitCount);
+      const variance = actual - planned;
+      const efficiency = actual > 0 ? Math.round((planned / actual) * 1000) / 10 : 0;
+      return {
+        ...s,
+        standardPerUnit,
+        batchUnitCount: unitCount,
+        plannedBatchQuantity: planned,
+        actualQuantity: actual,
+        variance,
+        efficiency,
+        status: !actual ? "belum_dipakai" : efficiency >= 95 ? "normal" : efficiency >= 85 ? "warning" : "boros",
+      };
+    });
+    res.json(rows);
+  } catch (err) {
+    req.log.error({ err }, "Failed to calculate material productivity");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

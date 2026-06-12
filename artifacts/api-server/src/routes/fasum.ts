@@ -23,25 +23,28 @@ router.get("/produksi/fasum", async (req, res) => {
 
 router.post("/produksi/fasum", async (req, res) => {
   try {
-    const { projectId, stageCode, fasumType, progressPercent, notes, updatedBy } = req.body as {
+    const { projectId, stageCode, fasumType, progressPercent, notes, updatedBy, subkonName } = req.body as {
       projectId: number;
       stageCode?: string;
       fasumType: string;
       progressPercent: number;
       notes?: string;
       updatedBy?: string;
+      subkonName?: string;
     };
 
-    const existing = await db.select().from(fasumProgressTable)
+    const existingRows = await db.select().from(fasumProgressTable)
       .where(and(eq(fasumProgressTable.projectId, projectId), eq(fasumProgressTable.fasumType, fasumType)));
+    const existing = existingRows.find(row => (row.subkonName ?? "") === (subkonName ?? ""));
 
-    if (existing.length > 0) {
+    if (existing) {
       const [row] = await db.update(fasumProgressTable).set({
         progressPercent,
         notes: notes ?? null,
         updatedBy: updatedBy ?? null,
         stageCode: stageCode ?? null,
-      }).where(eq(fasumProgressTable.id, existing[0].id)).returning();
+        subkonName: subkonName ?? null,
+      }).where(eq(fasumProgressTable.id, existing.id)).returning();
       return res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
     }
 
@@ -52,6 +55,7 @@ router.post("/produksi/fasum", async (req, res) => {
       progressPercent,
       notes: notes ?? null,
       updatedBy: updatedBy ?? null,
+      subkonName: subkonName ?? null,
     }).returning();
     res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (err) {

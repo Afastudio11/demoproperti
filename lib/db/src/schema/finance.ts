@@ -76,6 +76,54 @@ export const debtRecordsTable = pgTable("finance_debt_records", {
   status: text("status").notNull().default("outstanding"),
   notes: text("notes"),
   metadata: jsonb("metadata"),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  lockedBy: text("locked_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const akadDisbursementsTable = pgTable("finance_akad_disbursements", {
+  id: serial("id").primaryKey(),
+  akadId: integer("akad_id").notNull(),
+  customerId: integer("customer_id").notNull(),
+  projectId: integer("project_id"),
+  statusCair: text("status_cair").notNull().default("belum_cair"),
+  tanggalCair: date("tanggal_cair"),
+  nominalCair: numeric("nominal_cair", { precision: 18, scale: 2 }).default("0"),
+  bankDeduction: numeric("bank_deduction", { precision: 18, scale: 2 }).default("0"),
+  destinationAccount: text("destination_account"),
+  proofUrl: text("proof_url"),
+  notes: text("notes"),
+  updatedBy: text("updated_by").default("finance"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const financeAkadDisbursementLedgerTable = pgTable("finance_akad_disbursement_ledger", {
+  id: serial("id").primaryKey(),
+  akadId: integer("akad_id").notNull(),
+  disbursementId: integer("disbursement_id"),
+  customerId: integer("customer_id").notNull(),
+  projectId: integer("project_id"),
+  tanggalCair: date("tanggal_cair").notNull(),
+  nominalCair: numeric("nominal_cair", { precision: 18, scale: 2 }).notNull().default("0"),
+  bankDeduction: numeric("bank_deduction", { precision: 18, scale: 2 }).default("0"),
+  destinationAccount: text("destination_account"),
+  proofUrl: text("proof_url"),
+  notes: text("notes"),
+  createdBy: text("created_by").default("finance"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const appAuditLogsTable = pgTable("app_audit_logs", {
+  id: serial("id").primaryKey(),
+  module: text("module").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  action: text("action").notNull(),
+  actor: text("actor").default("system"),
+  before: jsonb("before"),
+  after: jsonb("after"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
