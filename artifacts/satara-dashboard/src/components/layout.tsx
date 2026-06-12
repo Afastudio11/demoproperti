@@ -126,7 +126,6 @@ const perencanaanSubNav: SubNavItem[] = [
   { type: "link", name: "Analisis Pasar", path: "/perencanaan/pasar" },
   { type: "link", name: "Analisis Lahan", path: "/perencanaan/lahan" },
   { type: "link", name: "Land Bank", path: "/perencanaan/landbank" },
-  { type: "link", name: "Skor Lokasi (SLIS)", path: "/slis" },
   { type: "group", label: "Produk & Kelayakan" },
   { type: "link", name: "Produk", path: "/perencanaan/produk" },
   { type: "link", name: "Feasibility", path: "/perencanaan/feasibility" },
