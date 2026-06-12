@@ -301,7 +301,7 @@ async function downloadReceipt(items: Approval[]) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     const statusLabel = isApproved ? "Disetujui" : isRejected ? "Ditolak" : "Menunggu";
-    doc.setTextColor(isApproved ? black : mediumGrey);
+    doc.setTextColor(...(isApproved ? black : mediumGrey));
     doc.text(statusLabel, sx + stepW2 / 2, y + 12, { align: "center" });
 
     if (approvedBy) {
