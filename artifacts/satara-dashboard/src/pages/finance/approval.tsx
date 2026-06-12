@@ -125,13 +125,14 @@ async function downloadReceipt(items: Approval[]) {
   doc.setFontSize(13);
   doc.text(docTitle, M + 2, 34);
 
-  // PAID badge
+  // Status badge
+  const badgeW = isPaid ? 26 : 42;
   doc.setFillColor(...emerald);
-  doc.roundedRect(W - M - 28, 28, 28, 10, 2, 2, "F");
+  doc.roundedRect(W - M - badgeW, 28, badgeW, 10, 2, 2, "F");
   doc.setTextColor(...white);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.text(`✓  ${statusText}`, W - M - 14, 34.5, { align: "center" });
+  doc.text(statusText, W - M - (badgeW / 2), 34.5, { align: "center" });
 
   // Doc ID + date (top right, inside header)
   doc.setFont("helvetica", "normal");
@@ -309,7 +310,7 @@ async function downloadReceipt(items: Approval[]) {
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    const statusLabel = isApproved ? "✓ Disetujui" : isRejected ? "✗ Ditolak" : "— Menunggu";
+    const statusLabel = isApproved ? "Disetujui" : isRejected ? "Ditolak" : "Menunggu";
     doc.text(statusLabel, sx + stepW2 / 2, y + 12, { align: "center" });
 
     if (approvedBy) {
