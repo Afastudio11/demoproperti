@@ -18,6 +18,49 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 
 function num(v: string) { return parseFloat(v) || 0; }
 
+async function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Gagal membaca file siteplan"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressSiteplanImage(file: File) {
+  const originalSizeMb = file.size / 1024 / 1024;
+  if (file.type === "image/svg+xml") {
+    const dataUrl = await fileToDataUrl(file);
+    return { dataUrl, originalSizeMb, uploadSizeMb: dataUrl.length / 1024 / 1024 };
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Format gambar siteplan tidak bisa dibaca"));
+      img.src = objectUrl;
+    });
+    const maxSide = 2400;
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Browser tidak bisa memproses gambar siteplan");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+    return { dataUrl, originalSizeMb, uploadSizeMb: dataUrl.length / 1024 / 1024 };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 const defaultForm = {
   projectId: 0,
   landArea: 0,
@@ -170,32 +213,29 @@ export default function LahanPage() {
   async function uploadSiteplan(file: File) {
     if (!form.projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
     setIsUploadingSiteplan(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const resp = await fetch("/api/planning/siteplan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId: form.projectId, title: file.name, imageDataUrl: reader.result }),
-        });
-        const row = await resp.json().catch(() => null);
-        if (!resp.ok) {
-          throw new Error(row?.error ?? "Gagal upload siteplan. Coba kompres gambar atau gunakan file lebih kecil.");
-        }
-        setActiveSiteplanId(row.id);
-        await refetchSiteplans();
-        toast({ title: "Siteplan berhasil diupload", description: file.name });
-      } catch (err) {
-        toast({ title: "Gagal upload siteplan", description: err instanceof Error ? err.message : "Terjadi kesalahan saat upload.", variant: "destructive" });
-      } finally {
-        setIsUploadingSiteplan(false);
+    try {
+      const image = await compressSiteplanImage(file);
+      const resp = await fetch("/api/planning/siteplan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: form.projectId, title: file.name, imageDataUrl: image.dataUrl }),
+      });
+      const row = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        const suffix = `Ukuran upload ${image.uploadSizeMb.toFixed(1)} MB dari file asli ${image.originalSizeMb.toFixed(1)} MB.`;
+        throw new Error(row?.error ? `${row.error}. ${suffix}` : `Server menolak upload siteplan. ${suffix}`);
       }
-    };
-    reader.onerror = () => {
+      setActiveSiteplanId(row.id);
+      await refetchSiteplans();
+      toast({
+        title: "Siteplan berhasil diupload",
+        description: `${file.name} (${image.originalSizeMb.toFixed(1)} MB -> ${image.uploadSizeMb.toFixed(1)} MB)`,
+      });
+    } catch (err) {
+      toast({ title: "Gagal upload siteplan", description: err instanceof Error ? err.message : "Terjadi kesalahan saat upload.", variant: "destructive" });
+    } finally {
       setIsUploadingSiteplan(false);
-      toast({ title: "Gagal membaca file siteplan", variant: "destructive" });
-    };
-    reader.readAsDataURL(file);
+    }
   }
 
   function addPoint(e: React.MouseEvent<HTMLDivElement>) {
