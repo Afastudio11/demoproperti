@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import {
   subkonContractsTable,
+  subkonPaymentTermsTable,
   subkonPaymentsTable,
   paymentApprovalsTable,
   unitsTable,
@@ -12,6 +13,60 @@ import { listSubkonMaster, normalizeSubkonName } from "../lib/subkon-master";
 import { getContractFieldProgress } from "../lib/production-relations";
 
 const router: IRouter = Router();
+
+type PaymentTermInput = {
+  id?: number;
+  terminNumber?: number;
+  label?: string;
+  plannedDate?: string | null;
+  paymentType?: string;
+  grossAmount?: number;
+  retentionAmount?: number;
+  netAmount?: number;
+  notes?: string | null;
+};
+
+function serializeTerm(row: typeof subkonPaymentTermsTable.$inferSelect) {
+  return {
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function normalizePaymentTerms(terms: PaymentTermInput[] | undefined, totalRetention: number) {
+  const rows = (terms ?? []).map((term, index) => {
+    const grossAmount = Number(term.grossAmount ?? 0);
+    const retentionAmount = Number(term.retentionAmount ?? 0);
+    const netAmount = Number(term.netAmount ?? grossAmount - retentionAmount);
+    const paymentType = term.paymentType === "retensi" ? "retensi" : "termin";
+    return {
+      terminNumber: Number(term.terminNumber ?? index + 1),
+      label: term.label?.trim() || (paymentType === "retensi" ? "Retensi" : `Termin ${index + 1}`),
+      plannedDate: term.plannedDate || null,
+      paymentType,
+      grossAmount,
+      retentionAmount,
+      netAmount,
+      notes: term.notes || null,
+    };
+  }).filter(term => term.grossAmount > 0 || term.retentionAmount > 0 || term.netAmount > 0);
+
+  if (!rows.some(term => term.paymentType === "retensi") && totalRetention > 0) {
+    rows.push({
+      terminNumber: rows.length + 1,
+      label: "Retensi",
+      plannedDate: null,
+      paymentType: "retensi",
+      grossAmount: totalRetention,
+      retentionAmount: 0,
+      netAmount: totalRetention,
+      notes: "Pembayaran retensi setelah masa pemeliharaan",
+    });
+  }
+
+  return rows;
+}
 
 // ─── SUBKON CONTRACTS ────────────────────────────────────────────────────────
 
@@ -33,8 +88,10 @@ router.get("/produksi/subkon/contracts", async (req, res) => {
       const pid = parseInt(req.query.projectId as string);
       rows = rows.filter(r => r.projectId === pid);
     }
+    const terms = await db.select().from(subkonPaymentTermsTable).orderBy(subkonPaymentTermsTable.terminNumber);
     res.json(rows.map(r => ({
       ...r,
+      paymentTerms: terms.filter(t => t.contractId === r.id).map(serializeTerm),
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     })));
@@ -46,7 +103,7 @@ router.get("/produksi/subkon/contracts", async (req, res) => {
 
 router.post("/produksi/subkon/contracts", async (req, res) => {
   try {
-    const { projectId, stageCode, subkonName, unitCount, valuePerUnit, retentionPerUnit, maintenanceMonths, startDate, targetEndDate } = req.body as {
+    const { projectId, stageCode, subkonName, unitCount, valuePerUnit, retentionPerUnit, maintenanceMonths, startDate, targetEndDate, paymentTerms } = req.body as {
       projectId: number;
       stageCode?: string;
       subkonName: string;
@@ -56,6 +113,7 @@ router.post("/produksi/subkon/contracts", async (req, res) => {
       maintenanceMonths?: number;
       startDate?: string;
       targetEndDate?: string;
+      paymentTerms?: PaymentTermInput[];
     };
     const cleanSubkonName = normalizeSubkonName(subkonName);
     if (!cleanSubkonName) return res.status(400).json({ error: "Nama subkon wajib diisi" });
@@ -81,7 +139,17 @@ router.post("/produksi/subkon/contracts", async (req, res) => {
       status: "aktif",
     }).returning();
 
-    res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+    const terms = normalizePaymentTerms(paymentTerms, totalRetention);
+    const insertedTerms = terms.length
+      ? await db.insert(subkonPaymentTermsTable).values(terms.map(term => ({ ...term, contractId: row.id }))).returning()
+      : [];
+
+    res.status(201).json({
+      ...row,
+      paymentTerms: insertedTerms.map(serializeTerm),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    });
   } catch (err) {
     req.log.error({ err }, "Failed to create subkon contract");
     res.status(400).json({ error: "Invalid request" });
@@ -107,8 +175,20 @@ router.patch("/produksi/subkon/contracts/:id", async (req, res) => {
       body.totalRetention = unitCount * retentionPerUnit;
       body.netPayableValue = body.contractValue - body.totalRetention;
     }
+    const paymentTerms = Array.isArray(body.paymentTerms) ? body.paymentTerms as PaymentTermInput[] : undefined;
+    delete body.paymentTerms;
     const [row] = await db.update(subkonContractsTable).set(body).where(eq(subkonContractsTable.id, id)).returning();
-    res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+    let terms = await db.select().from(subkonPaymentTermsTable).where(eq(subkonPaymentTermsTable.contractId, id));
+    if (paymentTerms) {
+      const payments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.contractId, id));
+      if (payments.length) return res.status(409).json({ error: "Jadwal termin tidak bisa diganti karena sudah ada pengajuan pembayaran." });
+      await db.delete(subkonPaymentTermsTable).where(eq(subkonPaymentTermsTable.contractId, id));
+      const nextTerms = normalizePaymentTerms(paymentTerms, row.totalRetention);
+      terms = nextTerms.length
+        ? await db.insert(subkonPaymentTermsTable).values(nextTerms.map(term => ({ ...term, contractId: id }))).returning()
+        : [];
+    }
+    res.json({ ...row, paymentTerms: terms.map(serializeTerm), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update subkon contract");
     res.status(400).json({ error: "Invalid request" });
@@ -127,6 +207,7 @@ router.delete("/produksi/subkon/contracts/:id", async (req, res) => {
         usage: { payments: payments.length, units: units.length, materialOut: materialOut.length },
       });
     }
+    await db.delete(subkonPaymentTermsTable).where(eq(subkonPaymentTermsTable.contractId, id));
     await db.delete(subkonContractsTable).where(eq(subkonContractsTable.id, id));
     res.json({ ok: true });
   } catch (err) {
@@ -153,36 +234,45 @@ router.get("/produksi/subkon/payments", async (req, res) => {
 
 router.post("/produksi/subkon/payments", async (req, res) => {
   try {
-    const { contractId, period, notes } = req.body as {
+    const { contractId, paymentTermId, period, notes } = req.body as {
       contractId: number;
+      paymentTermId?: number;
       period: string;
       notes?: string;
     };
 
     const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, contractId));
     if (!contract) return res.status(404).json({ error: "Contract not found" });
+    const [paymentTerm] = paymentTermId
+      ? await db.select().from(subkonPaymentTermsTable).where(eq(subkonPaymentTermsTable.id, paymentTermId))
+      : [];
+    if (!paymentTerm || paymentTerm.contractId !== contractId) {
+      return res.status(400).json({ error: "Pilih termin dari jadwal kontrak subkon." });
+    }
 
     const allPayments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.contractId, contractId));
+    const duplicate = allPayments.find(p => p.paymentTermId === paymentTerm.id && p.status !== "rejected");
+    if (duplicate) return res.status(409).json({ error: "Termin ini sudah pernah diajukan." });
     const paidPayments = allPayments.filter(p => p.status === "paid");
     const lockedPayments = allPayments.filter(p => ["pending_approval", "approved", "paid"].includes(p.status));
     const totalPaidBefore = paidPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
     const progressPrevious = lockedPayments.length > 0 ? Math.max(...lockedPayments.map(p => p.progressCurrent)) : 0;
-    const terminNumber = allPayments.reduce((max, p) => Math.max(max, p.terminNumber ?? 0), 0) + 1;
     const progressCurrent = await getContractFieldProgress(contractId);
-    if (progressCurrent <= progressPrevious) {
+    if (paymentTerm.paymentType !== "retensi" && progressCurrent <= progressPrevious) {
       return res.status(400).json({ error: "Progress lapangan belum naik dari termin terakhir" });
     }
 
-    const velocity = progressCurrent - progressPrevious;
-    const grossEligibleAmount = (velocity / 100) * contract.contractValue;
-    const retentionDeducted = (velocity / 100) * contract.totalRetention;
-    const netPayment = grossEligibleAmount - retentionDeducted;
+    const velocity = Math.max(0, progressCurrent - progressPrevious);
+    const grossEligibleAmount = paymentTerm.grossAmount;
+    const retentionDeducted = paymentTerm.retentionAmount;
+    const netPayment = paymentTerm.netAmount;
 
     const [row] = await db.insert(subkonPaymentsTable).values({
       contractId,
-      paymentType: "termin",
-      terminNumber,
-      period: period ?? null,
+      paymentTermId: paymentTerm.id,
+      paymentType: paymentTerm.paymentType,
+      terminNumber: paymentTerm.terminNumber,
+      period: period ?? paymentTerm.plannedDate ?? null,
       progressPrevious,
       progressCurrent,
       velocity,
@@ -191,13 +281,10 @@ router.post("/produksi/subkon/payments", async (req, res) => {
       netPayment,
       totalPaidBefore,
       status: "pending_approval",
-      notes: notes ?? null,
+      notes: notes ?? paymentTerm.notes ?? null,
     }).returning();
 
     await db.insert(paymentApprovalsTable).values([
-      { paymentId: row.id, step: "pengawas", status: "pending" },
-      { paymentId: row.id, step: "qc", status: "pending" },
-      { paymentId: row.id, step: "manager", status: "pending" },
       { paymentId: row.id, step: "finance", status: "pending" },
     ]);
 

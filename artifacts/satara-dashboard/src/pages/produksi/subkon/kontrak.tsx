@@ -13,17 +13,37 @@ import { useToast } from "@/hooks/use-toast";
 const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
 
 type Project = { id: number; nama: string };
+type PaymentTerm = {
+  id?: number;
+  terminNumber: number;
+  label: string;
+  plannedDate: string;
+  paymentType: string;
+  grossAmount: number;
+  retentionAmount: number;
+  netAmount: number;
+  notes?: string | null;
+};
 type Contract = {
   id: number; projectId: number; stageCode: string | null; subkonName: string;
   unitCount: number; valuePerUnit: number; contractValue: number;
   retentionPerUnit: number; totalRetention: number; netPayableValue: number;
   maintenanceMonths: number; startDate: string | null; targetEndDate: string | null;
   retentionStatus: string; status: string;
+  paymentTerms?: PaymentTerm[];
 };
 
 const RETENTION_STATUS: Record<string, string> = {
   ditahan: "Ditahan", masa_pemeliharaan: "Masa Pemeliharaan", siap_cair: "Siap Cair", sudah_cair: "Sudah Cair",
 };
+
+const makeDefaultTerms = (): PaymentTerm[] => [
+  { terminNumber: 1, label: "P. Pertama", plannedDate: "", paymentType: "termin", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
+  { terminNumber: 2, label: "P. Kedua", plannedDate: "", paymentType: "termin", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
+  { terminNumber: 3, label: "P. Ketiga", plannedDate: "", paymentType: "termin", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
+  { terminNumber: 4, label: "P. Keempat", plannedDate: "", paymentType: "termin", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
+  { terminNumber: 5, label: "Retensi", plannedDate: "", paymentType: "retensi", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
+];
 
 export default function SubkonKontrak() {
   const [showForm, setShowForm] = useState(false);
@@ -31,6 +51,7 @@ export default function SubkonKontrak() {
     projectId: "", stageCode: "", subkonName: "",
     unitCount: "", valuePerUnit: "", retentionPerUnit: "500000",
     maintenanceMonths: "3", startDate: "", targetEndDate: "",
+    paymentTerms: makeDefaultTerms(),
   });
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -60,6 +81,9 @@ export default function SubkonKontrak() {
           maintenanceMonths: parseInt(form.maintenanceMonths),
           startDate: form.startDate || null,
           targetEndDate: form.targetEndDate || null,
+          paymentTerms: form.paymentTerms
+            .filter(t => t.grossAmount > 0 || t.retentionAmount > 0 || t.netAmount > 0)
+            .map(t => ({ ...t, plannedDate: t.plannedDate || null, notes: t.notes || null })),
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -69,7 +93,7 @@ export default function SubkonKontrak() {
       qc.invalidateQueries({ queryKey: ["subkon-contracts"] });
       toast({ title: "Kontrak berhasil dibuat" });
       setShowForm(false);
-      setForm({ projectId: "", stageCode: "", subkonName: "", unitCount: "", valuePerUnit: "", retentionPerUnit: "500000", maintenanceMonths: "3", startDate: "", targetEndDate: "" });
+      setForm({ projectId: "", stageCode: "", subkonName: "", unitCount: "", valuePerUnit: "", retentionPerUnit: "500000", maintenanceMonths: "3", startDate: "", targetEndDate: "", paymentTerms: makeDefaultTerms() });
     },
     onError: () => toast({ title: "Gagal membuat kontrak", variant: "destructive" }),
   });
@@ -86,6 +110,47 @@ export default function SubkonKontrak() {
   const cv = parseFloat(form.valuePerUnit) * parseInt(form.unitCount) || 0;
   const tr = parseFloat(form.retentionPerUnit) * parseInt(form.unitCount) || 0;
   const nv = cv - tr;
+  const scheduledNet = form.paymentTerms.reduce((sum, term) => sum + (term.netAmount || 0), 0);
+  const scheduledRetention = form.paymentTerms.reduce((sum, term) => sum + (term.retentionAmount || 0), 0);
+
+  const updateTerm = (index: number, patch: Partial<PaymentTerm>) => {
+    setForm(prev => ({
+      ...prev,
+      paymentTerms: prev.paymentTerms.map((term, i) => {
+        if (i !== index) return term;
+        const next = { ...term, ...patch };
+        if ("grossAmount" in patch || "retentionAmount" in patch) {
+          next.netAmount = Math.max(0, (next.grossAmount || 0) - (next.retentionAmount || 0));
+        }
+        return next;
+      }),
+    }));
+  };
+
+  const addTerm = (paymentType = "termin") => {
+    setForm(prev => ({
+      ...prev,
+      paymentTerms: [
+        ...prev.paymentTerms,
+        {
+          terminNumber: prev.paymentTerms.length + 1,
+          label: paymentType === "retensi" ? "Retensi" : `Termin ${prev.paymentTerms.length + 1}`,
+          plannedDate: "",
+          paymentType,
+          grossAmount: 0,
+          retentionAmount: 0,
+          netAmount: 0,
+        },
+      ],
+    }));
+  };
+
+  const removeTerm = (index: number) => {
+    setForm(prev => ({
+      ...prev,
+      paymentTerms: prev.paymentTerms.filter((_, i) => i !== index).map((term, i) => ({ ...term, terminNumber: i + 1 })),
+    }));
+  };
 
   const projectName = (id: number) => projects?.find(p => p.id === id)?.nama ?? "—";
 
@@ -155,6 +220,74 @@ export default function SubkonKontrak() {
                 <div><span className="text-muted-foreground block">Netto Dibayarkan</span><span className="font-semibold text-emerald-600">{fmtRp(nv)}</span></div>
               </div>
             )}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label className="text-xs">Jadwal Termin Pembayaran</Label>
+                  <p className="text-[11px] text-muted-foreground">Nominal ini menjadi acuan saat Produksi mengajukan termin ke Finance.</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => addTerm()}>Tambah Termin</Button>
+              </div>
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full min-w-[920px] text-xs">
+                  <thead>
+                    <tr className="border-b bg-muted/30 text-muted-foreground">
+                      <th className="text-left p-2 w-24">Termin</th>
+                      <th className="text-left p-2 w-36">Tipe</th>
+                      <th className="text-left p-2 w-36">Tanggal</th>
+                      <th className="text-right p-2">Bruto</th>
+                      <th className="text-right p-2">Pot. Retensi</th>
+                      <th className="text-right p-2">Netto</th>
+                      <th className="text-left p-2">Catatan</th>
+                      <th className="p-2 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.paymentTerms.map((term, index) => (
+                      <tr key={`${term.label}-${index}`} className="border-b last:border-0">
+                        <td className="p-2">
+                          <Input value={term.label} onChange={e => updateTerm(index, { label: e.target.value })} className="h-8 text-xs" />
+                        </td>
+                        <td className="p-2">
+                          <Select value={term.paymentType} onValueChange={value => updateTerm(index, { paymentType: value, label: value === "retensi" ? "Retensi" : term.label })}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="termin">Termin</SelectItem>
+                              <SelectItem value="retensi">Retensi</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="p-2">
+                          <Input type="date" value={term.plannedDate} onChange={e => updateTerm(index, { plannedDate: e.target.value })} className="h-8 text-xs" />
+                        </td>
+                        <td className="p-2">
+                          <CurrencyInput value={term.grossAmount} onChange={raw => updateTerm(index, { grossAmount: parseFloat(raw) || 0 })} className="h-8 text-xs text-right" />
+                        </td>
+                        <td className="p-2">
+                          <CurrencyInput value={term.retentionAmount} onChange={raw => updateTerm(index, { retentionAmount: parseFloat(raw) || 0 })} className="h-8 text-xs text-right" />
+                        </td>
+                        <td className="p-2">
+                          <CurrencyInput value={term.netAmount} onChange={raw => updateTerm(index, { netAmount: parseFloat(raw) || 0 })} className="h-8 text-xs text-right font-medium" />
+                        </td>
+                        <td className="p-2">
+                          <Input value={term.notes ?? ""} onChange={e => updateTerm(index, { notes: e.target.value })} className="h-8 text-xs" />
+                        </td>
+                        <td className="p-2 text-center">
+                          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-red-500" onClick={() => removeTerm(index)}>
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="grid grid-cols-3 gap-3 p-3 bg-muted/20 rounded-lg text-xs">
+                <div><span className="text-muted-foreground block">Total Netto Termin</span><span className="font-semibold">{fmtRp(scheduledNet)}</span></div>
+                <div><span className="text-muted-foreground block">Total Pot. Retensi</span><span className="font-semibold text-amber-600">{fmtRp(scheduledRetention)}</span></div>
+                <div><span className="text-muted-foreground block">Sisa vs Nilai Kontrak</span><span className={`font-semibold ${cv - scheduledNet < 0 ? "text-red-500" : "text-muted-foreground"}`}>{fmtRp(cv - scheduledNet)}</span></div>
+              </div>
+            </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowForm(false)} className="h-8">Batal</Button>
               <Button size="sm" onClick={() => createMutation.mutate()} disabled={!form.projectId || !form.subkonName.trim() || !form.unitCount || !form.valuePerUnit || createMutation.isPending} className="h-8">Simpan Kontrak</Button>
@@ -186,6 +319,32 @@ export default function SubkonKontrak() {
                       <div><span className="text-muted-foreground block">Netto</span><span className="font-medium text-emerald-600">{fmtRp(c.netPayableValue)}</span></div>
                       <div><span className="text-muted-foreground block">Status Retensi</span><span className="font-medium">{RETENTION_STATUS[c.retentionStatus] ?? c.retentionStatus}</span></div>
                     </div>
+                    {(c.paymentTerms?.length ?? 0) > 0 && (
+                      <div className="mt-3 overflow-x-auto rounded-lg border">
+                        <table className="w-full text-[11px]">
+                          <thead>
+                            <tr className="bg-muted/30 text-muted-foreground border-b">
+                              <th className="text-left p-2">Termin</th>
+                              <th className="text-left p-2">Rencana</th>
+                              <th className="text-right p-2">Bruto</th>
+                              <th className="text-right p-2">Retensi</th>
+                              <th className="text-right p-2">Netto</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {c.paymentTerms!.map(term => (
+                              <tr key={term.id ?? `${c.id}-${term.terminNumber}`} className="border-b last:border-0">
+                                <td className="p-2 font-medium">{term.label}</td>
+                                <td className="p-2 text-muted-foreground">{term.plannedDate || "—"}</td>
+                                <td className="p-2 text-right">{fmtRp(term.grossAmount)}</td>
+                                <td className="p-2 text-right text-amber-600">{fmtRp(term.retentionAmount)}</td>
+                                <td className="p-2 text-right text-emerald-600 font-medium">{fmtRp(term.netAmount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                   <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500 hover:text-red-600" onClick={() => deleteMutation.mutate(c.id)}>
                     <Trash2 className="size-3.5" />

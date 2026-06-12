@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckSquare, Square, Shield, RefreshCw, Plus } from "lucide-react";
+import { CheckSquare, Square, Shield, RefreshCw, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Unit = { id: number; blok: string; nomor: string; tipe: string; stageCode: string | null; progress: number };
@@ -26,6 +26,7 @@ const QC_ITEMS = [
 export default function QcChecklist() {
   const [selectedUnit, setSelectedUnit] = useState<string>("");
   const [inspectedBy, setInspectedBy] = useState("");
+  const [newCustomItem, setNewCustomItem] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -74,6 +75,49 @@ export default function QcChecklist() {
     },
   });
 
+  const addCustomMutation = useMutation({
+    mutationFn: async (qcItem: string) => {
+      const res = await fetch("/api/produksi/qc/checklist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unitId: selectedUnit, qcItem }),
+      });
+      if (!res.ok) throw new Error("Failed to add custom QC item");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["qc-checklist", selectedUnit] });
+      setNewCustomItem("");
+      toast({ title: `Item QC berhasil ditambahkan. Score: ${data.qcScore}%` });
+    },
+    onError: () => {
+      toast({ title: "Gagal menambahkan item QC", variant: "destructive" });
+    },
+  });
+
+  const deleteCustomMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/produksi/qc/checklist/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete custom QC item");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["qc-checklist", selectedUnit] });
+      toast({ title: `Item QC berhasil dihapus. Score: ${data.qcScore}%` });
+    },
+    onError: () => {
+      toast({ title: "Gagal menghapus item QC", variant: "destructive" });
+    },
+  });
+
+  const handleAddCustomItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomItem.trim()) return;
+    addCustomMutation.mutate(newCustomItem.trim());
+  };
+
   const items = qcData?.items ?? [];
   const qcScore = qcData?.qcScore ?? 0;
   const passCount = items.filter(i => i.isPass).length;
@@ -84,7 +128,7 @@ export default function QcChecklist() {
     <div className="space-y-5">
       <div>
         <h1 className="text-lg font-bold">QC Checklist per Unit</h1>
-        <p className="text-sm text-muted-foreground">9 item standar pemeriksaan kualitas per unit. Target skor: &gt;90%</p>
+        <p className="text-sm text-muted-foreground">Pemeriksaan kualitas per unit. Target skor: &gt;90%</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -140,7 +184,7 @@ export default function QcChecklist() {
             <Card>
               <CardHeader className="pb-2 pt-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">9 Item Pemeriksaan QC</CardTitle>
+                  <CardTitle className="text-sm">{items.length} Item Pemeriksaan QC</CardTitle>
                   <div className={`text-xs font-medium px-2 py-1 rounded ${qcScore >= 90 ? "bg-emerald-500/15 text-emerald-600" : qcScore >= 70 ? "bg-amber-500/15 text-amber-600" : "bg-red-500/15 text-red-600"}`}>
                     {qcScore >= 90 ? "Lulus" : qcScore >= 70 ? "Perlu Perbaikan" : "Tidak Lulus"}
                   </div>
@@ -159,16 +203,58 @@ export default function QcChecklist() {
                       ) : (
                         <Square className="size-5 text-muted-foreground shrink-0" />
                       )}
-                      <div className="flex-1">
-                        <p className={`text-sm ${item.isPass ? "text-foreground" : "text-muted-foreground"}`}>{item.qcItem}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm break-words ${item.isPass ? "text-foreground" : "text-muted-foreground"}`}>{item.qcItem}</p>
                         {item.inspectedBy && <p className="text-[10px] text-muted-foreground">Diperiksa: {item.inspectedBy}</p>}
                       </div>
-                      <span className={`text-xs font-medium shrink-0 ${item.isPass ? "text-emerald-600" : "text-muted-foreground"}`}>
-                        {item.isPass ? "LULUS" : "BELUM"}
-                      </span>
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        <span className={`text-xs font-medium ${item.isPass ? "text-emerald-600" : "text-muted-foreground"}`}>
+                          {item.isPass ? "LULUS" : "BELUM"}
+                        </span>
+                        {!QC_ITEMS.includes(item.qcItem) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Hapus item QC tambahan "${item.qcItem}"?`)) {
+                                deleteCustomMutation.mutate(item.id);
+                              }
+                            }}
+                            disabled={deleteCustomMutation.isPending}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Form to Add Custom Item */}
+                <form onSubmit={handleAddCustomItem} className="mt-4 pt-3 border-t flex gap-2">
+                  <Input
+                    value={newCustomItem}
+                    onChange={(e) => setNewCustomItem(e.target.value)}
+                    placeholder="Tambah item pemeriksaan QC secara manual..."
+                    className="h-8 text-sm flex-1"
+                    disabled={addCustomMutation.isPending}
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="h-8 px-3 shrink-0 gap-1.5"
+                    disabled={addCustomMutation.isPending || !newCustomItem.trim()}
+                  >
+                    {addCustomMutation.isPending ? (
+                      <RefreshCw className="size-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="size-3.5" />
+                    )}
+                    <span>Tambah</span>
+                  </Button>
+                </form>
 
                 <div className="mt-4 pt-3 border-t">
                   <div className="h-2.5 bg-muted rounded-full overflow-hidden">

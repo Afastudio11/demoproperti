@@ -11,6 +11,22 @@ ALTER TABLE prod_material_out ADD COLUMN IF NOT EXISTS source_type text DEFAULT 
 ALTER TABLE prod_material_out ADD COLUMN IF NOT EXISTS source_id integer;
 ALTER TABLE prod_material_out ADD COLUMN IF NOT EXISTS proof_url text;
 ALTER TABLE prod_material_out ADD COLUMN IF NOT EXISTS approval_status text NOT NULL DEFAULT 'posted';
+ALTER TABLE subkon_payments ADD COLUMN IF NOT EXISTS payment_term_id integer;
+
+CREATE TABLE IF NOT EXISTS subkon_payment_terms (
+  id serial PRIMARY KEY,
+  contract_id integer NOT NULL,
+  termin_number integer NOT NULL,
+  label text NOT NULL,
+  planned_date text,
+  payment_type text NOT NULL DEFAULT 'termin',
+  gross_amount real NOT NULL DEFAULT 0,
+  retention_amount real NOT NULL DEFAULT 0,
+  net_amount real NOT NULL DEFAULT 0,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
 CREATE TABLE IF NOT EXISTS prod_material_standards (
   id serial PRIMARY KEY,

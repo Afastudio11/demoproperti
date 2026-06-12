@@ -289,8 +289,8 @@ async function downloadReceipt(items: Approval[]) {
     const isRejected = status === "rejected";
 
     // Clean Grayscale styling
-    const fillCol = isApproved ? [240, 240, 240] : isRejected ? [245, 245, 245] : [252, 252, 252];
-    const borderCol = isApproved ? black : isRejected ? darkGrey : borderGrey;
+    const fillCol: [number, number, number] = isApproved ? [240, 240, 240] : isRejected ? [245, 245, 245] : [252, 252, 252];
+    const borderCol: [number, number, number] = isApproved ? black : isRejected ? darkGrey : borderGrey;
 
     doc.setFillColor(...fillCol);
     doc.setDrawColor(...borderCol);

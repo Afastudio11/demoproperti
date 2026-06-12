@@ -23,7 +23,7 @@ const QC_ITEMS = [
 
 router.get("/produksi/qc/checklist", async (req, res) => {
   try {
-    let items = await db.select().from(unitQcTable).orderBy(unitQcTable.unitId);
+    let items = await db.select().from(unitQcTable).orderBy(unitQcTable.id);
     if (req.query.unitId) {
       const uid = parseInt(req.query.unitId as string);
       items = items.filter(i => i.unitId === uid);
@@ -33,6 +33,57 @@ router.get("/produksi/qc/checklist", async (req, res) => {
     res.json({ items: items.map(i => ({ ...i, createdAt: i.createdAt.toISOString(), updatedAt: i.updatedAt.toISOString() })), qcItems: QC_ITEMS, qcScore });
   } catch (err) {
     req.log.error({ err }, "Failed to list QC items");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/produksi/qc/checklist", async (req, res) => {
+  try {
+    const { unitId, qcItem } = req.body;
+    if (!unitId || !qcItem) {
+      return res.status(400).json({ error: "unitId and qcItem are required" });
+    }
+    const [row] = await db.insert(unitQcTable).values({
+      unitId: parseInt(unitId),
+      qcItem: qcItem.trim(),
+      isPass: false,
+    }).returning();
+
+    await recalculateUnitProductionState(row.unitId);
+
+    const allItems = await db.select().from(unitQcTable).where(eq(unitQcTable.unitId, row.unitId));
+    const passCount = allItems.filter(i => i.isPass).length;
+    const qcScore = allItems.length > 0 ? Math.round((passCount / allItems.length) * 100) : 0;
+
+    res.status(201).json({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      qcScore,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to add custom QC item");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/produksi/qc/checklist/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [deletedRow] = await db.delete(unitQcTable).where(eq(unitQcTable.id, id)).returning();
+    if (!deletedRow) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    await recalculateUnitProductionState(deletedRow.unitId);
+
+    const allItems = await db.select().from(unitQcTable).where(eq(unitQcTable.unitId, deletedRow.unitId));
+    const passCount = allItems.filter(i => i.isPass).length;
+    const qcScore = allItems.length > 0 ? Math.round((passCount / allItems.length) * 100) : 0;
+
+    res.json({ message: "Item deleted successfully", qcScore });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete custom QC item");
     res.status(500).json({ error: "Internal server error" });
   }
 });

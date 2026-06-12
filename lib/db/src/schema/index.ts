@@ -20,6 +20,7 @@ export * from "./planning-sdm";
 export * from "./planning-landbank";
 export * from "./expansion-targets";
 export * from "./subkon-contracts";
+export * from "./subkon-payment-terms";
 export * from "./subkon-payments";
 export * from "./payment-approvals";
 export * from "./fasum-progress";

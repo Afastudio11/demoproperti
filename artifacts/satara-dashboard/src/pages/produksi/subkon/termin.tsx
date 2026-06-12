@@ -15,10 +15,23 @@ type Contract = {
   id: number; projectId: number; subkonName: string; stageCode: string | null;
   contractValue: number; totalRetention: number; netPayableValue: number;
   unitCount: number; status: string;
+  paymentTerms?: PaymentTerm[];
+};
+type PaymentTerm = {
+  id: number;
+  contractId: number;
+  terminNumber: number;
+  label: string;
+  plannedDate: string | null;
+  paymentType: string;
+  grossAmount: number;
+  retentionAmount: number;
+  netAmount: number;
+  notes: string | null;
 };
 type Unit = { id: number; projectId: number; contractId: number | null; stageCode: string | null; subkonName: string | null; progress: number };
 type Payment = {
-  id: number; contractId: number; terminNumber: number | null;
+  id: number; contractId: number; paymentTermId: number | null; terminNumber: number | null;
   progressPrevious: number; progressCurrent: number;
   velocity: number | null; grossEligibleAmount: number | null;
   retentionDeducted: number | null; netPayment: number | null;
@@ -35,7 +48,7 @@ const STATUS_INFO: Record<string, { label: string; icon: React.ComponentType<{ c
 
 export default function SubkonTermin() {
   const [selectedContract, setSelectedContract] = useState<string>("");
-  const [period, setPeriod] = useState("tanggal_15");
+  const [selectedTermId, setSelectedTermId] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -72,7 +85,7 @@ export default function SubkonTermin() {
       const res = await fetch("/api/produksi/subkon/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contractId: parseInt(selectedContract), period }),
+        body: JSON.stringify({ contractId: parseInt(selectedContract), paymentTermId: parseInt(selectedTermId) }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -81,11 +94,15 @@ export default function SubkonTermin() {
       qc.invalidateQueries({ queryKey: ["subkon-payments"] });
       toast({ title: "Pengajuan termin berhasil disubmit untuk approval" });
       setShowForm(false);
+      setSelectedTermId("");
     },
     onError: () => toast({ title: "Gagal submit termin", variant: "destructive" }),
   });
 
   const contract = contracts?.find(c => c.id === parseInt(selectedContract));
+  const submittedTermIds = new Set((payments ?? []).filter(p => p.status !== "rejected" && p.paymentTermId).map(p => p.paymentTermId!));
+  const availableTerms = (contract?.paymentTerms ?? []).filter(term => !submittedTermIds.has(term.id));
+  const selectedTerm = availableTerms.find(term => term.id === parseInt(selectedTermId));
   const contractUnits = contract
     ? (units ?? []).filter(u => {
         if (u.contractId === contract.id) return true;
@@ -99,16 +116,16 @@ export default function SubkonTermin() {
     .reduce((m, p) => Math.max(m, p.progressCurrent), 0) ?? 0;
   const curProgress = fieldProgress;
   const velocity = curProgress - prevProgress;
-  const gross = contract ? (velocity / 100) * contract.contractValue : 0;
-  const retention = contract ? (velocity / 100) * contract.totalRetention : 0;
-  const net = gross - retention;
+  const gross = selectedTerm?.grossAmount ?? 0;
+  const retention = selectedTerm?.retentionAmount ?? 0;
+  const net = selectedTerm?.netAmount ?? Math.max(0, gross - retention);
 
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-bold">Termin Pembayaran Subkon</h1>
-          <p className="text-sm text-muted-foreground">Pencairan per tanggal 15 & 30 berdasarkan progress lapangan</p>
+          <p className="text-sm text-muted-foreground">Pengajuan termin mengikuti jadwal nominal yang dibuat di Kontrak Subkon</p>
         </div>
         <Button onClick={() => setShowForm(true)} size="sm" className="gap-1.5 h-8">
           <Plus className="size-3.5" /> Pengajuan Termin
@@ -118,13 +135,13 @@ export default function SubkonTermin() {
       {showForm && (
         <Card className="border-primary/30">
           <CardHeader className="pb-3 pt-4">
-            <CardTitle className="text-sm flex items-center gap-2"><Calculator className="size-4" /> Kalkulator Termin</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Calculator className="size-4" /> Pengajuan Termin dari Jadwal Kontrak</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs">Kontrak Subkon</Label>
-                <Select value={selectedContract} onValueChange={setSelectedContract}>
+                <Select value={selectedContract} onValueChange={value => { setSelectedContract(value); setSelectedTermId(""); }}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih kontrak..." /></SelectTrigger>
                   <SelectContent>
                     {(contracts ?? []).filter(c => c.status === "aktif").map(c => (
@@ -134,12 +151,15 @@ export default function SubkonTermin() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Periode Bayar</Label>
-                <Select value={period} onValueChange={setPeriod}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <Label className="text-xs">Termin yang Diajukan</Label>
+                <Select value={selectedTermId} onValueChange={setSelectedTermId} disabled={!contract}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih termin..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="tanggal_15">Tanggal 15</SelectItem>
-                    <SelectItem value="tanggal_30">Tanggal 30</SelectItem>
+                    {availableTerms.map(term => (
+                      <SelectItem key={term.id} value={String(term.id)}>
+                        {term.label} — {fmtRp(term.netAmount)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -150,6 +170,12 @@ export default function SubkonTermin() {
                 <div><span className="text-muted-foreground block">Nilai Kontrak</span><span className="font-medium">{fmtRp(contract.contractValue)}</span></div>
                 <div><span className="text-muted-foreground block">Total Retensi</span><span className="font-medium">{fmtRp(contract.totalRetention)}</span></div>
                 <div><span className="text-muted-foreground block">Netto Dibayar</span><span className="font-medium">{fmtRp(contract.netPayableValue)}</span></div>
+              </div>
+            )}
+
+            {contract && availableTerms.length === 0 && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700">
+                Semua termin pada kontrak ini sudah diajukan atau sedang diproses.
               </div>
             )}
 
@@ -164,21 +190,22 @@ export default function SubkonTermin() {
               </div>
             </div>
 
-            {curProgress > prevProgress && contract && (
+            {selectedTerm && contract && (
               <div className="border rounded-lg p-3 space-y-2 bg-background">
-                <p className="text-xs font-medium text-muted-foreground">Perhitungan Otomatis</p>
+                <p className="text-xs font-medium text-muted-foreground">Nominal Sesuai Jadwal Kontrak</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div><span className="text-muted-foreground block">Velocity</span><span className="font-semibold">{fmtPct(velocity)}</span></div>
+                  <div><span className="text-muted-foreground block">Rencana Bayar</span><span className="font-semibold">{selectedTerm.plannedDate ?? "—"}</span></div>
                   <div><span className="text-muted-foreground block">Bruto</span><span className="font-semibold">{fmtRp(gross)}</span></div>
                   <div><span className="text-muted-foreground block">Potongan Retensi</span><span className="font-semibold text-red-500">({fmtRp(retention)})</span></div>
                   <div><span className="text-muted-foreground block">Netto Dibayar</span><span className="font-bold text-emerald-600">{fmtRp(net)}</span></div>
                 </div>
+                <div className="text-[11px] text-muted-foreground">Progress pekerjaan saat pengajuan: {fmtPct(prevProgress)} → {fmtPct(curProgress)} ({fmtPct(velocity)} naik)</div>
               </div>
             )}
 
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowForm(false)} className="h-8">Batal</Button>
-              <Button size="sm" onClick={() => submitMutation.mutate()} disabled={!selectedContract || contractUnits.length === 0 || curProgress <= prevProgress || submitMutation.isPending} className="h-8">
+              <Button size="sm" onClick={() => submitMutation.mutate()} disabled={!selectedContract || !selectedTerm || contractUnits.length === 0 || (selectedTerm.paymentType !== "retensi" && curProgress <= prevProgress) || submitMutation.isPending} className="h-8">
                 Submit untuk Approval
               </Button>
             </div>

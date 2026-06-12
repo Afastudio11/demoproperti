@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const subkonPaymentsTable = pgTable("subkon_payments", {
   id: serial("id").primaryKey(),
   contractId: integer("contract_id").notNull(),
+  paymentTermId: integer("payment_term_id"),
   paymentType: text("payment_type").notNull().default("termin"),
   terminNumber: integer("termin_number"),
   paymentDate: text("payment_date"),
