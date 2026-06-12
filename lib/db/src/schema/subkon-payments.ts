@@ -18,6 +18,8 @@ export const subkonPaymentsTable = pgTable("subkon_payments", {
   totalPaidBefore: real("total_paid_before").notNull().default(0),
   status: text("status").notNull().default("draft"),
   notes: text("notes"),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  lockedBy: text("locked_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

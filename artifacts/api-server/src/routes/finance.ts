@@ -851,6 +851,43 @@ router.patch("/finance/approval/subkon/:id", async (req, res) => {
   }
 });
 
+router.post("/finance/approval/subkon/:paymentId/resubmit", async (req, res) => {
+  try {
+    const paymentId = Number(req.params.paymentId);
+    const [payment] = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.id, paymentId));
+    if (!payment) return res.status(404).json({ error: "Pembayaran tidak ditemukan" });
+    if (payment.status === "paid") return res.status(423).json({ error: "Pembayaran sudah dibayar, tidak bisa disubmit ulang" });
+    const rejectedApprovals = await db.select().from(paymentApprovalsTable)
+      .where(and(eq(paymentApprovalsTable.paymentId, paymentId), eq(paymentApprovalsTable.status, "rejected")));
+    if (rejectedApprovals.length === 0) return res.status(400).json({ error: "Tidak ada approval yang ditolak" });
+    for (const a of rejectedApprovals) {
+      await db.update(paymentApprovalsTable).set({ status: "pending", approvedBy: null, approvedAt: null, notes: null })
+        .where(eq(paymentApprovalsTable.id, a.id));
+    }
+    const [updated] = await db.update(subkonPaymentsTable).set({ status: "pending" }).where(eq(subkonPaymentsTable.id, paymentId)).returning();
+    await writeAudit("finance", "subkon_payment", paymentId, "resubmit", payment, updated, req.body.submittedBy ?? "produksi");
+    res.json({ ok: true, payment: { ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() } });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.post("/finance/approval/subkon-payments/:id/lock", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Pembayaran tidak ditemukan" });
+    if (existing.lockedAt) return res.status(423).json({ error: "Pembayaran sudah terkunci" });
+    if (existing.status !== "paid") return res.status(400).json({ error: "Hanya pembayaran berstatus paid yang bisa dikunci" });
+    const [row] = await db.update(subkonPaymentsTable).set({ lockedAt: new Date(), lockedBy: req.body.lockedBy ?? "Finance" })
+      .where(eq(subkonPaymentsTable.id, id)).returning();
+    await writeAudit("finance", "subkon_payment", id, "lock", existing, row, req.body.lockedBy ?? "Finance");
+    res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 router.patch("/finance/approval/subkon-payments/:id/mark-paid", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -959,6 +996,75 @@ router.patch("/finance/akad-cair/:akadId", async (req, res) => {
       await reduceProjectCredit(customer?.projectId, delta, `Akad cair #${akadId} ledger #${ledger.id}`);
     }
     await writeAudit("finance", "akad_disbursement", akadId, "update_akad_cair", before, row, values.updatedBy, values.notes ?? undefined);
+    res.json({ ...row, nominalCair: Number(row.nominalCair ?? 0), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.get("/finance/akad-cair/:akadId/pencairan", async (req, res) => {
+  try {
+    const akadId = Number(req.params.akadId);
+    const ledger = await db.select().from(financeAkadDisbursementLedgerTable)
+      .where(eq(financeAkadDisbursementLedgerTable.akadId, akadId))
+      .orderBy(financeAkadDisbursementLedgerTable.createdAt);
+    res.json(ledger.map(l => ({ ...l, nominalCair: Number(l.nominalCair ?? 0), bankDeduction: Number(l.bankDeduction ?? 0), createdAt: l.createdAt.toISOString() })));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/finance/akad-cair/:akadId/pencairan", async (req, res) => {
+  try {
+    const akadId = Number(req.params.akadId);
+    const [akad] = await db.select().from(akadRecordsTable).where(eq(akadRecordsTable.id, akadId));
+    if (!akad) return res.status(404).json({ error: "Akad tidak ditemukan" });
+    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, akad.customerId));
+    const nominalBaru = Number(req.body.nominalCair ?? 0);
+    if (nominalBaru <= 0) return res.status(400).json({ error: "Nominal harus lebih dari 0" });
+    const existing = await db.select().from(akadDisbursementsTable).where(eq(akadDisbursementsTable.akadId, akadId));
+    const totalSebelum = existing[0] ? Number(existing[0].nominalCair ?? 0) : 0;
+    const totalBaru = totalSebelum + nominalBaru;
+    const akadAmount = akad.akadAmount ? Number(akad.akadAmount) : 0;
+    if (totalBaru > akadAmount) return res.status(400).json({ error: `Total pencairan (${totalBaru.toLocaleString()}) melebihi nilai akad (${akadAmount.toLocaleString()})` });
+    let disbId: number;
+    if (existing.length) {
+      const [upd] = await db.update(akadDisbursementsTable).set({ nominalCair: String(totalBaru), updatedBy: req.body.createdBy ?? "finance" })
+        .where(eq(akadDisbursementsTable.id, existing[0].id)).returning();
+      disbId = upd.id;
+    } else {
+      const [ins] = await db.insert(akadDisbursementsTable).values({ akadId, customerId: akad.customerId, projectId: customer?.projectId ?? null, nominalCair: String(totalBaru), statusCair: "sebagian_cair", updatedBy: req.body.createdBy ?? "finance" }).returning();
+      disbId = ins.id;
+    }
+    const [ledger] = await db.insert(financeAkadDisbursementLedgerTable).values({
+      akadId, disbursementId: disbId, customerId: akad.customerId, projectId: customer?.projectId ?? null,
+      tanggalCair: req.body.tanggalCair, nominalCair: String(nominalBaru),
+      bankDeduction: String(Number(req.body.bankDeduction ?? 0)),
+      destinationAccount: req.body.destinationAccount ?? null,
+      proofUrl: req.body.proofUrl ?? null,
+      notes: req.body.notes ?? null,
+      createdBy: req.body.createdBy ?? "finance",
+    }).returning();
+    if (totalBaru >= akadAmount && akadAmount > 0) {
+      await db.update(akadDisbursementsTable).set({ statusCair: "cair_penuh" }).where(eq(akadDisbursementsTable.id, disbId));
+    }
+    await reduceProjectCredit(customer?.projectId, nominalBaru, `Pencairan akad #${akadId} ledger #${ledger.id}`);
+    await writeAudit("finance", "akad_disbursement_ledger", akadId, "tambah_pencairan", null, ledger, req.body.createdBy ?? "finance");
+    res.status(201).json({ ...ledger, nominalCair: Number(ledger.nominalCair ?? 0), createdAt: ledger.createdAt.toISOString() });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.post("/finance/akad-cair/:akadId/lock", async (req, res) => {
+  try {
+    const akadId = Number(req.params.akadId);
+    const [existing] = await db.select().from(akadDisbursementsTable).where(eq(akadDisbursementsTable.akadId, akadId));
+    if (!existing) return res.status(404).json({ error: "Disbursement belum ada" });
+    if (existing.lockedAt) return res.status(423).json({ error: "Akad cair sudah terkunci" });
+    const [row] = await db.update(akadDisbursementsTable).set({ lockedAt: new Date(), lockedBy: req.body.lockedBy ?? "Finance" })
+      .where(eq(akadDisbursementsTable.id, existing.id)).returning();
+    await writeAudit("finance", "akad_disbursement", akadId, "lock", existing, row, req.body.lockedBy ?? "Finance");
     res.json({ ...row, nominalCair: Number(row.nominalCair ?? 0), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
   } catch (e: any) {
     res.status(400).json({ error: e.message });

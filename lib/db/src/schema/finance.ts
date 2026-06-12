@@ -94,6 +94,8 @@ export const akadDisbursementsTable = pgTable("finance_akad_disbursements", {
   proofUrl: text("proof_url"),
   notes: text("notes"),
   updatedBy: text("updated_by").default("finance"),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  lockedBy: text("locked_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

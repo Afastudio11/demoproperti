@@ -27,6 +27,11 @@ type LandBankRow = {
   availableUnits: number;
   acquisitionPrice: number;
   targetStartDate: string;
+  certificateNumber: string;
+  ownerName: string;
+  legalStatus: string;
+  pricePerSqm: number;
+  purchaseDate: string;
   notes: string;
 };
 
@@ -42,7 +47,7 @@ type ExpansionRow = {
   dashboardScore: number;
 };
 
-const newLb = (): LandBankRow => ({ name: "", status: "land_bank", landArea: 0, availableUnits: 0, acquisitionPrice: 0, targetStartDate: "", notes: "" });
+const newLb = (): LandBankRow => ({ name: "", status: "land_bank", landArea: 0, availableUnits: 0, acquisitionPrice: 0, targetStartDate: "", certificateNumber: "", ownerName: "", legalStatus: "", pricePerSqm: 0, purchaseDate: "", notes: "" });
 const newExp = (): ExpansionRow => ({ scenarioName: "", description: "", estimatedRoi: 0, riskScore: 0, cashflowImpact: "", sdmScore: 0, sopScore: 0, dashboardScore: 0 });
 
 const STATUSES = [
@@ -205,7 +210,7 @@ export default function LandBankPage() {
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 border-b">
                     <tr>
-                      {["Nama/Lokasi", "Status", "Luas (m²)", "Est Unit", "Harga Perolehan (Rp)", "Target Mulai", "Catatan", ""].map(h => (
+                      {["Nama/Lokasi", "Status", "Nama Pemilik", "No. Sertifikat", "Legalitas", "Luas (m²)", "Est Unit", "Harga/m²", "Harga Perolehan", "Tgl Beli", "Target Mulai", "Catatan", ""].map(h => (
                         <th key={h} className="text-left px-2 py-2 font-medium whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -223,13 +228,33 @@ export default function LandBankPage() {
                           </Select>
                         </td>
                         <td className="px-2 py-1.5">
+                          <Input className="h-7 w-32 text-xs" value={land.ownerName ?? ""} onChange={e => setLand(i, "ownerName", e.target.value)} placeholder="Nama pemilik" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input className="h-7 w-32 text-xs" value={land.certificateNumber ?? ""} onChange={e => setLand(i, "certificateNumber", e.target.value)} placeholder="SHM/SHGB/AJB..." />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Select value={land.legalStatus ?? ""} onValueChange={v => setLand(i, "legalStatus", v)}>
+                            <SelectTrigger className="h-7 w-24 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                            <SelectContent>
+                              {["SHM", "SHGB", "AJB", "Girik", "Sporadik", "Lainnya"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-2 py-1.5">
                           <NumericInput className="h-7 w-20 text-xs" decimals={1} value={land.landArea ?? 0} onChange={v => setLand(i, "landArea", v)} />
                         </td>
                         <td className="px-2 py-1.5">
                           <NumericInput className="h-7 w-16 text-xs" value={land.availableUnits ?? 0} onChange={v => setLand(i, "availableUnits", v)} />
                         </td>
                         <td className="px-2 py-1.5">
+                          <CurrencyInput className="h-7 w-28 text-xs" value={land.pricePerSqm ?? 0} onChange={raw => setLand(i, "pricePerSqm", raw ? Number(raw) : 0)} />
+                        </td>
+                        <td className="px-2 py-1.5">
                           <CurrencyInput className="h-7 w-36 text-xs" value={land.acquisitionPrice ?? 0} onChange={raw => setLand(i, "acquisitionPrice", raw ? Number(raw) : 0)} />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input className="h-7 w-28 text-xs" type="date" value={land.purchaseDate ?? ""} onChange={e => setLand(i, "purchaseDate", e.target.value)} />
                         </td>
                         <td className="px-2 py-1.5">
                           <Input className="h-7 w-28 text-xs" type="date" value={land.targetStartDate} onChange={e => setLand(i, "targetStartDate", e.target.value)} />

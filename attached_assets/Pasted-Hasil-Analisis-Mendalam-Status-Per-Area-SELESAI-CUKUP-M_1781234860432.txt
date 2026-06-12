@@ -1,0 +1,89 @@
+Hasil Analisis Mendalam — Status Per Area
+✅ SELESAI & CUKUP MATANG
+Area	Apa yang sudah ada
+A — Finance Approval	Schema payment_approvals, backend multi-step, frontend approve/reject/paid/PDF sudah jalan
+B — Akad Cair (dasar)	Schema finance_akad_disbursements + ledger, GET/PATCH backend, frontend tabel dengan status/nominal/potongan/rekening
+F — Master Acuan (dasar)	Schema prod_material_standards dengan versi, status, effectiveDate, per-proyek/tahap/subkon; CRUD backend + frontend form + export CSV
+G — Material Keluar per Subkon (dasar)	Schema punya batchId, batchUnitCount, batchUnits, sourceType, subkonName; form frontend sudah ada
+I — Rework → Material Keluar	Sudah ada! Backend saat POST rework langsung insert ke prod_material_out dengan sourceType: "rework"
+J — Fasum + Subkon	Schema + backend + frontend sudah ada, logic deduplicate per projectId + fasumType + subkonName
+L — Analitik Produksi	index.tsx sudah jadi 1 halaman dengan 7 tab (Velocity, Baseline, Cost, Cashflow, Produktivitas, Eligibilitas, Forecast)
+R — Land Bank (dasar)	Auto-sync dari bidang siteplan yang purchaseStatus = lunas/sudah_dibeli/milik_sendiri sudah berjalan via syncBoughtShapeToLandBank
+S — Data Quality	Route data-quality.ts dan halaman data-quality.tsx ada
+⚠️ SETENGAH JALAN — ADA TAPI BELUM MATANG
+B — Akad Cair
+
+❌ Multi-pencairan: Tabel ledger ada tapi frontend hanya tampil 1 row per akad. Tombol "Tambah Pencairan" tidak ada
+❌ Akad cair otomatis kurangi kredit: Route PATCH tidak punya logic untuk kurangi finance_debt_records. Data quality checker sudah mendeteksi masalah ini tapi belum ada solusi otomatis
+C — Kredit & Investment
+
+✅ Label "Kredit & Investment" sudah ganti, agunan/bunga/kategori sudah ada di form
+❌ Jadwal bunga bulanan, status bayar bunga, denda telat — tidak ada di schema sama sekali
+❌ Kredit berkurang otomatis dari akad cair — tidak ada logic
+❌ Lock/closing jika lunas — ada field lockedAt/lockedBy di schema tapi tidak ada UI/endpoint untuk lock
+D — Administrasi Customer
+
+✅ Kolom Progress Rumah sudah tampil dan ikut export CSV
+⚠️ Relasi unitId sudah ada di UI tapi tidak ada validasi foreign key di schema customers — relasi masih longgar
+E — Produksi Approval (monitoring)
+
+⚠️ Workflow revisi setelah reject belum ada sama sekali. Finance bisa reject tapi Produksi tidak ada mekanisme submit ulang
+G — Material Keluar
+
+❌ Validasi stok sebelum keluar tidak ada di backend (tidak ada pengecekan saldo material)
+❌ Material return/sisa dari subkon belum ada tabel/endpoint
+❌ Warning realtime saat input melebihi standar master acuan tidak muncul di form
+H — Produktivitas Material
+
+⚠️ Backend /produksi/material/productivity ada, tapi tidak ada filter per periode/minggu, dan formula mengambil batchUnitCount max dari material keluar yang terkait — ini bisa tidak akurat jika tidak ada data keluar
+K — Progress Unit
+
+⚠️ Hubungan update progress → ubah warna siteplan sudah ada di backend (update unitsTable saat patch shape), tapi tidak ada tampilan siteplan di halaman Produksi
+❌ Opname progress (tanggal, pemeriksa, catatan), foto progress, bulk update, mobile mode — semua belum ada
+M/N — Akuisisi & Perencanaan Lahan
+
+✅ akuisisi.tsx sangat besar (2912 baris), polygon sudah bisa digambar
+⚠️ Mirror polygon Akuisisi → Perencanaan: ada land_prospect_id di schema siteplan tapi alur data tidak otomatis — user harus buat siteplan manual di Perencanaan dan link secara manual
+⚠️ Lifecycle status prospek → nego → DP → lunas → batal belum lengkap di Perencanaan
+O — Upload Siteplan / Draw
+
+⚠️ Schema sudah ada (imageDataUrl, mainPolygon, shapes dengan polygon JSONB)
+❌ Undo/redo, snap to grid, duplicate unit, bulk create unit — semua belum ada di frontend
+P — Data Unit/Blok Siteplan
+
+✅ Schema lengkap: blockCode, unitType, subkonName, unitStatus, progress, customerId, unitId
+✅ Backend enrichShape sudah join ke units dan customers
+❌ Warna unit berdasarkan status/progress di UI siteplan perlu diverifikasi
+R — Land Bank
+
+⚠️ Auto-sync ada tapi fragile: deduplicate pakai notes.includes("siteplan #id") — bisa corrupt jika notes diedit
+❌ Nomor sertifikat, legalitas, harga/m2, tanggal bayar, dokumen — tidak ada di schema planning_land_bank
+T — Security/Role/Audit
+
+✅ Middleware requireAuth dan requireModuleAccess sudah ada dan dipasang
+⚠️ Finance-only approve: route PATCH /finance/approval/subkon/:id tidak punya guard role — siapa saja yang terautentikasi bisa approve
+⚠️ Audit log ditulis di backend tapi tidak ada halaman audit trail untuk menampilkan log per entitas
+❌ Lock transaksi hanya ada di debt_records, belum di subkon_payments, akad_disbursements, material_out
+❌ BELUM ADA SAMA SEKALI
+Area	Yang kurang
+A/U — Bukti bayar/dokumen	Semua proofUrl hanya TEXT (URL string). Tidak ada file upload system — gambar, PDF, nota tidak bisa diupload ke server
+Q — Siteplan Monitoring di Produksi	Tidak ada tampilan peta/siteplan di halaman Produksi Progress Unit. Update progress tidak mengubah tampilan visual siteplan dari sisi Produksi
+V — Notifikasi	Tidak ada sistem notifikasi sama sekali (pengajuan termin baru, reject approval, material boros, bunga jatuh tempo, dll)
+W — Template & Bulk Tools	Semua (copy master material, template proyek, bulk update, import/export unit mapping) belum ada
+C — Jadwal bunga kredit	Schema tidak punya tabel untuk jadwal cicilan bunga, status bayar per bulan, denda keterlambatan
+K — Bulk update + mobile mode	Tidak ada bulk update progress unit, tidak ada mobile-optimized view
+Finance — Closing periode	Tidak ada konsep closing bulanan
+A — Nomor transaksi otomatis	Tidak ada di subkon_payments maupun material_out
+Prioritas Perbaikan yang Paling Kritis (berurutan)
+File upload system — semua proofUrl hanya text, tidak ada real upload
+Akad cair → otomatis kurangi kredit — logic bisnis paling penting
+Multi-pencairan akad cair di frontend (ledger table sudah ada)
+Role guard di route approval Finance — saat ini siapapun bisa approve
+Validasi stok material sebelum keluar
+Siteplan monitoring di halaman Produksi (view-only dari Perencanaan)
+Workflow revisi subkon setelah Finance reject
+Land Bank schema — tambah nomor sertifikat, legalitas, harga/m2
+Lock transaksi yang sudah final (paid, lunas)
+Mirror otomatis polygon Akuisisi → Perencanaan
+Mau saya mulai mengerjakan perbaikan dari prioritas mana? Atau ada area tertentu yang mau didalami lebih dulu?
+
