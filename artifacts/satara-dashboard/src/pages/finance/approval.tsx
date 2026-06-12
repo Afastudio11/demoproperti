@@ -65,13 +65,13 @@ async function downloadReceipt(items: Approval[]) {
   const W = 210;
   const M = 14;
 
-  const navy    = [15, 23, 42] as [number, number, number];
-  const emerald = [5, 150, 105] as [number, number, number];
-  const slate   = [71, 85, 105] as [number, number, number];
-  const slate50 = [248, 250, 252] as [number, number, number];
-  const slate100= [241, 245, 249] as [number, number, number];
-  const slate200= [226, 232, 240] as [number, number, number];
-  const white   = [255, 255, 255] as [number, number, number];
+  // Grayscale color palette
+  const black       = [0, 0, 0] as [number, number, number];
+  const darkGrey    = [60, 60, 60] as [number, number, number];
+  const mediumGrey  = [120, 120, 120] as [number, number, number];
+  const borderGrey  = [210, 210, 210] as [number, number, number];
+  const lightBg     = [248, 248, 248] as [number, number, number];
+  const white       = [255, 255, 255] as [number, number, number];
 
   const docId = `SPK-${String(c?.id ?? 0).padStart(4, "0")}-T${p?.terminNumber ?? "?"}-${String(first.paymentId).padStart(5, "0")}`;
   const tanggal = p?.paymentDate ?? new Date().toISOString().split("T")[0];
@@ -80,92 +80,80 @@ async function downloadReceipt(items: Approval[]) {
   const docTitle = isPaid ? "BUKTI PEMBAYARAN SUBKONTRAKTOR" : "BUKTI APPROVAL PEMBAYARAN SUBKONTRAKTOR";
   const statusText = isPaid ? "LUNAS / PAID" : "APPROVED / SIAP BAYAR";
 
-  // ── QR Code (generated first so we can place it later) ─────────────────────
-  const qrText = [
-    "SATARA DEVELOPMENT - PAYMENT VERIFICATION",
-    `Doc No : ${docId}`,
-    `Subkon : ${c?.subkonName ?? "-"}`,
-    `Proyek : #${c?.projectId ?? "-"} / Tahap ${c?.stageCode ?? "-"}`,
-    `Termin : T${p?.terminNumber ?? "?"}`,
-    `Gross  : ${fmtRp(p?.grossEligibleAmount ?? 0)}`,
-    `Retensi: ${fmtRp(p?.retentionDeducted ?? 0)}`,
-    `Net    : ${fmtRp(p?.netPayment ?? 0)}`,
-    `Tgl    : ${tanggal}`,
-    `Status : ${statusText}`,
-    `Ref    : ${docId}`,
-  ].join("\n");
+  // ── QR Code (Simplified to a clean URL for instant scanning) ───────────────
+  const qrText = `https://laongweb.com/verify-payment?docId=${docId}`;
 
   const qrDataUrl = await QRCode.toDataURL(qrText, {
     width: 250, margin: 1,
-    color: { dark: "#0f172a", light: "#ffffff" },
+    color: { dark: "#000000", light: "#ffffff" },
   });
 
-  // ── HEADER BAND ─────────────────────────────────────────────────────────────
-  doc.setFillColor(...navy);
-  doc.rect(0, 0, W, 46, "F");
+  // ── TOP DECORATIVE BORDER ──────────────────────────────────────────────────
+  doc.setFillColor(...black);
+  doc.rect(0, 0, W, 4, "F");
 
-  // Accent stripe
-  doc.setFillColor(...emerald);
-  doc.rect(0, 0, 4, 46, "F");
-
-  // Company name
-  doc.setTextColor(...white);
+  // ── HEADER SECTION (Clean corporate style) ──────────────────────────────────
+  doc.setTextColor(...black);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(17);
-  doc.text("SATARA DEVELOPMENT", M + 2, 15);
+  doc.setFontSize(16);
+  doc.text("SATARA DEVELOPMENT", M, 16);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text("Internal Operations Dashboard  ·  Divisi Keuangan", M + 2, 22);
+  doc.setTextColor(...darkGrey);
+  doc.text("Internal Operations Dashboard  ·  Divisi Keuangan", M, 22);
 
-  // Title + badge
-  doc.setTextColor(...white);
+  // Title
+  doc.setTextColor(...black);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text(docTitle, M + 2, 34);
+  doc.setFontSize(12);
+  doc.text(docTitle, M, 34);
 
-  // Status badge
+  // Status badge (Black & White border style)
   const badgeW = isPaid ? 26 : 42;
-  doc.setFillColor(...emerald);
-  doc.roundedRect(W - M - badgeW, 28, badgeW, 10, 2, 2, "F");
-  doc.setTextColor(...white);
+  doc.setFillColor(...lightBg);
+  doc.setDrawColor(...black);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(W - M - badgeW, 28, badgeW, 9, 1.5, 1.5, "FD");
+  doc.setTextColor(...black);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text(statusText, W - M - (badgeW / 2), 34.5, { align: "center" });
-
-  // Doc ID + date (top right, inside header)
-  doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text(docId, W - M, 15, { align: "right" });
+  doc.text(statusText, W - M - (badgeW / 2), 34, { align: "center" });
+
+  // Doc ID & Date
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...darkGrey);
+  doc.text(docId, W - M, 16, { align: "right" });
   doc.text(`Tanggal: ${tanggal}`, W - M, 22, { align: "right" });
 
   // ── SUBHEADER / META STRIP ─────────────────────────────────────────────────
-  doc.setFillColor(...slate100);
-  doc.rect(0, 46, W, 12, "F");
+  doc.setFillColor(...lightBg);
+  doc.setDrawColor(...borderGrey);
+  doc.setLineWidth(0.25);
+  doc.rect(M, 42, W - 2 * M, 10, "FD");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(...slate);
-  doc.text(`Nomor Dokumen: ${docId}`, M + 2, 53.5);
-  doc.text(`Dicetak: ${generatedAt}`, W - M, 53.5, { align: "right" });
+  doc.setFontSize(8);
+  doc.setTextColor(...darkGrey);
+  doc.text(`Nomor Dokumen: ${docId}`, M + 4, 48.5);
+  doc.text(`Dicetak: ${generatedAt}`, W - M - 4, 48.5, { align: "right" });
 
-  let y = 66;
+  let y = 60;
 
   // ── LEFT INFO + RIGHT QR ────────────────────────────────────────────────────
-  const qrSize = 46;
+  const qrSize = 42;
   const qrX = W - M - qrSize;
   const qrY = y;
 
-  // QR background card
-  doc.setFillColor(...slate50);
-  doc.setDrawColor(...slate200);
+  // QR background card (Taller to prevent text overflowing outside bottom border)
+  doc.setFillColor(...lightBg);
+  doc.setDrawColor(...borderGrey);
   doc.setLineWidth(0.3);
-  doc.roundedRect(qrX - 3, qrY - 3, qrSize + 6, qrSize + 14, 2, 2, "FD");
+  doc.roundedRect(qrX - 3, qrY - 3, qrSize + 6, qrSize + 18, 2, 2, "FD");
   doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
-  doc.setTextColor(...slate);
+  doc.setFontSize(7);
+  doc.setTextColor(...darkGrey);
   doc.text("Scan QR untuk verifikasi", qrX + qrSize / 2, qrY + qrSize + 7, { align: "center" });
   doc.text("pembayaran ini", qrX + qrSize / 2, qrY + qrSize + 11, { align: "center" });
 
@@ -175,11 +163,11 @@ async function downloadReceipt(items: Approval[]) {
   const drawField = (label: string, value: string, fx: number, fy: number, fw: number) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(...slate);
+    doc.setTextColor(...mediumGrey);
     doc.text(label.toUpperCase(), fx, fy);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9.5);
-    doc.setTextColor(...navy);
+    doc.setTextColor(...black);
     doc.text(value, fx, fy + 5.5);
   };
 
@@ -191,40 +179,42 @@ async function downloadReceipt(items: Approval[]) {
   drawField("Termin ke-", `T${p?.terminNumber ?? "-"}`, M, y + 32, halfW);
   drawField("Tanggal Bayar", tanggal, M + halfW + 6, y + 32, halfW);
 
-  y = Math.max(y + qrSize + 16, y + 52);
+  y = Math.max(y + qrSize + 22, y + 52);
 
-  // ── DIVIDER ────────────────────────────────────────────────────────────────
-  doc.setDrawColor(...slate200);
-  doc.setLineWidth(0.4);
+  // ── DIVISION LINE ──────────────────────────────────────────────────────────
+  doc.setDrawColor(...borderGrey);
+  doc.setLineWidth(0.3);
   doc.line(M, y, W - M, y);
   y += 7;
 
   // ── PROGRESS SECTION ───────────────────────────────────────────────────────
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  doc.setTextColor(...navy);
+  doc.setTextColor(...black);
   doc.text("PROGRESS PEKERJAAN", M, y);
   y += 5;
 
   const progW = (W - 2 * M - 8) / 3;
   const progBoxes = [
-    { label: "Progress Sebelum", value: `${p?.progressPrevious ?? 0}%`, color: slate },
-    { label: "Progress Sekarang", value: `${p?.progressCurrent ?? 0}%`, color: emerald },
-    { label: "Velocity (delta)", value: `${p?.velocity ?? 0}%`, color: [59, 130, 246] as [number, number, number] },
+    { label: "Progress Sebelum", value: `${p?.progressPrevious ?? 0}%` },
+    { label: "Progress Sekarang", value: `${p?.progressCurrent ?? 0}%` },
+    { label: "Velocity (delta)", value: `${p?.velocity ?? 0}%` },
   ];
 
   progBoxes.forEach((box, i) => {
     const bx = M + i * (progW + 4);
-    doc.setFillColor(...slate100);
-    doc.roundedRect(bx, y, progW, 18, 2, 2, "F");
+    doc.setFillColor(...lightBg);
+    doc.setDrawColor(...borderGrey);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(bx, y, progW, 18, 1.5, 1.5, "FD");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(...slate);
+    doc.setTextColor(...mediumGrey);
     doc.text(box.label, bx + progW / 2, y + 5.5, { align: "center" });
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(...box.color);
-    doc.text(box.value, bx + progW / 2, y + 14.5, { align: "center" });
+    doc.setFontSize(13);
+    doc.setTextColor(...black);
+    doc.text(box.value, bx + progW / 2, y + 14, { align: "center" });
   });
 
   y += 24;
@@ -232,7 +222,7 @@ async function downloadReceipt(items: Approval[]) {
   // ── FINANCIAL BREAKDOWN ────────────────────────────────────────────────────
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  doc.setTextColor(...navy);
+  doc.setTextColor(...black);
   doc.text("RINCIAN KEUANGAN", M, y);
   y += 5;
 
@@ -243,46 +233,46 @@ async function downloadReceipt(items: Approval[]) {
   ];
 
   for (const row of tableRows) {
-    doc.setFillColor(row.sub ? 248 : 243, row.sub ? 250 : 244, row.sub ? 252 : 246);
+    doc.setFillColor(row.sub ? 250 : 243, row.sub ? 250 : 243, row.sub ? 250 : 243);
     doc.rect(M, y, W - 2 * M, 8.5, "F");
-    doc.setFont("helvetica", row.sub ? "normal" : "normal");
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
-    doc.setTextColor(row.sub ? 148 : 51, row.sub ? 163 : 65, row.sub ? 184 : 85);
+    doc.setTextColor(row.sub ? 140 : 50, row.sub ? 140 : 50, row.sub ? 140 : 50);
     doc.text(row.label, M + 4, y + 6);
     doc.setFont("helvetica", row.sub ? "normal" : "bold");
-    doc.setTextColor(row.sub ? 148 : 30, row.sub ? 163 : 41, row.sub ? 184 : 59);
+    doc.setTextColor(row.sub ? 140 : 30, row.sub ? 140 : 30, row.sub ? 140 : 30);
     doc.text(row.value, W - M - 4, y + 6, { align: "right" });
     y += 9.5;
   }
 
-  // Net payment — highlighted green row
-  doc.setFillColor(...emerald);
-  doc.roundedRect(M, y, W - 2 * M, 13, 2, 2, "F");
+  // Net payment — highlighted solid dark grey row
+  doc.setFillColor(...black);
+  doc.roundedRect(M, y, W - 2 * M, 13, 1.5, 1.5, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
   doc.setTextColor(...white);
-  doc.text("NET DIBAYARKAN", M + 5, y + 9);
+  doc.text("NET DIBAYARKAN", M + 5, y + 8.5);
   doc.setFontSize(13);
-  doc.text(fmtRp(p?.netPayment ?? 0), W - M - 5, y + 9, { align: "right" });
-  y += 19;
+  doc.text(fmtRp(p?.netPayment ?? 0), W - M - 5, y + 8.5, { align: "right" });
+  y += 18;
 
   if (p?.notes) {
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184);
+    doc.setTextColor(...mediumGrey);
     doc.text(`Catatan: ${p.notes}`, M, y);
     y += 7;
   }
 
-  // ── DIVIDER ────────────────────────────────────────────────────────────────
-  doc.setDrawColor(...slate200);
+  // ── DIVISION LINE ──────────────────────────────────────────────────────────
+  doc.setDrawColor(...borderGrey);
   doc.line(M, y, W - M, y);
   y += 7;
 
   // ── APPROVAL CHAIN ─────────────────────────────────────────────────────────
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  doc.setTextColor(...navy);
+  doc.setTextColor(...black);
   doc.text("RANTAI PERSETUJUAN (CHAIN OF APPROVAL)", M, y);
   y += 5;
 
@@ -297,31 +287,37 @@ async function downloadReceipt(items: Approval[]) {
     const sx = M + idx * (stepW2 + 3);
     const isApproved = status === "approved";
     const isRejected = status === "rejected";
-    const fillColor: [number, number, number] = isApproved ? emerald : isRejected ? [220, 38, 38] : [100, 116, 139];
 
-    doc.setFillColor(...fillColor);
-    doc.roundedRect(sx, y, stepW2, 19, 2, 2, "F");
+    // Clean Grayscale styling
+    const fillCol = isApproved ? [240, 240, 240] : isRejected ? [245, 245, 245] : [252, 252, 252];
+    const borderCol = isApproved ? black : isRejected ? darkGrey : borderGrey;
 
-    // Step icon
+    doc.setFillColor(...fillCol);
+    doc.setDrawColor(...borderCol);
+    doc.setLineWidth(isApproved ? 0.45 : 0.25);
+    doc.roundedRect(sx, y, stepW2, 19, 1.5, 1.5, "FD");
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
-    doc.setTextColor(...white);
+    doc.setTextColor(...black);
     doc.text(STEP_FULL[stepKey] ?? stepKey, sx + stepW2 / 2, y + 6, { align: "center" });
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     const statusLabel = isApproved ? "Disetujui" : isRejected ? "Ditolak" : "Menunggu";
+    doc.setTextColor(isApproved ? black : mediumGrey);
     doc.text(statusLabel, sx + stepW2 / 2, y + 12, { align: "center" });
 
     if (approvedBy) {
       doc.setFontSize(6.5);
+      doc.setTextColor(...darkGrey);
       doc.text(`oleh: ${approvedBy}`, sx + stepW2 / 2, y + 17, { align: "center" });
     }
 
-    // Connector arrow (except last)
+    // Connector line
     if (idx < 3) {
-      doc.setDrawColor(...slate200);
-      doc.setLineWidth(0.4);
+      doc.setDrawColor(...borderGrey);
+      doc.setLineWidth(0.3);
       const arrowX = sx + stepW2 + 1.5;
       doc.line(arrowX - 0.5, y + 9.5, arrowX + 2, y + 9.5);
     }
@@ -330,7 +326,7 @@ async function downloadReceipt(items: Approval[]) {
   y += 26;
 
   // ── SIGNATURE AREA ─────────────────────────────────────────────────────────
-  doc.setDrawColor(...slate200);
+  doc.setDrawColor(...borderGrey);
   doc.line(M, y, W - M, y);
   y += 8;
 
@@ -339,46 +335,44 @@ async function downloadReceipt(items: Approval[]) {
 
   sigLabels.forEach((label, i) => {
     const sx = M + i * (sigW + 6);
-    doc.setFillColor(...slate50);
-    doc.setDrawColor(...slate200);
+    doc.setFillColor(...lightBg);
+    doc.setDrawColor(...borderGrey);
     doc.setLineWidth(0.3);
     doc.roundedRect(sx, y, sigW, 30, 1.5, 1.5, "FD");
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
-    doc.setTextColor(...slate);
+    doc.setTextColor(...darkGrey);
     label.split("\n").forEach((line, li) => {
       doc.text(line, sx + sigW / 2, y + 6.5 + li * 5, { align: "center" });
     });
 
     // Signature line
-    doc.setDrawColor(148, 163, 184);
-    doc.setLineWidth(0.5);
-    doc.line(sx + 8, y + 26, sx + sigW - 8, y + 26);
+    doc.setDrawColor(...mediumGrey);
+    doc.setLineWidth(0.4);
+    doc.line(sx + 8, y + 24, sx + sigW - 8, y + 24);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text("( tanda tangan )", sx + sigW / 2, y + 30, { align: "center" });
+    doc.setTextColor(...mediumGrey);
+    doc.text("( tanda tangan )", sx + sigW / 2, y + 28, { align: "center" });
   });
 
   y += 38;
 
   // ── FOOTER ────────────────────────────────────────────────────────────────
-  doc.setFillColor(...navy);
-  doc.rect(0, 284, W, 13, "F");
-  doc.setFillColor(...emerald);
-  doc.rect(0, 284, 4, 13, "F");
+  doc.setFillColor(...black);
+  doc.rect(0, 285, W, 12, "F");
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
-  doc.setTextColor(148, 163, 184);
+  doc.setTextColor(200, 200, 200);
   doc.text(
     "Dokumen ini diterbitkan secara digital oleh sistem Satara Development. Scan QR code di pojok kanan atas untuk memverifikasi keaslian.",
-    W / 2, 289.5, { align: "center" }
+    W / 2, 290, { align: "center" }
   );
   doc.text(
     `${docId}  ·  Digenerate: ${generatedAt}  ·  Satara Development © ${new Date().getFullYear()}`,
-    W / 2, 294.5, { align: "center" }
+    W / 2, 294, { align: "center" }
   );
 
   doc.save(`${isPaid ? docId : `${docId}-APPROVED`}.pdf`);
