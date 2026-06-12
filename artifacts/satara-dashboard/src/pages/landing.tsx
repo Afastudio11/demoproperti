@@ -117,31 +117,6 @@ export default function LandingPage() {
               </a>
             </nav>
 
-            {/* Desktop CTA */}
-            <div className="hidden md:flex items-center gap-3">
-              {user ? (
-                <Link
-                  href="/teamwork"
-                  className="bg-white text-black hover:bg-transparent hover:text-white border border-white/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm font-display"
-                >
-                  Dashboard
-                </Link>
-              ) : (
-                <Link
-                  href="/teamwork"
-                  className="bg-white text-black hover:bg-transparent hover:text-white border border-white/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm font-display"
-                >
-                  Masuk
-                </Link>
-              )}
-              <a
-                href="#hubungi"
-                onClick={(e) => handleScroll(e, 'hubungi')}
-                className="text-white hover:bg-white/10 border border-white/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm font-display"
-              >
-                Hubungi Kami
-              </a>
-            </div>
 
             {/* Mobile Burger Menu Toggle */}
             <button
@@ -185,28 +160,6 @@ export default function LandingPage() {
                 className="text-sm font-medium text-white/90 hover:text-white py-1"
               >
                 Roadmap
-              </a>
-              {user ? (
-                <Link
-                  href="/teamwork"
-                  className="bg-white text-black text-center py-2.5 rounded-lg text-sm font-medium hover:bg-transparent hover:text-white border border-white/20 transition-all duration-300 mt-2 font-display"
-                >
-                  Dashboard
-                </Link>
-              ) : (
-                <Link
-                  href="/teamwork"
-                  className="bg-white text-black text-center py-2.5 rounded-lg text-sm font-medium hover:bg-transparent hover:text-white border border-white/20 transition-all duration-300 mt-2 font-display"
-                >
-                  Masuk
-                </Link>
-              )}
-              <a
-                href="#hubungi"
-                onClick={(e) => handleScroll(e, 'hubungi')}
-                className="border border-white/20 text-white text-center py-2.5 rounded-lg text-sm font-medium hover:bg-white hover:text-black transition-all duration-300 font-display"
-              >
-                Hubungi Kami
               </a>
             </div>
           )}
