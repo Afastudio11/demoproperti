@@ -18,6 +18,54 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 
 function num(v: string) { return parseFloat(v) || 0; }
 
+type CanvasPoint = { x: number; y: number };
+type SiteplanTransform = { opacity: number; scale: number; x: number; y: number; locked: boolean };
+
+const defaultTransform: SiteplanTransform = { opacity: 0.86, scale: 1, x: 0, y: 0, locked: true };
+
+function normalizePolygon(coords: Array<[number, number]>): CanvasPoint[] {
+  const points = coords
+    .filter(point => Array.isArray(point) && point.length >= 2)
+    .map(([a, b]) => {
+      const looksLatLng = Math.abs(a) <= 90 && Math.abs(b) > 90;
+      return { rawX: looksLatLng ? b : a, rawY: looksLatLng ? a : b };
+    });
+  if (points.length < 3) return [];
+  const xs = points.map(p => p.rawX);
+  const ys = points.map(p => p.rawY);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const rangeX = Math.max(0.000001, maxX - minX);
+  const rangeY = Math.max(0.000001, maxY - minY);
+  return points.map(p => ({
+    x: Math.round((8 + ((p.rawX - minX) / rangeX) * 84) * 10) / 10,
+    y: Math.round((8 + ((maxY - p.rawY) / rangeY) * 84) * 10) / 10,
+  }));
+}
+
+function parseAcquisitionPolygon(raw: unknown): CanvasPoint[] {
+  if (!raw || typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    if (Array.isArray(parsed[0]) && typeof parsed[0][0] === "number") {
+      return normalizePolygon(parsed as Array<[number, number]>);
+    }
+    if (Array.isArray(parsed[0]) && Array.isArray(parsed[0][0])) {
+      return normalizePolygon(parsed[0] as Array<[number, number]>);
+    }
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+function polygonPoints(points: unknown) {
+  return Array.isArray(points) ? points.map((p: any) => `${p.x},${p.y}`).join(" ") : "";
+}
+
 async function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -82,6 +130,7 @@ export default function LahanPage() {
   const [autoImported, setAutoImported] = useState(false);
   const [activeSiteplanId, setActiveSiteplanId] = useState<number | null>(null);
   const [isUploadingSiteplan, setIsUploadingSiteplan] = useState(false);
+  const [siteplanTransform, setSiteplanTransform] = useState<SiteplanTransform>(defaultTransform);
   const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "" });
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
@@ -114,6 +163,11 @@ export default function LahanPage() {
     queryFn: () => fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`).then(r => r.json()),
     enabled: !!selectedSiteplan?.id,
   });
+
+  useEffect(() => {
+    const transform = selectedSiteplan?.imageTransform as Partial<SiteplanTransform> | undefined;
+    setSiteplanTransform({ ...defaultTransform, ...(transform ?? {}) });
+  }, [selectedSiteplan?.id, selectedSiteplan?.imageTransform]);
 
   const selectProject = async (id: number) => {
     setForm(prev => ({ ...prev, projectId: id }));
@@ -148,6 +202,12 @@ export default function LahanPage() {
           notes: [resp.lokasi || "", resp.kelurahan ? `Kel. ${resp.kelurahan}` : "", resp.kecamatan ? `Kec. ${resp.kecamatan}` : "", resp.kabupaten || ""].filter(Boolean).join(", ") || prev.notes,
           kavlingArea: (alloc as Record<string, number>).kavlingArea || prev.kavlingArea,
         }));
+        try {
+          const siteplan = await syncProspectToSiteplan(resp, urlProjectId);
+          if (siteplan) toast({ title: "Boundary Akuisisi masuk ke Perencanaan" });
+        } catch {
+          toast({ title: "Data lahan masuk, tapi polygon Akuisisi belum bisa dipakai", variant: "destructive" });
+        }
         toast({ title: "Data lahan diimpor dari Akuisisi Lahan" });
       }
     });
@@ -155,6 +215,29 @@ export default function LahanPage() {
   }, [urlProjectId, urlProspectId]);
 
   const setF = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: typeof v === "string" ? (parseFloat(v) || v) : v }));
+
+  async function syncProspectToSiteplan(resp: Record<string, any>, projectId: number) {
+    const mainPolygon = parseAcquisitionPolygon(resp.polygonCoords);
+    if (mainPolygon.length < 3) return null;
+    const body = {
+      projectId,
+      landProspectId: resp.id,
+      title: selectedSiteplan?.title ?? `Boundary Akuisisi - ${resp.lokasi ?? `Prospek #${resp.id}`}`,
+      mainPolygon,
+      source: "akuisisi",
+    };
+    const targetId = selectedSiteplan?.id;
+    const response = await fetch(targetId ? `/api/planning/siteplan/${targetId}` : "/api/planning/siteplan", {
+      method: targetId ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const row = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(row?.error ?? "Gagal membuat workspace siteplan dari Akuisisi");
+    setActiveSiteplanId(row.id);
+    await refetchSiteplans();
+    return row;
+  }
 
   const importFromProspect = async (prospectId: number) => {
     const resp = await fetch(`/api/land-prospects/${prospectId}`).then(r => r.json());
@@ -178,6 +261,15 @@ export default function LahanPage() {
         resp.kabupaten || "",
       ].filter(Boolean).join(", ") || prev.notes,
     }));
+    const projectId = form.projectId || resp.projectId;
+    if (projectId) {
+      try {
+        const siteplan = await syncProspectToSiteplan(resp, projectId);
+        if (siteplan) toast({ title: "Boundary Akuisisi masuk ke Perencanaan", description: "Lahan utama sudah siap dipakai untuk pembagian bidang dan tracing siteplan." });
+      } catch (err) {
+        toast({ title: "Boundary Akuisisi belum masuk", description: err instanceof Error ? err.message : "Polygon Akuisisi tidak bisa diproses.", variant: "destructive" });
+      }
+    }
     setShowImport(false);
     toast({ title: "Data lahan diimpor dari Akuisisi Lahan" });
   };
@@ -218,7 +310,15 @@ export default function LahanPage() {
       const resp = await fetch("/api/planning/siteplan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: form.projectId, title: file.name, imageDataUrl: image.dataUrl }),
+        body: JSON.stringify({
+          projectId: form.projectId,
+          landProspectId: selectedSiteplan?.landProspectId ?? null,
+          title: file.name,
+          imageDataUrl: image.dataUrl,
+          mainPolygon: selectedSiteplan?.mainPolygon ?? null,
+          imageTransform: defaultTransform,
+          source: selectedSiteplan?.mainPolygon ? "siteplan_revisi" : "upload",
+        }),
       });
       const row = await resp.json().catch(() => null);
       if (!resp.ok) {
@@ -298,8 +398,31 @@ export default function LahanPage() {
     await refetchShapes();
   }
 
+  async function saveSiteplanTransform(next = siteplanTransform) {
+    if (!selectedSiteplan?.id) return;
+    const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageTransform: next }),
+    });
+    if (!resp.ok) {
+      toast({ title: "Gagal simpan kalibrasi siteplan", variant: "destructive" });
+      return;
+    }
+    await refetchSiteplans();
+    toast({ title: "Kalibrasi siteplan tersimpan" });
+  }
+
   const projectList = Array.isArray(projects) ? projects : [];
   const prospectList = Array.isArray(prospects) ? prospects : [];
+  const shapeList = Array.isArray(siteplanShapes) ? siteplanShapes as any[] : [];
+  const bidangShapes = shapeList.filter(shape => shape.shapeType === "bidang");
+  const unitShapes = shapeList.filter(shape => shape.shapeType === "unit");
+  const totalBidangArea = bidangShapes.reduce((sum, shape) => sum + Number(shape.landArea ?? 0), 0);
+  const totalPlannedUnits = bidangShapes.reduce((sum, shape) => sum + Number(shape.plannedUnits ?? 0), 0);
+  const remainingLandArea = Math.max(0, Number(form.landArea || 0) - totalBidangArea);
+  const density = totalBidangArea > 0 ? (totalPlannedUnits / totalBidangArea) * 1000 : 0;
+  const hasMainPolygon = Array.isArray(selectedSiteplan?.mainPolygon) && selectedSiteplan.mainPolygon.length >= 3;
 
   return (
     <div className="space-y-4">
@@ -517,20 +640,76 @@ export default function LahanPage() {
               </Select>
             )}
             <Button size="sm" variant="outline" className="h-8" onClick={() => { setDraftPoints([]); setEditingShapeId(null); }}>Reset Titik</Button>
+            {selectedSiteplan?.id && <Button size="sm" variant="outline" className="h-8" onClick={() => saveSiteplanTransform()}>Simpan Kalibrasi</Button>}
           </div>
 
-          {selectedSiteplan?.imageDataUrl ? (
+          {selectedSiteplan?.id && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[
+                { label: "Total Bidang", value: `${totalBidangArea.toLocaleString("id-ID")} m²` },
+                { label: "Sisa Lahan", value: `${remainingLandArea.toLocaleString("id-ID")} m²` },
+                { label: "Rencana Unit", value: `${totalPlannedUnits.toLocaleString("id-ID")} unit` },
+                { label: "Kepadatan", value: `${density.toFixed(1)} unit/1.000 m²` },
+              ].map(item => (
+                <div key={item.label} className="rounded-md border bg-muted/20 p-2">
+                  <div className="text-[10px] text-muted-foreground">{item.label}</div>
+                  <div className="text-sm font-semibold">{item.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selectedSiteplan?.imageDataUrl && (
+            <div className="grid md:grid-cols-5 gap-2 rounded-lg border bg-muted/20 p-3">
+              <div className="space-y-1">
+                <Label className="text-[10px]">Opacity Gambar</Label>
+                <Input type="range" min={0.25} max={1} step={0.05} value={siteplanTransform.opacity} onChange={e => setSiteplanTransform(p => ({ ...p, opacity: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Zoom</Label>
+                <Input type="range" min={0.75} max={1.8} step={0.05} value={siteplanTransform.scale} onChange={e => setSiteplanTransform(p => ({ ...p, scale: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Geser X</Label>
+                <Input type="range" min={-20} max={20} step={0.5} value={siteplanTransform.x} onChange={e => setSiteplanTransform(p => ({ ...p, x: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Geser Y</Label>
+                <Input type="range" min={-20} max={20} step={0.5} value={siteplanTransform.y} onChange={e => setSiteplanTransform(p => ({ ...p, y: Number(e.target.value) }))} />
+              </div>
+              <div className="flex items-end gap-2">
+                <Button type="button" size="sm" variant={siteplanTransform.locked ? "default" : "outline"} className="h-8 flex-1" onClick={() => setSiteplanTransform(p => ({ ...p, locked: !p.locked }))}>
+                  {siteplanTransform.locked ? "Background Locked" : "Background Free"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {selectedSiteplan?.id && (selectedSiteplan?.imageDataUrl || hasMainPolygon) ? (
             <div className="grid lg:grid-cols-[1fr_320px] gap-4">
               <div ref={imageRef} onClick={addPoint} className="relative overflow-hidden rounded-lg border bg-muted cursor-crosshair">
-                <img src={selectedSiteplan.imageDataUrl} alt="Siteplan" className="w-full select-none pointer-events-none" />
+                {selectedSiteplan.imageDataUrl ? (
+                  <img
+                    src={selectedSiteplan.imageDataUrl}
+                    alt="Siteplan"
+                    className="w-full select-none pointer-events-none origin-center"
+                    style={{
+                      opacity: siteplanTransform.opacity,
+                      transform: `translate(${siteplanTransform.x}%, ${siteplanTransform.y}%) scale(${siteplanTransform.scale})`,
+                    }}
+                  />
+                ) : (
+                  <div className="h-[520px] bg-[linear-gradient(to_right,rgba(15,23,42,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,.08)_1px,transparent_1px)] bg-[size:32px_32px]" />
+                )}
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-	                  {(siteplanShapes as any[]).map(shape => (
-	                    <polygon key={shape.id} points={(shape.polygon ?? []).map((p: any) => `${p.x},${p.y}`).join(" ")} fill={shape.id === editingShapeId ? "rgba(245,158,11,.3)" : shape.shapeType === "unit" ? "rgba(59,130,246,.25)" : "rgba(16,185,129,.25)"} stroke={shape.id === editingShapeId ? "#f59e0b" : shape.shapeType === "unit" ? "#2563eb" : "#059669"} strokeWidth="0.3" />
+                  {hasMainPolygon && <polygon points={polygonPoints(selectedSiteplan.mainPolygon)} fill="rgba(15,23,42,.06)" stroke="#0f172a" strokeWidth="0.45" strokeDasharray="1.4 1" />}
+	                  {shapeList.map(shape => (
+	                    <polygon key={shape.id} points={polygonPoints(shape.polygon)} fill={shape.id === editingShapeId ? "rgba(245,158,11,.3)" : shape.shapeType === "unit" ? "rgba(59,130,246,.25)" : shape.shapeType === "bidang" ? "rgba(16,185,129,.22)" : "rgba(148,163,184,.2)"} stroke={shape.id === editingShapeId ? "#f59e0b" : shape.shapeType === "unit" ? "#2563eb" : shape.shapeType === "bidang" ? "#059669" : "#64748b"} strokeWidth="0.3" />
 	                  ))}
                   {draftPoints.length > 0 && <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="rgba(245,158,11,.25)" stroke="#f59e0b" strokeWidth="0.4" />}
                   {draftPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="0.8" fill="#f59e0b" onClick={(e) => { e.stopPropagation(); setDraftPoints(points => points.filter((_, idx) => idx !== i)); }} />)}
                 </svg>
-                {(siteplanShapes as any[]).map(shape => {
+                {shapeList.map(shape => {
                   const first = shape.polygon?.[0];
                   if (!first) return null;
 	                  return <button key={`label-${shape.id}`} type="button" onClick={(e) => { e.stopPropagation(); startEditShape(shape); }} className="absolute text-[10px] font-bold bg-background/80 px-1 rounded" style={{ left: `${first.x}%`, top: `${first.y}%` }}>{shape.label}</button>;
@@ -558,10 +737,10 @@ export default function LahanPage() {
 	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(1, 0)}>Kanan</Button>
 	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, 1)}>Bawah</Button>
 	                  </div>
-	                )}
+                )}
 	                <Button size="sm" onClick={saveShape} disabled={draftPoints.length < 3 || !shapeDraft.label} className="w-full"><Plus className="size-3.5 mr-1" /> {editingShapeId ? "Update Shape" : "Simpan Shape"} ({draftPoints.length} titik)</Button>
                 <div className="rounded-md border divide-y max-h-56 overflow-auto">
-                  {(siteplanShapes as any[]).length === 0 ? <p className="p-3 text-xs text-muted-foreground">Belum ada shape.</p> : (siteplanShapes as any[]).map(shape => (
+                  {shapeList.length === 0 ? <p className="p-3 text-xs text-muted-foreground">Belum ada shape.</p> : shapeList.map(shape => (
                     <div key={shape.id} className="flex items-center justify-between gap-2 p-2">
 	                      <button className="text-left" onClick={() => startEditShape(shape)}><p className="text-xs font-medium">{shape.label}</p><p className="text-[10px] text-muted-foreground">{shape.shapeType} · {shape.purchaseStatus ?? shape.unitStatus}{shape.unitId ? " · linked" : " · belum link"}</p></button>
 	                      <button className="text-red-500" onClick={() => deleteShape(shape.id)}><Trash2 className="size-3.5" /></button>

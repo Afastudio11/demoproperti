@@ -32,6 +32,8 @@ type Task = { id: number; item: string; bobot: number; status: string; tanggalSe
 type UnitRow = { id: number; blok: string; nomor: string; tipe: string; stageCode: string | null; progress: number; weekStarted: number | null; subkonName: string | null; tasks: Task[]; projectId: number };
 type ProjectRow = { projectId: number; projectName: string; totalUnits: number; avgProgress: number; units: UnitRow[] };
 type Project = { id: number; nama: string };
+type SiteplanTransform = { opacity: number; scale: number; x: number; y: number; locked: boolean };
+const defaultSiteplanTransform: SiteplanTransform = { opacity: 0.86, scale: 1, x: 0, y: 0, locked: true };
 
 const fmtPct = (n: number) => `${Math.round(n)}%`;
 const statusColor = (progress: number, status?: string) => {
@@ -78,6 +80,7 @@ export default function ProgressUnit() {
     enabled: !!siteplanProjectId,
   });
   const activeSiteplan = (siteplans as any[])[0] ?? null;
+  const siteplanTransform = { ...defaultSiteplanTransform, ...((activeSiteplan?.imageTransform as Partial<SiteplanTransform> | undefined) ?? {}) };
   const { data: siteplanShapes = [] } = useQuery({
     queryKey: ["planning-siteplan-shapes", activeSiteplan?.id],
     queryFn: () => fetch(`/api/planning/siteplan/${activeSiteplan.id}/shapes`).then(r => r.json()),
@@ -191,7 +194,16 @@ export default function ProgressUnit() {
     const mapW = 178;
     const mapH = 105;
     const imageFormat = String(activeSiteplan.imageDataUrl).startsWith("data:image/png") ? "PNG" : "JPEG";
-    doc.addImage(activeSiteplan.imageDataUrl, imageFormat, mapX, mapY, mapW, mapH, undefined, "FAST");
+    doc.addImage(
+      activeSiteplan.imageDataUrl,
+      imageFormat,
+      mapX + (mapW * siteplanTransform.x) / 100,
+      mapY + (mapH * siteplanTransform.y) / 100,
+      mapW * siteplanTransform.scale,
+      mapH * siteplanTransform.scale,
+      undefined,
+      "FAST",
+    );
     unitShapes.forEach(shape => {
       const unit = allUnits.find(u => shape.unitId ? u.id === shape.unitId : `${u.blok}-${u.nomor}`.toLowerCase() === String(shape.label).toLowerCase());
       const progress = unit?.progress ?? shape.progress ?? 0;
@@ -407,7 +419,15 @@ export default function ProgressUnit() {
               <CardHeader><CardTitle className="text-sm">Monitoring Siteplan</CardTitle></CardHeader>
               <CardContent>
                 <div className="relative overflow-hidden rounded-lg border bg-muted">
-                  <img src={activeSiteplan.imageDataUrl} alt="Siteplan" className="w-full select-none" />
+                  <img
+                    src={activeSiteplan.imageDataUrl}
+                    alt="Siteplan"
+                    className="w-full select-none origin-center"
+                    style={{
+                      opacity: siteplanTransform.opacity,
+                      transform: `translate(${siteplanTransform.x}%, ${siteplanTransform.y}%) scale(${siteplanTransform.scale})`,
+                    }}
+                  />
                   <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                     {unitShapes.map(shape => {
                       const unit = allUnits.find(u => shape.unitId ? u.id === shape.unitId : `${u.blok}-${u.nomor}`.toLowerCase() === String(shape.label).toLowerCase());

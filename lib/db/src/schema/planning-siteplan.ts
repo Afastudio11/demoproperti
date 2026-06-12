@@ -9,6 +9,7 @@ export const planningSiteplansTable = pgTable("planning_siteplans", {
   title: text("title").notNull().default("Siteplan"),
   imageDataUrl: text("image_data_url"),
   mainPolygon: jsonb("main_polygon"),
+  imageTransform: jsonb("image_transform").$type<Record<string, unknown>>(),
   source: text("source").notNull().default("upload"),
   isLocked: integer("is_locked").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

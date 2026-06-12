@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS planning_siteplans (
 
 ALTER TABLE planning_siteplans ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'upload';
 ALTER TABLE planning_siteplans ADD COLUMN IF NOT EXISTS is_locked integer NOT NULL DEFAULT 0;
+ALTER TABLE planning_siteplans ADD COLUMN IF NOT EXISTS image_transform jsonb;
 
 CREATE TABLE IF NOT EXISTS planning_siteplan_shapes (
   id serial PRIMARY KEY,
