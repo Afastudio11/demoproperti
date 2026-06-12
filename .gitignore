@@ -56,3 +56,4 @@ Thumbs.db
 .env.production.local
 .env.*.local
 scripts/deploy-vps.sh
+scripts/reset-vps-db.sh
