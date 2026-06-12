@@ -81,7 +81,7 @@ async function downloadReceipt(items: Approval[]) {
   const statusText = "LUNAS / PAID";
 
   // ── QR Code (Simplified to a clean URL for instant scanning) ───────────────
-  const qrText = `${window.location.origin}/verify-payment?docId=${docId}`;
+  const qrText = `https://sataracorp.com/verify-payment?docId=${docId}`;
 
   const qrDataUrl = await QRCode.toDataURL(qrText, {
     width: 250, margin: 1,
