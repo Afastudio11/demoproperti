@@ -13,6 +13,7 @@ import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc
 import { Save, Download, MapPin, Plus, Trash2, Upload } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 function num(v: string) { return parseFloat(v) || 0; }
@@ -37,6 +38,7 @@ export default function LahanPage() {
   const [showImport, setShowImport] = useState(false);
   const [autoImported, setAutoImported] = useState(false);
   const [activeSiteplanId, setActiveSiteplanId] = useState<number | null>(null);
+  const [isUploadingSiteplan, setIsUploadingSiteplan] = useState(false);
   const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "" });
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
@@ -167,17 +169,31 @@ export default function LahanPage() {
 
   async function uploadSiteplan(file: File) {
     if (!form.projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
+    setIsUploadingSiteplan(true);
     const reader = new FileReader();
     reader.onload = async () => {
-      const resp = await fetch("/api/planning/siteplan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: form.projectId, title: file.name, imageDataUrl: reader.result }),
-      });
-      const row = await resp.json();
-      setActiveSiteplanId(row.id);
-      await refetchSiteplans();
-      toast({ title: "Siteplan berhasil diupload" });
+      try {
+        const resp = await fetch("/api/planning/siteplan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: form.projectId, title: file.name, imageDataUrl: reader.result }),
+        });
+        const row = await resp.json().catch(() => null);
+        if (!resp.ok) {
+          throw new Error(row?.error ?? "Gagal upload siteplan. Coba kompres gambar atau gunakan file lebih kecil.");
+        }
+        setActiveSiteplanId(row.id);
+        await refetchSiteplans();
+        toast({ title: "Siteplan berhasil diupload", description: file.name });
+      } catch (err) {
+        toast({ title: "Gagal upload siteplan", description: err instanceof Error ? err.message : "Terjadi kesalahan saat upload.", variant: "destructive" });
+      } finally {
+        setIsUploadingSiteplan(false);
+      }
+    };
+    reader.onerror = () => {
+      setIsUploadingSiteplan(false);
+      toast({ title: "Gagal membaca file siteplan", variant: "destructive" });
     };
     reader.readAsDataURL(file);
   }
@@ -450,9 +466,9 @@ export default function LahanPage() {
         <CardHeader><CardTitle className="text-sm">Siteplan & Pembagian Blok/Unit</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-sm cursor-pointer hover:bg-muted">
-              <Upload className="size-3.5" /> Upload Siteplan
-              <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadSiteplan(f); }} />
+            <label className={cn("inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-sm cursor-pointer hover:bg-muted", isUploadingSiteplan && "opacity-60 pointer-events-none")}>
+              <Upload className="size-3.5" /> {isUploadingSiteplan ? "Mengupload..." : "Upload Siteplan"}
+              <input type="file" accept="image/*" className="hidden" disabled={isUploadingSiteplan} onChange={e => { const f = e.target.files?.[0]; if (f) uploadSiteplan(f); e.currentTarget.value = ""; }} />
             </label>
             {siteplans.length > 0 && (
               <Select value={String(selectedSiteplan?.id ?? "")} onValueChange={v => setActiveSiteplanId(Number(v))}>

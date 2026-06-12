@@ -41,10 +41,10 @@ export default function FinanceAkadCair() {
       <div className="rounded-xl border bg-card overflow-x-auto">
         <table className="w-full text-xs">
           <thead><tr className="border-b bg-muted/30">
-            {["Customer", "Unit", "Bank", "Nilai Akad", "Progress Rumah", "Status Cair", "Tanggal", "Nominal Cair", "Potongan", "Rekening", "Bukti", "Sisa", "Catatan", ""].map(h => <th key={h} className="px-3 py-2 text-left whitespace-nowrap">{h}</th>)}
+            {["Customer", "Unit", "Bank", "Nilai Akad", "Progress Rumah", "Status Cair", "Tanggal", "Nominal Cair", "Potongan", "Rekening", "Sisa", "Catatan", ""].map(h => <th key={h} className="px-3 py-2 text-left whitespace-nowrap">{h}</th>)}
           </tr></thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={14} className="py-10 text-center text-muted-foreground">Memuat...</td></tr> : rows.map(r => {
+            {isLoading ? <tr><td colSpan={13} className="py-10 text-center text-muted-foreground">Memuat...</td></tr> : rows.map(r => {
               const e = edits[r.id] ?? {};
               const status = e.statusCair ?? r.statusCair;
               const nominal = e.nominalCair ?? String(r.nominalCair ?? 0);
@@ -69,10 +69,9 @@ export default function FinanceAkadCair() {
                   <td className="px-3 py-2"><CurrencyInput className="h-7 w-32 text-xs border rounded-md px-2" value={nominal} onChange={raw => setEdits(p => ({ ...p, [r.id]: { ...e, nominalCair: raw } }))} /></td>
                   <td className="px-3 py-2"><CurrencyInput className="h-7 w-28 text-xs border rounded-md px-2" value={bankDeduction} onChange={raw => setEdits(p => ({ ...p, [r.id]: { ...e, bankDeduction: raw } }))} /></td>
                   <td className="px-3 py-2"><Input className="h-7 w-36 text-xs" value={e.destinationAccount ?? r.finance?.destinationAccount ?? ""} onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...e, destinationAccount: ev.target.value } }))} /></td>
-                  <td className="px-3 py-2"><Input className="h-7 w-36 text-xs" value={e.proofUrl ?? r.finance?.proofUrl ?? ""} onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...e, proofUrl: ev.target.value } }))} placeholder="URL bukti" /></td>
-                  <td className="px-3 py-2">{fmtRp(Math.max(0, (r.akadAmount ?? 0) - Number(nominal || 0)))}</td>
-                  <td className="px-3 py-2"><Input className="h-7 w-36 text-xs" value={e.notes ?? r.finance?.notes ?? ""} onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...e, notes: ev.target.value } }))} /></td>
-                  <td className="px-3 py-2"><Button size="sm" className="h-7 text-xs" onClick={() => save.mutate({ akadId: r.id, body: { statusCair: status, nominalCair: nominal, bankDeduction, destinationAccount: e.destinationAccount ?? r.finance?.destinationAccount, proofUrl: e.proofUrl ?? r.finance?.proofUrl, tanggalCair: e.tanggalCair ?? r.finance?.tanggalCair, notes: e.notes ?? r.finance?.notes } })}>Simpan</Button></td>
+                  <td className="px-3 py-2 min-w-28 whitespace-nowrap font-medium">{fmtRp(Math.max(0, (r.akadAmount ?? 0) - Number(nominal || 0)))}</td>
+                  <td className="px-3 py-2"><Input className="h-7 w-48 text-xs" value={e.notes ?? r.finance?.notes ?? ""} onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...e, notes: ev.target.value } }))} /></td>
+                  <td className="px-3 py-2"><Button size="sm" className="h-7 text-xs" onClick={() => save.mutate({ akadId: r.id, body: { statusCair: status, nominalCair: nominal, bankDeduction, destinationAccount: e.destinationAccount ?? r.finance?.destinationAccount, tanggalCair: e.tanggalCair ?? r.finance?.tanggalCair, notes: e.notes ?? r.finance?.notes } })}>Simpan</Button></td>
                 </tr>
               );
             })}
