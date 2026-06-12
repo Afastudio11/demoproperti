@@ -1,0 +1,335 @@
+Berikut list lengkap semua ide/perubahan dari awal sampai tambahan QC dan prioritas.
+
+**A. Finance**
+1. Tambah menu **Finance → Approval Subkon**.
+2. Approval subkon mirror dari Produksi.
+3. Produksi tidak punya tombol approve/reject, hanya monitoring.
+4. Finance bisa approve/reject pengajuan termin subkon.
+5. Finance bisa tandai pembayaran sebagai paid.
+6. Finance bisa generate/download PDF bukti bayar.
+7. Detail approval menampilkan proyek, tahap, subkon, termin, progress pekerjaan, nilai termin, retensi, net payment, catatan, status bayar.
+8. Tambah audit trail untuk approve/reject/paid.
+9. Tambah bukti bayar/upload dokumen pembayaran.
+10. Lock transaksi setelah termin sudah paid.
+11. Tambah nomor transaksi otomatis untuk pembayaran subkon.
+
+**B. Akad Cair**
+1. Tambah menu **Finance → Akad Cair Tracker**.
+2. Data mirror dari pipeline KPR/akad di Administrasi.
+3. Finance bisa ubah status: belum cair, sebagian cair, cair penuh.
+4. Finance bisa input tanggal cair, nominal cair, sisa belum cair, catatan.
+5. Tabel menampilkan progress pembangunan rumah dari Produksi.
+6. Akad cair sebaiknya mendukung multi pencairan.
+7. Tambah data potongan bank, rekening tujuan, estimasi cair, tanggal cair aktual.
+8. Akad cair otomatis mengurangi kredit proyek.
+9. Tambah audit log pencairan akad.
+10. Tambah bukti dokumen pencairan akad.
+
+**C. Kredit & Investment**
+1. Ubah **Hutang Center** menjadi **Kredit & Investment**.
+2. Kredit dan investment dipisah kategori.
+3. Input kredit mendukung agunan.
+4. Input plafon kredit.
+5. Input bunga bulanan.
+6. Input tempo/jatuh tempo bayar bunga.
+7. Input proyek terkait.
+8. Input catatan.
+9. Kredit berkurang otomatis dari akad cair.
+10. Kredit bisa dikurangi manual setelah akad.
+11. Kredit selesai otomatis jika akad proyek sudah selesai/cair penuh.
+12. Tambah jadwal bunga bulanan.
+13. Tambah status bayar bunga.
+14. Tambah denda jika telat.
+15. Tambah bukti bayar bunga.
+16. Lock/closing jika kredit sudah lunas.
+17. Tambah nomor transaksi kredit/payment.
+
+**D. Administrasi Customer**
+1. Tambah kolom **Progress Rumah** di Daftar Customer.
+2. Progress rumah mirror dari Produksi → Progress Unit.
+3. Progress rumah read-only di Administrasi.
+4. Export CSV ikut membawa progress rumah.
+5. Customer wajib lebih idealnya terhubung ke `unitId`, bukan hanya teks blok/unit.
+6. Tambah deteksi customer tanpa unit.
+7. Tambah deteksi unit terjual tanpa customer.
+
+**E. Produksi Approval**
+1. Menu Produksi Approval tetap ada sebagai monitoring.
+2. Tidak ada tombol approve/reject di Produksi.
+3. Produksi hanya melihat status approval dari Finance.
+4. Jika Finance reject, Produksi perlu workflow revisi pengajuan.
+5. Produksi bisa submit ulang setelah revisi.
+
+**F. Material**
+1. Tambah menu **Produksi → Material → Master Acuan**.
+2. Master acuan dibuat per proyek.
+3. Bisa per tahap.
+4. Bisa per subkon.
+5. Bisa per batch unit.
+6. Field: kategori, sub material, material, satuan, rencana, jumlah digunakan, sisa.
+7. Satuan bisa beda antar proyek.
+8. Sistem hitung standar per unit: `rencana / jumlah unit acuan`.
+9. Master acuan perlu versi.
+10. Ada status draft/aktif/arsip.
+11. Ada tanggal berlaku.
+12. Ada pembuat/update by.
+13. Bisa import/export dari spreadsheet.
+14. Master global material tetap ada, tapi operasional pakai master acuan proyek.
+
+**G. Material Keluar Per Subkon**
+1. Input material keluar berdasarkan subkon.
+2. User pilih proyek.
+3. Pilih tahap.
+4. Pilih subkon.
+5. Isi jumlah unit yang dikerjakan.
+6. Pilih unit/blok batch, misalnya 3 unit.
+7. Input material keluar.
+8. Sistem bandingkan realisasi dengan Master Acuan.
+9. Material keluar wajib punya batch kerja.
+10. Batch berisi `batchId`, `subkonId`, `unitIds`, pekerjaan/tahap, material, qty, tanggal, penerima, catatan.
+11. Tambah bukti tanda terima/foto/nota.
+12. Validasi stok sebelum material keluar.
+13. Material keluar tidak boleh melebihi stok kecuali override dengan alasan/approval.
+14. Tambah material return/sisa dari subkon.
+15. Tambah nomor transaksi material keluar.
+
+**H. Produktivitas Material Subkon**
+1. Tambah laporan produktivitas bahan per subkon.
+2. Rumus `rencana batch = standar per unit x jumlah unit dikerjakan`.
+3. Rumus `variance = realisasi keluar - rencana batch`.
+4. Rumus `efisiensi = rencana batch / realisasi keluar x 100%`.
+5. Tampilkan rencana, realisasi, sisa/variance, efisiensi.
+6. Status normal/warning/boros.
+7. Perhitungan bisa pakai progress rumah sebagai pembanding.
+8. Bisa dianalisis per proyek.
+9. Per tahap.
+10. Per subkon.
+11. Per batch unit.
+12. Per minggu/periode.
+13. Warning jika penggunaan bahan melewati toleransi.
+
+**I. Rework**
+1. Form rework bisa input material yang dipakai.
+2. Material rework otomatis masuk ke Material Keluar.
+3. Rework bisa ganti/override subkontraktor.
+4. Material keluar dari rework diberi source/catatan rework.
+5. Tambah penyebab rework.
+6. Penyebab: kesalahan subkon, perubahan customer, salah material, cuaca, desain berubah, QC gagal.
+7. Tambah biaya rework.
+8. Tambah pembebanan biaya: developer/subkon/customer.
+9. Tambah foto/bukti rework.
+10. Tambah audit trail rework.
+11. Rework yang sudah selesai/ditagihkan perlu lock.
+
+**J. Fasum**
+1. Tambah input subkon di progress fasum.
+2. Progress fasum bisa dilihat per proyek.
+3. Bisa per tipe fasum.
+4. Bisa per subkon pelaksana.
+5. Fasum type sama tapi subkon beda tidak boleh saling overwrite.
+6. Tambah bukti foto progress fasum.
+7. Tambah opname progress fasum.
+
+**K. Progress Unit**
+1. Sederhanakan update progress unit.
+2. Tambah mode cepat update persen progress.
+3. Tambah update minggu konstruksi.
+4. Tambah update status.
+5. Tambah update subkon.
+6. Checklist detail tetap tersedia sebagai opsi lanjutan.
+7. Progress unit terhubung ke polygon/blok rumah di siteplan.
+8. Update progress mengubah warna unit di siteplan.
+9. Tambah opname progress: tanggal, pemeriksa, catatan.
+10. Tambah foto progress unit.
+11. Tambah bulk update progress unit.
+12. Tambah mobile mode untuk supervisor lapangan.
+
+**L. Analitik Produksi**
+1. Bagian Produksi → Analitik dibuat satu menu saja.
+2. Hapus submenu terpisah: Velocity, Baseline, Cost to Complete, Dampak Termin ke Cashflow, Produktivitas, Eligibilitas, Forecast Penyelesaian.
+3. Buat satu halaman **Analitik Produksi**.
+4. Di dalamnya ada tab/section untuk semua analisis.
+5. Route lama diarahkan ke halaman analitik utama agar link lama tidak rusak.
+6. Hindari duplicate tab di dalam komponen analitik lama.
+
+**M. Akuisisi Lahan**
+1. Di Akuisisi Lahan user menggambar polygon lahan utama.
+2. Polygon utama bisa diedit.
+3. Titik/pentul polygon bisa dihapus.
+4. Polygon bisa dihapus atau digambar ulang jika salah.
+5. Data polygon utama masuk/mirror ke Perencanaan.
+6. Simpan status lahan: sudah dibeli, belum dibeli, milik sendiri, proses.
+7. Tambah detail legal/kepemilikan.
+8. Tambah harga dan luas.
+9. Tambah dokumen legal jika perlu.
+
+**N. Perencanaan Lahan**
+1. Perencanaan menampilkan polygon utama dari Akuisisi sebagai mirror.
+2. User bisa analisis detail satu lahan yang sudah digambar.
+3. User bisa edit gambar/polygon lahan utama.
+4. User bisa memecah lahan utama menjadi bidang kecil.
+5. Bidang kecil punya nama pemilik.
+6. Bidang kecil punya luas.
+7. Bidang kecil punya harga.
+8. Bidang kecil punya status legal/kepemilikan.
+9. Bidang kecil punya status pembelian.
+10. Bidang kecil punya rencana jumlah unit.
+11. Bidang kecil punya catatan.
+12. Tampilkan total luas bidang.
+13. Tampilkan sisa lahan.
+14. Tampilkan total rencana unit.
+15. Tampilkan estimasi kepadatan.
+16. Bidang kecil status lunas/sudah dibeli/milik sendiri otomatis masuk Land Bank.
+17. Sinkron Land Bank harus tidak dobel.
+18. Perlu lifecycle status: prospek, nego, DP, lunas, milik sendiri, batal.
+
+**O. Upload Siteplan**
+1. Di Perencanaan → Analisis Lahan user bisa upload gambar siteplan desain.
+2. Gambar menjadi background/canvas kerja.
+3. User menggambar ulang batas lahan utama.
+4. User menggambar bidang kecil/pembagian lahan.
+5. User menggambar blok/cluster.
+6. User menggambar unit rumah individual.
+7. User menggambar jalan.
+8. User menggambar RTH/fasum.
+9. User menggambar area non-unit.
+10. Shape/polygon bisa diedit.
+11. Shape bisa dipindah.
+12. Titik/pentul bisa dihapus.
+13. Polygon bisa dihapus.
+14. Tambah undo/redo.
+15. Tambah snap to grid.
+16. Tambah lock/unlock background.
+17. Tambah duplicate unit.
+18. Tambah bulk create unit.
+19. Simpan koordinat relatif terhadap gambar agar responsif.
+
+**P. Data Unit/Blok Siteplan**
+1. Setiap polygon unit/blok punya kode blok/unit, contoh `A-01`.
+2. Punya tipe rumah.
+3. Punya subkon.
+4. Punya status unit.
+5. Status: belum dibuka, akan dibangun, sedang dibangun, selesai, terjual/akad.
+6. Punya progress pembangunan.
+7. Punya customer terkait jika terjual.
+8. Idealnya wajib link ke `unitId`.
+9. Label hanya untuk tampilan, bukan relasi utama.
+10. Warna unit mengikuti status/progress.
+
+**Q. Siteplan Monitoring Produksi**
+1. Tambah tampilan peta/siteplan di Produksi → Progress Unit.
+2. Produksi melihat blok/unit dari siteplan Perencanaan.
+3. Klik unit di siteplan membuka detail progress unit.
+4. Update progress dari Produksi mengubah warna/status unit di siteplan.
+5. Jika unit terkait customer, tampilkan status customer dan akad read-only.
+6. Tambah legend warna.
+7. Tambah heatmap status progress.
+8. Bisa filter berdasarkan subkon, status, keterlambatan, akad.
+
+**R. Land Bank**
+1. Bidang kecil yang sudah dibeli/milik sendiri masuk Land Bank.
+2. Land Bank simpan nama bidang/lahan.
+3. Simpan luas.
+4. Simpan harga.
+5. Simpan status.
+6. Simpan rencana unit.
+7. Simpan catatan/source dari siteplan.
+8. Harus idempotent, tidak dobel saat bidang diedit.
+9. Tambah nomor sertifikat.
+10. Tambah nama pemilik.
+11. Tambah legalitas.
+12. Tambah harga/m2.
+13. Tambah tanggal bayar.
+14. Tambah dokumen.
+
+**S. Data Quality & Sync Checker**
+1. Dashboard data mismatch.
+2. Deteksi customer akad tapi unit belum terjual.
+3. Deteksi unit terjual tapi tidak ada customer.
+4. Deteksi akad cair tapi kredit belum berkurang.
+5. Deteksi material keluar tanpa subkon.
+6. Deteksi material keluar tanpa batch.
+7. Deteksi siteplan unit tanpa `unitId`.
+8. Deteksi customer tanpa `unitId`.
+9. Deteksi rework tanpa material/source.
+10. Deteksi progress unit tidak sinkron dengan siteplan.
+
+**T. Security, Role, Audit**
+1. Role & permission detail.
+2. Finance hanya finance bisa approve/pay.
+3. Produksi hanya request/monitor untuk approval.
+4. Admin KPR update pipeline.
+5. Perencanaan edit siteplan.
+6. Supervisor update progress/material/rework.
+7. Audit log semua transaksi penting.
+8. Simpan before/after.
+9. Simpan user.
+10. Simpan waktu.
+11. Simpan aksi.
+12. Lock transaksi final.
+13. Closing periode finance bulanan.
+
+**U. Dokumen & Bukti**
+1. Bukti bayar finance.
+2. Tanda terima material.
+3. Foto progress unit.
+4. Foto progress fasum.
+5. Foto/bukti rework.
+6. Dokumen akad cair.
+7. Dokumen legal lahan.
+8. Dokumen kredit/agunan.
+9. Semua bukti terhubung ke transaksi masing-masing.
+
+**V. Notifikasi & Operasional**
+1. Notifikasi pengajuan termin baru ke Finance.
+2. Notifikasi reject approval ke Produksi.
+3. Notifikasi material boros ke supervisor.
+4. Notifikasi bunga kredit jatuh tempo.
+5. Notifikasi akad belum cair melewati estimasi.
+6. Notifikasi progress unit telat dari baseline.
+7. Komentar internal di unit.
+8. Komentar di rework.
+9. Komentar di approval.
+10. Komentar di akad.
+
+**W. Template & Bulk Tools**
+1. Template proyek.
+2. Copy master material dari proyek sebelumnya.
+3. Copy tahapan pekerjaan.
+4. Copy tipe rumah.
+5. Copy workflow approval.
+6. Bulk update progress unit.
+7. Bulk create unit dari siteplan.
+8. Import/export master material acuan.
+9. Import/export siteplan/unit mapping.
+10. Import/export customer progress.
+
+**X. Teknis**
+1. Tambah migration database resmi.
+2. Pastikan frontend dependency lengkap.
+3. Typecheck frontend harus lolos.
+4. Typecheck backend harus lolos.
+5. Test route Finance Approval.
+6. Test Akad Cair Tracker.
+7. Test Material Keluar per Subkon.
+8. Test Rework otomatis masuk Material Keluar.
+9. Test Fasum per Subkon.
+10. Test Siteplan upload/draw/delete.
+11. Test edit polygon setelah ditambahkan.
+12. Test progress unit mengubah warna siteplan.
+13. Test bidang dibeli masuk Land Bank.
+14. Test export CSV customer dengan progress rumah.
+15. Test permission per role.
+
+Prioritas paling atas menurut saya:
+
+1. **Relasi ID wajib antar data.**
+2. **Permission + audit log + lock transaksi.**
+3. **Migration database resmi.**
+4. **Material keluar batch per subkon + unitIds.**
+5. **Siteplan unit wajib link ke `unitId`.**
+6. **Akad cair multi-pencairan dan otomatis kurangi kredit.**
+7. **Master acuan material berversi.**
+8. **Bukti dokumen/foto untuk transaksi penting.**
+9. **Data mismatch checker.**
+10. **Edit polygon lengkap: edit titik, hapus titik, drag, delete.**

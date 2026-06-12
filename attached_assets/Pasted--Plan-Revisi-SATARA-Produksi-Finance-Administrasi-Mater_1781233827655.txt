@@ -1,0 +1,141 @@
+# Plan Revisi SATARA: Produksi, Finance, Administrasi, Material, dan Siteplan Monitoring
+
+## Summary
+Revisi akan membuat data antar divisi saling mirror: Produksi menjadi sumber progress rumah, material, rework, fasum, dan termin; Finance mengelola approval, bukti bayar, akad cair, kredit/investment; Administrasi memantau customer dan progress rumah; Akuisisi menggambar lahan utama; Perencanaan memakai polygon Akuisisi dan/atau upload gambar siteplan, lalu menggambar ulang blok/unit rumah di atasnya untuk dipakai sebagai peta monitoring progress pembangunan.
+
+## Key Changes
+
+### 1. Finance Approval Subkon
+- Tambah menu **Finance → Approval**.
+- Data mirror dari termin/pengajuan pembayaran subkon di Produksi.
+- Finance bisa approve/reject, tandai paid, dan generate PDF bukti bayar.
+- Detail approval menampilkan proyek, tahap, subkon, termin, progress pekerjaan, nilai termin, retensi, net payment, catatan, dan status bayar.
+- Di Produksi, approval hanya monitoring status, tanpa tombol approve/reject.
+
+### 2. Finance Akad Cair Tracker
+- Tambah menu **Finance → Akad Cair Tracker**.
+- Data mirror dari pipeline KPR/akad di Administrasi.
+- Finance bisa update status cair: belum cair, sebagian cair, cair penuh.
+- Finance bisa input tanggal cair, nominal cair, sisa belum cair, dan catatan.
+- Tabel menampilkan progress pembangunan rumah yang mirror dari Produksi → Progress Unit.
+
+### 3. Kredit & Investment
+- Ubah **Hutang Center** menjadi **Kredit & Investment**.
+- Input kredit mendukung agunan, plafon, bunga, tempo bayar bunga bulanan, proyek terkait, dan catatan.
+- Kredit berkurang berdasarkan akad yang sudah cair serta input pengurangan manual.
+- Investment dicatat sebagai kategori terpisah dari kredit.
+
+### 4. Daftar Customer
+- Tambah kolom **Progress Rumah** di **Administrasi → Daftar Customer**.
+- Progress rumah read-only dan mirror dari Produksi → Progress Unit.
+- Export CSV ikut menyertakan progress rumah.
+
+### 5. Master Acuan Material Proyek
+- Tambah menu **Produksi → Material → Master Acuan**.
+- Supervisor/user bisa input acuan material per proyek/tahap/subkon/batch unit seperti spreadsheet.
+- Field acuan: kategori, sub material, material, satuan, rencana, jumlah digunakan, sisa.
+- Satuan bisa berbeda per proyek.
+- Sistem menghitung standar per unit dari `rencana / jumlah unit acuan`.
+
+### 6. Input Material Keluar Per Subkon
+- Input material keluar dibuat berbasis subkon.
+- User memilih proyek, tahap, subkon, jumlah unit yang dikerjakan, lalu input material keluar.
+- Unit/blok batch opsional, misalnya 3 unit yang sedang dikerjakan.
+- Sistem membandingkan realisasi material keluar dengan Master Acuan Material Proyek.
+
+### 7. Produktivitas Material Subkon
+- Tambah laporan produktivitas pemakaian bahan per subkon.
+- Rumus:
+  - `rencana batch = standar per unit x jumlah unit dikerjakan`
+  - `variance = realisasi keluar - rencana batch`
+  - `efisiensi = rencana batch / realisasi keluar x 100%`
+- Laporan menampilkan rencana, realisasi, sisa/variance, efisiensi, dan status normal/warning/boros.
+- Perhitungan bisa memakai progress rumah sebagai pembanding.
+
+### 8. Rework
+- Form rework bisa input material yang dipakai.
+- Material rework otomatis masuk ke Material Keluar.
+- Rework bisa override/ganti subkontraktor.
+- Record material keluar dari rework diberi catatan bahwa sumbernya adalah rework.
+
+### 9. Fasum
+- Tambah input subkon di progress fasum.
+- Progress fasum bisa dilihat per proyek, tipe fasum, dan subkon pelaksana.
+
+### 10. Progress Unit
+- Sederhanakan update progress unit.
+- Tambah mode cepat untuk update persen progress, minggu konstruksi, status, dan subkon.
+- Checklist detail tetap tersedia sebagai opsi lanjutan.
+- Progress unit terhubung ke polygon/blok rumah di siteplan agar monitoring bisa dilihat secara visual.
+
+### 11. Analitik Produksi
+- Bagian **Produksi → Analitik** dibuat menjadi satu menu saja.
+- Hapus sub menu terpisah: Velocity, Baseline, Cost to Complete, Dampak Termin ke Cashflow, Produktivitas, Eligibilitas, Forecast Penyelesaian.
+- Buat satu halaman **Analitik Produksi** berisi tab/section untuk semua analisis tersebut.
+- Route lama diarahkan ke halaman analitik utama agar link lama tidak rusak.
+
+### 12. Akuisisi Lahan → Perencanaan Lahan
+- Di **Akuisisi Lahan**, user menggambar polygon/lahan utama.
+- Polygon utama bisa diedit, titik/pentul bisa dihapus, dan polygon bisa digambar ulang jika salah.
+- Di **Perencanaan**, polygon utama dari Akuisisi tampil sebagai mirror.
+- Perencanaan bisa memecah lahan utama menjadi bidang-bidang kecil.
+- Setiap bidang kecil memiliki data: nama pemilik, luas, harga, status legal/kepemilikan, status pembelian, rencana jumlah unit, dan catatan.
+- Bidang kecil dengan status **lunas/sudah dibeli** atau **milik sendiri** otomatis masuk/tersinkron ke **Land Bank**.
+
+### 13. Upload Siteplan dan Gambar Ulang Blok Rumah
+- Di **Perencanaan → Analisis Lahan**, user bisa upload gambar siteplan versi desain mereka.
+- Gambar siteplan menjadi background/canvas kerja.
+- User bisa menggambar ulang di atas gambar siteplan:
+  - batas lahan utama jika perlu
+  - bidang kecil/pembagian lahan
+  - blok rumah/cluster
+  - unit rumah individual
+  - jalan, RTH/fasum, dan area non-unit bila diperlukan
+- Setiap polygon unit/blok bisa diberi data:
+  - kode blok/unit, contoh `A-01`
+  - tipe rumah
+  - subkon
+  - status unit: belum dibuka, akan dibangun, sedang dibangun, selesai, terjual/akad
+  - progress pembangunan
+  - customer terkait jika sudah terjual
+- Polygon unit/blok bisa diedit, dipindah, titik/pentul dihapus, dan polygon bisa dihapus.
+- Gambar blok/unit dari siteplan ini menjadi sumber visual untuk **monitoring progress rumah** di Produksi.
+- Warna unit di siteplan mengikuti status/progress pembangunan, seperti selesai, sedang dibangun, tanah sudah bebas belum dibangun, akan dibangun, belum dibuka.
+
+### 14. Siteplan Monitoring Produksi
+- Tambah tampilan peta/siteplan di **Produksi → Progress Unit** atau halaman monitoring terkait.
+- Produksi melihat blok/unit dari siteplan yang dibuat di Perencanaan.
+- Klik unit di siteplan membuka detail progress unit.
+- Update progress dari Produksi langsung mengubah warna/status unit di siteplan.
+- Jika unit sudah terkait customer, status customer dan akad bisa ikut tampil sebagai info read-only.
+
+## Data Flow
+- Akuisisi menyimpan polygon lahan utama.
+- Perencanaan mirror polygon lahan utama, menyimpan gambar siteplan upload, bidang kecil, blok/unit, dan rencana jumlah unit.
+- Land Bank menerima bidang kecil dari Perencanaan hanya jika status pembelian sudah milik sendiri/lunas/sudah dibeli.
+- Produksi memakai data blok/unit siteplan dari Perencanaan untuk monitoring progress visual.
+- Administrasi dan Finance mirror progress rumah dari Produksi.
+- Finance mirror akad dari Administrasi dan menyimpan status pencairan akad.
+
+## Test Plan
+- Verifikasi Produksi tidak bisa approve pembayaran subkon.
+- Verifikasi Finance bisa approve/reject, mark paid, dan generate PDF bukti bayar.
+- Verifikasi Akad Cair Tracker membaca data akad dari Administrasi dan progress rumah dari Produksi.
+- Verifikasi Daftar Customer menampilkan progress rumah yang sama dengan Progress Unit.
+- Verifikasi input material keluar per subkon menghitung rencana vs realisasi sesuai master acuan proyek.
+- Verifikasi rework otomatis membuat record material keluar.
+- Verifikasi satuan material bisa berbeda antar proyek.
+- Verifikasi sidebar Produksi hanya punya satu menu Analitik Produksi.
+- Verifikasi polygon lahan utama dan bidang kecil bisa diedit serta titik/pentulnya bisa dihapus.
+- Verifikasi upload siteplan berhasil tampil sebagai background canvas.
+- Verifikasi user bisa menggambar, edit, dan hapus polygon blok/unit di atas siteplan.
+- Verifikasi progress unit di Produksi mengubah warna/status unit pada siteplan.
+- Verifikasi bidang kecil yang sudah dibeli/milik sendiri masuk ke Land Bank.
+- Verifikasi typecheck/build frontend dan backend berhasil.
+
+## Assumptions
+- Siteplan upload disimpan sebagai asset proyek/perencanaan, lalu polygon unit disimpan sebagai koordinat relatif terhadap gambar agar tetap cocok saat layar berubah ukuran.
+- Unit rumah individual adalah level utama untuk monitoring progress; blok/cluster dipakai untuk grouping.
+- Progress rumah tetap diupdate dari Produksi, bukan dari Administrasi atau Finance.
+- Relasi customer ke unit ideal memakai `unitId`; jika belum ada, fallback sementara memakai `unitBlock`.
+- Master material global tetap ada, tetapi standar pemakaian operasional memakai Master Acuan Material Proyek.
