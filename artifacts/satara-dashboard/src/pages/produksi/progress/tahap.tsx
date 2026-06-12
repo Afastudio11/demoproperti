@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 const fmtPct = (n: number) => `${Math.round(n)}%`;
 const BASELINE: Record<number, number> = { 1: 10, 2: 25, 3: 40, 4: 55, 5: 70, 6: 85, 7: 95, 8: 100 };
@@ -11,7 +11,11 @@ type Unit = { id: number; blok: string; nomor: string; tipe: string; progress: n
 type ProjectRow = { projectId: number; projectName: string; units: Unit[] };
 
 export default function ProgressTahap() {
-  const [selectedProject, setSelectedProject] = useState("all");
+  const [, setLocation] = useLocation();
+  const [selectedProject, setSelectedProject] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    return searchParams.get("projectId") || "all";
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["progress-summary"],
@@ -25,12 +29,12 @@ export default function ProgressTahap() {
   const projects = data ?? [];
   const filtered = selectedProject === "all" ? projects : projects.filter(p => String(p.projectId) === selectedProject);
 
-  const byStage = new Map<string, { units: (Unit & { projectName: string })[] }>();
+  const byStage = new Map<string, { units: (Unit & { projectId: number; projectName: string })[] }>();
   filtered.forEach(proj => {
     proj.units.forEach(u => {
       const key = u.stageCode ?? "Tanpa Tahap";
       const existing = byStage.get(key) ?? { units: [] };
-      byStage.set(key, { units: [...existing.units, { ...u, projectName: proj.projectName }] });
+      byStage.set(key, { units: [...existing.units, { ...u, projectId: proj.projectId, projectName: proj.projectName }] });
     });
   });
 
@@ -49,7 +53,14 @@ export default function ProgressTahap() {
           <h1 className="text-lg font-bold">Progress Per Tahap</h1>
           <p className="text-sm text-muted-foreground">Kemajuan konstruksi dikelompokkan per tahap (T1, T2, T3...)</p>
         </div>
-        <Select value={selectedProject} onValueChange={setSelectedProject}>
+        <Select 
+          value={selectedProject} 
+          onValueChange={(val) => {
+            setSelectedProject(val);
+            const newUrl = val === "all" ? "/produksi/progress/tahap" : `/produksi/progress/tahap?projectId=${val}`;
+            window.history.replaceState(null, "", newUrl);
+          }}
+        >
           <SelectTrigger className="h-8 w-44 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Proyek</SelectItem>
@@ -69,7 +80,14 @@ export default function ProgressTahap() {
             const ahead = data.units.filter(u => getDeviation(u) >= 5).length;
             const critical = data.units.filter(u => getDeviation(u) <= -15).length;
             return (
-              <Card key={stageCode}>
+              <Card 
+                key={stageCode}
+                className="cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => {
+                  const projectIdQuery = selectedProject !== "all" ? `&projectId=${selectedProject}` : "";
+                  setLocation(`/produksi/progress/unit?stageCode=${stageCode}${projectIdQuery}`);
+                }}
+              >
                 <CardHeader className="pb-2 pt-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm">{stageCode}</CardTitle>
@@ -100,12 +118,18 @@ export default function ProgressTahap() {
                       <div className="text-muted-foreground text-[10px]">Critical</div>
                     </div>
                   </div>
-                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                  <div className="space-y-0.5 max-h-32 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                     {data.units.map(u => {
                       const dev = getDeviation(u);
                       return (
                         <div key={u.id} className="flex items-center gap-2 text-xs">
-                          <Link href="/produksi/progress/unit" className="hover:underline">Blok {u.blok}-{u.nomor}</Link>
+                          <Link 
+                            href={`/produksi/progress/unit?projectId=${u.projectId}&stageCode=${stageCode}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:underline"
+                          >
+                            Blok {u.blok}-{u.nomor}
+                          </Link>
                           <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
                             <div className={`h-full rounded-full ${u.progress >= 90 ? "bg-emerald-500" : u.progress >= 60 ? "bg-blue-500" : "bg-amber-500"}`} style={{ width: `${u.progress}%` }} />
                           </div>

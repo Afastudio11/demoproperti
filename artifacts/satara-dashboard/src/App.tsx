@@ -78,7 +78,6 @@ import MaterialKeluar from "@/pages/produksi/material/keluar";
 import MaterialStok from "@/pages/produksi/material/stok";
 import MaterialKonsumsi from "@/pages/produksi/material/konsumsi";
 import MaterialVariance from "@/pages/produksi/material/variance";
-import MaterialForecast from "@/pages/produksi/material/forecast";
 import QcChecklist from "@/pages/produksi/qc/checklist";
 import QcRework from "@/pages/produksi/qc/rework";
 import QcDefect from "@/pages/produksi/qc/defect";
@@ -193,6 +192,16 @@ function ExecutiveRedirect() {
   return null;
 }
 
+function MaterialForecastRedirect() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    setLocation("/produksi/material/stok");
+  }, [setLocation]);
+
+  return null;
+}
+
 function AppRoutes() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
@@ -297,7 +306,7 @@ function AppRoutes() {
         <Route path="/produksi/material/stok" component={MaterialStok} />
         <Route path="/produksi/material/konsumsi" component={MaterialKonsumsi} />
         <Route path="/produksi/material/variance" component={MaterialVariance} />
-        <Route path="/produksi/material/forecast" component={MaterialForecast} />
+        <Route path="/produksi/material/forecast" component={MaterialForecastRedirect} />
         <Route path="/produksi/qc/checklist" component={QcChecklist} />
         <Route path="/produksi/qc/rework" component={QcRework} />
         <Route path="/produksi/qc/defect" component={QcDefect} />

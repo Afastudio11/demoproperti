@@ -36,7 +36,7 @@ export default function SDMPage() {
     queryKey,
     queryFn: () => {
       const url = selectedProjectId === "global"
-        ? "/api/planning/sdm"
+        ? "/api/planning/sdm?projectId=all"
         : `/api/planning/sdm?projectId=${selectedProjectId}`;
       return fetch(url).then(r => r.json());
     },
@@ -58,6 +58,7 @@ export default function SDMPage() {
   }, [sdmData, selectedProjectId]);
 
   const setF = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: parseFloat(v) || 0 }));
+  const isGlobal = selectedProjectId === "global";
 
   const maxCapacityUnits = Math.floor(form.siteManagers * form.unitsPerManager);
   const workerCapacityUnits = form.workersPerUnit > 0 ? Math.floor(form.workers / form.workersPerUnit) : 0;
@@ -65,9 +66,13 @@ export default function SDMPage() {
   const supervisorRatio = form.supervisors > 0 ? Math.floor(form.workers / form.supervisors) : 0;
 
   const save = async () => {
+    if (isGlobal) {
+      toast({ title: "SDM Global adalah total semua proyek", description: "Ubah data di masing-masing proyek agar total global ikut berubah." });
+      return;
+    }
     const body = {
       ...form,
-      projectId: selectedProjectId === "global" ? null : Number(selectedProjectId),
+      projectId: Number(selectedProjectId),
     };
     const resp = await fetch("/api/planning/sdm", {
       method: "POST",
@@ -100,7 +105,7 @@ export default function SDMPage() {
           <h1 className="text-xl font-semibold">Sumber Daya Manusia</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Kapasitas tim & perencanaan alokasi SDM per proyek</p>
         </div>
-        <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
+        <Button size="sm" onClick={save} disabled={isGlobal} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
       </div>
 
       <Card>
@@ -117,7 +122,7 @@ export default function SDMPage() {
                   <SelectItem value="global">
                     <span className="flex items-center gap-2">
                       <Users className="size-3.5" />
-                      SDM Global (Semua Proyek)
+                      Total SDM Semua Proyek
                     </span>
                   </SelectItem>
                   {projects.map(p => (
@@ -139,7 +144,7 @@ export default function SDMPage() {
             )}
             {selectedProjectId === "global" && (
               <div className="text-xs text-muted-foreground border rounded px-2 py-1">
-                Data SDM umum (tidak terikat proyek)
+                Total otomatis dari seluruh proyek
               </div>
             )}
           </div>
@@ -158,7 +163,7 @@ export default function SDMPage() {
               <div key={k} className="space-y-1">
                 <Label className="text-xs">{label}</Label>
                 <div className="flex items-center gap-2">
-                  <NumericInput className="h-8 text-sm w-24" value={(form as Record<string, number>)[k]} onChange={v => setF(k, String(v))} />
+                  <NumericInput className="h-8 text-sm w-24" value={(form as Record<string, number>)[k]} disabled={isGlobal} onChange={v => setF(k, String(v))} />
                   <span className="text-xs text-muted-foreground">{unit}</span>
                 </div>
               </div>
@@ -176,13 +181,14 @@ export default function SDMPage() {
               <div key={k} className="space-y-1">
                 <Label className="text-xs">{label}</Label>
                 <div className="flex items-center gap-2">
-                  <NumericInput className="h-8 text-sm w-24" value={(form as Record<string, number>)[k]} onChange={v => setF(k, String(v))} />
+                  <NumericInput className="h-8 text-sm w-24" value={(form as Record<string, number>)[k]} disabled={isGlobal} onChange={v => setF(k, String(v))} />
                   <span className="text-xs text-muted-foreground">{unit}</span>
                 </div>
               </div>
             ))}
             <div className="pt-2 border-t text-xs text-muted-foreground">
               Rasio Supervisor:Pekerja = 1:{supervisorRatio}
+              {isGlobal && <div className="mt-1">Mode global menjumlahkan SDM semua proyek; standar produktivitas memakai rata-rata berbobot.</div>}
             </div>
           </CardContent>
         </Card>

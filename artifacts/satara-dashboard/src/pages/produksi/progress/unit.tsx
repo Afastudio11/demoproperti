@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import SubkonSelect from "@/components/subkon-select";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useLocation } from "wouter";
 
 const BASELINE: Record<number, number> = { 1: 10, 2: 25, 3: 40, 4: 55, 5: 70, 6: 85, 7: 95, 8: 100 };
 const TIPE_OPTIONS = ["Tipe 36", "Tipe 45", "Tipe 54", "Tipe 60", "Tipe 72", "Tipe 90"];
@@ -46,15 +47,47 @@ const statusColor = (progress: number, status?: string) => {
 };
 
 export default function ProgressUnit() {
+  const [location] = useLocation();
   const [search, setSearch] = useState("");
-  const [filterProject, setFilterProject] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterProject, setFilterProject] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    return searchParams.get("projectId") || "all";
+  });
+  const [filterStage, setFilterStage] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    return searchParams.get("stageCode") || "all";
+  });
+  const [filterStatus, setFilterStatus] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    return searchParams.get("status") || "all";
+  });
   const [expandedUnit, setExpandedUnit] = useState<number | null>(null);
   const [showTambahUnit, setShowTambahUnit] = useState(false);
   const [form, setForm] = useState({ projectId: "", stageCode: "T1", blok: "", nomor: "", tipe: "Tipe 36", subkonName: "", weekStarted: "" });
   const [quickProgress, setQuickProgress] = useState<Record<number, number>>({});
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const proj = searchParams.get("projectId") || "all";
+    const stage = searchParams.get("stageCode") || "all";
+    const stat = searchParams.get("status") || "all";
+    setFilterProject(proj);
+    setFilterStage(stage);
+    setFilterStatus(stat);
+  }, [location]);
+
+  const updateQueryParams = (proj: string, stage: string, stat: string) => {
+    const params = new URLSearchParams();
+    if (proj !== "all") params.set("projectId", proj);
+    if (stage !== "all") params.set("stageCode", stage);
+    if (stat !== "all") params.set("status", stat);
+    
+    const newSearch = params.toString();
+    const newUrl = newSearch ? `/produksi/progress/unit?${newSearch}` : "/produksi/progress/unit";
+    window.history.replaceState(null, "", newUrl);
+  };
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["progress-summary"],
@@ -270,6 +303,7 @@ export default function ProgressUnit() {
 
   const filtered = allUnits.filter(u => {
     if (filterProject !== "all" && String(u.projectId) !== filterProject) return false;
+    if (filterStage !== "all" && u.stageCode !== filterStage) return false;
     const st = getStatus(u.progress, u.weekStarted);
     if (filterStatus !== "all" && st.label.toLowerCase() !== filterStatus.toLowerCase()) return false;
     const q = search.toLowerCase();
@@ -378,14 +412,39 @@ export default function ProgressUnit() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari unit, blok, subkon..." className="pl-8 h-8 text-sm" />
         </div>
-        <Select value={filterProject} onValueChange={setFilterProject}>
+        <Select 
+          value={filterProject} 
+          onValueChange={(val) => {
+            setFilterProject(val);
+            updateQueryParams(val, filterStage, filterStatus);
+          }}
+        >
           <SelectTrigger className="h-8 w-48 text-sm"><SelectValue placeholder="Semua proyek" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Proyek</SelectItem>
             {projectList.map(p => <SelectItem key={p.projectId} value={String(p.projectId)}>{p.projectName}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
+        <Select 
+          value={filterStage} 
+          onValueChange={(val) => {
+            setFilterStage(val);
+            updateQueryParams(filterProject, val, filterStatus);
+          }}
+        >
+          <SelectTrigger className="h-8 w-32 text-sm"><SelectValue placeholder="Semua Tahap" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Tahap</SelectItem>
+            {STAGE_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select 
+          value={filterStatus} 
+          onValueChange={(val) => {
+            setFilterStatus(val);
+            updateQueryParams(filterProject, filterStage, val);
+          }}
+        >
           <SelectTrigger className="h-8 w-36 text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Status</SelectItem>

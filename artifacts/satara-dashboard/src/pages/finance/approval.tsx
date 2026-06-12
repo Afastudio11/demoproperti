@@ -76,6 +76,9 @@ async function downloadReceipt(items: Approval[]) {
   const docId = `SPK-${String(c?.id ?? 0).padStart(4, "0")}-T${p?.terminNumber ?? "?"}-${String(first.paymentId).padStart(5, "0")}`;
   const tanggal = p?.paymentDate ?? new Date().toISOString().split("T")[0];
   const generatedAt = new Date().toLocaleString("id-ID");
+  const isPaid = p?.status === "paid";
+  const docTitle = isPaid ? "BUKTI PEMBAYARAN SUBKONTRAKTOR" : "BUKTI APPROVAL PEMBAYARAN SUBKONTRAKTOR";
+  const statusText = isPaid ? "LUNAS / PAID" : "APPROVED / SIAP BAYAR";
 
   // ── QR Code (generated first so we can place it later) ─────────────────────
   const qrText = [
@@ -88,7 +91,7 @@ async function downloadReceipt(items: Approval[]) {
     `Retensi: ${fmtRp(p?.retentionDeducted ?? 0)}`,
     `Net    : ${fmtRp(p?.netPayment ?? 0)}`,
     `Tgl    : ${tanggal}`,
-    `Status : PAID`,
+    `Status : ${statusText}`,
     `Ref    : ${docId}`,
   ].join("\n");
 
@@ -120,7 +123,7 @@ async function downloadReceipt(items: Approval[]) {
   doc.setTextColor(...white);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text("BUKTI PEMBAYARAN SUBKONTRAKTOR", M + 2, 34);
+  doc.text(docTitle, M + 2, 34);
 
   // PAID badge
   doc.setFillColor(...emerald);
@@ -128,7 +131,7 @@ async function downloadReceipt(items: Approval[]) {
   doc.setTextColor(...white);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.text("✓  LUNAS / PAID", W - M - 14, 34.5, { align: "center" });
+  doc.text(`✓  ${statusText}`, W - M - 14, 34.5, { align: "center" });
 
   // Doc ID + date (top right, inside header)
   doc.setFont("helvetica", "normal");
@@ -377,7 +380,7 @@ async function downloadReceipt(items: Approval[]) {
     W / 2, 294.5, { align: "center" }
   );
 
-  doc.save(`${docId}.pdf`);
+  doc.save(`${isPaid ? docId : `${docId}-APPROVED`}.pdf`);
 }
 
 export default function FinanceApproval() {
@@ -503,9 +506,9 @@ export default function FinanceApproval() {
                     <Lock className="size-3.5" /> Kunci Pembayaran
                   </Button>
                 )}
-                {p?.status === "paid" && (
+                {(p?.status === "approved" || p?.status === "paid") && (
                   <Button size="sm" variant="outline" onClick={() => downloadReceipt(items)}>
-                    <Download className="size-3.5 mr-1" /> PDF Bukti Bayar
+                    <Download className="size-3.5 mr-1" /> {p?.status === "paid" ? "PDF Bukti Bayar" : "PDF Approval"}
                   </Button>
                 )}
               </div>

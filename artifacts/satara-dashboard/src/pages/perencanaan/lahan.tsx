@@ -20,8 +20,11 @@ function num(v: string) { return parseFloat(v) || 0; }
 
 type CanvasPoint = { x: number; y: number };
 type SiteplanTransform = { opacity: number; scale: number; x: number; y: number; locked: boolean };
+type DrawTool = "polygon" | "unit_box";
+type BoxDraft = { width: number; height: number; rotation: number; gap: number; count: number; direction: "right" | "left" | "down" | "up" };
 
 const defaultTransform: SiteplanTransform = { opacity: 0.86, scale: 1, x: 0, y: 0, locked: true };
+const defaultBoxDraft: BoxDraft = { width: 4, height: 7, rotation: 0, gap: 0.6, count: 1, direction: "right" };
 
 function normalizePolygon(coords: Array<[number, number]>): CanvasPoint[] {
   const points = coords
@@ -64,6 +67,48 @@ function parseAcquisitionPolygon(raw: unknown): CanvasPoint[] {
 
 function polygonPoints(points: unknown) {
   return Array.isArray(points) ? points.map((p: any) => `${p.x},${p.y}`).join(" ") : "";
+}
+
+function distance(a: CanvasPoint, b: CanvasPoint) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function rectanglePoints(cx: number, cy: number, width: number, height: number, rotation: number): CanvasPoint[] {
+  const rad = (rotation * Math.PI) / 180;
+  const corners = [
+    { x: -width / 2, y: -height / 2 },
+    { x: width / 2, y: -height / 2 },
+    { x: width / 2, y: height / 2 },
+    { x: -width / 2, y: height / 2 },
+  ];
+  return corners.map(point => ({
+    x: Math.round(Math.max(0, Math.min(100, cx + point.x * Math.cos(rad) - point.y * Math.sin(rad))) * 10) / 10,
+    y: Math.round(Math.max(0, Math.min(100, cy + point.x * Math.sin(rad) + point.y * Math.cos(rad))) * 10) / 10,
+  }));
+}
+
+function polygonCenter(points: CanvasPoint[]) {
+  if (points.length === 0) return { x: 50, y: 50 };
+  return {
+    x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+    y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+  };
+}
+
+function offsetPoints(points: CanvasPoint[], dx: number, dy: number) {
+  return points.map(point => ({
+    x: Math.round(Math.max(0, Math.min(100, point.x + dx)) * 10) / 10,
+    y: Math.round(Math.max(0, Math.min(100, point.y + dy)) * 10) / 10,
+  }));
+}
+
+function nextLabel(label: string, index: number) {
+  const match = label.match(/^(.*?)(\d+)$/);
+  if (!match) return index === 0 ? label : `${label}-${index + 1}`;
+  const prefix = match[1];
+  const numberText = match[2];
+  const value = Number(numberText) + index;
+  return `${prefix}${String(value).padStart(numberText.length, "0")}`;
 }
 
 async function fileToDataUrl(file: File) {
@@ -131,6 +176,10 @@ export default function LahanPage() {
   const [activeSiteplanId, setActiveSiteplanId] = useState<number | null>(null);
   const [isUploadingSiteplan, setIsUploadingSiteplan] = useState(false);
   const [siteplanTransform, setSiteplanTransform] = useState<SiteplanTransform>(defaultTransform);
+  const [drawTool, setDrawTool] = useState<DrawTool>("polygon");
+  const [polygonClosed, setPolygonClosed] = useState(false);
+  const [boxDraft, setBoxDraft] = useState<BoxDraft>(defaultBoxDraft);
+  const [copiedDraft, setCopiedDraft] = useState<CanvasPoint[] | null>(null);
   const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "" });
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
@@ -343,7 +392,20 @@ export default function LahanPage() {
     const rect = imageRef.current.getBoundingClientRect();
     const x = Math.round(((e.clientX - rect.left) / rect.width) * 1000) / 10;
     const y = Math.round(((e.clientY - rect.top) / rect.height) * 1000) / 10;
-    setDraftPoints(p => [...p, { x, y }]);
+    if (drawTool === "unit_box") {
+      setPolygonClosed(true);
+      setShapeDraft(p => ({ ...p, shapeType: "unit" }));
+      setDraftPoints(rectanglePoints(x, y, boxDraft.width, boxDraft.height, boxDraft.rotation));
+      return;
+    }
+    if (polygonClosed) return;
+    setDraftPoints(points => {
+      if (points.length >= 3 && distance({ x, y }, points[0]) <= 2.5) {
+        setPolygonClosed(true);
+        return points;
+      }
+      return [...points, { x, y }];
+    });
   }
 
   async function saveShape() {
@@ -351,17 +413,49 @@ export default function LahanPage() {
       toast({ title: "Isi label dan minimal 3 titik polygon", variant: "destructive" });
       return;
     }
-    const payload = { ...shapeDraft, unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null, polygon: draftPoints };
-    await fetch(editingShapeId ? `/api/planning/siteplan/shapes/${editingShapeId}` : `/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
-      method: editingShapeId ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    if (drawTool === "polygon" && !polygonClosed) {
+      toast({ title: "Tutup polygon dulu sebelum simpan", variant: "destructive" });
+      return;
+    }
+    const isBoxBatch = drawTool === "unit_box" && !editingShapeId && boxDraft.count > 1;
+    if (isBoxBatch) {
+      const dx = boxDraft.direction === "right" ? boxDraft.width + boxDraft.gap : boxDraft.direction === "left" ? -(boxDraft.width + boxDraft.gap) : 0;
+      const dy = boxDraft.direction === "down" ? boxDraft.height + boxDraft.gap : boxDraft.direction === "up" ? -(boxDraft.height + boxDraft.gap) : 0;
+      for (let i = 0; i < boxDraft.count; i += 1) {
+        const payload = {
+          ...shapeDraft,
+          label: nextLabel(shapeDraft.label, i),
+          unitId: null,
+          polygon: offsetPoints(draftPoints, dx * i, dy * i),
+          notes: [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | "),
+        };
+        await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+    } else {
+      const payload = {
+        ...shapeDraft,
+        unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null,
+        polygon: draftPoints,
+        notes: drawTool === "unit_box"
+          ? [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | ")
+          : shapeDraft.notes,
+      };
+      await fetch(editingShapeId ? `/api/planning/siteplan/shapes/${editingShapeId}` : `/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+        method: editingShapeId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
     setDraftPoints([]);
+    setPolygonClosed(false);
     setEditingShapeId(null);
     setShapeDraft(p => ({ ...p, label: "", ownerName: "", blockCode: "", notes: "", unitId: "", progress: 0 }));
     await refetchShapes();
-    toast({ title: editingShapeId ? "Shape siteplan diperbarui" : "Shape siteplan disimpan" });
+    toast({ title: editingShapeId ? "Shape siteplan diperbarui" : isBoxBatch ? `${boxDraft.count} unit kotak disimpan` : "Shape siteplan disimpan" });
   }
 
   function startEditShape(shape: any) {
@@ -384,6 +478,8 @@ export default function LahanPage() {
       notes: shape.notes ?? "",
     });
     setDraftPoints(Array.isArray(shape.polygon) ? shape.polygon : []);
+    setPolygonClosed(true);
+    setDrawTool(shape.shapeType === "unit" && Array.isArray(shape.polygon) && shape.polygon.length === 4 ? "unit_box" : "polygon");
   }
 
   function moveDraft(dx: number, dy: number) {
@@ -391,6 +487,52 @@ export default function LahanPage() {
       x: Math.max(0, Math.min(100, Math.round((p.x + dx) * 10) / 10)),
       y: Math.max(0, Math.min(100, Math.round((p.y + dy) * 10) / 10)),
     })));
+  }
+
+  function updateBoxDraft(next: Partial<BoxDraft>) {
+    setBoxDraft(prev => {
+      const updated = { ...prev, ...next };
+      if (drawTool === "unit_box" && draftPoints.length === 4) {
+        const center = polygonCenter(draftPoints);
+        setDraftPoints(rectanglePoints(center.x, center.y, updated.width, updated.height, updated.rotation));
+        setPolygonClosed(true);
+      }
+      return updated;
+    });
+  }
+
+  function resetDraft() {
+    setDraftPoints([]);
+    setPolygonClosed(false);
+    setEditingShapeId(null);
+  }
+
+  function closePolygon() {
+    if (draftPoints.length < 3) {
+      toast({ title: "Minimal 3 titik untuk menutup polygon", variant: "destructive" });
+      return;
+    }
+    setPolygonClosed(true);
+  }
+
+  function copyDraft() {
+    if (draftPoints.length < 3) {
+      toast({ title: "Belum ada shape untuk dicopy", variant: "destructive" });
+      return;
+    }
+    setCopiedDraft(draftPoints);
+    toast({ title: "Draft shape dicopy" });
+  }
+
+  function pasteDraft() {
+    if (!copiedDraft) {
+      toast({ title: "Belum ada shape yang dicopy", variant: "destructive" });
+      return;
+    }
+    setDraftPoints(offsetPoints(copiedDraft, 2, 2));
+    setPolygonClosed(true);
+    setEditingShapeId(null);
+    setShapeDraft(p => ({ ...p, label: nextLabel(p.label || "A-01", 1), unitId: "" }));
   }
 
   async function deleteShape(id: number) {
@@ -639,7 +781,28 @@ export default function LahanPage() {
                 <SelectContent>{(siteplans as any[]).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.title}</SelectItem>)}</SelectContent>
               </Select>
             )}
-            <Button size="sm" variant="outline" className="h-8" onClick={() => { setDraftPoints([]); setEditingShapeId(null); }}>Reset Titik</Button>
+            <Select value={drawTool} onValueChange={v => {
+              const tool = v as DrawTool;
+              setDrawTool(tool);
+              if (tool === "unit_box") {
+                setShapeDraft(p => ({ ...p, shapeType: "unit" }));
+                setPolygonClosed(true);
+              } else {
+                setPolygonClosed(false);
+              }
+              setDraftPoints([]);
+              setEditingShapeId(null);
+            }}>
+              <SelectTrigger className="h-8 w-44 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="polygon">Gambar Polygon</SelectItem>
+                <SelectItem value="unit_box">Unit Rumah Kotak</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-8" onClick={closePolygon} disabled={drawTool !== "polygon" || polygonClosed || draftPoints.length < 3}>Tutup Polygon</Button>
+            <Button size="sm" variant="outline" className="h-8" onClick={resetDraft}>Reset Titik</Button>
+            <Button size="sm" variant="outline" className="h-8" onClick={copyDraft}>Copy</Button>
+            <Button size="sm" variant="outline" className="h-8" onClick={pasteDraft} disabled={!copiedDraft}>Paste</Button>
             {selectedSiteplan?.id && <Button size="sm" variant="outline" className="h-8" onClick={() => saveSiteplanTransform()}>Simpan Kalibrasi</Button>}
           </div>
 
@@ -706,8 +869,29 @@ export default function LahanPage() {
 	                  {shapeList.map(shape => (
 	                    <polygon key={shape.id} points={polygonPoints(shape.polygon)} fill={shape.id === editingShapeId ? "rgba(245,158,11,.3)" : shape.shapeType === "unit" ? "rgba(59,130,246,.25)" : shape.shapeType === "bidang" ? "rgba(16,185,129,.22)" : "rgba(148,163,184,.2)"} stroke={shape.id === editingShapeId ? "#f59e0b" : shape.shapeType === "unit" ? "#2563eb" : shape.shapeType === "bidang" ? "#059669" : "#64748b"} strokeWidth="0.3" />
 	                  ))}
-                  {draftPoints.length > 0 && <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="rgba(245,158,11,.25)" stroke="#f59e0b" strokeWidth="0.4" />}
-                  {draftPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="0.8" fill="#f59e0b" onClick={(e) => { e.stopPropagation(); setDraftPoints(points => points.filter((_, idx) => idx !== i)); }} />)}
+                  {draftPoints.length > 0 && (polygonClosed || drawTool === "unit_box" ? (
+                    <polygon points={polygonPoints(draftPoints)} fill="rgba(245,158,11,.25)" stroke="#f59e0b" strokeWidth="0.45" />
+                  ) : (
+                    <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#f59e0b" strokeWidth="0.45" />
+                  ))}
+                  {draftPoints.map((p, i) => (
+                    <circle
+                      key={i}
+                      cx={p.x}
+                      cy={p.y}
+                      r={i === 0 && !polygonClosed && draftPoints.length >= 3 ? "1.2" : "0.8"}
+                      fill={i === 0 && !polygonClosed && draftPoints.length >= 3 ? "#0f172a" : "#f59e0b"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (i === 0 && draftPoints.length >= 3 && !polygonClosed) {
+                          setPolygonClosed(true);
+                          return;
+                        }
+                        setDraftPoints(points => points.filter((_, idx) => idx !== i));
+                        setPolygonClosed(false);
+                      }}
+                    />
+                  ))}
                 </svg>
                 {shapeList.map(shape => {
                   const first = shape.polygon?.[0];
@@ -719,10 +903,24 @@ export default function LahanPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1"><Label className="text-xs">Tipe Shape</Label><Select value={shapeDraft.shapeType} onValueChange={v => setShapeDraft(p => ({ ...p, shapeType: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unit">Unit Rumah</SelectItem><SelectItem value="bidang">Bidang Lahan</SelectItem><SelectItem value="blok">Blok/Cluster</SelectItem><SelectItem value="fasum">Jalan/Fasum</SelectItem></SelectContent></Select></div>
                   <div className="space-y-1"><Label className="text-xs">Label</Label><Input className="h-8 text-sm" value={shapeDraft.label} onChange={e => setShapeDraft(p => ({ ...p, label: e.target.value }))} placeholder="A-01 / Bidang 1" /></div>
-                  <div className="space-y-1"><Label className="text-xs">Pemilik</Label><Input className="h-8 text-sm" value={shapeDraft.ownerName} onChange={e => setShapeDraft(p => ({ ...p, ownerName: e.target.value }))} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Status Beli</Label><Select value={shapeDraft.purchaseStatus} onValueChange={v => setShapeDraft(p => ({ ...p, purchaseStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibeli", "proses_nego", "dp", "lunas", "sudah_dibeli", "milik_sendiri"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-1"><Label className="text-xs">Luas</Label><NumericInput className="h-8 text-sm" value={shapeDraft.landArea} onChange={v => setShapeDraft(p => ({ ...p, landArea: v }))} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Rencana Unit</Label><NumericInput className="h-8 text-sm" value={shapeDraft.plannedUnits} onChange={v => setShapeDraft(p => ({ ...p, plannedUnits: Math.round(v) }))} /></div>
+                  {drawTool === "polygon" && (
+                    <>
+                      <div className="space-y-1"><Label className="text-xs">Pemilik</Label><Input className="h-8 text-sm" value={shapeDraft.ownerName} onChange={e => setShapeDraft(p => ({ ...p, ownerName: e.target.value }))} /></div>
+                      <div className="space-y-1"><Label className="text-xs">Status Beli</Label><Select value={shapeDraft.purchaseStatus} onValueChange={v => setShapeDraft(p => ({ ...p, purchaseStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibeli", "proses_nego", "dp", "lunas", "sudah_dibeli", "milik_sendiri"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-xs">Luas</Label><NumericInput className="h-8 text-sm" value={shapeDraft.landArea} onChange={v => setShapeDraft(p => ({ ...p, landArea: v }))} /></div>
+                      <div className="space-y-1"><Label className="text-xs">Rencana Unit</Label><NumericInput className="h-8 text-sm" value={shapeDraft.plannedUnits} onChange={v => setShapeDraft(p => ({ ...p, plannedUnits: Math.round(v) }))} /></div>
+                    </>
+                  )}
+                  {drawTool === "unit_box" && (
+                    <>
+                      <div className="space-y-1"><Label className="text-xs">Lebar Kotak (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.width} onChange={v => updateBoxDraft({ width: Math.max(0.5, v) })} /></div>
+                      <div className="space-y-1"><Label className="text-xs">Tinggi Kotak (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.height} onChange={v => updateBoxDraft({ height: Math.max(0.5, v) })} /></div>
+                      <div className="space-y-1"><Label className="text-xs">Rotasi</Label><NumericInput className="h-8 text-sm" decimals={0} value={boxDraft.rotation} onChange={v => updateBoxDraft({ rotation: v })} /></div>
+                      <div className="space-y-1"><Label className="text-xs">Jumlah Copy</Label><NumericInput className="h-8 text-sm" decimals={0} value={boxDraft.count} onChange={v => updateBoxDraft({ count: Math.max(1, Math.round(v)) })} /></div>
+                      <div className="space-y-1"><Label className="text-xs">Jarak Copy (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.gap} onChange={v => updateBoxDraft({ gap: Math.max(0, v) })} /></div>
+                      <div className="space-y-1"><Label className="text-xs">Arah Copy</Label><Select value={boxDraft.direction} onValueChange={v => updateBoxDraft({ direction: v as BoxDraft["direction"] })}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="right">Kanan</SelectItem><SelectItem value="left">Kiri</SelectItem><SelectItem value="down">Bawah</SelectItem><SelectItem value="up">Atas</SelectItem></SelectContent></Select></div>
+                    </>
+                  )}
                   <div className="space-y-1"><Label className="text-xs">Tipe Rumah</Label><Input className="h-8 text-sm" value={shapeDraft.unitType} onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))} /></div>
 	                  <div className="space-y-1"><Label className="text-xs">Status Unit</Label><Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
 	                  <div className="space-y-1 col-span-2"><Label className="text-xs">Link Unit Produksi</Label><Select value={shapeDraft.unitId || "none"} onValueChange={v => {
@@ -738,7 +936,7 @@ export default function LahanPage() {
 	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, 1)}>Bawah</Button>
 	                  </div>
                 )}
-	                <Button size="sm" onClick={saveShape} disabled={draftPoints.length < 3 || !shapeDraft.label} className="w-full"><Plus className="size-3.5 mr-1" /> {editingShapeId ? "Update Shape" : "Simpan Shape"} ({draftPoints.length} titik)</Button>
+	                <Button size="sm" onClick={saveShape} disabled={draftPoints.length < 3 || !shapeDraft.label || (drawTool === "polygon" && !polygonClosed)} className="w-full"><Plus className="size-3.5 mr-1" /> {editingShapeId ? "Update Shape" : drawTool === "unit_box" && boxDraft.count > 1 ? `Simpan ${boxDraft.count} Unit` : "Simpan Shape"} ({draftPoints.length} titik)</Button>
                 <div className="rounded-md border divide-y max-h-56 overflow-auto">
                   {shapeList.length === 0 ? <p className="p-3 text-xs text-muted-foreground">Belum ada shape.</p> : shapeList.map(shape => (
                     <div key={shape.id} className="flex items-center justify-between gap-2 p-2">

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Users, TrendingUp, AlertTriangle, Building2, DollarSign, Activity, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Users, AlertTriangle, Activity, Clock, CheckCircle2, XCircle, Target, FileSpreadsheet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PIPELINE_STAGES = [
@@ -103,13 +103,10 @@ export default function Administrasi() {
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Daftar Customer", path: "/administrasi/customer", icon: Users },
-              { label: "Bank Submission", path: "/administrasi/bank-submission", icon: Building2 },
-              { label: "OTS Tracker", path: "/administrasi/ots", icon: Clock },
-              { label: "SP3K Tracker", path: "/administrasi/sp3k", icon: CheckCircle2 },
-              { label: "Akad Tracker", path: "/administrasi/akad", icon: TrendingUp },
-              { label: "HT Tracker", path: "/administrasi/ht", icon: DollarSign },
               { label: "Aging Pipeline", path: "/administrasi/aging", icon: AlertTriangle },
+              { label: "Target & Realisasi", path: "/administrasi/target", icon: Target },
               { label: "Komplain", path: "/administrasi/komplain", icon: XCircle },
+              { label: "Import Data Excel", path: "/administrasi/import", icon: FileSpreadsheet },
             ].map(({ label, path, icon: Icon }) => (
               <Link key={path} href={path}>
                 <div className="flex items-center gap-2 p-2 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer text-xs font-medium">

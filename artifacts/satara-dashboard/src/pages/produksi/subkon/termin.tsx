@@ -85,18 +85,6 @@ export default function SubkonTermin() {
     onError: () => toast({ title: "Gagal submit termin", variant: "destructive" }),
   });
 
-  const markPaidMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await fetch(`/api/produksi/subkon/payments/${id}/mark-paid`, { method: "PATCH" });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["subkon-payments"] });
-      toast({ title: "Pembayaran dikonfirmasi" });
-    },
-  });
-
   const contract = contracts?.find(c => c.id === parseInt(selectedContract));
   const contractUnits = contract
     ? (units ?? []).filter(u => {
@@ -241,9 +229,7 @@ export default function SubkonTermin() {
                         </td>
                         <td className="py-2">
                           {p.status === "approved" && (
-                            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => markPaidMutation.mutate(p.id)}>
-                              Konfirmasi Bayar
-                            </Button>
+                            <span className="text-[10px] text-muted-foreground">Menunggu Finance</span>
                           )}
                         </td>
                       </tr>

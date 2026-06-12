@@ -128,8 +128,16 @@ const SEED_MATERIALS = [
 router.get("/produksi/material/master", async (req, res) => {
   try {
     let rows = await db.select().from(prodMaterialMasterTable).orderBy(prodMaterialMasterTable.category);
-    if (rows.length === 0) {
-      await db.insert(prodMaterialMasterTable).values(SEED_MATERIALS);
+    const existingNames = new Set(rows.map(r => r.name.toLowerCase()));
+    const seenSeedNames = new Set<string>();
+    const missingSeeds = SEED_MATERIALS.filter(s => {
+      const key = s.name.toLowerCase();
+      if (existingNames.has(key) || seenSeedNames.has(key)) return false;
+      seenSeedNames.add(key);
+      return true;
+    });
+    if (missingSeeds.length > 0) {
+      await db.insert(prodMaterialMasterTable).values(missingSeeds);
       rows = await db.select().from(prodMaterialMasterTable).orderBy(prodMaterialMasterTable.category);
     }
     res.json(rows.map(r => ({ ...r, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() })));
@@ -218,7 +226,14 @@ router.get("/produksi/material/productivity", async (req, res) => {
         && masters.find(m => m.id === o.materialId)?.name === s.materialName
       );
       const actual = relatedOut.reduce((sum, o) => sum + o.quantity, 0);
-      const unitCount = relatedOut.reduce((max, o) => Math.max(max, o.batchUnitCount ?? 1), s.referenceUnitCount ?? 1);
+      const unitCountByBatch = new Map<string, number>();
+      for (const out of relatedOut) {
+        const key = out.batchId ?? `row-${out.id}`;
+        unitCountByBatch.set(key, Math.max(unitCountByBatch.get(key) ?? 0, out.batchUnitCount ?? 1));
+      }
+      const unitCount = unitCountByBatch.size
+        ? Array.from(unitCountByBatch.values()).reduce((sum, count) => sum + count, 0)
+        : s.referenceUnitCount ?? 1;
       const planned = standardPerUnit * Math.max(1, unitCount);
       const variance = actual - planned;
       const efficiency = actual > 0 ? Math.round((planned / actual) * 1000) / 10 : 0;

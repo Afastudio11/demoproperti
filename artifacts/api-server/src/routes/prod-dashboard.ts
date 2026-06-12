@@ -116,6 +116,18 @@ router.get("/produksi/progress/summary", async (req, res) => {
 
     const byProject = projects.map(proj => {
       const projUnits = units.filter(u => u.projectId === proj.id);
+      projUnits.sort((a, b) => {
+        const aBlok = a.blok || "";
+        const bBlok = b.blok || "";
+        const blokCompare = aBlok.localeCompare(bBlok);
+        if (blokCompare !== 0) return blokCompare;
+        const aNum = parseInt(a.nomor, 10);
+        const bNum = parseInt(b.nomor, 10);
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return aNum - bNum;
+        }
+        return (a.nomor || "").localeCompare(b.nomor || "");
+      });
       const avgProgress = projUnits.length > 0 ? projUnits.reduce((s, u) => s + u.progress, 0) / projUnits.length : 0;
       const byStage = new Map<string, { unitCount: number; progress: number; units: typeof projUnits }>();
       projUnits.forEach(u => {

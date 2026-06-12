@@ -192,7 +192,6 @@ const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Input Keluar", path: "/produksi/material/keluar" },
   { type: "link", name: "Konsumsi", path: "/produksi/material/konsumsi" },
   { type: "link", name: "Variance", path: "/produksi/material/variance" },
-  { type: "link", name: "Forecast Material", path: "/produksi/material/forecast" },
   { type: "group", label: "Progress" },
   { type: "link", name: "Progress Proyek", path: "/produksi/progress/proyek" },
   { type: "link", name: "Progress Tahap", path: "/produksi/progress/tahap" },

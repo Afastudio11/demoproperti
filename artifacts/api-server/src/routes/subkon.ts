@@ -10,7 +10,6 @@ import {
 import { eq } from "drizzle-orm";
 import { listSubkonMaster, normalizeSubkonName } from "../lib/subkon-master";
 import { getContractFieldProgress } from "../lib/production-relations";
-import { recordFinanceCashflow } from "../lib/finance-sync";
 
 const router: IRouter = Router();
 
@@ -235,60 +234,12 @@ router.get("/produksi/subkon/approvals", async (req, res) => {
   }
 });
 
-router.patch("/produksi/subkon/approvals/:id", async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    const { status, approvedBy, notes } = req.body as { status: string; approvedBy?: string; notes?: string };
-    const [row] = await db.update(paymentApprovalsTable).set({
-      status,
-      approvedBy: approvedBy ?? null,
-      approvedAt: status !== "pending" ? new Date() : null,
-      notes: notes ?? null,
-    }).where(eq(paymentApprovalsTable.id, id)).returning();
-    if (!row) return res.status(404).json({ error: "Not found" });
-
-    if (status === "rejected") {
-      await db.update(subkonPaymentsTable).set({ status: "rejected" }).where(eq(subkonPaymentsTable.id, row.paymentId));
-    } else if (status === "approved") {
-      const approvals = await db.select().from(paymentApprovalsTable).where(eq(paymentApprovalsTable.paymentId, row.paymentId));
-      const allApproved = approvals.every(a => a.status === "approved");
-      if (allApproved) {
-        await db.update(subkonPaymentsTable).set({ status: "approved" }).where(eq(subkonPaymentsTable.id, row.paymentId));
-      }
-    }
-
-    res.json({ ...row, createdAt: row.createdAt.toISOString(), approvedAt: row.approvedAt?.toISOString() ?? null });
-  } catch (err) {
-    req.log.error({ err }, "Failed to update approval");
-    res.status(400).json({ error: "Invalid request" });
-  }
+router.patch("/produksi/subkon/approvals/:id", async (_req, res) => {
+  res.status(403).json({ error: "Approval pembayaran subkon hanya boleh diproses dari Finance." });
 });
 
-router.patch("/produksi/subkon/payments/:id/mark-paid", async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    const [existing] = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.id, id));
-    if (!existing) return res.status(404).json({ error: "Not found" });
-    if (existing.status !== "approved") return res.status(400).json({ error: "Pembayaran harus disetujui sebelum ditandai paid" });
-    const [row] = await db.update(subkonPaymentsTable).set({ status: "paid", paymentDate: new Date().toISOString().split("T")[0] }).where(eq(subkonPaymentsTable.id, id)).returning();
-    if (!row) return res.status(404).json({ error: "Not found" });
-    const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, row.contractId));
-    if (contract && row.netPayment && row.netPayment > 0) {
-      await recordFinanceCashflow({
-        transactionDate: row.paymentDate ?? undefined,
-        type: "cash_out",
-        category: "subkon",
-        amount: row.netPayment,
-        description: `Pembayaran termin ${row.terminNumber ?? "-"} ${contract.subkonName}`,
-        referenceNumber: `SUBKON-${row.contractId}-${row.id}`,
-        projectId: contract.projectId,
-      });
-    }
-    res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
-  } catch (err) {
-    req.log.error({ err }, "Failed to mark payment as paid");
-    res.status(400).json({ error: "Invalid request" });
-  }
+router.patch("/produksi/subkon/payments/:id/mark-paid", async (_req, res) => {
+  res.status(403).json({ error: "Pembayaran subkon hanya boleh ditandai paid dari Finance." });
 });
 
 // ─── MATERIAL COMPARISON PER SUBKON ──────────────────────────────────────────

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from "recharts";
 import { TrendingUp, TrendingDown, Minus, BarChart3, ChevronRight } from "lucide-react";
 
@@ -28,6 +28,7 @@ const statusColor = (s: string) => s === "on_track" ? "text-emerald-600" : s ===
 const barColor = (s: string) => s === "on_track" ? "#10b981" : s === "warning" ? "#f59e0b" : "#ef4444";
 
 export default function ProgressProyek() {
+  const [, setLocation] = useLocation();
   const [filterStatus, setFilterStatus] = useState("all");
   const [view, setView] = useState<"list" | "chart">("list");
 
@@ -133,7 +134,11 @@ export default function ProgressProyek() {
       ) : (
         <div className="space-y-4">
           {filtered.map(proj => (
-            <Card key={proj.projectId}>
+            <Card 
+              key={proj.projectId}
+              className="cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => setLocation(`/produksi/progress/tahap?projectId=${proj.projectId}`)}
+            >
               <CardHeader className="pb-2 pt-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -143,7 +148,11 @@ export default function ProgressProyek() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground">{proj.totalUnits} unit</span>
-                    <Link href="/produksi/progress/tahap" className="text-xs text-muted-foreground flex items-center gap-0.5 hover:text-foreground transition-colors">
+                    <Link 
+                      href={`/produksi/progress/tahap?projectId=${proj.projectId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs text-muted-foreground flex items-center gap-0.5 hover:text-foreground transition-colors"
+                    >
                       Per Tahap <ChevronRight className="size-3" />
                     </Link>
                   </div>
@@ -171,7 +180,14 @@ export default function ProgressProyek() {
                 {proj.stages.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
                     {proj.stages.map(stage => (
-                      <div key={stage.stageCode} className={`rounded-md px-3 py-2 ${stage.avgProgress >= 100 ? "bg-emerald-500/10 border border-emerald-500/20" : stage.avgProgress > 0 ? "bg-muted/40" : "bg-muted/20 border border-dashed"}`}>
+                      <div 
+                        key={stage.stageCode}
+                        className={`rounded-md px-3 py-2 cursor-pointer hover:bg-muted/70 transition-colors ${stage.avgProgress >= 100 ? "bg-emerald-500/10 border border-emerald-500/20" : stage.avgProgress > 0 ? "bg-muted/40" : "bg-muted/20 border border-dashed"}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocation(`/produksi/progress/unit?projectId=${proj.projectId}&stageCode=${stage.stageCode}`);
+                        }}
+                      >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-semibold">{stage.stageCode}</span>
                           <span className="text-[10px] text-muted-foreground">{stage.unitCount} unit</span>
