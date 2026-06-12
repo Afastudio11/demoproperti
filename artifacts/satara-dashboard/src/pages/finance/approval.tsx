@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Clock, Download, Lock, ReceiptText, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
-import QRCode from "@/lib/browser-shims/qrcode";
+import QRCode from "qrcode";
 
 const fmtRp = (n: number) => `Rp ${Number(n || 0).toLocaleString("id-ID")}`;
 
@@ -76,9 +76,9 @@ async function downloadReceipt(items: Approval[]) {
   const docId = `SPK-${String(c?.id ?? 0).padStart(4, "0")}-T${p?.terminNumber ?? "?"}-${String(first.paymentId).padStart(5, "0")}`;
   const tanggal = p?.paymentDate ?? new Date().toISOString().split("T")[0];
   const generatedAt = new Date().toLocaleString("id-ID");
-  const isPaid = p?.status === "paid";
-  const docTitle = isPaid ? "BUKTI PEMBAYARAN SUBKONTRAKTOR" : "BUKTI APPROVAL PEMBAYARAN SUBKONTRAKTOR";
-  const statusText = isPaid ? "LUNAS / PAID" : "APPROVED / SIAP BAYAR";
+  const isPaid = true;
+  const docTitle = "BUKTI PEMBAYARAN SUBKONTRAKTOR";
+  const statusText = "LUNAS / PAID";
 
   // ── QR Code (Simplified to a clean URL for instant scanning) ───────────────
   const qrText = `https://laongweb.com/verify-payment?docId=${docId}`;
