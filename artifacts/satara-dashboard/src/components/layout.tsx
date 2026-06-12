@@ -121,7 +121,6 @@ const akuisisiSubNav: SubNavItem[] = [
 ];
 
 const perencanaanSubNav: SubNavItem[] = [
-  { type: "link", name: "Command Center", path: "/perencanaan" },
   { type: "group", label: "Riset" },
   { type: "link", name: "Analisis Pasar", path: "/perencanaan/pasar" },
   { type: "link", name: "Analisis Lahan", path: "/perencanaan/lahan" },
