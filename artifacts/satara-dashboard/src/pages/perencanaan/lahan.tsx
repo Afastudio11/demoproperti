@@ -297,6 +297,9 @@ export default function LahanPage() {
   const [draftHistory, setDraftHistory] = useState<CanvasPoint[][]>([]);
   const imageRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const justLoadedEditingRef = useRef<number | null>(null);
 
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
@@ -521,6 +524,81 @@ export default function LahanPage() {
     return `A-${String(index).padStart(2, "0")}`;
   }
 
+  async function autoSaveNewShape(points: CanvasPoint[], labelOverride?: string): Promise<any | null> {
+    if (!selectedSiteplan || points.length < 3) return null;
+    const finalLabel = (labelOverride || shapeDraft.label.trim() || nextUnitLabel());
+    const isBox = isUnitRectangleDraft(shapeDraft.shapeType, points);
+    const payload = {
+      ...shapeDraft,
+      label: finalLabel,
+      unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null,
+      polygon: points,
+      notes: isBox
+        ? [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | ")
+        : shapeDraft.notes,
+    };
+    setIsSaving(true);
+    try {
+      const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) return null;
+      const saved = await resp.json();
+      setShapeDraft(p => ({ ...p, label: finalLabel }));
+      await refetchShapes();
+      return saved;
+    } catch {
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function autoPatchShape(id: number, fields: Record<string, unknown>) {
+    setIsSaving(true);
+    try {
+      const resp = await fetch(`/api/planning/siteplan/shapes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (resp.ok) await refetchShapes();
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function batchCopyShapes() {
+    if (!selectedSiteplan || draftPoints.length !== 4 || boxDraft.count <= 1) return;
+    const dx = boxDraft.direction === "right" ? boxDraft.width + boxDraft.gap : boxDraft.direction === "left" ? -(boxDraft.width + boxDraft.gap) : 0;
+    const dy = boxDraft.direction === "down" ? boxDraft.height + boxDraft.gap : boxDraft.direction === "up" ? -(boxDraft.height + boxDraft.gap) : 0;
+    setIsSaving(true);
+    try {
+      for (let i = 1; i <= boxDraft.count; i++) {
+        const payload = {
+          ...shapeDraft,
+          label: nextLabel(shapeDraft.label, i),
+          unitId: null,
+          polygon: offsetPoints(draftPoints, dx * i, dy * i),
+          notes: [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | "),
+        };
+        await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+      await refetchShapes();
+      toast({ title: `${boxDraft.count} salinan unit dibuat` });
+    } catch {
+      toast({ title: "Gagal membuat salinan", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   function shapeAtPoint(point: CanvasPoint) {
     for (let i = shapeList.length - 1; i >= 0; i -= 1) {
       const shape = shapeList[i];
@@ -688,15 +766,61 @@ export default function LahanPage() {
 
   function stopCanvasDrag() {
     const drag = dragRef.current;
+    dragRef.current = null;
+
     if (drag?.mode === "draw-box") {
       const width = Math.abs(drag.last.x - drag.start.x);
       const height = Math.abs(drag.last.y - drag.start.y);
       const finalPoints = width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, drag.last) : rectanglePoints(drag.start.x, drag.start.y, boxDraft.width, boxDraft.height, boxDraft.rotation);
       const bounds = polygonBounds(finalPoints);
-      setDraftPoints(finalPoints);
       setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height, count: 1, rotation: 0 }));
       setDrawTool("select");
+      // Auto-save immediately — no Simpan button needed
+      const autoLabel = shapeDraft.label.trim() || nextUnitLabel();
+      autoSaveNewShape(finalPoints, autoLabel).then(saved => {
+        if (saved) {
+          setDraftPoints([]);
+          setPolygonClosed(false);
+          justLoadedEditingRef.current = saved.id;
+          setEditingShapeId(saved.id);
+          const shapePoints = Array.isArray(saved.polygon) ? saved.polygon : [];
+          const isUnitBox = saved.shapeType === "unit" && shapePoints.length === 4;
+          if (isUnitBox) {
+            const b = polygonBounds(shapePoints);
+            setBoxDraft(prev => ({ ...prev, width: b.width, height: b.height, count: 1 }));
+          }
+          setShapeDraft({
+            shapeType: saved.shapeType ?? "unit",
+            label: saved.label ?? autoLabel,
+            ownerName: saved.ownerName ?? "",
+            landArea: Number(saved.landArea ?? 0),
+            price: Number(saved.price ?? 0),
+            legalStatus: saved.legalStatus ?? "",
+            purchaseStatus: saved.purchaseStatus ?? "belum_dibeli",
+            plannedUnits: Number(saved.plannedUnits ?? 1),
+            blockCode: saved.blockCode ?? "",
+            unitType: saved.unitType ?? "",
+            subkonName: saved.subkonName ?? "",
+            unitStatus: saved.unitStatus ?? "belum_dibuka",
+            unitId: saved.unitId ? String(saved.unitId) : "",
+            progress: Number(saved.progress ?? 0),
+            notes: saved.notes ?? "",
+          });
+          setDraftPoints(shapePoints);
+          setPolygonClosed(true);
+        } else {
+          setDraftPoints(finalPoints);
+        }
+      });
+      return;
     }
+
+    // Auto-patch polygon when dragging/resizing a saved shape
+    if ((drag?.mode === "shape" || drag?.mode === "corner" || drag?.mode === "edge" || drag?.mode === "rotate") && editingShapeId) {
+      autoPatchShape(editingShapeId, { polygon: draftPoints });
+      return;
+    }
+
     if (drag?.mode === "marquee") {
       const selection = normalizedBounds(drag.start, drag.current);
       const selected = shapeList
@@ -709,7 +833,6 @@ export default function LahanPage() {
       setSelectionBox(null);
       if (selected.length > 0) resetDraft();
     }
-    dragRef.current = null;
   }
 
   async function saveShape() {
@@ -778,6 +901,7 @@ export default function LahanPage() {
       const bounds = polygonBounds(shapePoints);
       setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height, count: 1 }));
     }
+    justLoadedEditingRef.current = shape.id;
     setEditingShapeId(shape.id);
     setShapeDraft({
       shapeType: shape.shapeType ?? "unit",
@@ -986,6 +1110,64 @@ export default function LahanPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
+
+  // Auto-save when polygon is closed (polygon tool)
+  useEffect(() => {
+    if (!polygonClosed || editingShapeId || draftPoints.length < 3) return;
+    if (isUnitRectangleDraft(shapeDraft.shapeType, draftPoints)) return; // handled by draw-box
+    const autoLabel = shapeDraft.label.trim() || nextUnitLabel();
+    autoSaveNewShape(draftPoints, autoLabel).then(saved => {
+      if (saved) {
+        setDraftPoints([]);
+        setPolygonClosed(false);
+        justLoadedEditingRef.current = saved.id;
+        setEditingShapeId(saved.id);
+        setShapeDraft({
+          shapeType: saved.shapeType ?? shapeDraft.shapeType,
+          label: saved.label ?? autoLabel,
+          ownerName: saved.ownerName ?? "",
+          landArea: Number(saved.landArea ?? 0),
+          price: Number(saved.price ?? 0),
+          legalStatus: saved.legalStatus ?? "",
+          purchaseStatus: saved.purchaseStatus ?? "belum_dibeli",
+          plannedUnits: Number(saved.plannedUnits ?? 1),
+          blockCode: saved.blockCode ?? "",
+          unitType: saved.unitType ?? "",
+          subkonName: saved.subkonName ?? "",
+          unitStatus: saved.unitStatus ?? "belum_dibuka",
+          unitId: saved.unitId ? String(saved.unitId) : "",
+          progress: Number(saved.progress ?? 0),
+          notes: saved.notes ?? "",
+        });
+        const shapePoints = Array.isArray(saved.polygon) ? saved.polygon : draftPoints;
+        setDraftPoints(shapePoints);
+        setPolygonClosed(true);
+        setDrawTool("select");
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polygonClosed]);
+
+  // Debounced auto-patch when editing existing shape metadata
+  useEffect(() => {
+    if (!editingShapeId) return;
+    // Skip the first fire after loading a shape (shapeDraft was just populated from startEditShape)
+    if (justLoadedEditingRef.current === editingShapeId) {
+      justLoadedEditingRef.current = null;
+      return;
+    }
+    if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
+    autoSaveDebounceRef.current = setTimeout(() => {
+      autoPatchShape(editingShapeId, {
+        ...shapeDraft,
+        unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null,
+      });
+    }, 700);
+    return () => {
+      if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapeDraft]);
 
   return (
     <div className="space-y-4">
@@ -1497,7 +1679,24 @@ export default function LahanPage() {
                             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, 1)}>Bawah</Button>
                           </div>
                 )}
-                        <Button size="sm" onClick={saveShape} disabled={draftPoints.length < 3 || !shapeDraft.label || (!isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && !polygonClosed)} className="w-full"><Plus className="size-3.5 mr-1" /> {editingShapeId ? "Update Shape" : isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && boxDraft.count > 1 ? `Simpan ${boxDraft.count} Unit` : "Simpan Shape"} ({draftPoints.length} titik)</Button>
+                        {/* Auto-save indicator */}
+                        <div className="flex items-center justify-between gap-2">
+                          {isSaving ? (
+                            <span className="text-[10px] text-amber-500 animate-pulse">Menyimpan...</span>
+                          ) : editingShapeId ? (
+                            <span className="text-[10px] text-emerald-600">Tersimpan otomatis</span>
+                          ) : drawTool === "polygon" && draftPoints.length >= 3 && !polygonClosed ? (
+                            <Button size="sm" variant="outline" onClick={closePolygon} className="h-7 text-xs flex-1">Tutup Polygon (auto-simpan)</Button>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Gambar kotak atau polygon untuk mulai</span>
+                          )}
+                          {/* Batch copy button — only shown when editing a box shape */}
+                          {editingShapeId && isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && boxDraft.count > 1 && (
+                            <Button size="sm" variant="outline" onClick={batchCopyShapes} disabled={isSaving} className="h-7 text-xs shrink-0">
+                              Buat {boxDraft.count} Salinan
+                            </Button>
+                          )}
+                        </div>
                 <div className="rounded-md border divide-y max-h-56 overflow-auto">
                   {shapeList.length === 0 ? <p className="p-3 text-xs text-muted-foreground">Belum ada shape.</p> : shapeList.map(shape => (
                     <div key={shape.id} className="flex items-center justify-between gap-2 p-2">
