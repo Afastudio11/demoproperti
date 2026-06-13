@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
-import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload, ZoomIn, ZoomOut } from "lucide-react";
+import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload, ZoomIn, ZoomOut, Lock, Unlock, RefreshCw } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { cn } from "@/lib/utils";
@@ -290,7 +290,8 @@ export default function LahanPage() {
   const [boxDraft, setBoxDraft] = useState<BoxDraft>(defaultBoxDraft);
   const [serialCopy, setSerialCopy] = useState({ startLabel: "", count: 3, direction: "right" as BoxDraft["direction"], gap: 0.3 });
   const [copiedDraft, setCopiedDraft] = useState<CanvasPoint[] | null>(null);
-  const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "" });
+  const [copiedShapes, setCopiedShapes] = useState<any[]>([]);
+  const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "", isLocked: false });
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
   const [selectedShapeIds, setSelectedShapeIds] = useState<number[]>([]);
@@ -679,9 +680,11 @@ export default function LahanPage() {
     if (drawTool === "select") {
       // ── Body drag for active draft (Miro-like: grab the box body, not just handles) ──
       if (draftPoints.length >= 3 && pointInPolygon(point, draftPoints)) {
-        rememberDraft();
-        dragRef.current = { mode: "shape", lastX: e.clientX, lastY: e.clientY };
-        imageRef.current?.setPointerCapture(e.pointerId);
+        if (!shapeDraft.isLocked) {
+          rememberDraft();
+          dragRef.current = { mode: "shape", lastX: e.clientX, lastY: e.clientY };
+          imageRef.current?.setPointerCapture(e.pointerId);
+        }
         return;
       }
       // ── Marquee selection (Ctrl/Shift drag) ──
@@ -717,6 +720,7 @@ export default function LahanPage() {
     rememberDraft();
     setSelectedShapeIds(prev => prev.includes(shape.id) ? prev : []);
     startEditShape(shape);
+    if (shape.isLocked) return;
     dragRef.current = { mode: "shape", lastX: e.clientX, lastY: e.clientY };
     imageRef.current?.setPointerCapture(e.pointerId);
   }
@@ -940,6 +944,7 @@ export default function LahanPage() {
       unitId: shape.unitId ? String(shape.unitId) : "",
       progress: Number(shape.progress ?? 0),
       notes: shape.notes ?? "",
+      isLocked: !!shape.isLocked,
     });
     setDraftPoints(shapePoints);
     setPolygonClosed(true);
@@ -1035,38 +1040,75 @@ export default function LahanPage() {
   }
 
   function copyDraft() {
-    if (draftPoints.length < 3) {
-      toast({ title: "Belum ada shape untuk dicopy", variant: "destructive" });
-      return;
+    if (selectedShapeIds.length > 1) {
+      const shapes = shapeList.filter(s => selectedShapeIds.includes(s.id));
+      if (shapes.length === 0) return;
+      setCopiedShapes(shapes);
+      setCopiedDraft(null);
+      toast({ title: `${shapes.length} shape dicopy` });
+    } else if (draftPoints.length >= 3) {
+      setCopiedDraft(draftPoints);
+      setCopiedShapes([]);
+      toast({ title: "Shape dicopy" });
+    } else {
+      toast({ title: "Pilih shape atau gunakan Shift-drag untuk pilih banyak", variant: "destructive" });
     }
-    setCopiedDraft(draftPoints);
-    toast({ title: "Draft shape dicopy" });
   }
 
   async function pasteDraft() {
-    if (!copiedDraft || !selectedSiteplan) {
+    if (!selectedSiteplan) return;
+    if (copiedShapes.length > 1) {
+      // Multi-paste
+      const allPoints = copiedShapes.flatMap(s => Array.isArray(s.polygon) ? s.polygon as CanvasPoint[] : []);
+      const groupBounds = polygonBounds(allPoints.length >= 3 ? allPoints : copiedShapes[0].polygon);
+      const offsetX = groupBounds.width + 0.5;
+      setIsSaving(true);
+      try {
+        const newIds: number[] = [];
+        for (const cs of copiedShapes) {
+          const poly = Array.isArray(cs.polygon) ? cs.polygon as CanvasPoint[] : [];
+          const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...cs, id: undefined, siteplanId: undefined, createdAt: undefined, updatedAt: undefined, label: nextLabel(cs.label || "A-01", copiedShapes.length), unitId: null, polygon: offsetPoints(poly, offsetX, 0), isLocked: 0 }),
+          });
+          if (!resp.ok) throw new Error("Gagal paste");
+          const saved = await resp.json();
+          newIds.push(saved.id);
+        }
+        await refetchShapes();
+        setSelectedShapeIds(newIds);
+        resetDraft();
+        toast({ title: `${copiedShapes.length} shape ditempel` });
+      } catch {
+        toast({ title: "Gagal paste", variant: "destructive" });
+      } finally {
+        setIsSaving(false);
+      }
+    } else if (copiedDraft) {
+      // Single paste
+      const bounds = polygonBounds(copiedDraft);
+      const newPoints = offsetPoints(copiedDraft, bounds.width + 0.3, 0);
+      const newLabel = nextLabel(shapeDraft.label || "A-01", 1);
+      setIsSaving(true);
+      try {
+        const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...shapeDraft, label: newLabel, unitId: null, polygon: newPoints, isLocked: 0 }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.error ?? "Gagal paste");
+        const saved = await resp.json();
+        await refetchShapes();
+        startEditShape(saved);
+        toast({ title: `Shape ${newLabel} ditempel di sebelah kanan` });
+      } catch {
+        toast({ title: "Gagal paste shape", variant: "destructive" });
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
       toast({ title: "Belum ada shape yang dicopy", variant: "destructive" });
-      return;
-    }
-    const bounds = polygonBounds(copiedDraft);
-    const newPoints = offsetPoints(copiedDraft, bounds.width + 0.3, 0);
-    const newLabel = nextLabel(shapeDraft.label || "A-01", 1);
-    setIsSaving(true);
-    try {
-      const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...shapeDraft, label: newLabel, unitId: null, polygon: newPoints }),
-      });
-      if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.error ?? "Gagal paste");
-      const saved = await resp.json();
-      await refetchShapes();
-      startEditShape(saved);
-      toast({ title: `Shape ${newLabel} ditempel di sebelah kanan` });
-    } catch {
-      toast({ title: "Gagal paste shape", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
     }
   }
 
@@ -1239,6 +1281,7 @@ export default function LahanPage() {
       autoPatchShape(editingShapeId, {
         ...shapeDraft,
         unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null,
+        isLocked: shapeDraft.isLocked ? 1 : 0,
       });
     }, 700);
     return () => {
@@ -1531,18 +1574,25 @@ export default function LahanPage() {
                   {shapeList.map(shape => {
                     if (shape.id === editingShapeId) return null;
                     const isSelected = selectedShapeIds.includes(shape.id);
+                    const isLocked = !!shape.isLocked;
                     const color = shapeColor(shape, shape.id === editingShapeId || isSelected);
+                    const poly = Array.isArray(shape.polygon) ? shape.polygon as CanvasPoint[] : [];
+                    const center = poly.length >= 3 ? polygonCenter(poly) : null;
                     return (
-                      <polygon
-                        key={shape.id}
-                        points={polygonPoints(shape.polygon)}
-                        fill={color.fill}
-                        stroke={color.stroke}
-                        strokeWidth={isSelected ? 0.55 * sw : 0.3 * sw}
-                        strokeDasharray={isSelected ? `${1.1 * sw} ${0.7 * sw}` : undefined}
-                        onPointerDown={(e) => startShapeDrag(e, shape)}
-                        className={drawTool === "select" ? "cursor-move" : drawTool === "delete" ? "cursor-not-allowed" : ""}
-                      />
+                      <g key={shape.id}>
+                        <polygon
+                          points={polygonPoints(shape.polygon)}
+                          fill={isLocked ? color.fill.replace(/,[^,)]+\)$/, ",0.35)") : color.fill}
+                          stroke={isLocked ? "#d97706" : color.stroke}
+                          strokeWidth={isSelected ? 0.55 * sw : 0.3 * sw}
+                          strokeDasharray={isLocked ? `${1.8 * sw} ${0.8 * sw}` : isSelected ? `${1.1 * sw} ${0.7 * sw}` : undefined}
+                          onPointerDown={(e) => startShapeDrag(e, shape)}
+                          className={drawTool === "select" ? (isLocked ? "cursor-not-allowed" : "cursor-move") : drawTool === "delete" ? "cursor-not-allowed" : ""}
+                        />
+                        {isLocked && center && (
+                          <text x={center.x} y={center.y} textAnchor="middle" dominantBaseline="middle" fontSize={1.8 * hs} fill="#d97706" style={{ pointerEvents: "none", userSelect: "none" }}>⚿</text>
+                        )}
+                      </g>
                     );
                   })}
                   {selectionBox && (() => {
@@ -1680,6 +1730,20 @@ export default function LahanPage() {
                       <SelectContent>{(siteplans as any[]).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.title}</SelectItem>)}</SelectContent>
                     </Select>
                   )}
+                  <Button
+                    type="button" variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5"
+                    onClick={async () => {
+                      try {
+                        const r = await fetch("/api/planning/siteplan/sync-all-landbank", { method: "POST" });
+                        const d = await r.json();
+                        toast({ title: `Sync selesai: ${d.synced} bidang disinkron ke Land Bank` });
+                      } catch {
+                        toast({ title: "Gagal sync Land Bank", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <RefreshCw className="size-3" /> Sync ke Land Bank
+                  </Button>
                   <p className="text-[10px] text-muted-foreground">Data lahan dan kalibrasi siteplan ikut tersimpan lewat tombol Simpan di header.</p>
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
@@ -1704,25 +1768,37 @@ export default function LahanPage() {
                       <Trash2 className="size-4" /> Hapus
                     </Button>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={copyDraft} disabled={draftPoints.length < 3}>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={copyDraft} disabled={draftPoints.length < 3 && selectedShapeIds.length === 0} title="Salin (juga mendukung multi-select)">
                       <Copy className="size-4" />
                     </Button>
-                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={pasteDraft} disabled={!copiedDraft}>
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={pasteDraft} disabled={!copiedDraft && copiedShapes.length === 0} title="Tempel">
                       <Redo2 className="size-4" />
                     </Button>
-                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={undoDraft} disabled={draftHistory.length === 0}>
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={undoDraft} disabled={draftHistory.length === 0} title="Undo">
                       <Undo2 className="size-4" />
                     </Button>
-                    <Button type="button" variant="outline" size="sm" className="h-9 px-2 text-red-600" onClick={deleteCurrentShape} disabled={!editingShapeId && draftPoints.length === 0 && selectedShapeIds.length === 0}>
+                    <Button
+                      type="button"
+                      variant={shapeDraft.isLocked ? "default" : "outline"}
+                      size="sm"
+                      className={cn("h-9 px-2", shapeDraft.isLocked ? "bg-amber-600 hover:bg-amber-700 border-amber-600" : "")}
+                      onClick={() => setShapeDraft(p => ({ ...p, isLocked: !p.isLocked }))}
+                      disabled={!editingShapeId}
+                      title={shapeDraft.isLocked ? "Kunci aktif — klik untuk buka kunci" : "Kunci shape"}
+                    >
+                      {shapeDraft.isLocked ? <Lock className="size-4" /> : <Unlock className="size-4" />}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2 text-red-600" onClick={deleteCurrentShape} disabled={!editingShapeId && draftPoints.length === 0 && selectedShapeIds.length === 0} title="Hapus">
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
-                  <p className="text-[10px] leading-relaxed text-muted-foreground">Shift/Cmd-drag untuk pilih beberapa unit, lalu hapus sekaligus.</p>
+                  <p className="text-[10px] leading-relaxed text-muted-foreground">Shift/Cmd-drag untuk pilih banyak shape, lalu salin atau hapus sekaligus.</p>
                   {selectedShapeIds.length > 0 && (
                     <div className="rounded-md border bg-background p-2 flex items-center justify-between gap-2">
                       <span className="text-xs font-medium">{selectedShapeIds.length} shape dipilih</span>
                       <div className="flex gap-1">
+                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={copyDraft}><Copy className="size-3" />Salin</Button>
                         <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelectedShapeIds([])}>Batal</Button>
                         <Button type="button" variant="destructive" size="sm" className="h-7 text-xs" onClick={deleteSelectedShapes}>Hapus</Button>
                       </div>

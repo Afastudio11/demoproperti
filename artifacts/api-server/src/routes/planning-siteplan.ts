@@ -62,6 +62,16 @@ async function syncBidangToLandBank(row: typeof planningSiteplanShapesTable.$inf
   await db.insert(planningLandBankTable).values(values);
 }
 
+router.post("/planning/siteplan/sync-all-landbank", async (req, res) => {
+  const allShapes = await db.select().from(planningSiteplanShapesTable);
+  const bidangShapes = allShapes.filter(s => s.shapeType === "bidang");
+  let synced = 0;
+  for (const shape of bidangShapes) {
+    try { await syncBidangToLandBank(shape); synced++; } catch {}
+  }
+  res.json({ synced, total: bidangShapes.length });
+});
+
 router.get("/planning/siteplan", async (req, res) => {
   const projectId = req.query.projectId ? Number(req.query.projectId) : undefined;
   const rows = projectId
@@ -97,13 +107,17 @@ router.post("/planning/siteplan/:id/shapes", async (req, res) => {
   const siteplanId = Number(req.params.id);
   const [siteplan] = await db.select().from(planningSiteplansTable).where(eq(planningSiteplansTable.id, siteplanId));
   if (!siteplan) return res.status(404).json({ error: "Siteplan tidak ditemukan" });
-  const [row] = await db.insert(planningSiteplanShapesTable).values({ ...req.body, siteplanId, projectId: siteplan.projectId }).returning();
-  await syncBidangToLandBank(row);
+  const body = { ...req.body };
+  if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
+  const [row] = await db.insert(planningSiteplanShapesTable).values({ ...body, siteplanId, projectId: siteplan.projectId }).returning();
+  try { await syncBidangToLandBank(row); } catch {}
   res.status(201).json(await enrichShape(row));
 });
 
 router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
-  const [row] = await db.update(planningSiteplanShapesTable).set(req.body).where(eq(planningSiteplanShapesTable.id, Number(req.params.shapeId))).returning();
+  const body = { ...req.body };
+  if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
+  const [row] = await db.update(planningSiteplanShapesTable).set(body).where(eq(planningSiteplanShapesTable.id, Number(req.params.shapeId))).returning();
   if (!row) return res.status(404).json({ error: "Shape tidak ditemukan" });
   if (row.shapeType === "unit" && row.unitId) {
     const values: Record<string, unknown> = {};
@@ -112,7 +126,7 @@ router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
     if ("subkonName" in req.body) values.subkonName = req.body.subkonName;
     if (Object.keys(values).length > 0) await db.update(unitsTable).set(values).where(eq(unitsTable.id, row.unitId));
   }
-  await syncBidangToLandBank(row);
+  try { await syncBidangToLandBank(row); } catch {}
   res.json(await enrichShape(row));
 });
 
