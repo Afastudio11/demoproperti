@@ -288,6 +288,7 @@ export default function LahanPage() {
   const [drawTool, setDrawTool] = useState<DrawTool>("select");
   const [polygonClosed, setPolygonClosed] = useState(false);
   const [boxDraft, setBoxDraft] = useState<BoxDraft>(defaultBoxDraft);
+  const [serialCopy, setSerialCopy] = useState({ startLabel: "", count: 3, direction: "right" as BoxDraft["direction"], gap: 0.3 });
   const [copiedDraft, setCopiedDraft] = useState<CanvasPoint[] | null>(null);
   const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "" });
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
@@ -921,6 +922,7 @@ export default function LahanPage() {
       const bounds = polygonBounds(shapePoints);
       setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height, count: 1 }));
     }
+    setSerialCopy(prev => ({ ...prev, startLabel: nextLabel(String(shape.label ?? "A-01"), 1) }));
     justLoadedEditingRef.current = shape.id;
     setEditingShapeId(shape.id);
     setShapeDraft({
@@ -1051,6 +1053,37 @@ export default function LahanPage() {
     setPolygonClosed(true);
     setEditingShapeId(null);
     setShapeDraft(p => ({ ...p, label: nextLabel(p.label || "A-01", 1), unitId: "" }));
+  }
+
+  async function batchSerialCopy() {
+    if (!selectedSiteplan || !editingShapeId || draftPoints.length < 3 || !serialCopy.startLabel) return;
+    const bounds = polygonBounds(draftPoints);
+    const dx = serialCopy.direction === "right" ? bounds.width + serialCopy.gap : serialCopy.direction === "left" ? -(bounds.width + serialCopy.gap) : 0;
+    const dy = serialCopy.direction === "down" ? bounds.height + serialCopy.gap : serialCopy.direction === "up" ? -(bounds.height + serialCopy.gap) : 0;
+    setIsSaving(true);
+    try {
+      for (let i = 0; i < serialCopy.count; i++) {
+        const payload = {
+          ...shapeDraft,
+          label: nextLabel(serialCopy.startLabel, i),
+          unitId: null,
+          polygon: offsetPoints(draftPoints, dx * (i + 1), dy * (i + 1)),
+        };
+        const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.error ?? "Gagal membuat salinan");
+      }
+      await refetchShapes();
+      toast({ title: `${serialCopy.count} salinan dibuat (${serialCopy.startLabel} – ${nextLabel(serialCopy.startLabel, serialCopy.count - 1)})` });
+      setSerialCopy(prev => ({ ...prev, startLabel: nextLabel(serialCopy.startLabel, serialCopy.count) }));
+    } catch {
+      toast({ title: "Gagal membuat salinan serial", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function deleteShape(id: number) {
@@ -1728,13 +1761,74 @@ export default function LahanPage() {
                           ) : (
                             <span className="text-[10px] text-muted-foreground">Gambar kotak atau polygon untuk mulai</span>
                           )}
-                          {/* Batch copy button — only shown when editing a box shape */}
+                          {/* Batch copy button — only shown when editing a box shape with count > 1 */}
                           {editingShapeId && isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && boxDraft.count > 1 && (
                             <Button size="sm" variant="outline" onClick={batchCopyShapes} disabled={isSaving} className="h-7 text-xs shrink-0">
                               Buat {boxDraft.count} Salinan
                             </Button>
                           )}
                         </div>
+                        {/* Serial Copy — shown when a shape is being edited */}
+                        {editingShapeId && draftPoints.length >= 3 && (
+                          <div className="rounded-lg border bg-muted/30 p-2.5 space-y-2">
+                            <Label className="text-xs font-semibold">Salin Serial</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Label Mulai</Label>
+                                <Input
+                                  className="h-7 text-xs font-mono"
+                                  value={serialCopy.startLabel}
+                                  onChange={e => setSerialCopy(p => ({ ...p, startLabel: e.target.value }))}
+                                  placeholder="A-04"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Jumlah Salinan</Label>
+                                <NumericInput
+                                  className="h-7 text-xs"
+                                  decimals={0}
+                                  value={serialCopy.count}
+                                  onChange={v => setSerialCopy(p => ({ ...p, count: Math.max(1, Math.round(v)) }))}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Arah</Label>
+                                <Select value={serialCopy.direction} onValueChange={v => setSerialCopy(p => ({ ...p, direction: v as BoxDraft["direction"] }))}>
+                                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="right">Kanan</SelectItem>
+                                    <SelectItem value="left">Kiri</SelectItem>
+                                    <SelectItem value="down">Bawah</SelectItem>
+                                    <SelectItem value="up">Atas</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Jarak (%)</Label>
+                                <NumericInput
+                                  className="h-7 text-xs"
+                                  decimals={1}
+                                  value={serialCopy.gap}
+                                  onChange={v => setSerialCopy(p => ({ ...p, gap: Math.max(0, v) }))}
+                                />
+                              </div>
+                            </div>
+                            {serialCopy.startLabel && (
+                              <p className="text-[9px] font-mono text-muted-foreground bg-muted rounded px-1.5 py-1">
+                                {Array.from({ length: Math.min(serialCopy.count, 6) }, (_, i) => nextLabel(serialCopy.startLabel, i)).join(" · ")}
+                                {serialCopy.count > 6 ? ` · ... (+${serialCopy.count - 6})` : ""}
+                              </p>
+                            )}
+                            <Button
+                              size="sm"
+                              className="w-full h-7 text-xs"
+                              onClick={batchSerialCopy}
+                              disabled={isSaving || !serialCopy.startLabel || serialCopy.count < 1}
+                            >
+                              Buat {serialCopy.count} Salinan Serial
+                            </Button>
+                          </div>
+                        )}
                 <div className="rounded-md border divide-y max-h-56 overflow-auto">
                   {shapeList.length === 0 ? <p className="p-3 text-xs text-muted-foreground">Belum ada shape.</p> : shapeList.map(shape => (
                     <div key={shape.id} className="flex items-center justify-between gap-2 p-2">
