@@ -338,6 +338,15 @@ export default function LahanPage() {
     enabled: !!selectedSiteplan?.id,
   });
 
+  // Lazy-load the full siteplan including imageDataUrl (can be large — fetched separately)
+  const { data: selectedSiteplanDetail, refetch: refetchSiteplanDetail } = useQuery({
+    queryKey: ["planning-siteplan-detail", selectedSiteplan?.id],
+    queryFn: () => fetch(`/api/planning/siteplan/${selectedSiteplan!.id}`).then(r => r.json()),
+    enabled: !!selectedSiteplan?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+  const siteplanImageUrl: string | null = selectedSiteplanDetail?.imageDataUrl ?? null;
+
   useEffect(() => {
     const transform = selectedSiteplan?.imageTransform as Partial<SiteplanTransform> | undefined;
     setSiteplanTransform({ ...defaultTransform, ...(transform ?? {}) });
@@ -627,8 +636,13 @@ export default function LahanPage() {
   }
 
   function shapeAtPoint(point: CanvasPoint) {
+    // Check editing shape using live draftPoints (not stale DB polygon that may have moved)
+    if (editingShapeId && draftPoints.length >= 3 && pointInPolygon(point, draftPoints)) {
+      return shapeList.find(s => s.id === editingShapeId) ?? null;
+    }
     for (let i = shapeList.length - 1; i >= 0; i -= 1) {
       const shape = shapeList[i];
+      if (shape.id === editingShapeId) continue; // already handled above with live draftPoints
       const polygon = Array.isArray(shape.polygon) ? shape.polygon as CanvasPoint[] : [];
       if (polygon.length >= 3 && pointInPolygon(point, polygon)) return shape;
     }
@@ -1231,6 +1245,17 @@ export default function LahanPage() {
     if (!silent) toast({ title: "Kalibrasi siteplan tersimpan" });
   }
 
+  async function syncAllUnits() {
+    try {
+      const r = await fetch("/api/planning/siteplan/sync-all-units", { method: "POST" });
+      const d = await r.json();
+      await refetchShapes();
+      toast({ title: `Sync selesai: ${d.synced} unit shape disinkron ke database` });
+    } catch {
+      toast({ title: "Gagal sync unit", variant: "destructive" });
+    }
+  }
+
   const projectList = Array.isArray(projects) ? projects : [];
   const prospectList = Array.isArray(prospects) ? prospects : [];
   const shapeList = Array.isArray(siteplanShapes) ? siteplanShapes as any[] : [];
@@ -1558,7 +1583,7 @@ export default function LahanPage() {
             </div>
           )}
 
-          {selectedSiteplan?.imageDataUrl && (
+          {(selectedSiteplan?.hasImage || siteplanImageUrl) && (
             <div className="grid md:grid-cols-5 gap-2 rounded-lg border bg-muted/20 p-3">
               <div className="space-y-1">
                 <Label className="text-[10px]">Opacity Gambar</Label>
@@ -1584,7 +1609,7 @@ export default function LahanPage() {
             </div>
           )}
 
-          {selectedSiteplan?.id && (selectedSiteplan?.imageDataUrl || hasMainPolygon) ? (
+          {selectedSiteplan?.id && (selectedSiteplan?.hasImage || siteplanImageUrl || hasMainPolygon) ? (
             <div className="grid lg:grid-cols-[1fr_320px] gap-4">
               <div className="relative rounded-xl border bg-slate-100 p-12 overflow-hidden">
                 <div className="absolute inset-0 opacity-70 bg-[radial-gradient(circle_at_1px_1px,rgba(15,23,42,.18)_1px,transparent_0)] bg-[size:24px_24px]" />
@@ -1601,9 +1626,9 @@ export default function LahanPage() {
                 >
                 {/* Zoom/pan content wrapper — position:relative so SVG absolute inset-0 anchors here; height driven by img */}
                 <div style={{ transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`, transformOrigin: "0 0", position: "relative", width: "100%" }}>
-                {selectedSiteplan.imageDataUrl ? (
+                {siteplanImageUrl ? (
                   <img
-                    src={selectedSiteplan.imageDataUrl}
+                    src={siteplanImageUrl}
                     alt="Siteplan"
                     className="w-full select-none pointer-events-none origin-center block"
                     style={{
@@ -1611,6 +1636,8 @@ export default function LahanPage() {
                       transform: `translate(${siteplanTransform.x}%, ${siteplanTransform.y}%) scale(${siteplanTransform.scale})`,
                     }}
                   />
+                ) : selectedSiteplan?.hasImage ? (
+                  <div className="h-[520px] flex items-center justify-center text-xs text-muted-foreground bg-muted/30">Memuat gambar siteplan...</div>
                 ) : (
                   <div className="h-[520px] bg-[linear-gradient(to_right,rgba(15,23,42,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,.08)_1px,transparent_1px)] bg-[size:32px_32px]" />
                 )}
@@ -1825,6 +1852,12 @@ export default function LahanPage() {
                     }}
                   >
                     <RefreshCw className="size-3" /> Sync ke Land Bank
+                  </Button>
+                  <Button
+                    type="button" variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5"
+                    onClick={syncAllUnits}
+                  >
+                    <RefreshCw className="size-3" /> Sync ke Unit
                   </Button>
                   <p className="text-[10px] text-muted-foreground">Data lahan dan kalibrasi siteplan ikut tersimpan lewat tombol Simpan di header.</p>
                 </div>
