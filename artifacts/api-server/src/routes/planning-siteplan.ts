@@ -92,6 +92,8 @@ router.patch("/planning/siteplan/:id", async (req, res) => {
 
 router.get("/planning/siteplan/:id/shapes", async (req, res) => {
   const rows = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.siteplanId, Number(req.params.id)));
+  // Background auto-sync: all bidang shapes → Land Bank (non-blocking)
+  rows.filter(r => r.shapeType === "bidang").forEach(r => syncBidangToLandBank(r).catch(() => {}));
   res.json(await Promise.all(rows.map(enrichShape)));
 });
 
