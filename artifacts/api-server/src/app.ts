@@ -49,7 +49,6 @@ app.use(
     store: new PgSession({
       pool: pool as any,
       tableName: "user_sessions",
-      createTableIfMissing: true,
     }),
     secret: process.env.SESSION_SECRET ?? (() => {
       if (isProduction) throw new Error("SESSION_SECRET wajib dikonfigurasi di production");
@@ -65,6 +64,23 @@ app.use(
     },
   }),
 );
+
+// Debug middleware to inspect session and cookies for auth diagnosis
+app.use((req, res, next) => {
+  if (req.path === "/api/auth/me") {
+    logger.info({
+      headers: {
+        cookie: req.headers.cookie ? `${req.headers.cookie.substring(0, 15)}...` : undefined,
+        "x-forwarded-proto": req.headers["x-forwarded-proto"],
+        host: req.headers.host,
+      },
+      sessionID: req.sessionID,
+      hasSession: !!req.session,
+      userId: (req.session as any)?.userId,
+    }, "Incoming request to /api/auth/me");
+  }
+  next();
+});
 
 app.use("/api", router);
 

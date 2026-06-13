@@ -829,6 +829,7 @@ export default function LahanPage() {
             unitId: saved.unitId ? String(saved.unitId) : "",
             progress: Number(saved.progress ?? 0),
             notes: saved.notes ?? "",
+            isLocked: saved.isLocked ?? false,
           });
           setDraftPoints(shapePoints);
           setPolygonClosed(true);
@@ -1263,6 +1264,7 @@ export default function LahanPage() {
           unitId: saved.unitId ? String(saved.unitId) : "",
           progress: Number(saved.progress ?? 0),
           notes: saved.notes ?? "",
+          isLocked: saved.isLocked ?? false,
         });
         const shapePoints = Array.isArray(saved.polygon) ? saved.polygon : draftPoints;
         setDraftPoints(shapePoints);

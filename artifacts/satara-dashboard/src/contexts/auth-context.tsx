@@ -19,7 +19,14 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    try {
+      const cached = localStorage.getItem("satara_user");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshUser = useCallback(async () => {
@@ -27,12 +34,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/auth/me", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setUser({ ...data, allowedModules: data.allowedModules ?? [] });
-      } else {
+        const updatedUser = { ...data, allowedModules: data.allowedModules ?? [] };
+        setUser(updatedUser);
+        localStorage.setItem("satara_user", JSON.stringify(updatedUser));
+      } else if (res.status === 401 || res.status === 403) {
         setUser(null);
+        localStorage.removeItem("satara_user");
       }
     } catch {
-      setUser(null);
+      // Keep current user state on network error (e.g., during backend deployments/restarts)
     }
   }, []);
 
@@ -52,12 +62,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.error ?? "Login gagal");
     }
     const data = await res.json();
-    setUser({ ...data, allowedModules: data.allowedModules ?? [] });
+    const updatedUser = { ...data, allowedModules: data.allowedModules ?? [] };
+    setUser(updatedUser);
+    localStorage.setItem("satara_user", JSON.stringify(updatedUser));
   }
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // Suppress network error during logout, proceed to clear local state
+    }
     setUser(null);
+    localStorage.removeItem("satara_user");
   }
 
   return (
