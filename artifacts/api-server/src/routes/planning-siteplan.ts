@@ -7,7 +7,7 @@ import {
   unitsTable,
   customersTable,
 } from "@workspace/db/schema";
-import { eq, like, and, ne } from "drizzle-orm";
+import { eq, like, and, ne, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -98,7 +98,32 @@ router.get("/planning/siteplan", async (req, res) => {
 });
 
 router.post("/planning/siteplan", async (req, res) => {
+  const { projectId } = req.body;
   const [row] = await db.insert(planningSiteplansTable).values(req.body).returning();
+  
+  if (row && projectId) {
+    // Copy shapes from the most recent previous siteplan
+    const [latestPrevSiteplan] = await db.select()
+      .from(planningSiteplansTable)
+      .where(and(eq(planningSiteplansTable.projectId, projectId), ne(planningSiteplansTable.id, row.id)))
+      .orderBy(desc(planningSiteplansTable.id))
+      .limit(1);
+      
+    if (latestPrevSiteplan) {
+      const oldShapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.siteplanId, latestPrevSiteplan.id));
+      if (oldShapes.length > 0) {
+        const newShapes = oldShapes.map(s => {
+          const { id, createdAt, updatedAt, ...rest } = s;
+          return {
+            ...rest,
+            siteplanId: row.id,
+          };
+        });
+        await db.insert(planningSiteplanShapesTable).values(newShapes);
+      }
+    }
+  }
+
   res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
 });
 
@@ -119,10 +144,49 @@ router.patch("/planning/siteplan/:id", async (req, res) => {
 });
 
 router.get("/planning/siteplan/:id/shapes", async (req, res) => {
-  const rows = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.siteplanId, Number(req.params.id)));
+  const siteplanId = Number(req.params.id);
+  const [currentSiteplan] = await db.select().from(planningSiteplansTable).where(eq(planningSiteplansTable.id, siteplanId));
+  
+  let currentShapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.siteplanId, siteplanId));
+
+  if (currentSiteplan) {
+    const projectId = currentSiteplan.projectId;
+    // Find all older/other siteplans of this project, ordered by ID descending
+    const otherPlans = await db.select()
+      .from(planningSiteplansTable)
+      .where(and(eq(planningSiteplansTable.projectId, projectId), ne(planningSiteplansTable.id, siteplanId)))
+      .orderBy(desc(planningSiteplansTable.id));
+      
+    // We will collect shapes to copy
+    const toCopy: any[] = [];
+    const existingKeys = new Set(currentShapes.map(s => `${s.shapeType}:${s.label}`));
+    
+    // Look at older plans to find shapes to clone
+    for (const plan of otherPlans) {
+      const oldShapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.siteplanId, plan.id));
+      for (const oldShape of oldShapes) {
+        const key = `${oldShape.shapeType}:${oldShape.label}`;
+        if (!existingKeys.has(key)) {
+          const { id, createdAt, updatedAt, ...rest } = oldShape;
+          toCopy.push({
+            ...rest,
+            siteplanId,
+          });
+          // Add to set to prevent duplicate copying if there are multiple older versions
+          existingKeys.add(key);
+        }
+      }
+    }
+    
+    if (toCopy.length > 0) {
+      const inserted = await db.insert(planningSiteplanShapesTable).values(toCopy).returning();
+      currentShapes.push(...inserted);
+    }
+  }
+
   // Background auto-sync: all bidang shapes → Land Bank (non-blocking)
-  rows.filter(r => r.shapeType === "bidang").forEach(r => syncBidangToLandBank(r).catch(() => {}));
-  res.json(await Promise.all(rows.map(enrichShape)));
+  currentShapes.filter(r => r.shapeType === "bidang").forEach(r => syncBidangToLandBank(r).catch(() => {}));
+  res.json(await Promise.all(currentShapes.map(enrichShape)));
 });
 
 router.get("/planning/siteplan-shapes", async (req, res) => {
