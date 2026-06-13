@@ -1786,6 +1786,31 @@ export default function LahanPage() {
                       <SelectContent>{(siteplans as any[]).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.title}</SelectItem>)}</SelectContent>
                     </Select>
                   )}
+                  {hasMainPolygon && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-8 text-xs gap-1.5 text-red-600 border-red-200/60 hover:bg-red-50 hover:text-red-700"
+                      onClick={async () => {
+                        if (!confirm("Apakah Anda yakin ingin menghapus gambar boundary hasil akuisisi lahan ini?")) return;
+                        try {
+                          const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ mainPolygon: null }),
+                          });
+                          if (!resp.ok) throw new Error();
+                          await refetchSiteplans();
+                          toast({ title: "Boundary Akuisisi berhasil dihapus" });
+                        } catch {
+                          toast({ title: "Gagal menghapus Boundary Akuisisi", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-3" /> Hapus Boundary Akuisisi
+                    </Button>
+                  )}
                   <Button
                     type="button" variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5"
                     onClick={async () => {
