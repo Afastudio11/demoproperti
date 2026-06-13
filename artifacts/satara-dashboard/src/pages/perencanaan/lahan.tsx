@@ -1331,8 +1331,8 @@ export default function LahanPage() {
                       <div className="text-sm font-medium truncate">{p.lokasi as string || `Prospek #${p.id}`}</div>
                       <div className="text-xs text-muted-foreground">
                         {[p.kelurahan, p.kecamatan, p.kabupaten].filter(Boolean).join(", ")}
-                        {p.luas ? ` · ${(p.luas as number).toLocaleString("id-ID")} m²` : ""}
-                        {p.hargaM2 ? ` · Rp ${(p.hargaM2 as number).toLocaleString("id-ID")}/m²` : ""}
+                        {p.luas ? ` · ${Number(p.luas ?? 0).toLocaleString("id-ID")} m²` : ""}
+                        {p.hargaM2 ? ` · Rp ${Number(p.hargaM2 ?? 0).toLocaleString("id-ID")}/m²` : ""}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -1434,9 +1434,9 @@ export default function LahanPage() {
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label: "Area Jalan (18%)", val: `${roadArea.toLocaleString("id-ID")} m²`, color: "text-amber-500" },
-                  { label: "Fasum/RTH (12%)", val: `${fasumArea.toLocaleString("id-ID")} m²`, color: "text-blue-500" },
-                  { label: "Area Efektif (70%)", val: `${effectiveArea.toLocaleString("id-ID")} m²`, color: "text-emerald-500" },
+                  { label: "Area Jalan (18%)", val: `${(roadArea ?? 0).toLocaleString("id-ID")} m²`, color: "text-amber-500" },
+                  { label: "Fasum/RTH (12%)", val: `${(fasumArea ?? 0).toLocaleString("id-ID")} m²`, color: "text-blue-500" },
+                  { label: "Area Efektif (70%)", val: `${(effectiveArea ?? 0).toLocaleString("id-ID")} m²`, color: "text-emerald-500" },
                   { label: "Harga/m²", val: fmtCurrency(landPricePerM2), color: "text-foreground" },
                 ].map(item => (
                   <div key={item.label} className="p-2 rounded-md bg-muted/30 space-y-0.5">
@@ -1450,7 +1450,7 @@ export default function LahanPage() {
                 <div className="pt-2 border-t space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Estimasi Maksimum Unit</span>
-                    <Badge className="text-base px-3">{maxUnits.toLocaleString("id-ID")} unit</Badge>
+                    <Badge className="text-base px-3">{(maxUnits ?? 0).toLocaleString("id-ID")} unit</Badge>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Porsi lahan per unit</span>
@@ -1482,9 +1482,9 @@ export default function LahanPage() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 10, bottom: 0, left: 10 }}>
-                    <XAxis type="number" fontSize={10} tickFormatter={v => `${v.toLocaleString("id-ID")}`} />
+                    <XAxis type="number" fontSize={10} tickFormatter={v => `${(v ?? 0).toLocaleString("id-ID")}`} />
                     <YAxis type="category" dataKey="name" fontSize={10} width={100} />
-                    <Tooltip formatter={(v: number) => [`${v.toLocaleString("id-ID")} m²`, "Luas"]} />
+                    <Tooltip formatter={(v: number) => [`${(v ?? 0).toLocaleString("id-ID")} m²`, "Luas"]} />
                     <Bar dataKey="area" radius={[0, 4, 4, 0]}>
                       {chartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                     </Bar>
@@ -1502,9 +1502,9 @@ export default function LahanPage() {
           {selectedSiteplan?.id && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {[
-                { label: "Total Bidang", value: `${totalBidangArea.toLocaleString("id-ID")} m²` },
-                { label: "Sisa Lahan", value: `${remainingLandArea.toLocaleString("id-ID")} m²` },
-                { label: "Rencana Unit", value: `${totalPlannedUnits.toLocaleString("id-ID")} unit` },
+                { label: "Total Bidang", value: `${(totalBidangArea ?? 0).toLocaleString("id-ID")} m²` },
+                { label: "Sisa Lahan", value: `${(remainingLandArea ?? 0).toLocaleString("id-ID")} m²` },
+                { label: "Rencana Unit", value: `${(totalPlannedUnits ?? 0).toLocaleString("id-ID")} unit` },
                 { label: "Kepadatan", value: `${density.toFixed(1)} unit/1.000 m²` },
               ].map(item => (
                 <div key={item.label} className="rounded-md border bg-muted/20 p-2">
