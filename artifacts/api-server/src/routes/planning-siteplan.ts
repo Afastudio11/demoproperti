@@ -12,6 +12,13 @@ import { eq } from "drizzle-orm";
 const router = Router();
 const BOUGHT = new Set(["lunas", "sudah_dibeli", "milik_sendiri"]);
 
+function parseUnitLabel(label: string) {
+  const trimmed = String(label ?? "").trim();
+  const match = trimmed.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
+  if (!match) return { blok: trimmed.split(/[-\s_]/)[0] || "A", nomor: trimmed.split(/[-\s_]/).slice(1).join("-") || trimmed || "1" };
+  return { blok: match[1].toUpperCase(), nomor: match[2] };
+}
+
 async function enrichShape(shape: typeof planningSiteplanShapesTable.$inferSelect) {
   const [unit] = shape.unitId ? await db.select().from(unitsTable).where(eq(unitsTable.id, shape.unitId)) : [];
   const [customer] = shape.customerId ? await db.select().from(customersTable).where(eq(customersTable.id, shape.customerId)) : [];
@@ -69,6 +76,14 @@ router.get("/planning/siteplan/:id/shapes", async (req, res) => {
   res.json(await Promise.all(rows.map(enrichShape)));
 });
 
+router.get("/planning/siteplan-shapes", async (req, res) => {
+  const projectId = req.query.projectId ? Number(req.query.projectId) : undefined;
+  const rows = projectId
+    ? await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId))
+    : await db.select().from(planningSiteplanShapesTable);
+  res.json(await Promise.all(rows.map(enrichShape)));
+});
+
 router.post("/planning/siteplan/:id/shapes", async (req, res) => {
   const siteplanId = Number(req.params.id);
   const [siteplan] = await db.select().from(planningSiteplansTable).where(eq(planningSiteplansTable.id, siteplanId));
@@ -90,6 +105,34 @@ router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
   }
   await syncBoughtShapeToLandBank(row);
   res.json(await enrichShape(row));
+});
+
+router.post("/planning/siteplan/shapes/:shapeId/create-unit", async (req, res) => {
+  const [shape] = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, Number(req.params.shapeId)));
+  if (!shape) return res.status(404).json({ error: "Shape tidak ditemukan" });
+  if (shape.shapeType !== "unit") return res.status(400).json({ error: "Shape bukan unit rumah" });
+  if (shape.unitId) {
+    const [unit] = await db.select().from(unitsTable).where(eq(unitsTable.id, shape.unitId));
+    if (unit) return res.json({ ...unit, customerId: unit.customerId ?? null, createdAt: unit.createdAt.toISOString() });
+  }
+
+  const { blok, nomor } = parseUnitLabel(shape.label);
+  const existingUnits = await db.select().from(unitsTable).where(eq(unitsTable.projectId, shape.projectId));
+  const existing = existingUnits.find(unit => unit.blok.toLowerCase() === blok.toLowerCase() && unit.nomor.toLowerCase() === nomor.toLowerCase());
+  const unit = existing ?? (await db.insert(unitsTable).values({
+    projectId: shape.projectId,
+    blok,
+    nomor,
+    tipe: shape.unitType || "Tipe 36",
+    harga: 0,
+    status: shape.unitStatus || "available",
+    progress: Number(shape.progress ?? 0),
+    stageCode: shape.blockCode || null,
+    subkonName: shape.subkonName || null,
+  }).returning())[0];
+
+  await db.update(planningSiteplanShapesTable).set({ unitId: unit.id }).where(eq(planningSiteplanShapesTable.id, shape.id));
+  res.status(existing ? 200 : 201).json({ ...unit, customerId: unit.customerId ?? null, createdAt: unit.createdAt.toISOString() });
 });
 
 router.delete("/planning/siteplan/shapes/:shapeId", async (req, res) => {

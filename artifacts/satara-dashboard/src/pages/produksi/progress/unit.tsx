@@ -30,7 +30,7 @@ function getStatus(progress: number, weekStarted: number | null): { label: strin
 }
 
 type Task = { id: number; item: string; bobot: number; status: string; tanggalSelesai: string | null; verifiedBy: string | null };
-type UnitRow = { id: number; blok: string; nomor: string; tipe: string; stageCode: string | null; progress: number; weekStarted: number | null; subkonName: string | null; tasks: Task[]; projectId: number };
+type UnitRow = { id: number; blok: string; nomor: string; tipe: string; stageCode: string | null; progress: number; weekStarted: number | null; subkonName: string | null; tasks: Task[]; projectId: number; status?: string | null; isPlanningUnit?: boolean; sourceShapeId?: number };
 type ProjectRow = { projectId: number; projectName: string; totalUnits: number; avgProgress: number; units: UnitRow[] };
 type Project = { id: number; nama: string };
 type SiteplanTransform = { opacity: number; scale: number; x: number; y: number; locked: boolean };
@@ -45,6 +45,16 @@ const statusColor = (progress: number, status?: string) => {
   if (raw.includes("akan")) return { fill: [244, 114, 182] as [number, number, number], label: "Akan Dibangun" };
   return { fill: [168, 85, 247] as [number, number, number], label: "Belum Dibuka" };
 };
+
+function parseUnitLabel(label: string) {
+  const trimmed = String(label ?? "").trim();
+  const match = trimmed.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
+  if (!match) {
+    const [blok, ...rest] = trimmed.split(/[-\s_]/).filter(Boolean);
+    return { blok: (blok || "A").toUpperCase(), nomor: rest.join("-") || trimmed || "1" };
+  }
+  return { blok: match[1].toUpperCase(), nomor: match[2] };
+}
 
 export default function ProgressUnit() {
   const [location] = useLocation();
@@ -119,6 +129,24 @@ export default function ProgressUnit() {
     queryFn: () => fetch(`/api/planning/siteplan/${activeSiteplan.id}/shapes`).then(r => r.json()),
     enabled: !!activeSiteplan?.id,
   });
+  const { data: allSiteplanShapes = [] } = useQuery({
+    queryKey: ["planning-siteplan-unit-shapes", filterProject],
+    queryFn: () => {
+      const suffix = filterProject !== "all" ? `?projectId=${filterProject}` : "";
+      return fetch(`/api/planning/siteplan-shapes${suffix}`).then(r => r.json());
+    },
+  });
+
+  async function ensureProductionUnit(unitId: number) {
+    if (unitId > 0) return unitId;
+    const shapeId = Math.abs(unitId);
+    const res = await fetch(`/api/planning/siteplan/shapes/${shapeId}/create-unit`, { method: "POST" });
+    if (!res.ok) throw new Error("Gagal membuat unit produksi dari siteplan");
+    const unit = await res.json();
+    qc.invalidateQueries({ queryKey: ["planning-siteplan-unit-shapes"] });
+    qc.invalidateQueries({ queryKey: ["planning-siteplan-shapes"] });
+    return Number(unit.id);
+  }
 
   const tambahUnitMutation = useMutation({
     mutationFn: async () => {
@@ -146,7 +174,8 @@ export default function ProgressUnit() {
 
   const seedMutation = useMutation({
     mutationFn: async (unitId: number) => {
-      const res = await fetch(`/api/produksi/units/seed-tasks/${unitId}`, { method: "POST" });
+      const realUnitId = await ensureProductionUnit(unitId);
+      const res = await fetch(`/api/produksi/units/seed-tasks/${realUnitId}`, { method: "POST" });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -171,7 +200,8 @@ export default function ProgressUnit() {
 
   const weekMutation = useMutation({
     mutationFn: async ({ unitId, weekStarted }: { unitId: number; weekStarted: number | null }) => {
-      const res = await fetch(`/api/units/${unitId}`, {
+      const realUnitId = await ensureProductionUnit(unitId);
+      const res = await fetch(`/api/units/${realUnitId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weekStarted }),
@@ -186,7 +216,8 @@ export default function ProgressUnit() {
   });
   const quickMutation = useMutation({
     mutationFn: async ({ unitId, progress, status }: { unitId: number; progress?: number; status?: string }) => {
-      const res = await fetch(`/api/units/${unitId}`, {
+      const realUnitId = await ensureProductionUnit(unitId);
+      const res = await fetch(`/api/units/${realUnitId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...(progress !== undefined ? { progress } : {}), ...(status ? { status } : {}) }),
@@ -196,12 +227,41 @@ export default function ProgressUnit() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["progress-summary"] });
+      qc.invalidateQueries({ queryKey: ["planning-siteplan-unit-shapes"] });
       qc.invalidateQueries({ queryKey: ["planning-siteplan-shapes"] });
       toast({ title: "Progress unit diperbarui" });
     },
   });
 
-  const allUnits: (UnitRow & { projectName: string })[] = (data ?? []).flatMap(p => p.units.map(u => ({ ...u, projectName: p.projectName })));
+  const realUnits: (UnitRow & { projectName: string })[] = (data ?? []).flatMap(p => p.units.map(u => ({ ...u, projectName: p.projectName })));
+  const realUnitKeys = new Set(realUnits.map(u => `${u.projectId}:${u.blok}-${u.nomor}`.toLowerCase()));
+  const planningUnits: (UnitRow & { projectName: string })[] = (allSiteplanShapes as any[])
+    .filter(shape => shape.shapeType === "unit")
+    .filter(shape => !shape.unitId)
+    .map(shape => {
+      const parsed = parseUnitLabel(shape.label);
+      const projectName = (data ?? []).find(project => project.projectId === shape.projectId)?.projectName
+        ?? (projects ?? []).find(project => project.id === shape.projectId)?.nama
+        ?? `Project #${shape.projectId}`;
+      return {
+        id: -Number(shape.id),
+        projectId: Number(shape.projectId),
+        projectName,
+        blok: parsed.blok,
+        nomor: parsed.nomor,
+        tipe: shape.unitType || "Tipe 36",
+        stageCode: shape.blockCode || null,
+        progress: Number(shape.progress ?? 0),
+        weekStarted: null,
+        subkonName: shape.subkonName ?? null,
+        status: shape.unitStatus ?? "belum_dibuka",
+        tasks: [],
+        isPlanningUnit: true,
+        sourceShapeId: Number(shape.id),
+      };
+    })
+    .filter(unit => !realUnitKeys.has(`${unit.projectId}:${unit.blok}-${unit.nomor}`.toLowerCase()));
+  const allUnits: (UnitRow & { projectName: string })[] = [...realUnits, ...planningUnits];
   const unitShapes = (siteplanShapes as any[]).filter(s => s.shapeType === "unit");
 
   function exportSiteplanPdf() {
@@ -462,7 +522,7 @@ export default function ProgressUnit() {
         <div className="py-12 text-center space-y-3">
           <p className="text-sm text-muted-foreground">
             {allUnits.length === 0
-              ? "Belum ada unit. Klik \"Tambah Unit\" untuk mulai menginput progress."
+              ? "Belum ada unit. Unit dari Perencanaan akan otomatis muncul di sini setelah siteplan/unit rumah disimpan."
               : "Unit tidak ditemukan dengan filter ini."}
           </p>
           {allUnits.length === 0 && (
@@ -530,6 +590,7 @@ export default function ProgressUnit() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm">Blok {unit.blok}-{unit.nomor}</span>
+                      {unit.isPlanningUnit && <Badge variant="outline" className="h-5 text-[10px]">dari perencanaan</Badge>}
                       {unit.stageCode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{unit.stageCode}</span>}
                       <span className={`text-[10px] font-medium ${st.color}`}>{st.label}</span>
                       {unit.subkonName && <span className="text-[10px] text-muted-foreground">{unit.subkonName}</span>}
@@ -578,7 +639,8 @@ export default function ProgressUnit() {
                     ) : (
                       <>
                         {unit.tasks.length === 0 ? (
-                          <div className="py-3 text-center">
+                          <div className="py-3 text-center space-y-2">
+                            {unit.isPlanningUnit && <p className="text-xs text-muted-foreground">Unit ini mirror dari Perencanaan. Mulai checklist akan membuat unit produksi dan link ke siteplan.</p>}
                             <Button size="sm" variant="outline" onClick={() => seedMutation.mutate(unit.id)} className="h-7 text-xs gap-1.5">
                               <Plus className="size-3" /> Inisialisasi Checklist 26 Item
                             </Button>

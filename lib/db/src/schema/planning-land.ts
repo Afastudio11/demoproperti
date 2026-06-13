@@ -10,6 +10,7 @@ export const planningLandTable = pgTable("planning_land", {
   landShape: text("land_shape"),
   contour: text("contour"),
   roadWidth: real("road_width"),
+  kavlingArea: real("kavling_area"),
   legalStatus: text("legal_status"),
   notes: text("notes"),
   roadArea: real("road_area"),

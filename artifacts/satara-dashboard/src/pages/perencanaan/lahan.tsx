@@ -460,6 +460,7 @@ export default function LahanPage() {
     if (!resp.ok) { toast({ title: "Gagal simpan", variant: "destructive" }); return; }
     const d = await resp.json();
     setSavedId(d.id);
+    if (selectedSiteplan?.id) await saveSiteplanTransform(siteplanTransform, true);
     await qc.invalidateQueries({ queryKey: ["planning-land"] });
     toast({ title: "Analisis lahan tersimpan" });
   };
@@ -910,7 +911,7 @@ export default function LahanPage() {
     await refetchShapes();
   }
 
-  async function saveSiteplanTransform(next = siteplanTransform) {
+  async function saveSiteplanTransform(next = siteplanTransform, silent = false) {
     if (!selectedSiteplan?.id) return;
     const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}`, {
       method: "PATCH",
@@ -922,7 +923,7 @@ export default function LahanPage() {
       return;
     }
     await refetchSiteplans();
-    toast({ title: "Kalibrasi siteplan tersimpan" });
+    if (!silent) toast({ title: "Kalibrasi siteplan tersimpan" });
   }
 
   const projectList = Array.isArray(projects) ? projects : [];
@@ -1166,41 +1167,6 @@ export default function LahanPage() {
       <Card>
         <CardHeader><CardTitle className="text-sm">Siteplan & Pembagian Blok/Unit</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className={cn("inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-sm cursor-pointer hover:bg-muted", isUploadingSiteplan && "opacity-60 pointer-events-none")}>
-              <Upload className="size-3.5" /> {isUploadingSiteplan ? "Mengupload..." : "Upload Siteplan"}
-              <input type="file" accept="image/*" className="hidden" disabled={isUploadingSiteplan} onChange={e => { const f = e.target.files?.[0]; if (f) uploadSiteplan(f); e.currentTarget.value = ""; }} />
-            </label>
-            {siteplans.length > 0 && (
-              <Select value={String(selectedSiteplan?.id ?? "")} onValueChange={v => setActiveSiteplanId(Number(v))}>
-                <SelectTrigger className="h-8 w-64 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>{(siteplans as any[]).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.title}</SelectItem>)}</SelectContent>
-              </Select>
-            )}
-            <Button size="sm" className="h-8 gap-1.5" onClick={() => activateTool("unit_box")}>
-              <Square className="size-3.5" /> Tambah Rumah
-            </Button>
-            <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => activateTool("polygon", "bidang")}>
-              <Move className="size-3.5" /> Bagi Lahan
-            </Button>
-            <Select value={drawTool} onValueChange={v => activateTool(v as DrawTool)}>
-              <SelectTrigger className="h-8 w-44 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="select">Select / Edit</SelectItem>
-                <SelectItem value="pan">Pan Canvas</SelectItem>
-                <SelectItem value="polygon">Draw Lahan</SelectItem>
-                <SelectItem value="unit_box">Tambah Unit Kotak</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button size="sm" variant="outline" className="h-8" onClick={closePolygon} disabled={drawTool !== "polygon" || polygonClosed || draftPoints.length < 3}>Tutup Polygon</Button>
-            <Button size="sm" variant="outline" className="h-8" onClick={resetDraft}>Reset Titik</Button>
-            <Button size="sm" variant="outline" className="h-8" onClick={copyDraft}>Copy</Button>
-            <Button size="sm" variant="outline" className="h-8" onClick={pasteDraft} disabled={!copiedDraft}>Paste</Button>
-            <Button size="sm" variant="outline" className="h-8" onClick={undoDraft} disabled={draftHistory.length === 0}><Undo2 className="size-3.5" /></Button>
-            <Button size="sm" variant="outline" className="h-8 text-red-600" onClick={deleteCurrentShape} disabled={!editingShapeId && draftPoints.length === 0}><Trash2 className="size-3.5" /></Button>
-            {selectedSiteplan?.id && <Button size="sm" variant="outline" className="h-8" onClick={() => saveSiteplanTransform()}>Simpan Kalibrasi</Button>}
-          </div>
-
           {selectedSiteplan?.id && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {[
@@ -1388,6 +1354,20 @@ export default function LahanPage() {
               </div>
               <div className="space-y-3">
                 <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                  <Label className="text-xs font-semibold">Siteplan</Label>
+                  <label className={cn("inline-flex w-full items-center justify-center gap-1.5 h-9 px-3 rounded-md border text-sm cursor-pointer hover:bg-muted bg-background", isUploadingSiteplan && "opacity-60 pointer-events-none")}>
+                    <Upload className="size-3.5" /> {isUploadingSiteplan ? "Mengupload..." : "Upload Siteplan"}
+                    <input type="file" accept="image/*" className="hidden" disabled={isUploadingSiteplan} onChange={e => { const f = e.target.files?.[0]; if (f) uploadSiteplan(f); e.currentTarget.value = ""; }} />
+                  </label>
+                  {siteplans.length > 0 && (
+                    <Select value={String(selectedSiteplan?.id ?? "")} onValueChange={v => setActiveSiteplanId(Number(v))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>{(siteplans as any[]).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.title}</SelectItem>)}</SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">Data lahan dan kalibrasi siteplan ikut tersimpan lewat tombol Simpan di header.</p>
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Tools Siteplan</Label>
                     <span className="text-[10px] text-muted-foreground">{drawTool === "unit_box" ? "Rectangle" : drawTool === "polygon" ? "Polygon" : drawTool === "pan" ? "Geser" : drawTool === "delete" ? "Hapus" : "Select"}</span>
@@ -1482,7 +1462,13 @@ export default function LahanPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Upload gambar siteplan untuk mulai menggambar ulang bidang, blok, dan unit rumah.</div>
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground space-y-3">
+              <p>Upload gambar siteplan untuk mulai menggambar ulang bidang, blok, dan unit rumah.</p>
+              <label className={cn("inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md border text-sm cursor-pointer hover:bg-muted bg-background text-foreground", isUploadingSiteplan && "opacity-60 pointer-events-none")}>
+                <Upload className="size-3.5" /> {isUploadingSiteplan ? "Mengupload..." : "Upload Siteplan"}
+                <input type="file" accept="image/*" className="hidden" disabled={isUploadingSiteplan} onChange={e => { const f = e.target.files?.[0]; if (f) uploadSiteplan(f); e.currentTarget.value = ""; }} />
+              </label>
+            </div>
           )}
         </CardContent>
       </Card>
