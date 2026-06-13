@@ -102,7 +102,7 @@ router.post("/planning/siteplan", async (req, res) => {
   const [row] = await db.insert(planningSiteplansTable).values(req.body).returning();
   
   if (row && projectId) {
-    // Copy shapes from the most recent previous siteplan
+    // 1. Copy shapes from the most recent previous siteplan
     const [latestPrevSiteplan] = await db.select()
       .from(planningSiteplansTable)
       .where(and(eq(planningSiteplansTable.projectId, projectId), ne(planningSiteplansTable.id, row.id)))
@@ -121,6 +121,16 @@ router.post("/planning/siteplan", async (req, res) => {
         });
         await db.insert(planningSiteplanShapesTable).values(newShapes);
       }
+    }
+
+    // 2. Delete all older siteplans of this project (and their shapes) to prevent duplicate database size ballooning
+    const olderSiteplans = await db.select()
+      .from(planningSiteplansTable)
+      .where(and(eq(planningSiteplansTable.projectId, projectId), ne(planningSiteplansTable.id, row.id)));
+      
+    for (const oldPlan of olderSiteplans) {
+      await db.delete(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.siteplanId, oldPlan.id));
+      await db.delete(planningSiteplansTable).where(eq(planningSiteplansTable.id, oldPlan.id));
     }
   }
 
