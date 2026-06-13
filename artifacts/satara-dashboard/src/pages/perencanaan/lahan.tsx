@@ -692,11 +692,10 @@ export default function LahanPage() {
         imageRef.current?.setPointerCapture(e.pointerId);
         return;
       }
-      // ── Click on background: deselect but keep tool ──
+      // ── Click on background: deselect active shape ──
       const hitShape = shapeAtPoint(point);
       if (!hitShape) {
-        setSelectedShapeIds([]);
-        // Don't clear editingShapeId/draftPoints here — let Escape do that
+        resetDraft();
       }
       return;
     }
@@ -1044,15 +1043,31 @@ export default function LahanPage() {
     toast({ title: "Draft shape dicopy" });
   }
 
-  function pasteDraft() {
-    if (!copiedDraft) {
+  async function pasteDraft() {
+    if (!copiedDraft || !selectedSiteplan) {
       toast({ title: "Belum ada shape yang dicopy", variant: "destructive" });
       return;
     }
-    setDraftPoints(offsetPoints(copiedDraft, 2, 2));
-    setPolygonClosed(true);
-    setEditingShapeId(null);
-    setShapeDraft(p => ({ ...p, label: nextLabel(p.label || "A-01", 1), unitId: "" }));
+    const bounds = polygonBounds(copiedDraft);
+    const newPoints = offsetPoints(copiedDraft, bounds.width + 0.3, 0);
+    const newLabel = nextLabel(shapeDraft.label || "A-01", 1);
+    setIsSaving(true);
+    try {
+      const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...shapeDraft, label: newLabel, unitId: null, polygon: newPoints }),
+      });
+      if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.error ?? "Gagal paste");
+      const saved = await resp.json();
+      await refetchShapes();
+      startEditShape(saved);
+      toast({ title: `Shape ${newLabel} ditempel di sebelah kanan` });
+    } catch {
+      toast({ title: "Gagal paste shape", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function batchSerialCopy() {
