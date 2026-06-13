@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
-import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload } from "lucide-react";
+import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload, ZoomIn, ZoomOut } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { cn } from "@/lib/utils";
@@ -300,6 +300,8 @@ export default function LahanPage() {
   const [isSaving, setIsSaving] = useState(false);
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justLoadedEditingRef = useRef<number | null>(null);
+  const [canvasZoom, setCanvasZoom] = useState(1);
+  const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
 
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
@@ -507,10 +509,28 @@ export default function LahanPage() {
   function canvasPoint(e: React.PointerEvent | React.MouseEvent): CanvasPoint | null {
     if (!imageRef.current) return null;
     const rect = imageRef.current.getBoundingClientRect();
+    // Account for canvas zoom & pan: inner content is translate(panX, panY) scale(zoom) from origin 0,0
+    const innerX = (e.clientX - rect.left - canvasPan.x) / canvasZoom;
+    const innerY = (e.clientY - rect.top - canvasPan.y) / canvasZoom;
     return {
-      x: Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)) * 10) / 10,
-      y: Math.round(Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)) * 10) / 10,
+      x: Math.round(Math.max(0, Math.min(100, (innerX / rect.width) * 100)) * 10) / 10,
+      y: Math.round(Math.max(0, Math.min(100, (innerY / rect.height) * 100)) * 10) / 10,
     };
+  }
+
+  function handleCanvasWheel(e: React.WheelEvent<HTMLDivElement>) {
+    e.preventDefault();
+    if (!imageRef.current) return;
+    const rect = imageRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const factor = e.deltaY > 0 ? 1 / 1.15 : 1.15;
+    const newZoom = Math.max(0.25, Math.min(10, canvasZoom * factor));
+    // Keep the canvas point under cursor fixed while zooming
+    const newPanX = mouseX - (mouseX - canvasPan.x) * (newZoom / canvasZoom);
+    const newPanY = mouseY - (mouseY - canvasPan.y) * (newZoom / canvasZoom);
+    setCanvasZoom(newZoom);
+    setCanvasPan({ x: newPanX, y: newPanY });
   }
 
   function rememberDraft() {
@@ -702,7 +722,7 @@ export default function LahanPage() {
   }
 
   function startPan(e: React.PointerEvent<HTMLDivElement>) {
-    if (drawTool !== "pan" || siteplanTransform.locked) return;
+    if (drawTool !== "pan") return;
     dragRef.current = { mode: "pan", lastX: e.clientX, lastY: e.clientY };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
@@ -750,17 +770,17 @@ export default function LahanPage() {
       setSelectionBox({ start: drag.start, current: point });
       return;
     }
-    const dx = ((e.clientX - drag.lastX) / rect.width) * 100;
-    const dy = ((e.clientY - drag.lastY) / rect.height) * 100;
+    // Divide by canvasZoom so drag distance matches visual movement at all zoom levels
+    const dx = ((e.clientX - drag.lastX) / rect.width) * 100 / canvasZoom;
+    const dy = ((e.clientY - drag.lastY) / rect.height) * 100 / canvasZoom;
     dragRef.current = { ...drag, lastX: e.clientX, lastY: e.clientY };
     if (drag.mode === "shape") {
       setDraftPoints(points => offsetPoints(points, dx, dy));
-    } else {
-      setSiteplanTransform(prev => ({
-        ...prev,
-        x: Math.round((prev.x + dx) * 10) / 10,
-        y: Math.round((prev.y + dy) * 10) / 10,
-      }));
+    } else if (drag.mode === "pan") {
+      // Pan mode moves the canvas viewport (in pixel space, before zoom adjustment)
+      const pdx = e.clientX - drag.lastX;
+      const pdy = e.clientY - drag.lastY;
+      setCanvasPan(prev => ({ x: prev.x + pdx, y: prev.y + pdy }));
     }
   }
 
@@ -1105,6 +1125,16 @@ export default function LahanPage() {
       } else if (e.key === "Escape") {
         resetDraft();
         setDrawTool("select");
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        setCanvasZoom(z => Math.min(10, z * 1.2));
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "-") {
+        e.preventDefault();
+        setCanvasZoom(z => Math.max(0.25, z / 1.2));
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "0") {
+        e.preventDefault();
+        setCanvasZoom(1);
+        setCanvasPan({ x: 0, y: 0 });
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -1427,13 +1457,16 @@ export default function LahanPage() {
                   onPointerUp={stopCanvasDrag}
                   onPointerCancel={stopCanvasDrag}
                   onPointerLeave={stopCanvasDrag}
+                  onWheel={handleCanvasWheel}
                   className={cn("relative overflow-hidden rounded-lg border bg-background shadow-sm touch-none", drawTool === "unit_box" || drawTool === "polygon" ? "cursor-crosshair" : drawTool === "pan" ? "cursor-grab" : drawTool === "delete" ? "cursor-not-allowed" : "cursor-default")}
                 >
+                {/* Zoom/pan content wrapper — everything inside scales together */}
+                <div style={{ transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`, transformOrigin: "0 0", position: "absolute", inset: 0, width: "100%", height: "100%" }}>
                 {selectedSiteplan.imageDataUrl ? (
                   <img
                     src={selectedSiteplan.imageDataUrl}
                     alt="Siteplan"
-                    className="w-full select-none pointer-events-none origin-center"
+                    className="w-full h-full select-none pointer-events-none origin-center"
                     style={{
                       opacity: siteplanTransform.opacity,
                       transform: `translate(${siteplanTransform.x}%, ${siteplanTransform.y}%) scale(${siteplanTransform.scale})`,
@@ -1443,50 +1476,42 @@ export default function LahanPage() {
                   <div className="h-[520px] bg-[linear-gradient(to_right,rgba(15,23,42,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,.08)_1px,transparent_1px)] bg-[size:32px_32px]" />
                 )}
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  {hasMainPolygon && <polygon points={polygonPoints(selectedSiteplan.mainPolygon)} fill="rgba(15,23,42,.06)" stroke="#0f172a" strokeWidth="0.45" strokeDasharray="1.4 1" />}
-                          {shapeList.map(shape => {
-                      if (shape.id === editingShapeId) return null;
-                      const isSelected = selectedShapeIds.includes(shape.id);
-                      const color = shapeColor(shape, shape.id === editingShapeId || isSelected);
-                      return (
-                              <polygon
-                          key={shape.id}
-                          points={polygonPoints(shape.polygon)}
-                          fill={color.fill}
-                          stroke={color.stroke}
-                          strokeWidth={isSelected ? "0.55" : "0.3"}
-                          strokeDasharray={isSelected ? "1.1 0.7" : undefined}
-                          onPointerDown={(e) => startShapeDrag(e, shape)}
-                          className={drawTool === "select" ? "cursor-move" : drawTool === "delete" ? "cursor-not-allowed" : ""}
-                        />
-                      );
-                    })}
+                  {/* handle scale factor — keeps handles same visual size at all zoom levels */}
+                  {(() => { const hs = 1 / canvasZoom; const sw = 1 / canvasZoom; return (
+                  <>
+                  {hasMainPolygon && <polygon points={polygonPoints(selectedSiteplan.mainPolygon)} fill="rgba(15,23,42,.06)" stroke="#0f172a" strokeWidth={0.45 * sw} strokeDasharray={`${1.4 * sw} ${sw}`} />}
+                  {shapeList.map(shape => {
+                    if (shape.id === editingShapeId) return null;
+                    const isSelected = selectedShapeIds.includes(shape.id);
+                    const color = shapeColor(shape, shape.id === editingShapeId || isSelected);
+                    return (
+                      <polygon
+                        key={shape.id}
+                        points={polygonPoints(shape.polygon)}
+                        fill={color.fill}
+                        stroke={color.stroke}
+                        strokeWidth={isSelected ? 0.55 * sw : 0.3 * sw}
+                        strokeDasharray={isSelected ? `${1.1 * sw} ${0.7 * sw}` : undefined}
+                        onPointerDown={(e) => startShapeDrag(e, shape)}
+                        className={drawTool === "select" ? "cursor-move" : drawTool === "delete" ? "cursor-not-allowed" : ""}
+                      />
+                    );
+                  })}
                   {selectionBox && (() => {
                     const bounds = normalizedBounds(selectionBox.start, selectionBox.current);
                     return (
                       <rect
-                        x={bounds.minX}
-                        y={bounds.minY}
-                        width={bounds.maxX - bounds.minX}
-                        height={bounds.maxY - bounds.minY}
-                        fill="rgba(59,130,246,.12)"
-                        stroke="#2563eb"
-                        strokeWidth="0.25"
-                        strokeDasharray="0.8 0.5"
+                        x={bounds.minX} y={bounds.minY}
+                        width={bounds.maxX - bounds.minX} height={bounds.maxY - bounds.minY}
+                        fill="rgba(59,130,246,.12)" stroke="#2563eb"
+                        strokeWidth={0.25 * sw} strokeDasharray={`${0.8 * sw} ${0.5 * sw}`}
                       />
                     );
                   })()}
                   {draftPoints.length > 0 && (polygonClosed || isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) ? (
-                    <polygon
-                      points={polygonPoints(draftPoints)}
-                      fill="rgba(245,158,11,.25)"
-                      stroke="#f59e0b"
-                      strokeWidth="0.45"
-                      className={drawTool === "select" ? "cursor-move" : ""}
-                      style={{ pointerEvents: drawTool === "select" ? "none" : undefined }}
-                    />
+                    <polygon points={polygonPoints(draftPoints)} fill="rgba(245,158,11,.25)" stroke="#f59e0b" strokeWidth={0.45 * sw} className={drawTool === "select" ? "cursor-move" : ""} style={{ pointerEvents: drawTool === "select" ? "none" : undefined }} />
                   ) : (
-                    <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#f59e0b" strokeWidth="0.45" style={{ pointerEvents: "none" }} />
+                    <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#f59e0b" strokeWidth={0.45 * sw} style={{ pointerEvents: "none" }} />
                   ))}
                   {isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && (() => {
                     const bounds = polygonBounds(draftPoints);
@@ -1499,19 +1524,14 @@ export default function LahanPage() {
                     ];
                     return (
                       <g>
-                        <line x1={center.x} y1={bounds.minY} x2={center.x} y2={Math.max(0, bounds.minY - 4)} stroke="#6366f1" strokeWidth="0.25" />
-                        <circle cx={center.x} cy={Math.max(0, bounds.minY - 5)} r="1" fill="#fff" stroke="#6366f1" strokeWidth="0.35" className="cursor-grab" onPointerDown={startDraftRotate} />
+                        <line x1={center.x} y1={bounds.minY} x2={center.x} y2={Math.max(0, bounds.minY - 4 * hs)} stroke="#6366f1" strokeWidth={0.25 * sw} />
+                        <circle cx={center.x} cy={Math.max(0, bounds.minY - 5 * hs)} r={hs} fill="#fff" stroke="#6366f1" strokeWidth={0.35 * sw} className="cursor-grab" onPointerDown={startDraftRotate} />
                         {draftPoints.map((point, index) => (
                           <rect
                             key={`corner-${index}`}
-                            x={point.x - 0.65}
-                            y={point.y - 0.65}
-                            width="1.3"
-                            height="1.3"
-                            rx="0.18"
-                            fill="#fff"
-                            stroke="#f59e0b"
-                            strokeWidth="0.3"
+                            x={point.x - 0.65 * hs} y={point.y - 0.65 * hs}
+                            width={1.3 * hs} height={1.3 * hs} rx={0.18 * hs}
+                            fill="#fff" stroke="#f59e0b" strokeWidth={0.3 * sw}
                             className="cursor-nwse-resize"
                             onPointerDown={(e) => startDraftCornerDrag(e, index)}
                           />
@@ -1519,14 +1539,9 @@ export default function LahanPage() {
                         {edgeHandles.map(handle => (
                           <rect
                             key={handle.edge}
-                            x={handle.x - 0.55}
-                            y={handle.y - 0.55}
-                            width="1.1"
-                            height="1.1"
-                            rx="0.18"
-                            fill="#fff"
-                            stroke="#2563eb"
-                            strokeWidth="0.28"
+                            x={handle.x - 0.55 * hs} y={handle.y - 0.55 * hs}
+                            width={1.1 * hs} height={1.1 * hs} rx={0.18 * hs}
+                            fill="#fff" stroke="#2563eb" strokeWidth={0.28 * sw}
                             className={handle.edge === "top" || handle.edge === "bottom" ? "cursor-ns-resize" : "cursor-ew-resize"}
                             onPointerDown={(e) => startDraftEdgeDrag(e, handle.edge)}
                           />
@@ -1536,26 +1551,17 @@ export default function LahanPage() {
                   })()}
                   {!isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && draftPoints.map((p, i) => (
                     <circle
-                      key={i}
-                      cx={p.x}
-                      cy={p.y}
-                      r={i === 0 && !polygonClosed && draftPoints.length >= 3 ? "1.2" : "0.9"}
+                      key={i} cx={p.x} cy={p.y}
+                      r={i === 0 && !polygonClosed && draftPoints.length >= 3 ? 1.2 * hs : 0.9 * hs}
                       fill={i === 0 && !polygonClosed && draftPoints.length >= 3 ? "#0f172a" : "#fff"}
-                      stroke="#f59e0b"
-                      strokeWidth="0.35"
+                      stroke="#f59e0b" strokeWidth={0.35 * sw}
                       className="cursor-move"
                       onPointerDown={(e) => startDraftCornerDrag(e, i)}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setDraftPoints(points => points.filter((_, idx) => idx !== i));
-                        setPolygonClosed(false);
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (i === 0 && draftPoints.length >= 3 && !polygonClosed) setPolygonClosed(true);
-                      }}
+                      onDoubleClick={(e) => { e.stopPropagation(); setDraftPoints(points => points.filter((_, idx) => idx !== i)); setPolygonClosed(false); }}
+                      onClick={(e) => { e.stopPropagation(); if (i === 0 && draftPoints.length >= 3 && !polygonClosed) setPolygonClosed(true); }}
                     />
                   ))}
+                  </>); })()}
                 </svg>
                 {shapeList.map(shape => {
                   if (shape.id === editingShapeId) return null;
@@ -1573,12 +1579,44 @@ export default function LahanPage() {
                         pointerEvents: "none",
                         lineHeight: 1.2,
                         whiteSpace: "nowrap",
+                        fontSize: `${9 / canvasZoom}px`,
                       }}
                     >
                       {shape.label}
                     </div>
                   );
                 })}
+                </div>
+                {/* Zoom controls — outside zoom wrapper so they stay fixed size */}
+                <div
+                  className="absolute bottom-2 right-2 z-20 flex items-center gap-0.5 rounded-lg border bg-background/90 shadow-sm px-1.5 py-1 select-none"
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <button
+                    className="p-0.5 rounded hover:bg-muted transition-colors"
+                    onClick={() => { setCanvasZoom(z => Math.max(0.25, z / 1.2)); }}
+                    title="Perkecil (Ctrl -)"
+                  >
+                    <ZoomOut className="size-3.5" />
+                  </button>
+                  <span className="w-10 text-center font-mono text-[10px] text-muted-foreground">{Math.round(canvasZoom * 100)}%</span>
+                  <button
+                    className="p-0.5 rounded hover:bg-muted transition-colors"
+                    onClick={() => { setCanvasZoom(z => Math.min(10, z * 1.2)); }}
+                    title="Perbesar (Ctrl +)"
+                  >
+                    <ZoomIn className="size-3.5" />
+                  </button>
+                  <div className="w-px h-3 bg-border mx-0.5" />
+                  <button
+                    className="px-1 py-0.5 rounded hover:bg-muted transition-colors text-[9px] font-mono text-muted-foreground"
+                    onClick={() => { setCanvasZoom(1); setCanvasPan({ x: 0, y: 0 }); }}
+                    title="Reset zoom (Ctrl 0)"
+                  >
+                    1:1
+                  </button>
+                </div>
                 </div>
               </div>
               <div className="space-y-3">
