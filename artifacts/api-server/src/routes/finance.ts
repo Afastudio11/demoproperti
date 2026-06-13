@@ -133,11 +133,13 @@ router.get("/finance/dashboard", async (req, res) => {
       totalKpp += Number(k.plafon) - paid;
     }
 
-    const score = Math.min(100, Math.max(0, Math.round(
-      (netCashflow > 0 ? 25 : 10) +
-      (totalKpp < 5_000_000_000 ? 20 : 10) +
-      (cashIn > cashOut * 1.2 ? 25 : 15) +
-      20
+    // Finance Score: 0 jika belum ada data sama sekali
+    const hasFinanceData = cashIn > 0 || cashOut > 0 || totalKpp > 0;
+    const score = !hasFinanceData ? 0 : Math.min(100, Math.max(0, Math.round(
+      (netCashflow > 0 ? 25 : (cashIn > 0 || cashOut > 0 ? 10 : 0)) +
+      (kpps.length > 0 ? (totalKpp < 5_000_000_000 ? 25 : 15) : 0) +
+      (cashIn > 0 && cashOut > 0 ? (cashIn > cashOut * 1.2 ? 25 : 15) : 0) +
+      (hasFinanceData ? 25 : 0)
     )));
 
     res.json({
@@ -146,7 +148,7 @@ router.get("/finance/dashboard", async (req, res) => {
       hutangJatuhTempo: Number(debts[0]?.total ?? 0),
       piutangJatuhTempo: Number(receivables[0]?.total ?? 0),
       financeScore: score,
-      financeStatus: score >= 80 ? "SEHAT" : score >= 60 ? "WASPADA" : "KRITIS",
+      financeStatus: !hasFinanceData ? "SEHAT" : (score >= 80 ? "SEHAT" : score >= 60 ? "WASPADA" : "KRITIS"),
       alerts,
     });
   } catch (e: any) {

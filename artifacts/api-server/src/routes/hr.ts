@@ -861,10 +861,11 @@ router.get("/hr/dashboard", async (_req, res) => {
     const avgCulture = cultureScores.length > 0 ? cultureScores.reduce((a, b) => a + b, 0) / cultureScores.length : 0;
 
     const prodTarget = 500_000_000;
-    const productivityScore = prod[0] ? Math.min((Number(prod[0].totalRevenue) / totalActive) / prodTarget * 100, 100) : 0;
+    const productivityScore = prod[0] && totalActive > 0 ? Math.min((Number(prod[0].totalRevenue) / totalActive) / prodTarget * 100, 100) : 0;
 
-    const hcScore = avgKpi * 0.30 + productivityScore * 0.20 + avgCompetency * 0.20 + avgCulture * 0.15 + recruitReadiness * 0.15;
-    const hcStatus = hcScore > 80 ? "SEHAT" : hcScore >= 60 ? "WASPADA" : "KRITIS";
+    const hasHrData = totalActive > 0 || totalOpen > 0;
+    const hcScore = !hasHrData ? 0 : avgKpi * 0.30 + productivityScore * 0.20 + avgCompetency * 0.20 + avgCulture * 0.15 + recruitReadiness * 0.15;
+    const hcStatus = !hasHrData ? "SEHAT" : hcScore > 80 ? "SEHAT" : hcScore >= 60 ? "WASPADA" : "KRITIS";
 
     const workloads = await db.select().from(workloadRecordsTable).where(and(eq(workloadRecordsTable.periodYear, year), eq(workloadRecordsTable.periodMonth, month)));
 

@@ -78,7 +78,18 @@ router.get("/produksi/dashboard", async (req, res) => {
     const qcScore = avgQcScore;
     const fasumScore = fasumAvg;
     const paymentScore = pendingPayments.length === 0 ? 100 : Math.max(0, 100 - pendingPayments.length * 5);
-    const healthScore = Math.round(progressScore * 0.25 + qcScore * 0.20 + fasumScore * 0.10 + paymentScore * 0.10 + 75 * 0.20 + 75 * 0.15);
+
+    // Schedule adherence: persentase task yang on-time atau selesai
+    const completedTasks = tasks.filter(t => t.status === "selesai").length;
+    const scheduleAdherence = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+    // Safety/Compliance: 100 jika tidak ada issue, turun per critical material/alert
+    const safetyScore = Math.max(0, 100 - criticalMaterials.length * 10);
+
+    const hasProductionData = units.length > 0;
+    const healthScore = !hasProductionData ? 0 : Math.round(
+      progressScore * 0.25 + qcScore * 0.20 + fasumScore * 0.10 + paymentScore * 0.10 + scheduleAdherence * 0.20 + safetyScore * 0.15
+    );
 
     const alerts = [];
     if (sp3kUnits.length > 0) alerts.push({ type: "ht_tertahan", message: `${sp3kUnits.length} unit SP3K belum ready akad, HT tertahan Rp ${htTertahan.toLocaleString("id")}`, severity: "warning" });

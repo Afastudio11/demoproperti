@@ -204,9 +204,13 @@ main().catch(async (error) => {
 });
 
 async function main() {
-  await seedDatabase();
-  await runApiChecks();
-  await runUiRouteSmoke();
+  try {
+    await seedDatabase();
+    await runApiChecks();
+    await runUiRouteSmoke();
+  } finally {
+    await cleanupDatabase();
+  }
   await writeReports();
   const exitOnFailure = process.env.QA_EXIT_ON_FAILURE === "1";
   if (exitOnFailure && report.summary.failed > 0) process.exitCode = 1;
@@ -696,4 +700,57 @@ function escapeMd(value) {
 
 function trimSlash(value) {
   return value.replace(/\/+$/, "");
+}
+
+async function cleanupDatabase() {
+  if (!DATABASE_URL) return;
+  const pg = await loadOptionalPackage("pg");
+  if (!pg) return;
+  const pool = new pg.Pool({ connectionString: DATABASE_URL });
+  try {
+    const qaProjectName = `${QA_PREFIX} Analisis Lahan Gowa`;
+    const qaEmployeeName = `${QA_PREFIX} Admin Lapangan`;
+    const qaMaterialName = `${QA_PREFIX} Semen QA`;
+
+    // 1. Dapatkan project ID dan employee ID
+    const resProj = await pool.query("select id from projects where nama = $1 limit 1", [qaProjectName]);
+    const projId = resProj.rows[0]?.id;
+
+    const resEmp = await pool.query("select id from hr_employees where name = $1 limit 1", [qaEmployeeName]);
+    const empId = resEmp.rows[0]?.id;
+
+    // 2. Lakukan cleanup dengan urutan yang benar (child first)
+    if (empId) {
+      await pool.query("delete from hr_culture_records where employee_id = $1", [empId]);
+      await pool.query("delete from hr_attendance_records where employee_id = $1", [empId]);
+      await pool.query("delete from hr_overtime_records where employee_id = $1", [empId]);
+    }
+
+    if (projId) {
+      await pool.query("delete from prod_material_in where project_id = $1", [projId]);
+      await pool.query("delete from prod_material_out where project_id = $1", [projId]);
+      await pool.query("delete from units where project_id = $1", [projId]);
+      await pool.query("delete from subkon_contracts where project_id = $1", [projId]);
+      await pool.query("delete from planning_land_bank where project_id = $1", [projId]);
+      await pool.query("delete from planning_land where project_id = $1", [projId]);
+      await pool.query("delete from land_prospects where project_id = $1", [projId]);
+      await pool.query("delete from planning_market where project_id = $1", [projId]);
+      await pool.query("delete from planning_feasibility where project_id = $1", [projId]);
+      await pool.query("delete from hr_attendance_records where project_id = $1", [projId]);
+      await pool.query("delete from hr_overtime_records where project_id = $1", [projId]);
+      await pool.query("delete from projects where id = $1", [projId]);
+    }
+
+    await pool.query("delete from prod_material_master where name = $1", [qaMaterialName]);
+    if (empId) {
+      await pool.query("delete from hr_employees where id = $1", [empId]);
+    }
+    await pool.query("delete from app_users where username = $1", [ADMIN_USERNAME]);
+
+    addCheck("db.cleanup", "pass", "Cleanup data testing QA berhasil dilakukan.");
+  } catch (error) {
+    addCheck("db.cleanup", "fail", `Cleanup gagal: ${error.message}`);
+  } finally {
+    await pool.end().catch(() => {});
+  }
 }

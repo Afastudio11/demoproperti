@@ -221,7 +221,7 @@ router.get("/administrasi/dashboard", async (req, res) => {
       return days >= 0 && days < 14;
     }).length;
 
-    const healthScore = Math.max(0, Math.min(100,
+    const healthScore = customers.length === 0 ? 0 : Math.max(0, Math.min(100,
       100 - (agingKritis * 5) - (agingWarning * 2) - (expiredSoon * 3)
     ));
 
