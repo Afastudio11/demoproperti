@@ -103,7 +103,18 @@ router.post("/planning/siteplan", async (req, res) => {
 });
 
 router.patch("/planning/siteplan/:id", async (req, res) => {
-  const [row] = await db.update(planningSiteplansTable).set(req.body).where(eq(planningSiteplansTable.id, Number(req.params.id))).returning();
+  req.log.info({ body: req.body }, "PATCH siteplan start");
+  const { title, imageDataUrl, mainPolygon, imageTransform, isLocked } = req.body;
+  
+  const updateFields: Record<string, any> = {};
+  if (title !== undefined) updateFields.title = title;
+  if (imageDataUrl !== undefined) updateFields.imageDataUrl = imageDataUrl;
+  if (mainPolygon !== undefined) updateFields.mainPolygon = mainPolygon;
+  if (imageTransform !== undefined) updateFields.imageTransform = imageTransform;
+  if (isLocked !== undefined) updateFields.isLocked = typeof isLocked === "boolean" ? (isLocked ? 1 : 0) : isLocked;
+
+  const [row] = await db.update(planningSiteplansTable).set(updateFields).where(eq(planningSiteplansTable.id, Number(req.params.id))).returning();
+  req.log.info({ row }, "PATCH siteplan success");
   res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
 });
 
