@@ -534,14 +534,17 @@ export default function LahanPage() {
     setDrawTool(tool);
     if (tool === "unit_box") {
       setShapeDraft(p => ({ ...p, shapeType: "unit", label: p.label || nextUnitLabel(), unitStatus: p.unitStatus || "akan_dibangun" }));
-      setPolygonClosed(true);
+      // Don't reset draftPoints if user already has an active box draft
+      if (draftPoints.length !== 4) setPolygonClosed(true);
     } else if (tool === "polygon") {
-      if (draftPoints.length === 0) {
-        setShapeDraft(p => ({ ...p, shapeType: shapeType ?? p.shapeType }));
+      setShapeDraft(p => ({ ...p, shapeType: shapeType ?? p.shapeType }));
+      // When switching to polygon, clear unsaved draft but keep saved shape being edited
+      if (!editingShapeId) {
+        setDraftPoints([]);
         setPolygonClosed(false);
       }
     }
-    if (tool !== "select") setSelectedShapeIds([]);
+    // Note: intentionally NOT clearing selectedShapeIds — Miro-like: tool change doesn't lose selection
   }
 
   function addPoint(e: React.MouseEvent<HTMLDivElement>) {
@@ -562,22 +565,43 @@ export default function LahanPage() {
     if (!selectedSiteplan) return;
     const point = canvasPoint(e);
     if (!point) return;
+
     if (drawTool === "delete") {
       const shape = shapeAtPoint(point);
       if (shape) deleteShape(shape.id);
       return;
     }
+
     if (drawTool === "pan") {
       startPan(e);
       return;
     }
-    if (drawTool === "select" && (e.ctrlKey || e.metaKey || e.shiftKey)) {
-      setSelectedShapeIds([]);
-      setSelectionBox({ start: point, current: point });
-      dragRef.current = { mode: "marquee", start: point, current: point };
-      imageRef.current?.setPointerCapture(e.pointerId);
+
+    if (drawTool === "select") {
+      // ── Body drag for active draft (Miro-like: grab the box body, not just handles) ──
+      if (draftPoints.length >= 3 && pointInPolygon(point, draftPoints)) {
+        rememberDraft();
+        dragRef.current = { mode: "shape", lastX: e.clientX, lastY: e.clientY };
+        imageRef.current?.setPointerCapture(e.pointerId);
+        return;
+      }
+      // ── Marquee selection (Ctrl/Shift drag) ──
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        setSelectedShapeIds([]);
+        setSelectionBox({ start: point, current: point });
+        dragRef.current = { mode: "marquee", start: point, current: point };
+        imageRef.current?.setPointerCapture(e.pointerId);
+        return;
+      }
+      // ── Click on background: deselect but keep tool ──
+      const hitShape = shapeAtPoint(point);
+      if (!hitShape) {
+        setSelectedShapeIds([]);
+        // Don't clear editingShapeId/draftPoints here — let Escape do that
+      }
       return;
     }
+
     if (drawTool === "unit_box") {
       rememberDraft();
       setShapeDraft(p => ({ ...p, shapeType: "unit", label: p.label || nextUnitLabel() }));
@@ -1238,12 +1262,12 @@ export default function LahanPage() {
                 )}
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                   {hasMainPolygon && <polygon points={polygonPoints(selectedSiteplan.mainPolygon)} fill="rgba(15,23,42,.06)" stroke="#0f172a" strokeWidth="0.45" strokeDasharray="1.4 1" />}
-	                  {shapeList.map(shape => {
+                          {shapeList.map(shape => {
                       if (shape.id === editingShapeId) return null;
                       const isSelected = selectedShapeIds.includes(shape.id);
                       const color = shapeColor(shape, shape.id === editingShapeId || isSelected);
                       return (
-	                      <polygon
+                              <polygon
                           key={shape.id}
                           points={polygonPoints(shape.polygon)}
                           fill={color.fill}
@@ -1271,9 +1295,16 @@ export default function LahanPage() {
                     );
                   })()}
                   {draftPoints.length > 0 && (polygonClosed || isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) ? (
-                    <polygon points={polygonPoints(draftPoints)} fill="rgba(245,158,11,.25)" stroke="#f59e0b" strokeWidth="0.45" />
+                    <polygon
+                      points={polygonPoints(draftPoints)}
+                      fill="rgba(245,158,11,.25)"
+                      stroke="#f59e0b"
+                      strokeWidth="0.45"
+                      className={drawTool === "select" ? "cursor-move" : ""}
+                      style={{ pointerEvents: drawTool === "select" ? "none" : undefined }}
+                    />
                   ) : (
-                    <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#f59e0b" strokeWidth="0.45" />
+                    <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#f59e0b" strokeWidth="0.45" style={{ pointerEvents: "none" }} />
                   ))}
                   {isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && (() => {
                     const bounds = polygonBounds(draftPoints);
@@ -1346,10 +1377,26 @@ export default function LahanPage() {
                 </svg>
                 {shapeList.map(shape => {
                   if (shape.id === editingShapeId) return null;
-                  const first = shape.polygon?.[0];
-                  if (!first) return null;
-	                  return <button key={`label-${shape.id}`} type="button" onClick={(e) => { e.stopPropagation(); startEditShape(shape); }} className="absolute text-[10px] font-bold bg-background/80 px-1 rounded" style={{ left: `${first.x}%`, top: `${first.y}%` }}>{shape.label}</button>;
-	                })}
+                  const center = polygonCenter(Array.isArray(shape.polygon) ? shape.polygon : []);
+                  return (
+                    <div
+                      key={`label-${shape.id}`}
+                      className="absolute text-[9px] font-bold px-1 py-0.5 rounded select-none"
+                      style={{
+                        left: `${center.x}%`,
+                        top: `${center.y}%`,
+                        transform: "translate(-50%, -50%)",
+                        background: "rgba(0,0,0,0.58)",
+                        color: "#fff",
+                        pointerEvents: "none",
+                        lineHeight: 1.2,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {shape.label}
+                    </div>
+                  );
+                })}
                 </div>
               </div>
               <div className="space-y-3">
@@ -1436,26 +1483,26 @@ export default function LahanPage() {
                     </>
                   )}
                   <div className="space-y-1"><Label className="text-xs">Tipe Rumah</Label><Input className="h-8 text-sm" value={shapeDraft.unitType} onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))} /></div>
-	                  <div className="space-y-1"><Label className="text-xs">Status Unit</Label><Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
-	                  <div className="space-y-1 col-span-2"><Label className="text-xs">Link Unit Produksi</Label><Select value={shapeDraft.unitId || "none"} onValueChange={v => {
-	                    const unit = (units as any[]).find(u => String(u.id) === v);
-	                    setShapeDraft(p => ({ ...p, unitId: v === "none" ? "" : v, label: unit ? `${unit.blok}-${unit.nomor}` : p.label, unitType: unit?.tipe ?? p.unitType, subkonName: unit?.subkonName ?? p.subkonName, progress: unit?.progress ?? p.progress }));
-	                  }}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Belum link</SelectItem>{(units as any[]).map(u => <SelectItem key={u.id} value={String(u.id)}>{u.blok}-{u.nomor} · {u.tipe}</SelectItem>)}</SelectContent></Select></div>
-	                </div>
-	                {editingShapeId && (
-	                  <div className="grid grid-cols-4 gap-1">
-	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, -1)}>Atas</Button>
-	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(-1, 0)}>Kiri</Button>
-	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(1, 0)}>Kanan</Button>
-	                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, 1)}>Bawah</Button>
-	                  </div>
+                          <div className="space-y-1"><Label className="text-xs">Status Unit</Label><Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+                          <div className="space-y-1 col-span-2"><Label className="text-xs">Link Unit Produksi</Label><Select value={shapeDraft.unitId || "none"} onValueChange={v => {
+                            const unit = (units as any[]).find(u => String(u.id) === v);
+                            setShapeDraft(p => ({ ...p, unitId: v === "none" ? "" : v, label: unit ? `${unit.blok}-${unit.nomor}` : p.label, unitType: unit?.tipe ?? p.unitType, subkonName: unit?.subkonName ?? p.subkonName, progress: unit?.progress ?? p.progress }));
+                          }}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Belum link</SelectItem>{(units as any[]).map(u => <SelectItem key={u.id} value={String(u.id)}>{u.blok}-{u.nomor} · {u.tipe}</SelectItem>)}</SelectContent></Select></div>
+                        </div>
+                        {editingShapeId && (
+                          <div className="grid grid-cols-4 gap-1">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, -1)}>Atas</Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(-1, 0)}>Kiri</Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(1, 0)}>Kanan</Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, 1)}>Bawah</Button>
+                          </div>
                 )}
-	                <Button size="sm" onClick={saveShape} disabled={draftPoints.length < 3 || !shapeDraft.label || (!isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && !polygonClosed)} className="w-full"><Plus className="size-3.5 mr-1" /> {editingShapeId ? "Update Shape" : isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && boxDraft.count > 1 ? `Simpan ${boxDraft.count} Unit` : "Simpan Shape"} ({draftPoints.length} titik)</Button>
+                        <Button size="sm" onClick={saveShape} disabled={draftPoints.length < 3 || !shapeDraft.label || (!isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && !polygonClosed)} className="w-full"><Plus className="size-3.5 mr-1" /> {editingShapeId ? "Update Shape" : isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && boxDraft.count > 1 ? `Simpan ${boxDraft.count} Unit` : "Simpan Shape"} ({draftPoints.length} titik)</Button>
                 <div className="rounded-md border divide-y max-h-56 overflow-auto">
                   {shapeList.length === 0 ? <p className="p-3 text-xs text-muted-foreground">Belum ada shape.</p> : shapeList.map(shape => (
                     <div key={shape.id} className="flex items-center justify-between gap-2 p-2">
-	                      <button className="text-left" onClick={() => startEditShape(shape)}><p className="text-xs font-medium">{shape.label}</p><p className="text-[10px] text-muted-foreground">{shape.shapeType} · {shape.purchaseStatus ?? shape.unitStatus}{shape.unitId ? " · linked" : " · belum link"}</p></button>
-	                      <button className="text-red-500" onClick={() => deleteShape(shape.id)}><Trash2 className="size-3.5" /></button>
+                              <button className="text-left" onClick={() => startEditShape(shape)}><p className="text-xs font-medium">{shape.label}</p><p className="text-[10px] text-muted-foreground">{shape.shapeType} · {shape.purchaseStatus ?? shape.unitStatus}{shape.unitId ? " · linked" : " · belum link"}</p></button>
+                              <button className="text-red-500" onClick={() => deleteShape(shape.id)}><Trash2 className="size-3.5" /></button>
                     </div>
                   ))}
                 </div>

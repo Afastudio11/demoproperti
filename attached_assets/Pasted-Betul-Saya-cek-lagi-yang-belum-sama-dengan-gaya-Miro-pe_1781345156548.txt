@@ -1,0 +1,72 @@
+Betul. Saya cek lagi, yang belum sama dengan gaya Miro/perumahan-map itu bukan satu bug kecil, tapi pola editornya masih salah. Plan perbaikannya begini:
+
+1. **Ubah Model Objek**
+   - Kotak rumah jangan lagi diperlakukan sebagai polygon biasa.
+   - Simpan metadata rectangle: `x`, `y`, `width`, `height`, `rotation`.
+   - Polygon tetap simpan `points`.
+   - Jadi sistem tahu mana `rectangle unit` dan mana `polygon lahan`.
+
+2. **Pisahkan Tool vs Selected Object**
+   - Tool aktif boleh berubah: `Kursor`, `Geser`, `Kotak`, `Polygon`, `Hapus`.
+   - Shape yang sedang dipilih tidak boleh hilang hanya karena pindah tool.
+   - Ini harus seperti Miro: tool hanya menentukan aksi berikutnya, bukan menghapus objek aktif.
+
+3. **Perbaiki Kursor/Select**
+   - Mode `Kursor`:
+     - klik shape = select
+     - klik tahan shape = drag/geser shape
+     - klik tahan draft aktif = geser draft juga
+   - Ini yang sekarang belum benar: draft kotak aktif belum bisa digeser dari body.
+
+4. **Perbaiki Kotak Rumah**
+   - Saat buat kotak, mouse up langsung jadi objek aktif.
+   - Bisa langsung:
+     - drag geser
+     - resize dari kanan/kiri untuk lebar
+     - resize dari atas/bawah untuk tinggi
+     - resize corner untuk diagonal
+     - rotate dari handle atas
+   - Tidak boleh “ketarik sudut” saat user cuma mau melebarkan.
+
+5. **Perbaiki Polygon**
+   - Polygon punya behavior sendiri:
+     - drag body = geser seluruh polygon
+     - drag titik = geser titik
+     - double click titik = hapus titik
+     - klik titik awal = tutup polygon
+   - Jangan campur behavior polygon dengan kotak.
+
+6. **Tool Switching Harus Bebas**
+   - Setelah buat kotak, user harus bisa klik tool lain.
+   - Kalau pindah `Kursor`, kotak tetap aktif.
+   - Kalau pindah `Geser`, canvas/background bisa digeser.
+   - Kalau pindah `Kotak` lagi, mulai bikin kotak baru.
+   - Kalau pindah `Polygon`, mulai gambar polygon baru tanpa merusak kotak yang sudah aktif/tersimpan.
+
+7. **Save UX Dibuat Lebih Miro**
+   - Idealnya setelah user gambar kotak, objek langsung masuk list lokal sebagai shape aktif.
+   - Tombol `Simpan` menyimpan semua perubahan ke backend.
+   - Bukan setiap kotak terasa seperti form draft yang mudah hilang.
+
+8. **Hilangkan Interaksi yang Mengganggu**
+   - Label shape jangan menangkap klik kalau membuat drag jadi gagal.
+   - Handle harus punya pointer event sendiri.
+   - Body shape harus selalu bisa di-drag saat mode kursor.
+
+9. **Tambah Feedback Visual**
+   - Selected rectangle: outline dashed seperti `perumahan-map`.
+   - Rectangle handle: kotak kecil di corner/edge.
+   - Polygon handle: titik bulat.
+   - Cursor berubah sesuai aksi: move, resize horizontal, resize vertical, rotate, pan.
+
+10. **QC Manual**
+   - Buat kotak lalu langsung drag.
+   - Resize kanan/kiri.
+   - Resize atas/bawah.
+   - Pindah ke tool lain, kotak tidak hilang.
+   - Pilih polygon lalu geser body.
+   - Geser titik polygon.
+   - Save/update, refresh, shape tetap benar.
+   - Typecheck dan build.
+
+Kesimpulan teknisnya: saya harus ubah editor dari “draft form polygon” menjadi “layer editor” seperti Miro/perumahan-map. Ini berarti bukan cuma nambah tombol, tapi refactor event handling canvas supaya rectangle dan polygon punya behavior masing-masing.
