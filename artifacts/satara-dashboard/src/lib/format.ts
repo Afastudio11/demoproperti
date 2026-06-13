@@ -3,7 +3,7 @@
  * Contoh: 1048.000000000001 → "1.048", 12.6999999 → "12,7"
  */
 export function fmtQty(n: number, maxDecimals = 2): string {
-  if (!isFinite(n)) return "0";
+  if (n === null || n === undefined || !isFinite(n)) return "0";
   const rounded = parseFloat(n.toFixed(maxDecimals));
   return rounded.toLocaleString("id-ID");
 }
@@ -16,7 +16,7 @@ export function fmtQty(n: number, maxDecimals = 2): string {
  * < 1 Juta     → "Rp X.XXX"
  */
 export function fmtRupiah(n: number, prefix = "Rp "): string {
-  if (!isFinite(n)) return `${prefix}0`;
+  if (n === null || n === undefined || !isFinite(n)) return `${prefix}0`;
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
   if (abs >= 1_000_000_000_000) {
@@ -39,7 +39,7 @@ export function fmtRupiah(n: number, prefix = "Rp "): string {
  * Contoh: 168000 → "168.000", 1500000 → "1.500.000"
  */
 export function fmtNumber(n: number, maxDecimals = 0): string {
-  if (!isFinite(n)) return "0";
+  if (n === null || n === undefined || !isFinite(n)) return "0";
   const rounded = parseFloat(n.toFixed(maxDecimals));
   return rounded.toLocaleString("id-ID", { maximumFractionDigits: maxDecimals });
 }
@@ -49,6 +49,6 @@ export function fmtNumber(n: number, maxDecimals = 0): string {
  * Contoh: 0.18 → "18,0%" atau 18 → "18,0%"
  */
 export function fmtPct(n: number, decimals = 1): string {
-  if (!isFinite(n)) return "0%";
+  if (n === null || n === undefined || !isFinite(n)) return "0%";
   return `${parseFloat(n.toFixed(decimals)).toLocaleString("id-ID", { maximumFractionDigits: decimals })}%`;
 }

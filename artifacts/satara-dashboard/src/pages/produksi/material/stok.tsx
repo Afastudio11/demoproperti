@@ -8,7 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, Package, RefreshCw, Search, TrendingDown } from "lucide-react";
 import { Link } from "wouter";
 
-const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
+const fmtRp = (n: number) => {
+  if (n === null || n === undefined || isNaN(n)) return "Rp 0";
+  return `Rp ${n.toLocaleString("id-ID")}`;
+};
 
 type StokRow = {
   id: number; name: string; category: string; satuan: string;

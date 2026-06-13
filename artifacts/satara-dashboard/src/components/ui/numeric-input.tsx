@@ -12,7 +12,9 @@ const NumericInput = forwardRef<HTMLInputElement, NumericInputProps>(
     const [focused, setFocused] = useState(false);
     const [raw, setRaw] = useState("");
 
-    const formatted = value === 0
+    const formatted = (value === null || value === undefined || isNaN(value))
+      ? ""
+      : value === 0
       ? "0"
       : value.toLocaleString("id-ID", {
           minimumFractionDigits: 0,
@@ -31,7 +33,7 @@ const NumericInput = forwardRef<HTMLInputElement, NumericInputProps>(
         value={focused ? raw : formatted}
         onFocus={(e) => {
           setFocused(true);
-          const rawStr = value === 0 ? "" : decimals > 0 ? String(value) : String(Math.round(value));
+          const rawStr = (value === 0 || value === null || value === undefined || isNaN(value)) ? "" : decimals > 0 ? String(value) : String(Math.round(value));
           setRaw(rawStr);
           setTimeout(() => e.target.select(), 0);
           onFocus?.(e);

@@ -200,6 +200,7 @@ export function trafficLight(roi: number, irr: number, payback: number, margin: 
 }
 
 export function fmtCurrency(val: number): string {
+  if (val === null || val === undefined || isNaN(val)) return "Rp 0";
   if (Math.abs(val) >= 1_000_000_000) return `Rp ${(val / 1_000_000_000).toFixed(2)} M`;
   if (Math.abs(val) >= 1_000_000) return `Rp ${(val / 1_000_000).toFixed(1)} jt`;
   return `Rp ${val.toLocaleString("id-ID")}`;
