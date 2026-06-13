@@ -169,7 +169,7 @@ export default function SubkonTermin() {
               <div className="grid grid-cols-3 gap-3 text-xs p-3 bg-muted/50 rounded-lg">
                 <div><span className="text-muted-foreground block">Nilai Kontrak</span><span className="font-medium">{fmtRp(contract.contractValue)}</span></div>
                 <div><span className="text-muted-foreground block">Total Retensi</span><span className="font-medium">{fmtRp(contract.totalRetention)}</span></div>
-                <div><span className="text-muted-foreground block">Netto Dibayar</span><span className="font-medium">{fmtRp(contract.netPayableValue)}</span></div>
+                <div><span className="text-muted-foreground block">Sisa setelah Retensi</span><span className="font-medium">{fmtRp(contract.netPayableValue)}</span></div>
               </div>
             )}
 
@@ -195,9 +195,9 @@ export default function SubkonTermin() {
                 <p className="text-xs font-medium text-muted-foreground">Nominal Sesuai Jadwal Kontrak</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div><span className="text-muted-foreground block">Rencana Bayar</span><span className="font-semibold">{selectedTerm.plannedDate ?? "—"}</span></div>
-                  <div><span className="text-muted-foreground block">Bruto</span><span className="font-semibold">{fmtRp(gross)}</span></div>
+                  <div><span className="text-muted-foreground block">Nilai Termin</span><span className="font-semibold">{fmtRp(gross)}</span></div>
                   <div><span className="text-muted-foreground block">Potongan Retensi</span><span className="font-semibold text-red-500">({fmtRp(retention)})</span></div>
-                  <div><span className="text-muted-foreground block">Netto Dibayar</span><span className="font-bold text-emerald-600">{fmtRp(net)}</span></div>
+                  <div><span className="text-muted-foreground block">Jumlah Dibayar</span><span className="font-bold text-emerald-600">{fmtRp(net)}</span></div>
                 </div>
                 <div className="text-[11px] text-muted-foreground">Progress pekerjaan saat pengajuan: {fmtPct(prevProgress)} → {fmtPct(curProgress)} ({fmtPct(velocity)} naik)</div>
               </div>
@@ -229,9 +229,9 @@ export default function SubkonTermin() {
                     <th className="text-right py-2 pr-4">Termin</th>
                     <th className="text-right py-2 pr-4">Progress</th>
                     <th className="text-right py-2 pr-4">Velocity</th>
-                    <th className="text-right py-2 pr-4">Bruto</th>
+                    <th className="text-right py-2 pr-4">Nilai Termin</th>
                     <th className="text-right py-2 pr-4">Retensi</th>
-                    <th className="text-right py-2 pr-4">Netto</th>
+                    <th className="text-right py-2 pr-4">Jumlah Dibayar</th>
                     <th className="text-center py-2 pr-4">Status</th>
                     <th className="py-2"></th>
                   </tr>

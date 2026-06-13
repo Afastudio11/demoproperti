@@ -42,7 +42,6 @@ const subModules = [
       { name: "Stok",       path: "/produksi/material/stok",     desc: "Stok aktual & alert minimum" },
       { name: "Masuk",      path: "/produksi/material/masuk",    desc: "Penerimaan material" },
       { name: "Keluar",     path: "/produksi/material/keluar",   desc: "Pengeluaran material ke lapangan" },
-      { name: "Konsumsi",   path: "/produksi/material/konsumsi", desc: "Konsumsi aktual vs standar" },
       { name: "Variance",   path: "/produksi/material/variance", desc: "Variance & penyimpangan material" },
     ],
   },

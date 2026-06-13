@@ -37,13 +37,35 @@ const RETENTION_STATUS: Record<string, string> = {
   ditahan: "Ditahan", masa_pemeliharaan: "Masa Pemeliharaan", siap_cair: "Siap Cair", sudah_cair: "Sudah Cair",
 };
 
-const makeDefaultTerms = (): PaymentTerm[] => [
-  { terminNumber: 1, label: "P. Pertama", plannedDate: "", paymentType: "termin", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
-  { terminNumber: 2, label: "P. Kedua", plannedDate: "", paymentType: "termin", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
-  { terminNumber: 3, label: "P. Ketiga", plannedDate: "", paymentType: "termin", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
-  { terminNumber: 4, label: "P. Keempat", plannedDate: "", paymentType: "termin", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
-  { terminNumber: 5, label: "Retensi", plannedDate: "", paymentType: "retensi", grossAmount: 0, retentionAmount: 0, netAmount: 0 },
-];
+const TERMIN_LABELS = ["P. Pertama", "P. Kedua", "P. Ketiga", "P. Keempat", "P. Kelima", "P. Keenam", "P. Ketujuh", "P. Kedelapan"];
+
+const addMonths = (date: string, months: number) => {
+  if (!date) return "";
+  const d = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  if (d.getDate() !== day) d.setDate(0);
+  return d.toISOString().split("T")[0];
+};
+
+const makeDefaultTerms = (contractValue = 0, count = 4, firstDate = ""): PaymentTerm[] => {
+  const safeCount = Math.max(1, Math.floor(count || 4));
+  const base = safeCount ? Math.floor(contractValue / safeCount) : 0;
+  const remainder = Math.round(contractValue - base * safeCount);
+  return Array.from({ length: safeCount }, (_, i) => {
+    const amount = base + (i === safeCount - 1 ? remainder : 0);
+    return {
+      terminNumber: i + 1,
+      label: TERMIN_LABELS[i] ?? `Termin ${i + 1}`,
+      plannedDate: firstDate ? addMonths(firstDate, i) : "",
+      paymentType: "termin",
+      grossAmount: amount,
+      retentionAmount: 0,
+      netAmount: amount,
+    };
+  });
+};
 
 export default function SubkonKontrak() {
   const [showForm, setShowForm] = useState(false);
@@ -51,6 +73,7 @@ export default function SubkonKontrak() {
     projectId: "", stageCode: "", subkonName: "",
     unitCount: "", valuePerUnit: "", retentionPerUnit: "500000",
     maintenanceMonths: "3", startDate: "", targetEndDate: "",
+    terminCount: "4", firstTerminDate: "",
     paymentTerms: makeDefaultTerms(),
   });
   const { toast } = useToast();
@@ -93,7 +116,7 @@ export default function SubkonKontrak() {
       qc.invalidateQueries({ queryKey: ["subkon-contracts"] });
       toast({ title: "Kontrak berhasil dibuat" });
       setShowForm(false);
-      setForm({ projectId: "", stageCode: "", subkonName: "", unitCount: "", valuePerUnit: "", retentionPerUnit: "500000", maintenanceMonths: "3", startDate: "", targetEndDate: "", paymentTerms: makeDefaultTerms() });
+      setForm({ projectId: "", stageCode: "", subkonName: "", unitCount: "", valuePerUnit: "", retentionPerUnit: "500000", maintenanceMonths: "3", startDate: "", targetEndDate: "", terminCount: "4", firstTerminDate: "", paymentTerms: makeDefaultTerms() });
     },
     onError: () => toast({ title: "Gagal membuat kontrak", variant: "destructive" }),
   });
@@ -113,6 +136,17 @@ export default function SubkonKontrak() {
   const scheduledNet = form.paymentTerms.reduce((sum, term) => sum + (term.netAmount || 0), 0);
   const scheduledRetention = form.paymentTerms.reduce((sum, term) => sum + (term.retentionAmount || 0), 0);
 
+  const regenerateTerms = (next: Partial<typeof form>) => {
+    setForm(prev => {
+      const merged = { ...prev, ...next };
+      const contractValue = (parseFloat(merged.valuePerUnit) || 0) * (parseInt(merged.unitCount) || 0);
+      return {
+        ...merged,
+        paymentTerms: makeDefaultTerms(contractValue, parseInt(merged.terminCount) || 4, merged.firstTerminDate),
+      };
+    });
+  };
+
   const updateTerm = (index: number, patch: Partial<PaymentTerm>) => {
     setForm(prev => ({
       ...prev,
@@ -130,6 +164,7 @@ export default function SubkonKontrak() {
   const addTerm = (paymentType = "termin") => {
     setForm(prev => ({
       ...prev,
+      terminCount: paymentType === "termin" ? String(prev.paymentTerms.filter(t => t.paymentType === "termin").length + 1) : prev.terminCount,
       paymentTerms: [
         ...prev.paymentTerms,
         {
@@ -148,6 +183,7 @@ export default function SubkonKontrak() {
   const removeTerm = (index: number) => {
     setForm(prev => ({
       ...prev,
+      terminCount: String(Math.max(1, prev.paymentTerms.filter((term, i) => i !== index && term.paymentType === "termin").length)),
       paymentTerms: prev.paymentTerms.filter((_, i) => i !== index).map((term, i) => ({ ...term, terminNumber: i + 1 })),
     }));
   };
@@ -188,11 +224,11 @@ export default function SubkonKontrak() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Jumlah Unit</Label>
-                <NumericInput value={parseFloat(form.unitCount) || 0} onChange={v => setForm(p => ({ ...p, unitCount: String(v) }))} className="h-8 text-sm" />
+                <NumericInput value={parseFloat(form.unitCount) || 0} onChange={v => regenerateTerms({ unitCount: String(v) })} className="h-8 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Nilai per Unit (Rp)</Label>
-                <CurrencyInput value={form.valuePerUnit} onChange={raw => setForm(p => ({ ...p, valuePerUnit: raw }))} className="h-8 text-sm" />
+                <CurrencyInput value={form.valuePerUnit} onChange={raw => regenerateTerms({ valuePerUnit: raw })} className="h-8 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Retensi per Unit (Rp)</Label>
@@ -213,11 +249,27 @@ export default function SubkonKontrak() {
                 <Input type="date" value={form.targetEndDate} onChange={e => setForm(p => ({ ...p, targetEndDate: e.target.value }))} className="h-8 text-sm" />
               </div>
             </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Jumlah Termin</Label>
+                <NumericInput value={parseInt(form.terminCount) || 4} onChange={v => regenerateTerms({ terminCount: String(Math.max(1, Math.round(v))) })} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tanggal Termin 1</Label>
+                <Input type="date" value={form.firstTerminDate} onChange={e => regenerateTerms({ firstTerminDate: e.target.value })} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-xs">Retensi</Label>
+                <Button type="button" variant="outline" size="sm" className="h-8 w-full justify-start text-xs" onClick={() => addTerm("retensi")}>
+                  Tambah baris retensi saat sudah siap dicairkan
+                </Button>
+              </div>
+            </div>
             {cv > 0 && (
               <div className="grid grid-cols-3 gap-3 p-3 bg-muted/30 rounded-lg text-xs">
                 <div><span className="text-muted-foreground block">Nilai Kontrak</span><span className="font-semibold">{fmtRp(cv)}</span></div>
                 <div><span className="text-muted-foreground block">Total Retensi</span><span className="font-semibold text-amber-600">{fmtRp(tr)}</span></div>
-                <div><span className="text-muted-foreground block">Netto Dibayarkan</span><span className="font-semibold text-emerald-600">{fmtRp(nv)}</span></div>
+                <div><span className="text-muted-foreground block">Sisa setelah Retensi</span><span className="font-semibold text-emerald-600">{fmtRp(nv)}</span></div>
               </div>
             )}
             <div className="space-y-2">
@@ -226,7 +278,7 @@ export default function SubkonKontrak() {
                   <Label className="text-xs">Jadwal Termin Pembayaran</Label>
                   <p className="text-[11px] text-muted-foreground">Nominal ini menjadi acuan saat Produksi mengajukan termin ke Finance.</p>
                 </div>
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => addTerm()}>Tambah Termin</Button>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => regenerateTerms({ terminCount: String((parseInt(form.terminCount) || 4) + 1) })}>Tambah Termin</Button>
               </div>
               <div className="overflow-x-auto border rounded-lg">
                 <table className="w-full min-w-[920px] text-xs">
@@ -235,9 +287,9 @@ export default function SubkonKontrak() {
                       <th className="text-left p-2 w-24">Termin</th>
                       <th className="text-left p-2 w-36">Tipe</th>
                       <th className="text-left p-2 w-36">Tanggal</th>
-                      <th className="text-right p-2">Bruto</th>
+                      <th className="text-right p-2">Nilai Termin</th>
                       <th className="text-right p-2">Pot. Retensi</th>
-                      <th className="text-right p-2">Netto</th>
+                      <th className="text-right p-2">Jumlah Dibayar</th>
                       <th className="text-left p-2">Catatan</th>
                       <th className="p-2 w-10"></th>
                     </tr>
@@ -283,8 +335,8 @@ export default function SubkonKontrak() {
                 </table>
               </div>
               <div className="grid grid-cols-3 gap-3 p-3 bg-muted/20 rounded-lg text-xs">
-                <div><span className="text-muted-foreground block">Total Netto Termin</span><span className="font-semibold">{fmtRp(scheduledNet)}</span></div>
-                <div><span className="text-muted-foreground block">Total Pot. Retensi</span><span className="font-semibold text-amber-600">{fmtRp(scheduledRetention)}</span></div>
+                <div><span className="text-muted-foreground block">Total Jumlah Dibayar</span><span className="font-semibold">{fmtRp(scheduledNet)}</span></div>
+                <div><span className="text-muted-foreground block">Retensi Ditahan</span><span className="font-semibold text-amber-600">{fmtRp(scheduledRetention)}</span></div>
                 <div><span className="text-muted-foreground block">Sisa vs Nilai Kontrak</span><span className={`font-semibold ${cv - scheduledNet < 0 ? "text-red-500" : "text-muted-foreground"}`}>{fmtRp(cv - scheduledNet)}</span></div>
               </div>
             </div>
@@ -316,7 +368,7 @@ export default function SubkonKontrak() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs">
                       <div><span className="text-muted-foreground block">Nilai Kontrak</span><span className="font-medium">{fmtRp(c.contractValue)}</span></div>
                       <div><span className="text-muted-foreground block">Retensi</span><span className="font-medium text-amber-600">{fmtRp(c.totalRetention)}</span></div>
-                      <div><span className="text-muted-foreground block">Netto</span><span className="font-medium text-emerald-600">{fmtRp(c.netPayableValue)}</span></div>
+                      <div><span className="text-muted-foreground block">Sisa setelah Retensi</span><span className="font-medium text-emerald-600">{fmtRp(c.netPayableValue)}</span></div>
                       <div><span className="text-muted-foreground block">Status Retensi</span><span className="font-medium">{RETENTION_STATUS[c.retentionStatus] ?? c.retentionStatus}</span></div>
                     </div>
                     {(c.paymentTerms?.length ?? 0) > 0 && (
@@ -326,9 +378,9 @@ export default function SubkonKontrak() {
                             <tr className="bg-muted/30 text-muted-foreground border-b">
                               <th className="text-left p-2">Termin</th>
                               <th className="text-left p-2">Rencana</th>
-                              <th className="text-right p-2">Bruto</th>
-                              <th className="text-right p-2">Retensi</th>
-                              <th className="text-right p-2">Netto</th>
+                              <th className="text-right p-2">Nilai Termin</th>
+                              <th className="text-right p-2">Pot. Retensi</th>
+                              <th className="text-right p-2">Jumlah Dibayar</th>
                             </tr>
                           </thead>
                           <tbody>

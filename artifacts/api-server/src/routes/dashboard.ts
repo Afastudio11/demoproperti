@@ -4,7 +4,8 @@ import {
   projectsTable, landProspectsTable, feasibilityStudiesTable,
   legalDocumentsTable, leadsTable, customersTable, unitsTable,
   constructionTasksTable, qcDefectsTable, handoversTable,
-  cashflowRecordsTable, prodMaterialMasterTable, prodMaterialInTable, prodMaterialOutTable
+  cashflowRecordsTable, prodMaterialMasterTable, prodMaterialInTable, prodMaterialOutTable,
+  campaignsTable
 } from "@workspace/db";
 import { eq, sql, lt } from "drizzle-orm";
 
@@ -47,12 +48,14 @@ router.get("/dashboard/summary", async (req, res) => {
 
 router.get("/dashboard/kpi", async (req, res) => {
   try {
-    const [leads, customers, units, legalDocs, landProspects] = await Promise.all([
+    const [leads, customers, units, legalDocs, landProspects, qcDefects, campaigns] = await Promise.all([
       db.select().from(leadsTable),
       db.select().from(customersTable),
       db.select().from(unitsTable),
       db.select().from(legalDocumentsTable),
       db.select().from(landProspectsTable),
+      db.select().from(qcDefectsTable),
+      db.select().from(campaignsTable),
     ]);
 
     const totalLeads = leads.length;
@@ -60,6 +63,10 @@ router.get("/dashboard/kpi", async (req, res) => {
     const akad = customers.filter(c => c.pipelineStatus === "AKAD" || c.pipelineStatus === "HT_CAIR").length;
     const conversionRate = totalLeads > 0 ? (bookings / totalLeads) * 100 : 0;
     const bookingToAkad = bookings > 0 ? (akad / bookings) * 100 : 0;
+
+    const totalSpend = campaigns.reduce((sum, c) => sum + (c.spend ? Number(c.spend) : 0), 0);
+    const totalLeadsGenerated = campaigns.reduce((sum, c) => sum + (c.leadsGenerated || 0), 0);
+    const cpl = totalLeadsGenerated > 0 ? Math.round(totalSpend / totalLeadsGenerated) : 0;
 
     const pendingBerkas = customers.filter(c => !c.berkasLengkap).length;
     const sp3kCount = customers.filter(c => c.pipelineStatus === "SP3K").length;
@@ -72,8 +79,24 @@ router.get("/dashboard/kpi", async (req, res) => {
       : 0;
     const readyAkad = units.filter(u => u.readyAkad).length;
 
+    // Deviation: perbedaan antara target (100%) dan progress rata-rata
+    const deviation = units.length > 0 ? Math.round((100 - avgProgress) * 10) / 10 : 0;
+
+    // Defect rate: persentase unit yang punya defect dari total unit
+    const unitsWithDefect = new Set(qcDefects.map(d => d.unitId)).size;
+    const defectRate = units.length > 0 ? Math.round((unitsWithDefect / units.length) * 1000) / 10 : 0;
+
     const approvedDocs = legalDocs.filter(d => d.status === "approved").length;
     const pendingDocs = legalDocs.filter(d => d.status === "pending" || d.status === "in_progress").length;
+
+    // Bankable projects: proyek yang semua dokumen legal-nya approved
+    const projectLegalMap: Record<number, { total: number; approved: number }> = {};
+    for (const d of legalDocs) {
+      if (!projectLegalMap[d.projectId]) projectLegalMap[d.projectId] = { total: 0, approved: 0 };
+      projectLegalMap[d.projectId].total++;
+      if (d.status === "approved") projectLegalMap[d.projectId].approved++;
+    }
+    const bankableProjects = Object.values(projectLegalMap).filter(p => p.total > 0 && p.approved === p.total).length;
 
     const avgRoi = landProspects.length > 0
       ? landProspects.reduce((s, p) => s + (p.roi || 0), 0) / landProspects.length
@@ -82,10 +105,10 @@ router.get("/dashboard/kpi", async (req, res) => {
     const legalCleanRate = landProspects.length > 0 ? (legalCleanProspects / landProspects.length) * 100 : 0;
 
     res.json({
-      marketing: { leads: totalLeads, cpl: 250000, conversionRate: Math.round(conversionRate * 10) / 10, bookingToAkad: Math.round(bookingToAkad * 10) / 10 },
+      marketing: { leads: totalLeads, cpl, conversionRate: Math.round(conversionRate * 10) / 10, bookingToAkad: Math.round(bookingToAkad * 10) / 10 },
       admin: { pendingBerkas, sp3kCount, akadCount, rejectRate: Math.round(rejectRate * 10) / 10 },
-      production: { avgProgress: Math.round(avgProgress * 10) / 10, deviation: 2.3, defectRate: 3.1, readyAkad },
-      legal: { totalDocs: legalDocs.length, approved: approvedDocs, pending: pendingDocs, bankableProjects: 2 },
+      production: { avgProgress: Math.round(avgProgress * 10) / 10, deviation, defectRate, readyAkad },
+      legal: { totalDocs: legalDocs.length, approved: approvedDocs, pending: pendingDocs, bankableProjects },
       acquisition: { prospects: landProspects.length, avgRoi: Math.round(avgRoi * 10) / 10, legalCleanRate: Math.round(legalCleanRate * 10) / 10 },
     });
   } catch (err) {

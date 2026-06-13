@@ -7,6 +7,7 @@ import { AuthProvider, useAuth, type AuthUser } from "@/contexts/auth-context";
 import Login from "@/pages/login";
 import LandingPage from "@/pages/landing";
 import NotFound from "@/pages/not-found";
+import PublicPaymentProof from "@/pages/public-payment-proof";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import ProjectDetail from "@/pages/project-detail";
@@ -76,7 +77,6 @@ import MaterialAcuan from "@/pages/produksi/material/acuan";
 import MaterialMasuk from "@/pages/produksi/material/masuk";
 import MaterialKeluar from "@/pages/produksi/material/keluar";
 import MaterialStok from "@/pages/produksi/material/stok";
-import MaterialKonsumsi from "@/pages/produksi/material/konsumsi";
 import MaterialVariance from "@/pages/produksi/material/variance";
 import QcChecklist from "@/pages/produksi/qc/checklist";
 import QcRework from "@/pages/produksi/qc/rework";
@@ -202,6 +202,16 @@ function MaterialForecastRedirect() {
   return null;
 }
 
+function MaterialKonsumsiRedirect() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    setLocation("/produksi/subkon/performa");
+  }, [setLocation]);
+
+  return null;
+}
+
 function AppRoutes() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
@@ -223,6 +233,10 @@ function AppRoutes() {
 
   if (location === "/executive") {
     return <ExecutiveRedirect />;
+  }
+
+  if (location.startsWith("/public/payment-proof/")) {
+    return <PublicPaymentProof />;
   }
 
   if (!user) {
@@ -304,7 +318,7 @@ function AppRoutes() {
         <Route path="/produksi/material/masuk" component={MaterialMasuk} />
         <Route path="/produksi/material/keluar" component={MaterialKeluar} />
         <Route path="/produksi/material/stok" component={MaterialStok} />
-        <Route path="/produksi/material/konsumsi" component={MaterialKonsumsi} />
+        <Route path="/produksi/material/konsumsi" component={MaterialKonsumsiRedirect} />
         <Route path="/produksi/material/variance" component={MaterialVariance} />
         <Route path="/produksi/material/forecast" component={MaterialForecastRedirect} />
         <Route path="/produksi/qc/checklist" component={QcChecklist} />

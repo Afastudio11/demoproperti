@@ -42,6 +42,7 @@ import categoriesRouter from "./categories";
 import financeRouter from "./finance";
 import authRouter from "./auth";
 import dataQualityRouter from "./data-quality";
+import publicProofRouter from "./public-proof";
 import { requireAuth, requireModuleAccess } from "../middleware/auth";
 import { createRateLimit } from "../middleware/rate-limit";
 
@@ -50,6 +51,7 @@ const loginRateLimit = createRateLimit({ keyPrefix: "auth-login", windowMs: 15 *
 const aiRateLimit = createRateLimit({ keyPrefix: "ai", windowMs: 60 * 1000, max: 12 });
 
 router.use(healthRouter);
+router.use(publicProofRouter);
 router.use("/auth/login", loginRateLimit);
 router.use(authRouter);
 router.use(requireAuth);

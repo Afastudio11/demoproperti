@@ -53,18 +53,6 @@ async function resolveMaterialContext(body: Record<string, unknown>) {
   };
 }
 
-async function getScopedStock(projectId: number, stageCode: string | null, materialId: number) {
-  const inRows = await db.select().from(prodMaterialInTable);
-  const outRows = await db.select().from(prodMaterialOutTable);
-  const sameScope = (row: { projectId: number; stageCode?: string | null; materialId: number }) =>
-    row.projectId === projectId
-    && (row.stageCode ?? "") === (stageCode ?? "")
-    && row.materialId === materialId;
-  const totalIn = inRows.filter(sameScope).reduce((sum, row) => sum + row.quantity, 0);
-  const totalOut = outRows.filter(sameScope).reduce((sum, row) => sum + row.quantity, 0);
-  return Math.round((totalIn - totalOut) * 100) / 100;
-}
-
 const SEED_MATERIALS = [
   { category: "A - Pendahuluan", name: "Tali Tukang", satuan: "m", standardPerUnit: 50 },
   { category: "B - Struktur", name: "Timbunan Tanah", satuan: "m3", standardPerUnit: 10 },
@@ -348,15 +336,7 @@ router.post("/produksi/material/out", async (req, res) => {
     const context = await resolveMaterialContext(req.body);
     const materialId = Number(req.body.materialId);
     const quantity = Number(req.body.quantity);
-    const available = await getScopedStock(context.projectId, context.stageCode, materialId);
     if (quantity <= 0) return res.status(400).json({ error: "Quantity harus lebih dari 0" });
-    if (quantity > available) {
-      return res.status(409).json({
-        error: "Stok tidak cukup untuk proyek/tahap/material ini",
-        available,
-        requested: quantity,
-      });
-    }
 
     const [row] = await db.insert(prodMaterialOutTable).values({
       ...req.body,

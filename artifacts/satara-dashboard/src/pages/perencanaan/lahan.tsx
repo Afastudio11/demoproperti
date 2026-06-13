@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
-import { Save, Download, MapPin, Plus, Trash2, Upload } from "lucide-react";
+import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { cn } from "@/lib/utils";
@@ -20,8 +20,15 @@ function num(v: string) { return parseFloat(v) || 0; }
 
 type CanvasPoint = { x: number; y: number };
 type SiteplanTransform = { opacity: number; scale: number; x: number; y: number; locked: boolean };
-type DrawTool = "polygon" | "unit_box";
+type DrawTool = "select" | "pan" | "polygon" | "unit_box" | "delete";
 type BoxDraft = { width: number; height: number; rotation: number; gap: number; count: number; direction: "right" | "left" | "down" | "up" };
+type DragState =
+  | { mode: "shape" | "pan"; lastX: number; lastY: number }
+  | { mode: "draw-box"; start: CanvasPoint; last: CanvasPoint }
+  | { mode: "marquee"; start: CanvasPoint; current: CanvasPoint }
+  | { mode: "corner"; index: number }
+  | { mode: "edge"; edge: "top" | "right" | "bottom" | "left" }
+  | { mode: "rotate"; center: CanvasPoint; startAngle: number; startPoints: CanvasPoint[] };
 
 const defaultTransform: SiteplanTransform = { opacity: 0.86, scale: 1, x: 0, y: 0, locked: true };
 const defaultBoxDraft: BoxDraft = { width: 4, height: 7, rotation: 0, gap: 0.6, count: 1, direction: "right" };
@@ -95,11 +102,109 @@ function polygonCenter(points: CanvasPoint[]) {
   };
 }
 
+function polygonBounds(points: CanvasPoint[]) {
+  const xs = points.map(point => point.x);
+  const ys = points.map(point => point.y);
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minY: Math.min(...ys),
+    maxY: Math.max(...ys),
+    width: Math.max(0.5, Math.round((Math.max(...xs) - Math.min(...xs)) * 10) / 10),
+    height: Math.max(0.5, Math.round((Math.max(...ys) - Math.min(...ys)) * 10) / 10),
+  };
+}
+
+function normalizedBounds(a: CanvasPoint, b: CanvasPoint) {
+  return {
+    minX: Math.min(a.x, b.x),
+    maxX: Math.max(a.x, b.x),
+    minY: Math.min(a.y, b.y),
+    maxY: Math.max(a.y, b.y),
+  };
+}
+
+function boundsOverlap(a: ReturnType<typeof normalizedBounds>, b: ReturnType<typeof normalizedBounds>) {
+  return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+}
+
+function pointInPolygon(point: CanvasPoint, polygon: CanvasPoint[]) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const pi = polygon[i];
+    const pj = polygon[j];
+    const intersects = ((pi.y > point.y) !== (pj.y > point.y))
+      && point.x < ((pj.x - pi.x) * (point.y - pi.y)) / ((pj.y - pi.y) || 0.000001) + pi.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function boxFromCorners(a: CanvasPoint, b: CanvasPoint) {
+  const minX = Math.min(a.x, b.x);
+  const maxX = Math.max(a.x, b.x);
+  const minY = Math.min(a.y, b.y);
+  const maxY = Math.max(a.y, b.y);
+  return [
+    { x: minX, y: minY },
+    { x: maxX, y: minY },
+    { x: maxX, y: maxY },
+    { x: minX, y: maxY },
+  ];
+}
+
+function resizeBox(points: CanvasPoint[], edgeOrCorner: string | number, target: CanvasPoint) {
+  if (points.length !== 4) return points;
+  const box = polygonBounds(points);
+  let { minX, maxX, minY, maxY } = box;
+  if (edgeOrCorner === 0 || edgeOrCorner === "left") minX = Math.min(target.x, maxX - 0.5);
+  if (edgeOrCorner === 1 || edgeOrCorner === "right") maxX = Math.max(target.x, minX + 0.5);
+  if (edgeOrCorner === 2 || edgeOrCorner === "right") maxX = Math.max(target.x, minX + 0.5);
+  if (edgeOrCorner === 3 || edgeOrCorner === "left") minX = Math.min(target.x, maxX - 0.5);
+  if (edgeOrCorner === 0 || edgeOrCorner === "top") minY = Math.min(target.y, maxY - 0.5);
+  if (edgeOrCorner === 1 || edgeOrCorner === "top") minY = Math.min(target.y, maxY - 0.5);
+  if (edgeOrCorner === 2 || edgeOrCorner === "bottom") maxY = Math.max(target.y, minY + 0.5);
+  if (edgeOrCorner === 3 || edgeOrCorner === "bottom") maxY = Math.max(target.y, minY + 0.5);
+  return [
+    { x: minX, y: minY },
+    { x: maxX, y: minY },
+    { x: maxX, y: maxY },
+    { x: minX, y: maxY },
+  ].map(point => ({ x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10 }));
+}
+
+function rotateAround(points: CanvasPoint[], center: CanvasPoint, angleDeg: number) {
+  const rad = (angleDeg * Math.PI) / 180;
+  return points.map(point => {
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+    return {
+      x: Math.round(Math.max(0, Math.min(100, center.x + dx * Math.cos(rad) - dy * Math.sin(rad))) * 10) / 10,
+      y: Math.round(Math.max(0, Math.min(100, center.y + dx * Math.sin(rad) + dy * Math.cos(rad))) * 10) / 10,
+    };
+  });
+}
+
 function offsetPoints(points: CanvasPoint[], dx: number, dy: number) {
   return points.map(point => ({
     x: Math.round(Math.max(0, Math.min(100, point.x + dx)) * 10) / 10,
     y: Math.round(Math.max(0, Math.min(100, point.y + dy)) * 10) / 10,
   }));
+}
+
+function shapeColor(shape: Record<string, any>, isEditing: boolean) {
+  if (isEditing) return { fill: "rgba(245,158,11,.32)", stroke: "#f59e0b" };
+  if (shape.shapeType === "bidang") return { fill: "rgba(16,185,129,.22)", stroke: "#059669" };
+  if (shape.shapeType === "blok") return { fill: "rgba(99,102,241,.18)", stroke: "#4f46e5" };
+  if (shape.shapeType === "fasum") return { fill: "rgba(148,163,184,.22)", stroke: "#64748b" };
+  const status = String(shape.unitStatus ?? "");
+  const progress = Number(shape.progress ?? 0);
+  if (status.includes("rework") || status.includes("bermasalah")) return { fill: "rgba(239,68,68,.3)", stroke: "#dc2626" };
+  if (status === "terjual_akad") return { fill: "rgba(124,58,237,.28)", stroke: "#7c3aed" };
+  if (status === "selesai" || progress >= 100) return { fill: "rgba(34,197,94,.34)", stroke: "#16a34a" };
+  if (status === "sedang_dibangun" || progress > 0) return { fill: "rgba(245,158,11,.3)", stroke: "#d97706" };
+  if (status === "akan_dibangun") return { fill: "rgba(59,130,246,.26)", stroke: "#2563eb" };
+  return { fill: "rgba(203,213,225,.32)", stroke: "#64748b" };
 }
 
 function nextLabel(label: string, index: number) {
@@ -176,14 +281,18 @@ export default function LahanPage() {
   const [activeSiteplanId, setActiveSiteplanId] = useState<number | null>(null);
   const [isUploadingSiteplan, setIsUploadingSiteplan] = useState(false);
   const [siteplanTransform, setSiteplanTransform] = useState<SiteplanTransform>(defaultTransform);
-  const [drawTool, setDrawTool] = useState<DrawTool>("polygon");
+  const [drawTool, setDrawTool] = useState<DrawTool>("select");
   const [polygonClosed, setPolygonClosed] = useState(false);
   const [boxDraft, setBoxDraft] = useState<BoxDraft>(defaultBoxDraft);
   const [copiedDraft, setCopiedDraft] = useState<CanvasPoint[] | null>(null);
   const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "" });
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
+  const [selectedShapeIds, setSelectedShapeIds] = useState<number[]>([]);
+  const [selectionBox, setSelectionBox] = useState<{ start: CanvasPoint; current: CanvasPoint } | null>(null);
+  const [draftHistory, setDraftHistory] = useState<CanvasPoint[][]>([]);
   const imageRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<DragState | null>(null);
 
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
@@ -387,25 +496,175 @@ export default function LahanPage() {
     }
   }
 
-  function addPoint(e: React.MouseEvent<HTMLDivElement>) {
-    if (!imageRef.current || !selectedSiteplan) return;
+  function canvasPoint(e: React.PointerEvent | React.MouseEvent): CanvasPoint | null {
+    if (!imageRef.current) return null;
     const rect = imageRef.current.getBoundingClientRect();
-    const x = Math.round(((e.clientX - rect.left) / rect.width) * 1000) / 10;
-    const y = Math.round(((e.clientY - rect.top) / rect.height) * 1000) / 10;
-    if (drawTool === "unit_box") {
-      setPolygonClosed(true);
-      setShapeDraft(p => ({ ...p, shapeType: "unit" }));
-      setDraftPoints(rectanglePoints(x, y, boxDraft.width, boxDraft.height, boxDraft.rotation));
-      return;
+    return {
+      x: Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)) * 10) / 10,
+      y: Math.round(Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)) * 10) / 10,
+    };
+  }
+
+  function rememberDraft() {
+    setDraftHistory(prev => draftPoints.length >= 3 ? [...prev.slice(-24), draftPoints] : prev);
+  }
+
+  function nextUnitLabel() {
+    const existing = shapeList.map(shape => String(shape.label ?? ""));
+    let index = 1;
+    while (existing.includes(`A-${String(index).padStart(2, "0")}`)) index += 1;
+    return `A-${String(index).padStart(2, "0")}`;
+  }
+
+  function shapeAtPoint(point: CanvasPoint) {
+    for (let i = shapeList.length - 1; i >= 0; i -= 1) {
+      const shape = shapeList[i];
+      const polygon = Array.isArray(shape.polygon) ? shape.polygon as CanvasPoint[] : [];
+      if (polygon.length >= 3 && pointInPolygon(point, polygon)) return shape;
     }
-    if (polygonClosed) return;
+    return null;
+  }
+
+  function activateTool(tool: DrawTool, shapeType?: string) {
+    setDrawTool(tool);
+    if (tool === "unit_box") {
+      setShapeDraft(p => ({ ...p, shapeType: "unit", label: p.label || nextUnitLabel(), unitStatus: p.unitStatus || "akan_dibangun" }));
+      setPolygonClosed(true);
+    } else if (tool === "polygon") {
+      setShapeDraft(p => ({ ...p, shapeType: shapeType ?? p.shapeType }));
+      setPolygonClosed(false);
+    }
+    if (tool === "select" || tool === "pan") setDraftPoints([]);
+    if (tool !== "select") setEditingShapeId(null);
+    if (tool !== "select") setSelectedShapeIds([]);
+  }
+
+  function addPoint(e: React.MouseEvent<HTMLDivElement>) {
+    if (!selectedSiteplan) return;
+    if (drawTool !== "polygon") return;
+    const point = canvasPoint(e);
+    if (!point || polygonClosed) return;
     setDraftPoints(points => {
-      if (points.length >= 3 && distance({ x, y }, points[0]) <= 2.5) {
+      if (points.length >= 3 && distance(point, points[0]) <= 2.5) {
         setPolygonClosed(true);
         return points;
       }
-      return [...points, { x, y }];
+      return [...points, point];
     });
+  }
+
+  function handleCanvasPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!selectedSiteplan) return;
+    const point = canvasPoint(e);
+    if (!point) return;
+    if (drawTool === "delete") {
+      const shape = shapeAtPoint(point);
+      if (shape) deleteShape(shape.id);
+      return;
+    }
+    if (drawTool === "pan") {
+      startPan(e);
+      return;
+    }
+    if (drawTool === "select" && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+      setSelectedShapeIds([]);
+      setSelectionBox({ start: point, current: point });
+      dragRef.current = { mode: "marquee", start: point, current: point };
+      imageRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+    if (drawTool === "unit_box") {
+      rememberDraft();
+      setShapeDraft(p => ({ ...p, shapeType: "unit", label: p.label || nextUnitLabel() }));
+      setPolygonClosed(true);
+      dragRef.current = { mode: "draw-box", start: point, last: point };
+      imageRef.current?.setPointerCapture(e.pointerId);
+      setDraftPoints(rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation));
+      return;
+    }
+  }
+
+  function startShapeDrag(e: React.PointerEvent<SVGPolygonElement>, shape: any) {
+    if (drawTool !== "select") return;
+    e.stopPropagation();
+    rememberDraft();
+    setSelectedShapeIds(prev => prev.includes(shape.id) ? prev : []);
+    startEditShape(shape);
+    dragRef.current = { mode: "shape", lastX: e.clientX, lastY: e.clientY };
+    imageRef.current?.setPointerCapture(e.pointerId);
+  }
+
+  function startPan(e: React.PointerEvent<HTMLDivElement>) {
+    if (drawTool !== "pan" || siteplanTransform.locked) return;
+    dragRef.current = { mode: "pan", lastX: e.clientX, lastY: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!imageRef.current || !dragRef.current) return;
+    const rect = imageRef.current.getBoundingClientRect();
+    const drag = dragRef.current;
+    const point = canvasPoint(e);
+    if (!point) return;
+    if (drag.mode === "draw-box") {
+      dragRef.current = { ...drag, last: point };
+      const width = Math.abs(point.x - drag.start.x);
+      const height = Math.abs(point.y - drag.start.y);
+      setDraftPoints(width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, point) : rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation));
+      return;
+    }
+    if (drag.mode === "corner") {
+      setDraftPoints(points => points.map((p, i) => i === drag.index ? point : p));
+      return;
+    }
+    if (drag.mode === "edge") {
+      setDraftPoints(points => resizeBox(points, drag.edge, point));
+      return;
+    }
+    if (drag.mode === "rotate") {
+      const currentAngle = Math.atan2(point.y - drag.center.y, point.x - drag.center.x) * 180 / Math.PI;
+      const angle = currentAngle - drag.startAngle;
+      setDraftPoints(rotateAround(drag.startPoints, drag.center, e.shiftKey ? Math.round(angle / 15) * 15 : angle));
+      return;
+    }
+    if (drag.mode === "marquee") {
+      dragRef.current = { ...drag, current: point };
+      setSelectionBox({ start: drag.start, current: point });
+      return;
+    }
+    const dx = ((e.clientX - drag.lastX) / rect.width) * 100;
+    const dy = ((e.clientY - drag.lastY) / rect.height) * 100;
+    dragRef.current = { ...drag, lastX: e.clientX, lastY: e.clientY };
+    if (drag.mode === "shape") {
+      setDraftPoints(points => offsetPoints(points, dx, dy));
+    } else {
+      setSiteplanTransform(prev => ({
+        ...prev,
+        x: Math.round((prev.x + dx) * 10) / 10,
+        y: Math.round((prev.y + dy) * 10) / 10,
+      }));
+    }
+  }
+
+  function stopCanvasDrag() {
+    const drag = dragRef.current;
+    if (drag?.mode === "draw-box" && draftPoints.length === 4) {
+      const bounds = polygonBounds(draftPoints);
+      setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height, count: 1, rotation: 0 }));
+    }
+    if (drag?.mode === "marquee") {
+      const selection = normalizedBounds(drag.start, drag.current);
+      const selected = shapeList
+        .filter(shape => {
+          const polygon = Array.isArray(shape.polygon) ? shape.polygon as CanvasPoint[] : [];
+          return polygon.length >= 3 && boundsOverlap(polygonBounds(polygon), selection);
+        })
+        .map(shape => shape.id);
+      setSelectedShapeIds(selected);
+      setSelectionBox(null);
+      if (selected.length > 0) resetDraft();
+    }
+    dragRef.current = null;
   }
 
   async function saveShape() {
@@ -418,37 +677,44 @@ export default function LahanPage() {
       return;
     }
     const isBoxBatch = drawTool === "unit_box" && !editingShapeId && boxDraft.count > 1;
-    if (isBoxBatch) {
-      const dx = boxDraft.direction === "right" ? boxDraft.width + boxDraft.gap : boxDraft.direction === "left" ? -(boxDraft.width + boxDraft.gap) : 0;
-      const dy = boxDraft.direction === "down" ? boxDraft.height + boxDraft.gap : boxDraft.direction === "up" ? -(boxDraft.height + boxDraft.gap) : 0;
-      for (let i = 0; i < boxDraft.count; i += 1) {
+    try {
+      if (isBoxBatch) {
+        const dx = boxDraft.direction === "right" ? boxDraft.width + boxDraft.gap : boxDraft.direction === "left" ? -(boxDraft.width + boxDraft.gap) : 0;
+        const dy = boxDraft.direction === "down" ? boxDraft.height + boxDraft.gap : boxDraft.direction === "up" ? -(boxDraft.height + boxDraft.gap) : 0;
+        for (let i = 0; i < boxDraft.count; i += 1) {
+          const payload = {
+            ...shapeDraft,
+            label: nextLabel(shapeDraft.label, i),
+            unitId: null,
+            polygon: offsetPoints(draftPoints, dx * i, dy * i),
+            notes: [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | "),
+          };
+          const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.error ?? "Gagal menyimpan unit rumah");
+        }
+      } else {
         const payload = {
           ...shapeDraft,
-          label: nextLabel(shapeDraft.label, i),
-          unitId: null,
-          polygon: offsetPoints(draftPoints, dx * i, dy * i),
-          notes: [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | "),
+          unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null,
+          polygon: draftPoints,
+          notes: drawTool === "unit_box"
+            ? [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | ")
+            : shapeDraft.notes,
         };
-        await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
-          method: "POST",
+        const resp = await fetch(editingShapeId ? `/api/planning/siteplan/shapes/${editingShapeId}` : `/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
+          method: editingShapeId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.error ?? "Gagal menyimpan shape siteplan");
       }
-    } else {
-      const payload = {
-        ...shapeDraft,
-        unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null,
-        polygon: draftPoints,
-        notes: drawTool === "unit_box"
-          ? [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | ")
-          : shapeDraft.notes,
-      };
-      await fetch(editingShapeId ? `/api/planning/siteplan/shapes/${editingShapeId}` : `/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
-        method: editingShapeId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    } catch (err) {
+      toast({ title: "Gagal simpan shape", description: err instanceof Error ? err.message : "Coba ulangi lagi.", variant: "destructive" });
+      return;
     }
     setDraftPoints([]);
     setPolygonClosed(false);
@@ -459,6 +725,12 @@ export default function LahanPage() {
   }
 
   function startEditShape(shape: any) {
+    const shapePoints = Array.isArray(shape.polygon) ? shape.polygon : [];
+    const isUnitBox = shape.shapeType === "unit" && shapePoints.length === 4;
+    if (isUnitBox) {
+      const bounds = polygonBounds(shapePoints);
+      setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height, count: 1 }));
+    }
     setEditingShapeId(shape.id);
     setShapeDraft({
       shapeType: shape.shapeType ?? "unit",
@@ -477,9 +749,9 @@ export default function LahanPage() {
       progress: Number(shape.progress ?? 0),
       notes: shape.notes ?? "",
     });
-    setDraftPoints(Array.isArray(shape.polygon) ? shape.polygon : []);
+    setDraftPoints(shapePoints);
     setPolygonClosed(true);
-    setDrawTool(shape.shapeType === "unit" && Array.isArray(shape.polygon) && shape.polygon.length === 4 ? "unit_box" : "polygon");
+    setDrawTool(isUnitBox ? "unit_box" : "polygon");
   }
 
   function moveDraft(dx: number, dy: number) {
@@ -501,10 +773,65 @@ export default function LahanPage() {
     });
   }
 
+  function startDraftCornerDrag(e: React.PointerEvent, index: number) {
+    e.stopPropagation();
+    rememberDraft();
+    dragRef.current = { mode: "corner", index };
+    imageRef.current?.setPointerCapture(e.pointerId);
+  }
+
+  function startDraftEdgeDrag(e: React.PointerEvent, edge: "top" | "right" | "bottom" | "left") {
+    e.stopPropagation();
+    rememberDraft();
+    dragRef.current = { mode: "edge", edge };
+    imageRef.current?.setPointerCapture(e.pointerId);
+  }
+
+  function startDraftRotate(e: React.PointerEvent) {
+    e.stopPropagation();
+    if (draftPoints.length !== 4) return;
+    const point = canvasPoint(e);
+    if (!point) return;
+    rememberDraft();
+    const center = polygonCenter(draftPoints);
+    dragRef.current = {
+      mode: "rotate",
+      center,
+      startAngle: Math.atan2(point.y - center.y, point.x - center.x) * 180 / Math.PI,
+      startPoints: draftPoints,
+    };
+    imageRef.current?.setPointerCapture(e.pointerId);
+  }
+
+  function undoDraft() {
+    setDraftHistory(prev => {
+      const last = prev.at(-1);
+      if (!last) return prev;
+      setDraftPoints(last);
+      setPolygonClosed(true);
+      return prev.slice(0, -1);
+    });
+  }
+
+  function deleteCurrentShape() {
+    if (selectedShapeIds.length > 0) {
+      deleteSelectedShapes();
+      return;
+    }
+    if (editingShapeId) {
+      deleteShape(editingShapeId);
+      resetDraft();
+      return;
+    }
+    resetDraft();
+  }
+
   function resetDraft() {
     setDraftPoints([]);
     setPolygonClosed(false);
     setEditingShapeId(null);
+    setSelectedShapeIds([]);
+    setSelectionBox(null);
   }
 
   function closePolygon() {
@@ -536,7 +863,28 @@ export default function LahanPage() {
   }
 
   async function deleteShape(id: number) {
-    await fetch(`/api/planning/siteplan/shapes/${id}`, { method: "DELETE" });
+    const resp = await fetch(`/api/planning/siteplan/shapes/${id}`, { method: "DELETE" });
+    if (!resp.ok) {
+      toast({ title: "Gagal hapus shape", variant: "destructive" });
+      return;
+    }
+    if (editingShapeId === id) resetDraft();
+    setSelectedShapeIds(prev => prev.filter(shapeId => shapeId !== id));
+    await refetchShapes();
+  }
+
+  async function deleteSelectedShapes() {
+    if (selectedShapeIds.length === 0) return;
+    const count = selectedShapeIds.length;
+    const results = await Promise.all(selectedShapeIds.map(id => fetch(`/api/planning/siteplan/shapes/${id}`, { method: "DELETE" })));
+    const failed = results.some(resp => !resp.ok);
+    if (failed) {
+      toast({ title: "Sebagian shape gagal dihapus", variant: "destructive" });
+    } else {
+      toast({ title: `${count} shape dihapus` });
+    }
+    setSelectedShapeIds([]);
+    resetDraft();
     await refetchShapes();
   }
 
@@ -565,6 +913,32 @@ export default function LahanPage() {
   const remainingLandArea = Math.max(0, Number(form.landArea || 0) - totalBidangArea);
   const density = totalBidangArea > 0 ? (totalPlannedUnits / totalBidangArea) * 1000 : 0;
   const hasMainPolygon = Array.isArray(selectedSiteplan?.mainPolygon) && selectedSiteplan.mainPolygon.length >= 3;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.getAttribute("role") === "combobox";
+      if (isTyping) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undoDraft();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        copyDraft();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        pasteDraft();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        deleteCurrentShape();
+      } else if (e.key === "Escape") {
+        resetDraft();
+        setDrawTool("select");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   return (
     <div className="space-y-4">
@@ -781,28 +1155,27 @@ export default function LahanPage() {
                 <SelectContent>{(siteplans as any[]).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.title}</SelectItem>)}</SelectContent>
               </Select>
             )}
-            <Select value={drawTool} onValueChange={v => {
-              const tool = v as DrawTool;
-              setDrawTool(tool);
-              if (tool === "unit_box") {
-                setShapeDraft(p => ({ ...p, shapeType: "unit" }));
-                setPolygonClosed(true);
-              } else {
-                setPolygonClosed(false);
-              }
-              setDraftPoints([]);
-              setEditingShapeId(null);
-            }}>
+            <Button size="sm" className="h-8 gap-1.5" onClick={() => activateTool("unit_box")}>
+              <Square className="size-3.5" /> Tambah Rumah
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => activateTool("polygon", "bidang")}>
+              <Move className="size-3.5" /> Bagi Lahan
+            </Button>
+            <Select value={drawTool} onValueChange={v => activateTool(v as DrawTool)}>
               <SelectTrigger className="h-8 w-44 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="polygon">Gambar Polygon</SelectItem>
-                <SelectItem value="unit_box">Unit Rumah Kotak</SelectItem>
+                <SelectItem value="select">Select / Edit</SelectItem>
+                <SelectItem value="pan">Pan Canvas</SelectItem>
+                <SelectItem value="polygon">Draw Lahan</SelectItem>
+                <SelectItem value="unit_box">Tambah Unit Kotak</SelectItem>
               </SelectContent>
             </Select>
             <Button size="sm" variant="outline" className="h-8" onClick={closePolygon} disabled={drawTool !== "polygon" || polygonClosed || draftPoints.length < 3}>Tutup Polygon</Button>
             <Button size="sm" variant="outline" className="h-8" onClick={resetDraft}>Reset Titik</Button>
             <Button size="sm" variant="outline" className="h-8" onClick={copyDraft}>Copy</Button>
             <Button size="sm" variant="outline" className="h-8" onClick={pasteDraft} disabled={!copiedDraft}>Paste</Button>
+            <Button size="sm" variant="outline" className="h-8" onClick={undoDraft} disabled={draftHistory.length === 0}><Undo2 className="size-3.5" /></Button>
+            <Button size="sm" variant="outline" className="h-8 text-red-600" onClick={deleteCurrentShape} disabled={!editingShapeId && draftPoints.length === 0}><Trash2 className="size-3.5" /></Button>
             {selectedSiteplan?.id && <Button size="sm" variant="outline" className="h-8" onClick={() => saveSiteplanTransform()}>Simpan Kalibrasi</Button>}
           </div>
 
@@ -850,7 +1223,18 @@ export default function LahanPage() {
 
           {selectedSiteplan?.id && (selectedSiteplan?.imageDataUrl || hasMainPolygon) ? (
             <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-              <div ref={imageRef} onClick={addPoint} className="relative overflow-hidden rounded-lg border bg-muted cursor-crosshair">
+              <div className="relative rounded-xl border bg-slate-100 p-12 overflow-hidden">
+                <div className="absolute inset-0 opacity-70 bg-[radial-gradient(circle_at_1px_1px,rgba(15,23,42,.18)_1px,transparent_0)] bg-[size:24px_24px]" />
+                <div
+                  ref={imageRef}
+                  onClick={addPoint}
+                  onPointerDown={handleCanvasPointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={stopCanvasDrag}
+                  onPointerCancel={stopCanvasDrag}
+                  onPointerLeave={stopCanvasDrag}
+                  className={cn("relative overflow-hidden rounded-lg border bg-background shadow-sm touch-none", drawTool === "unit_box" || drawTool === "polygon" ? "cursor-crosshair" : drawTool === "pan" ? "cursor-grab" : drawTool === "delete" ? "cursor-not-allowed" : "cursor-default")}
+                >
                 {selectedSiteplan.imageDataUrl ? (
                   <img
                     src={selectedSiteplan.imageDataUrl}
@@ -866,29 +1250,92 @@ export default function LahanPage() {
                 )}
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                   {hasMainPolygon && <polygon points={polygonPoints(selectedSiteplan.mainPolygon)} fill="rgba(15,23,42,.06)" stroke="#0f172a" strokeWidth="0.45" strokeDasharray="1.4 1" />}
-	                  {shapeList.map(shape => (
-	                    <polygon key={shape.id} points={polygonPoints(shape.polygon)} fill={shape.id === editingShapeId ? "rgba(245,158,11,.3)" : shape.shapeType === "unit" ? "rgba(59,130,246,.25)" : shape.shapeType === "bidang" ? "rgba(16,185,129,.22)" : "rgba(148,163,184,.2)"} stroke={shape.id === editingShapeId ? "#f59e0b" : shape.shapeType === "unit" ? "#2563eb" : shape.shapeType === "bidang" ? "#059669" : "#64748b"} strokeWidth="0.3" />
-	                  ))}
+	                  {shapeList.map(shape => {
+                      const isSelected = selectedShapeIds.includes(shape.id);
+                      const color = shapeColor(shape, shape.id === editingShapeId || isSelected);
+                      return (
+	                      <polygon
+                          key={shape.id}
+                          points={polygonPoints(shape.polygon)}
+                          fill={color.fill}
+                          stroke={color.stroke}
+                          strokeWidth={isSelected ? "0.55" : "0.3"}
+                          strokeDasharray={isSelected ? "1.1 0.7" : undefined}
+                          onPointerDown={(e) => startShapeDrag(e, shape)}
+                          className={drawTool === "select" ? "cursor-move" : drawTool === "delete" ? "cursor-not-allowed" : ""}
+                        />
+                      );
+                    })}
+                  {selectionBox && (() => {
+                    const bounds = normalizedBounds(selectionBox.start, selectionBox.current);
+                    return (
+                      <rect
+                        x={bounds.minX}
+                        y={bounds.minY}
+                        width={bounds.maxX - bounds.minX}
+                        height={bounds.maxY - bounds.minY}
+                        fill="rgba(59,130,246,.12)"
+                        stroke="#2563eb"
+                        strokeWidth="0.25"
+                        strokeDasharray="0.8 0.5"
+                      />
+                    );
+                  })()}
                   {draftPoints.length > 0 && (polygonClosed || drawTool === "unit_box" ? (
                     <polygon points={polygonPoints(draftPoints)} fill="rgba(245,158,11,.25)" stroke="#f59e0b" strokeWidth="0.45" />
                   ) : (
                     <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#f59e0b" strokeWidth="0.45" />
                   ))}
+                  {draftPoints.length === 4 && drawTool === "unit_box" && (() => {
+                    const bounds = polygonBounds(draftPoints);
+                    const center = polygonCenter(draftPoints);
+                    const edgeHandles = [
+                      { edge: "top" as const, x: center.x, y: bounds.minY },
+                      { edge: "right" as const, x: bounds.maxX, y: center.y },
+                      { edge: "bottom" as const, x: center.x, y: bounds.maxY },
+                      { edge: "left" as const, x: bounds.minX, y: center.y },
+                    ];
+                    return (
+                      <g>
+                        <line x1={center.x} y1={bounds.minY} x2={center.x} y2={Math.max(0, bounds.minY - 4)} stroke="#6366f1" strokeWidth="0.25" />
+                        <circle cx={center.x} cy={Math.max(0, bounds.minY - 5)} r="1" fill="#fff" stroke="#6366f1" strokeWidth="0.35" className="cursor-grab" onPointerDown={startDraftRotate} />
+                        {edgeHandles.map(handle => (
+                          <rect
+                            key={handle.edge}
+                            x={handle.x - 0.55}
+                            y={handle.y - 0.55}
+                            width="1.1"
+                            height="1.1"
+                            rx="0.18"
+                            fill="#fff"
+                            stroke="#2563eb"
+                            strokeWidth="0.28"
+                            className={handle.edge === "top" || handle.edge === "bottom" ? "cursor-ns-resize" : "cursor-ew-resize"}
+                            onPointerDown={(e) => startDraftEdgeDrag(e, handle.edge)}
+                          />
+                        ))}
+                      </g>
+                    );
+                  })()}
                   {draftPoints.map((p, i) => (
                     <circle
                       key={i}
                       cx={p.x}
                       cy={p.y}
-                      r={i === 0 && !polygonClosed && draftPoints.length >= 3 ? "1.2" : "0.8"}
-                      fill={i === 0 && !polygonClosed && draftPoints.length >= 3 ? "#0f172a" : "#f59e0b"}
-                      onClick={(e) => {
+                      r={i === 0 && !polygonClosed && draftPoints.length >= 3 ? "1.2" : "0.9"}
+                      fill={i === 0 && !polygonClosed && draftPoints.length >= 3 ? "#0f172a" : "#fff"}
+                      stroke="#f59e0b"
+                      strokeWidth="0.35"
+                      className="cursor-move"
+                      onPointerDown={(e) => startDraftCornerDrag(e, i)}
+                      onDoubleClick={(e) => {
                         e.stopPropagation();
-                        if (i === 0 && draftPoints.length >= 3 && !polygonClosed) {
-                          setPolygonClosed(true);
-                          return;
-                        }
                         setDraftPoints(points => points.filter((_, idx) => idx !== i));
                         setPolygonClosed(false);
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (i === 0 && draftPoints.length >= 3 && !polygonClosed) setPolygonClosed(true);
                       }}
                     />
                   ))}
@@ -898,8 +1345,56 @@ export default function LahanPage() {
                   if (!first) return null;
 	                  return <button key={`label-${shape.id}`} type="button" onClick={(e) => { e.stopPropagation(); startEditShape(shape); }} className="absolute text-[10px] font-bold bg-background/80 px-1 rounded" style={{ left: `${first.x}%`, top: `${first.y}%` }}>{shape.label}</button>;
 	                })}
+                </div>
               </div>
               <div className="space-y-3">
+                <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Tools Siteplan</Label>
+                    <span className="text-[10px] text-muted-foreground">{drawTool === "unit_box" ? "Rectangle" : drawTool === "polygon" ? "Polygon" : drawTool === "pan" ? "Geser" : drawTool === "delete" ? "Hapus" : "Select"}</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2">
+                    <Button type="button" variant={drawTool === "select" ? "default" : "outline"} size="sm" className="h-12 flex-col gap-1 text-[10px]" onClick={() => activateTool("select")}>
+                      <MousePointer2 className="size-4" /> Kursor
+                    </Button>
+                    <Button type="button" variant={drawTool === "pan" ? "default" : "outline"} size="sm" className="h-12 flex-col gap-1 text-[10px]" onClick={() => activateTool("pan")}>
+                      <Hand className="size-4" /> Geser
+                    </Button>
+                    <Button type="button" variant={drawTool === "unit_box" ? "default" : "outline"} size="sm" className="h-12 flex-col gap-1 text-[10px]" onClick={() => activateTool("unit_box")}>
+                      <Square className="size-4" /> Kotak
+                    </Button>
+                    <Button type="button" variant={drawTool === "polygon" ? "default" : "outline"} size="sm" className="h-12 flex-col gap-1 text-[10px]" onClick={() => activateTool("polygon", "bidang")}>
+                      <Move className="size-4" /> Polygon
+                    </Button>
+                    <Button type="button" variant={drawTool === "delete" ? "destructive" : "outline"} size="sm" className="h-12 flex-col gap-1 text-[10px]" onClick={() => activateTool("delete")}>
+                      <Trash2 className="size-4" /> Hapus
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={copyDraft} disabled={draftPoints.length < 3}>
+                      <Copy className="size-4" />
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={pasteDraft} disabled={!copiedDraft}>
+                      <Redo2 className="size-4" />
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={undoDraft} disabled={draftHistory.length === 0}>
+                      <Undo2 className="size-4" />
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2 text-red-600" onClick={deleteCurrentShape} disabled={!editingShapeId && draftPoints.length === 0 && selectedShapeIds.length === 0}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-muted-foreground">Shift/Cmd-drag untuk pilih beberapa unit, lalu hapus sekaligus.</p>
+                  {selectedShapeIds.length > 0 && (
+                    <div className="rounded-md border bg-background p-2 flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium">{selectedShapeIds.length} shape dipilih</span>
+                      <div className="flex gap-1">
+                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelectedShapeIds([])}>Batal</Button>
+                        <Button type="button" variant="destructive" size="sm" className="h-7 text-xs" onClick={deleteSelectedShapes}>Hapus</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1"><Label className="text-xs">Tipe Shape</Label><Select value={shapeDraft.shapeType} onValueChange={v => setShapeDraft(p => ({ ...p, shapeType: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unit">Unit Rumah</SelectItem><SelectItem value="bidang">Bidang Lahan</SelectItem><SelectItem value="blok">Blok/Cluster</SelectItem><SelectItem value="fasum">Jalan/Fasum</SelectItem></SelectContent></Select></div>
                   <div className="space-y-1"><Label className="text-xs">Label</Label><Input className="h-8 text-sm" value={shapeDraft.label} onChange={e => setShapeDraft(p => ({ ...p, label: e.target.value }))} placeholder="A-01 / Bidang 1" /></div>
@@ -922,7 +1417,7 @@ export default function LahanPage() {
                     </>
                   )}
                   <div className="space-y-1"><Label className="text-xs">Tipe Rumah</Label><Input className="h-8 text-sm" value={shapeDraft.unitType} onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))} /></div>
-	                  <div className="space-y-1"><Label className="text-xs">Status Unit</Label><Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+	                  <div className="space-y-1"><Label className="text-xs">Status Unit</Label><Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
 	                  <div className="space-y-1 col-span-2"><Label className="text-xs">Link Unit Produksi</Label><Select value={shapeDraft.unitId || "none"} onValueChange={v => {
 	                    const unit = (units as any[]).find(u => String(u.id) === v);
 	                    setShapeDraft(p => ({ ...p, unitId: v === "none" ? "" : v, label: unit ? `${unit.blok}-${unit.nomor}` : p.label, unitType: unit?.tipe ?? p.unitType, subkonName: unit?.subkonName ?? p.subkonName, progress: unit?.progress ?? p.progress }));

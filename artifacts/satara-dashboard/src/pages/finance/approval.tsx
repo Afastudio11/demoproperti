@@ -10,6 +10,11 @@ import QRCode from "qrcode";
 
 const fmtRp = (n: number) => `Rp ${Number(n || 0).toLocaleString("id-ID")}`;
 
+function paymentProofUrl(paymentId: number) {
+  const token = btoa(`subkon-payment:${paymentId}`).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return `${window.location.origin}/public/payment-proof/${token}`;
+}
+
 type Approval = {
   id: number;
   paymentId: number;
@@ -80,8 +85,8 @@ async function downloadReceipt(items: Approval[]) {
   const docTitle = "BUKTI PEMBAYARAN SUBKONTRAKTOR";
   const statusText = "LUNAS / PAID";
 
-  // ── QR Code (Simplified to a clean URL for instant scanning) ───────────────
-  const qrText = `https://sataracorp.com/verify-payment?docId=${docId}`;
+  // QR membuka halaman bukti bayar public tanpa login.
+  const qrText = paymentProofUrl(first.paymentId);
 
   const qrDataUrl = await QRCode.toDataURL(qrText, {
     width: 250, margin: 1,
@@ -228,7 +233,7 @@ async function downloadReceipt(items: Approval[]) {
 
   const tableRows = [
     { label: "Nilai Kontrak Total", value: fmtRp(c?.contractValue ?? 0), sub: true },
-    { label: "Gross Eligible Termin ini", value: fmtRp(p?.grossEligibleAmount ?? 0), sub: false },
+    { label: "Nilai Termin", value: fmtRp(p?.grossEligibleAmount ?? 0), sub: false },
     { label: `Retensi (${c && p ? Math.round(((p.retentionDeducted ?? 0) / Math.max(p.grossEligibleAmount ?? 1, 1)) * 100) : 0}%)`, value: `– ${fmtRp(p?.retentionDeducted ?? 0)}`, sub: false },
   ];
 
@@ -245,13 +250,13 @@ async function downloadReceipt(items: Approval[]) {
     y += 9.5;
   }
 
-  // Net payment — highlighted solid dark grey row
+  // Jumlah dibayar — highlighted solid dark grey row
   doc.setFillColor(...black);
   doc.roundedRect(M, y, W - 2 * M, 13, 1.5, 1.5, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
   doc.setTextColor(...white);
-  doc.text("NET DIBAYARKAN", M + 5, y + 8.5);
+  doc.text("JUMLAH DIBAYAR", M + 5, y + 8.5);
   doc.setFontSize(13);
   doc.text(fmtRp(p?.netPayment ?? 0), W - M - 5, y + 8.5, { align: "right" });
   y += 18;
@@ -460,14 +465,14 @@ export default function FinanceApproval() {
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold">{fmtRp(p?.netPayment ?? 0)}</div>
-                  <div className="text-[11px] text-muted-foreground">net payment</div>
+                  <div className="text-[11px] text-muted-foreground">jumlah dibayar</div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
                 <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Progress</span><div className="font-semibold">{p?.progressPrevious ?? 0}% {"→"} {p?.progressCurrent ?? 0}%</div></div>
                 <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Velocity</span><div className="font-semibold">{p?.velocity ?? 0}%</div></div>
-                <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Gross</span><div className="font-semibold">{fmtRp(p?.grossEligibleAmount ?? 0)}</div></div>
+                <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Nilai Termin</span><div className="font-semibold">{fmtRp(p?.grossEligibleAmount ?? 0)}</div></div>
                 <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Retensi</span><div className="font-semibold">{fmtRp(p?.retentionDeducted ?? 0)}</div></div>
                 <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Catatan</span><div className="font-semibold truncate">{p?.notes ?? "-"}</div></div>
               </div>

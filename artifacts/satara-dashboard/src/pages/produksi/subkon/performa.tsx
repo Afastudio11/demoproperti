@@ -122,8 +122,8 @@ export default function SubkonPerforma() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-bold">Performa Subkon</h1>
-          <p className="text-sm text-muted-foreground">Rangkuman kinerja semua subkontraktor aktif</p>
+          <h1 className="text-lg font-bold">Performa & Konsumsi Subkon</h1>
+          <p className="text-sm text-muted-foreground">Kinerja kontrak, termin, dan konsumsi material subkon dalam satu halaman</p>
         </div>
         {/* Tab toggle */}
         <div className="flex gap-1 rounded-lg border p-1">
@@ -137,7 +137,7 @@ export default function SubkonPerforma() {
             onClick={() => setTab("material")}
             className={`px-3 py-1 text-xs rounded-md transition-colors ${tab === "material" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
-            Efisiensi Material
+            Konsumsi Material
           </button>
         </div>
       </div>

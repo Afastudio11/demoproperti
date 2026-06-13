@@ -44,10 +44,14 @@ export default function MaterialKeluar() {
           sourceType: "normal",
           dateOut: form.dateOut,
         }) });
-      if (!res.ok) throw new Error("Failed"); return res.json();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Gagal menyimpan material keluar" }));
+        throw new Error(err.error ?? "Gagal menyimpan material keluar");
+      }
+      return res.json();
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["material-out"] }); qc.invalidateQueries({ queryKey: ["material-stok"] }); toast({ title: "Material keluar dicatat" }); setShowForm(false); },
-    onError: () => toast({ title: "Gagal menyimpan", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Gagal menyimpan", description: err.message, variant: "destructive" }),
   });
 
   const projName = (id: number) => projects?.find(p => p.id === id)?.nama ?? "—";
