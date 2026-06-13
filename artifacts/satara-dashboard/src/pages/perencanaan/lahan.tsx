@@ -1493,13 +1493,13 @@ export default function LahanPage() {
                   onWheel={handleCanvasWheel}
                   className={cn("relative overflow-hidden rounded-lg border bg-background shadow-sm touch-none", drawTool === "unit_box" || drawTool === "polygon" ? "cursor-crosshair" : drawTool === "pan" ? "cursor-grab" : drawTool === "delete" ? "cursor-not-allowed" : "cursor-default")}
                 >
-                {/* Zoom/pan content wrapper — everything inside scales together */}
-                <div style={{ transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`, transformOrigin: "0 0", position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+                {/* Zoom/pan content wrapper — position:relative so SVG absolute inset-0 anchors here; height driven by img */}
+                <div style={{ transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`, transformOrigin: "0 0", position: "relative", width: "100%" }}>
                 {selectedSiteplan.imageDataUrl ? (
                   <img
                     src={selectedSiteplan.imageDataUrl}
                     alt="Siteplan"
-                    className="w-full h-full select-none pointer-events-none origin-center"
+                    className="w-full select-none pointer-events-none origin-center block"
                     style={{
                       opacity: siteplanTransform.opacity,
                       transform: `translate(${siteplanTransform.x}%, ${siteplanTransform.y}%) scale(${siteplanTransform.scale})`,
