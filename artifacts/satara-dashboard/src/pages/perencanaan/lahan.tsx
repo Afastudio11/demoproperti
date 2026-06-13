@@ -1055,6 +1055,22 @@ export default function LahanPage() {
     }
   }
 
+  // Post shape with auto-retry on duplicate label (409)
+  async function postShapeUnique(siteplanId: number, payload: Record<string, unknown>, startLabel: string): Promise<any> {
+    let label = startLabel;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const resp = await fetch(`/api/planning/siteplan/${siteplanId}/shapes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, label }),
+      });
+      if (resp.ok) return resp.json();
+      if (resp.status === 409) { label = nextLabel(label, 1); continue; }
+      throw new Error((await resp.json().catch(() => null))?.error ?? "Gagal menyimpan shape");
+    }
+    throw new Error(`Tidak bisa menemukan label unik setelah "${startLabel}"`);
+  }
+
   async function pasteDraft() {
     if (!selectedSiteplan) return;
     if (copiedShapes.length > 1) {
@@ -1067,21 +1083,16 @@ export default function LahanPage() {
         const newIds: number[] = [];
         for (const cs of copiedShapes) {
           const poly = Array.isArray(cs.polygon) ? cs.polygon as CanvasPoint[] : [];
-          const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...cs, id: undefined, siteplanId: undefined, createdAt: undefined, updatedAt: undefined, label: nextLabel(cs.label || "A-01", copiedShapes.length), unitId: null, polygon: offsetPoints(poly, offsetX, 0), isLocked: 0 }),
-          });
-          if (!resp.ok) throw new Error("Gagal paste");
-          const saved = await resp.json();
+          const startLabel = nextLabel(cs.label || "A-01", copiedShapes.length);
+          const saved = await postShapeUnique(selectedSiteplan.id, { ...cs, id: undefined, siteplanId: undefined, createdAt: undefined, updatedAt: undefined, unitId: null, polygon: offsetPoints(poly, offsetX, 0), isLocked: 0 }, startLabel);
           newIds.push(saved.id);
         }
         await refetchShapes();
         setSelectedShapeIds(newIds);
         resetDraft();
         toast({ title: `${copiedShapes.length} shape ditempel` });
-      } catch {
-        toast({ title: "Gagal paste", variant: "destructive" });
+      } catch (err) {
+        toast({ title: "Gagal paste", description: err instanceof Error ? err.message : "Coba ulangi lagi.", variant: "destructive" });
       } finally {
         setIsSaving(false);
       }
@@ -1089,21 +1100,15 @@ export default function LahanPage() {
       // Single paste
       const bounds = polygonBounds(copiedDraft);
       const newPoints = offsetPoints(copiedDraft, bounds.width + 0.3, 0);
-      const newLabel = nextLabel(shapeDraft.label || "A-01", 1);
+      const startLabel = nextLabel(shapeDraft.label || "A-01", 1);
       setIsSaving(true);
       try {
-        const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...shapeDraft, label: newLabel, unitId: null, polygon: newPoints, isLocked: 0 }),
-        });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => null))?.error ?? "Gagal paste");
-        const saved = await resp.json();
+        const saved = await postShapeUnique(selectedSiteplan.id, { ...shapeDraft, unitId: null, polygon: newPoints, isLocked: 0 }, startLabel);
         await refetchShapes();
         startEditShape(saved);
-        toast({ title: `Shape ${newLabel} ditempel di sebelah kanan` });
-      } catch {
-        toast({ title: "Gagal paste shape", variant: "destructive" });
+        toast({ title: `Shape ${saved.label} ditempel di sebelah kanan` });
+      } catch (err) {
+        toast({ title: "Gagal paste shape", description: err instanceof Error ? err.message : "Coba ulangi lagi.", variant: "destructive" });
       } finally {
         setIsSaving(false);
       }

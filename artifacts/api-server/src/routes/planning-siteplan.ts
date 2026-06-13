@@ -7,7 +7,7 @@ import {
   unitsTable,
   customersTable,
 } from "@workspace/db/schema";
-import { eq, like } from "drizzle-orm";
+import { eq, like, and, ne } from "drizzle-orm";
 
 const router = Router();
 
@@ -44,7 +44,6 @@ async function syncBidangToLandBank(row: typeof planningSiteplanShapesTable.$inf
   if (row.shapeType !== "bidang") return;
   const lbStatus = PURCHASE_TO_LB_STATUS[String(row.purchaseStatus ?? "")] ?? "on_hold";
   const notes = `Auto-sync dari bidang siteplan #${row.id}${row.ownerName ? ` (${row.ownerName})` : ""}`;
-  const existingRows = await db.select().from(planningLandBankTable).where(like(planningLandBankTable.notes, `%siteplan #${row.id}%`));
   const values = {
     projectId: row.projectId,
     name: row.label,
@@ -55,8 +54,26 @@ async function syncBidangToLandBank(row: typeof planningSiteplanShapesTable.$inf
     acquisitionPrice: row.price ?? null,
     notes,
   };
-  if (existingRows.length > 0) {
-    await db.update(planningLandBankTable).set(values).where(eq(planningLandBankTable.id, existingRows[0].id));
+  // Find by shape ID (canonical key) first
+  const byId = await db.select().from(planningLandBankTable).where(like(planningLandBankTable.notes, `%siteplan #${row.id}%`));
+  if (byId.length > 0) {
+    await db.update(planningLandBankTable).set(values).where(eq(planningLandBankTable.id, byId[0].id));
+    // Delete any extra LB rows with same label that don't belong to this shape
+    const extras = await db.select().from(planningLandBankTable)
+      .where(and(eq(planningLandBankTable.name, row.label), ne(planningLandBankTable.id, byId[0].id)));
+    for (const extra of extras) {
+      await db.delete(planningLandBankTable).where(eq(planningLandBankTable.id, extra.id));
+    }
+    return;
+  }
+  // Find by label as fallback (merges orphan entries from deleted/renamed shapes)
+  const byLabel = await db.select().from(planningLandBankTable).where(eq(planningLandBankTable.name, row.label));
+  if (byLabel.length > 0) {
+    await db.update(planningLandBankTable).set(values).where(eq(planningLandBankTable.id, byLabel[0].id));
+    // Delete extras with same label
+    for (const extra of byLabel.slice(1)) {
+      await db.delete(planningLandBankTable).where(eq(planningLandBankTable.id, extra.id));
+    }
     return;
   }
   await db.insert(planningLandBankTable).values(values);
@@ -111,15 +128,31 @@ router.post("/planning/siteplan/:id/shapes", async (req, res) => {
   if (!siteplan) return res.status(404).json({ error: "Siteplan tidak ditemukan" });
   const body = { ...req.body };
   if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
+  // Cek label duplikat dalam siteplan yang sama
+  if (body.label) {
+    const dup = await db.select().from(planningSiteplanShapesTable)
+      .where(and(eq(planningSiteplanShapesTable.siteplanId, siteplanId), eq(planningSiteplanShapesTable.label, String(body.label))));
+    if (dup.length > 0) return res.status(409).json({ error: `Label "${body.label}" sudah ada di siteplan ini. Gunakan label lain.` });
+  }
   const [row] = await db.insert(planningSiteplanShapesTable).values({ ...body, siteplanId, projectId: siteplan.projectId }).returning();
   try { await syncBidangToLandBank(row); } catch {}
   res.status(201).json(await enrichShape(row));
 });
 
 router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
+  const shapeId = Number(req.params.shapeId);
   const body = { ...req.body };
   if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
-  const [row] = await db.update(planningSiteplanShapesTable).set(body).where(eq(planningSiteplanShapesTable.id, Number(req.params.shapeId))).returning();
+  // Cek label duplikat jika label diubah
+  if (body.label) {
+    const [current] = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
+    if (current) {
+      const dup = await db.select().from(planningSiteplanShapesTable)
+        .where(and(eq(planningSiteplanShapesTable.siteplanId, current.siteplanId), eq(planningSiteplanShapesTable.label, String(body.label)), ne(planningSiteplanShapesTable.id, shapeId)));
+      if (dup.length > 0) return res.status(409).json({ error: `Label "${body.label}" sudah dipakai shape lain. Gunakan label yang berbeda.` });
+    }
+  }
+  const [row] = await db.update(planningSiteplanShapesTable).set(body).where(eq(planningSiteplanShapesTable.id, shapeId)).returning();
   if (!row) return res.status(404).json({ error: "Shape tidak ditemukan" });
   if (row.shapeType === "unit" && row.unitId) {
     const values: Record<string, unknown> = {};
