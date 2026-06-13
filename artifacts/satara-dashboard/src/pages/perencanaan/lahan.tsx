@@ -299,11 +299,16 @@ export default function LahanPage() {
   const [draftHistory, setDraftHistory] = useState<CanvasPoint[][]>([]);
   const imageRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const draftPointsRef = useRef<CanvasPoint[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justLoadedEditingRef = useRef<number | null>(null);
   const [canvasZoom, setCanvasZoom] = useState(1);
   const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    draftPointsRef.current = draftPoints;
+  }, [draftPoints]);
 
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
@@ -449,9 +454,9 @@ export default function LahanPage() {
   const landPricePerM2 = form.landArea > 0 ? form.landPriceTotal / form.landArea : 0;
 
   const chartData = [
-    { name: "Jalan (18%)", area: roadArea, fill: "#f59e0b" },
-    { name: "Fasum (12%)", area: fasumArea, fill: "#3b82f6" },
-    { name: "Efektif (70%)", area: effectiveArea, fill: "#10b981" },
+    { name: "Jalan (18%)", area: Number(roadArea ?? 0), fill: "#f59e0b" },
+    { name: "Fasum (12%)", area: Number(fasumArea ?? 0), fill: "#3b82f6" },
+    { name: "Efektif (70%)", area: Number(effectiveArea ?? 0), fill: "#10b981" },
   ];
 
   const save = async () => {
@@ -709,16 +714,26 @@ export default function LahanPage() {
       setPolygonClosed(true);
       dragRef.current = { mode: "draw-box", start: point, last: point };
       imageRef.current?.setPointerCapture(e.pointerId);
-      setDraftPoints(rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation));
+      const next = rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation);
+      draftPointsRef.current = next;
+      setDraftPoints(next);
       return;
     }
+  }
+
+  function startDraftBodyDrag(e: React.PointerEvent<SVGPolygonElement>) {
+    if (drawTool !== "select" || draftPoints.length < 3 || shapeDraft.isLocked) return;
+    e.stopPropagation();
+    rememberDraft();
+    dragRef.current = { mode: "shape", lastX: e.clientX, lastY: e.clientY };
+    imageRef.current?.setPointerCapture(e.pointerId);
   }
 
   function startShapeDrag(e: React.PointerEvent<SVGPolygonElement>, shape: any) {
     if (drawTool !== "select") return;
     e.stopPropagation();
     rememberDraft();
-    setSelectedShapeIds(prev => prev.includes(shape.id) ? prev : []);
+    setSelectedShapeIds([shape.id]);
     startEditShape(shape);
     if (shape.isLocked) return;
     dragRef.current = { mode: "shape", lastX: e.clientX, lastY: e.clientY };
@@ -741,15 +756,22 @@ export default function LahanPage() {
       dragRef.current = { ...drag, last: point };
       const width = Math.abs(point.x - drag.start.x);
       const height = Math.abs(point.y - drag.start.y);
-      setDraftPoints(width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, point) : rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation));
+      const next = width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, point) : rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation);
+      draftPointsRef.current = next;
+      setDraftPoints(next);
       return;
     }
     if (drag.mode === "corner") {
       setDraftPoints(points => {
-        if (!isUnitRectangleDraft(shapeDraft.shapeType, points)) return points.map((p, i) => i === drag.index ? point : p);
+        if (!isUnitRectangleDraft(shapeDraft.shapeType, points)) {
+          const next = points.map((p, i) => i === drag.index ? point : p);
+          draftPointsRef.current = next;
+          return next;
+        }
         const next = resizeBox(points, drag.index, point);
         const bounds = polygonBounds(next);
         setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height }));
+        draftPointsRef.current = next;
         return next;
       });
       return;
@@ -759,6 +781,7 @@ export default function LahanPage() {
         const next = resizeBox(points, drag.edge, point);
         const bounds = polygonBounds(next);
         setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height }));
+        draftPointsRef.current = next;
         return next;
       });
       return;
@@ -766,7 +789,9 @@ export default function LahanPage() {
     if (drag.mode === "rotate") {
       const currentAngle = Math.atan2(point.y - drag.center.y, point.x - drag.center.x) * 180 / Math.PI;
       const angle = currentAngle - drag.startAngle;
-      setDraftPoints(rotateAround(drag.startPoints, drag.center, e.shiftKey ? Math.round(angle / 15) * 15 : angle));
+      const next = rotateAround(drag.startPoints, drag.center, e.shiftKey ? Math.round(angle / 15) * 15 : angle);
+      draftPointsRef.current = next;
+      setDraftPoints(next);
       return;
     }
     if (drag.mode === "marquee") {
@@ -774,17 +799,21 @@ export default function LahanPage() {
       setSelectionBox({ start: drag.start, current: point });
       return;
     }
+    const clientDx = e.clientX - drag.lastX;
+    const clientDy = e.clientY - drag.lastY;
     // Divide by canvasZoom so drag distance matches visual movement at all zoom levels
-    const dx = ((e.clientX - drag.lastX) / rect.width) * 100 / canvasZoom;
-    const dy = ((e.clientY - drag.lastY) / rect.height) * 100 / canvasZoom;
+    const dx = (clientDx / rect.width) * 100 / canvasZoom;
+    const dy = (clientDy / rect.height) * 100 / canvasZoom;
     dragRef.current = { ...drag, lastX: e.clientX, lastY: e.clientY };
     if (drag.mode === "shape") {
-      setDraftPoints(points => offsetPoints(points, dx, dy));
+      setDraftPoints(points => {
+        const next = offsetPoints(points, dx, dy);
+        draftPointsRef.current = next;
+        return next;
+      });
     } else if (drag.mode === "pan") {
       // Pan mode moves the canvas viewport (in pixel space, before zoom adjustment)
-      const pdx = e.clientX - drag.lastX;
-      const pdy = e.clientY - drag.lastY;
-      setCanvasPan(prev => ({ x: prev.x + pdx, y: prev.y + pdy }));
+      setCanvasPan(prev => ({ x: prev.x + clientDx, y: prev.y + clientDy }));
     }
   }
 
@@ -796,6 +825,7 @@ export default function LahanPage() {
       const width = Math.abs(drag.last.x - drag.start.x);
       const height = Math.abs(drag.last.y - drag.start.y);
       const finalPoints = width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, drag.last) : rectanglePoints(drag.start.x, drag.start.y, boxDraft.width, boxDraft.height, boxDraft.rotation);
+      draftPointsRef.current = finalPoints;
       const bounds = polygonBounds(finalPoints);
       setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height, count: 1, rotation: 0 }));
       setDrawTool("select");
@@ -842,7 +872,7 @@ export default function LahanPage() {
 
     // Auto-patch polygon when dragging/resizing a saved shape
     if ((drag?.mode === "shape" || drag?.mode === "corner" || drag?.mode === "edge" || drag?.mode === "rotate") && editingShapeId) {
-      autoPatchShape(editingShapeId, { polygon: draftPoints });
+      autoPatchShape(editingShapeId, { polygon: draftPointsRef.current });
       return;
     }
 
@@ -861,11 +891,12 @@ export default function LahanPage() {
   }
 
   async function saveShape() {
-    if (!selectedSiteplan || draftPoints.length < 3 || !shapeDraft.label) {
+    const currentPoints = draftPointsRef.current.length >= 3 ? draftPointsRef.current : draftPoints;
+    if (!selectedSiteplan || currentPoints.length < 3 || !shapeDraft.label) {
       toast({ title: "Isi label dan minimal 3 titik polygon", variant: "destructive" });
       return;
     }
-    const isBoxDraft = isUnitRectangleDraft(shapeDraft.shapeType, draftPoints);
+    const isBoxDraft = isUnitRectangleDraft(shapeDraft.shapeType, currentPoints);
     if (!isBoxDraft && !polygonClosed) {
       toast({ title: "Tutup polygon dulu sebelum simpan", variant: "destructive" });
       return;
@@ -880,7 +911,7 @@ export default function LahanPage() {
             ...shapeDraft,
             label: nextLabel(shapeDraft.label, i),
             unitId: null,
-            polygon: offsetPoints(draftPoints, dx * i, dy * i),
+            polygon: offsetPoints(currentPoints, dx * i, dy * i),
             notes: [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | "),
           };
           const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}/shapes`, {
@@ -894,7 +925,7 @@ export default function LahanPage() {
         const payload = {
           ...shapeDraft,
           unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null,
-          polygon: draftPoints,
+          polygon: currentPoints,
           notes: isBoxDraft
             ? [shapeDraft.notes, `box:${boxDraft.width}x${boxDraft.height},rot:${boxDraft.rotation}`].filter(Boolean).join(" | ")
             : shapeDraft.notes,
@@ -910,6 +941,7 @@ export default function LahanPage() {
       toast({ title: "Gagal simpan shape", description: err instanceof Error ? err.message : "Coba ulangi lagi.", variant: "destructive" });
       return;
     }
+    draftPointsRef.current = [];
     setDraftPoints([]);
     setPolygonClosed(false);
     setEditingShapeId(null);
@@ -947,24 +979,31 @@ export default function LahanPage() {
       notes: shape.notes ?? "",
       isLocked: !!shape.isLocked,
     });
+    draftPointsRef.current = shapePoints;
     setDraftPoints(shapePoints);
     setPolygonClosed(true);
     setDrawTool("select");
   }
 
   function moveDraft(dx: number, dy: number) {
-    setDraftPoints(points => points.map(p => ({
-      x: Math.max(0, Math.min(100, Math.round((p.x + dx) * 10) / 10)),
-      y: Math.max(0, Math.min(100, Math.round((p.y + dy) * 10) / 10)),
-    })));
+    setDraftPoints(points => {
+      const next = points.map(p => ({
+        x: Math.max(0, Math.min(100, Math.round((p.x + dx) * 10) / 10)),
+        y: Math.max(0, Math.min(100, Math.round((p.y + dy) * 10) / 10)),
+      }));
+      draftPointsRef.current = next;
+      return next;
+    });
   }
 
   function updateBoxDraft(next: Partial<BoxDraft>) {
     setBoxDraft(prev => {
       const updated = { ...prev, ...next };
-      if (drawTool === "unit_box" && draftPoints.length === 4) {
+      if (isUnitRectangleDraft(shapeDraft.shapeType, draftPoints)) {
         const center = polygonCenter(draftPoints);
-        setDraftPoints(rectanglePoints(center.x, center.y, updated.width, updated.height, updated.rotation));
+        const nextPoints = rectanglePoints(center.x, center.y, updated.width, updated.height, updated.rotation);
+        draftPointsRef.current = nextPoints;
+        setDraftPoints(nextPoints);
         setPolygonClosed(true);
       }
       return updated;
@@ -1005,6 +1044,7 @@ export default function LahanPage() {
     setDraftHistory(prev => {
       const last = prev.at(-1);
       if (!last) return prev;
+      draftPointsRef.current = last;
       setDraftPoints(last);
       setPolygonClosed(true);
       return prev.slice(0, -1);
@@ -1025,6 +1065,7 @@ export default function LahanPage() {
   }
 
   function resetDraft() {
+    draftPointsRef.current = [];
     setDraftPoints([]);
     setPolygonClosed(false);
     setEditingShapeId(null);
@@ -1614,7 +1655,15 @@ export default function LahanPage() {
                     );
                   })()}
                   {draftPoints.length > 0 && (polygonClosed || isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) ? (
-                    <polygon points={polygonPoints(draftPoints)} fill="rgba(245,158,11,.25)" stroke="#f59e0b" strokeWidth={0.45 * sw} className={drawTool === "select" ? "cursor-move" : ""} style={{ pointerEvents: drawTool === "select" ? "none" : undefined }} />
+                    <polygon
+                      points={polygonPoints(draftPoints)}
+                      fill="rgba(245,158,11,.25)"
+                      stroke="#f59e0b"
+                      strokeWidth={0.45 * sw}
+                      strokeDasharray={`${1.1 * sw} ${0.65 * sw}`}
+                      className={drawTool === "select" ? (shapeDraft.isLocked ? "cursor-not-allowed" : "cursor-move") : ""}
+                      onPointerDown={startDraftBodyDrag}
+                    />
                   ) : (
                     <polyline points={draftPoints.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#f59e0b" strokeWidth={0.45 * sw} style={{ pointerEvents: "none" }} />
                   ))}
