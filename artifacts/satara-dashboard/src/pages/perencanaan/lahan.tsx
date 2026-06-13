@@ -328,7 +328,7 @@ export default function LahanPage() {
   });
   const { data: siteplans = [], refetch: refetchSiteplans } = useQuery({
     queryKey: ["planning-siteplan", form.projectId],
-    queryFn: () => fetch(`/api/planning/siteplan?projectId=${form.projectId}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/planning/siteplan?projectId=${form.projectId}&_t=${Date.now()}`).then(r => r.json()),
     enabled: !!form.projectId,
   });
   const selectedSiteplan = (siteplans as any[]).find(s => s.id === activeSiteplanId) ?? (siteplans as any[])[0] ?? null;
@@ -1798,9 +1798,10 @@ export default function LahanPage() {
                           const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}`, {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ mainPolygon: null }),
+                            body: JSON.stringify({ mainPolygon: [] }),
                           });
                           if (!resp.ok) throw new Error();
+                          await qc.invalidateQueries({ queryKey: ["planning-siteplan", form.projectId] });
                           await refetchSiteplans();
                           toast({ title: "Boundary Akuisisi berhasil dihapus" });
                         } catch {
