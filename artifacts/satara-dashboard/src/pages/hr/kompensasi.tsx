@@ -148,7 +148,7 @@ export default function Kompensasi() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl border shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-background rounded-xl border shadow-xl w-full max-w-none max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b"><h3 className="font-semibold">{editId ? "Edit" : "Input"} Data Kompensasi</h3><button onClick={resetForm}><X className="size-4" /></button></div>
             <div className="p-4 space-y-3">
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Karyawan *</label><select value={form.employeeId} onChange={e => setForm((f: any) => ({ ...f, employeeId: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value={0}>— Pilih karyawan —</option>{employees.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>

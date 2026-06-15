@@ -176,7 +176,7 @@ export default function PiutangCenter() {
       {/* Form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-sm p-5 space-y-3">
+          <div className="rounded-xl border bg-background w-full max-w-none p-5 space-y-3">
             <h2 className="text-sm font-semibold">Tambah Data Piutang</h2>
             {[{ key: "debtorName", label: "Nama Debitur", type: "text" },{ key: "totalAmount", label: "Total Piutang (Rp)", type: "number" },{ key: "dueDate", label: "Jatuh Tempo", type: "date" }].map(f => (
               <div key={f.key}><label className="text-xs text-muted-foreground">{f.label}</label>

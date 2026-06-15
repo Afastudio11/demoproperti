@@ -36,7 +36,7 @@ export default function BrandingHealth() {
   const worst = components.reduce((a, b) => a.score < b.score ? a : b);
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-6 space-y-6 w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Brand Health Score</h1>

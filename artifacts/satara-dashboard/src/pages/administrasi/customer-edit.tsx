@@ -122,7 +122,7 @@ export default function CustomerEdit() {
   if (!customer || customer.error) return <div className="p-8 text-center text-sm text-muted-foreground">Customer tidak ditemukan.</div>;
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 w-full">
       <div className="flex items-center gap-3">
         <Link href={`/administrasi/customer/${id}`}>
           <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">

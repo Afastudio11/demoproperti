@@ -71,7 +71,7 @@ function PencairanDialog({ akadId, akadAmount, nominalCair, isLocked }: { akadId
           <ChevronDown className="size-3" /> Pencairan ({ledger.length || "…"})
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-none w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-sm">Riwayat & Tambah Pencairan</DialogTitle>
         </DialogHeader>

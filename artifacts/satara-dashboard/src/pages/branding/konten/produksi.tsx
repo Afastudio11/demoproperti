@@ -35,7 +35,7 @@ export default function BrandingProduksi() {
   function isOverdue(c: any) { return c.productionStatus !== "posted" && c.productionDeadline && new Date(c.productionDeadline) < now; }
 
   return (
-    <div className="p-6 space-y-4 max-w-full">
+    <div className="p-6 space-y-4 w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Content Production Tracker</h1>
@@ -121,7 +121,7 @@ export default function BrandingProduksi() {
 
       {confirmCard && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-none p-6">
             <h3 className="font-bold text-slate-800 mb-2">Konfirmasi Perubahan Status</h3>
             <p className="text-sm text-slate-600 mb-4">Pindahkan <span className="font-medium">"{confirmCard.title}"</span> dari <b>{STAGE_LABELS[confirmCard.from]}</b> → <b>{STAGE_LABELS[confirmCard.to]}</b>?</p>
             <div className="flex gap-2">

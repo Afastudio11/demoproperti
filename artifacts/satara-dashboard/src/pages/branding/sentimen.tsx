@@ -69,7 +69,7 @@ export default function BrandingSentimen() {
   const negPct = totalAnalyzed > 0 ? (totalNegative / totalAnalyzed) * 100 : 0;
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Brand Sentiment Analysis</h1>
@@ -153,7 +153,7 @@ export default function BrandingSentimen() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 my-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-none p-6 my-4">
             <h2 className="font-bold text-slate-800 mb-4">Input Data Sentimen</h2>
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-3">

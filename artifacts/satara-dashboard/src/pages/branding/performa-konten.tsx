@@ -51,7 +51,7 @@ export default function BrandingPerformaKonten() {
   const catAvg = Object.entries(catScores).map(([cat, v]) => ({ cat, avg: Math.round(v.total / v.count) })).sort((a, b) => b.avg - a.avg);
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-6 space-y-6 w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Content Performance</h1>
@@ -108,7 +108,7 @@ export default function BrandingPerformaKonten() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 my-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-none p-6 my-4">
             <h2 className="font-bold text-slate-800 mb-4">Input Performa Konten</h2>
             <div className="space-y-3">
               <div><label className="text-xs text-slate-500 block mb-1">Konten (status Posted)</label>

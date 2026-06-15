@@ -70,7 +70,7 @@ export default function LeadEdit() {
   const needsAlasan = ["BATAL","PENDING"].includes(form.status);
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 w-full">
       <div className="flex items-center gap-3">
         <Link href="/marketing/lead"><Button variant="ghost" size="sm" className="h-7"><ArrowLeft className="size-3.5 mr-1" />Kembali</Button></Link>
         <div>

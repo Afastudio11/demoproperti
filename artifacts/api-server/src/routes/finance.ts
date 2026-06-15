@@ -1754,10 +1754,9 @@ router.post("/finance/uploads/ai-verify", async (req, res) => {
 // ─── AI PREVIEW (baca dokumen, kembalikan records TANPA save) ─────────────────
 router.post("/finance/uploads/ai-preview", async (req, res) => {
   try {
-    const { fileType, fileName, sheets, pdfBase64, fileKind } = req.body as {
-      fileType: string; fileName: string; fileKind: "excel" | "pdf";
+    const { fileType, fileName, sheets, fileKind } = req.body as {
+      fileType: string; fileName: string; fileKind: "excel";
       sheets?: Array<{ name: string; headers: string[]; rows: Record<string, any>[] }>;
-      pdfBase64?: string;
     };
     function cnP(v: any): number {
       if (!v && v !== 0) return 0;
@@ -1767,31 +1766,15 @@ router.post("/finance/uploads/ai-preview", async (req, res) => {
     }
     const SUMMARY_RE = /^(grand\s*total|sub\s*total|subtotal|total|jumlah|rekapitulasi|rekap)$/i;
     let records: any[] = [];
+    let colMap: Record<string, string | null> = {};
     const ai = createDeepSeekClient();
 
-    if (fileKind === "pdf" && pdfBase64) {
-      const buf = Buffer.from(pdfBase64, "base64");
-      const parsed = await pdfParse(buf);
-      if (!parsed.text?.trim()) throw new Error("PDF tidak mengandung teks yang bisa dibaca");
-      const textToSend = parsed.text.length > 12000 ? parsed.text.slice(0, 12000) + "\n...(dipotong)" : parsed.text;
-      const TARGETS: Record<string, string> = {
-        hutang: `[{"projectName":"...","stageInfo":"...","creditorName":"...","totalAmount":number,"paidAmount":number,"remainingAmount":number,"notes":"..."}]`,
-        piutang: `[{"debtorName":"...","category":"customer","totalAmount":number,"notes":"..."}]`,
-        cashflow: `[{"transactionDate":"YYYY-MM-DD","type":"cash_in|cash_out","category":"...","amount":number,"description":"..."}]`,
-        rab: `[{"projectName":"...","itemName":"...","rabAmount":number,"realizationAmount":number}]`,
-      };
-      const completion = await ai.chat.completions.create({
-        model: DEEPSEEK_MODEL,
-        messages: [
-          { role: "system", content: "Kembalikan hanya JSON array yang valid. Lewati baris GRAND TOTAL/SUBTOTAL/TOTAL." },
-          { role: "user", content: `Ekstrak data ${fileType} dari teks ini:\n\n${textToSend}\n\nFormat: ${TARGETS[fileType] ?? TARGETS.cashflow}` },
-        ],
-        temperature: 0.1, max_tokens: 6000,
-      });
-      const raw = completion.choices[0]?.message?.content ?? "[]";
-      const m = raw.match(/\[[\s\S]*\]/);
-      records = m ? JSON.parse(m[0]) : [];
-    } else if (fileKind === "excel" && sheets?.length) {
+    if (fileKind !== "excel") {
+      res.status(400).json({ error: "Upload Finance sekarang hanya menerima Excel (.xlsx, .xls, .csv)." });
+      return;
+    }
+
+    if (fileKind === "excel" && sheets?.length) {
       const firstSheet = sheets[0];
       const mappingResp = await ai.chat.completions.create({
         model: DEEPSEEK_MODEL,
@@ -1801,7 +1784,6 @@ router.post("/finance/uploads/ai-preview", async (req, res) => {
         ],
         temperature: 0, max_tokens: 400,
       });
-      let colMap: Record<string, string | null> = {};
       try { const raw = mappingResp.choices[0]?.message?.content ?? "{}"; const m = raw.match(/\{[\s\S]*\}/); colMap = m ? JSON.parse(m[0]) : {}; } catch { colMap = {}; }
       function findColP(keys: string[], kws: string[]): string | null {
         const low = keys.map(k => k.toLowerCase());
@@ -1824,16 +1806,91 @@ router.post("/finance/uploads/ai-preview", async (req, res) => {
           if (orig === 0 && !creditor) return null;
           return { projectName: String(getValP(row, "projectName", ["proyek"]) ?? "").trim() || null, stageInfo: String(getValP(row, "stageInfo", ["tahap"]) ?? "").trim() || null, creditorName: String(creditor).trim(), totalAmount: orig, paidAmount: paid, remainingAmount: rem, notes: String(getValP(row, "notes", ["keterangan"]) ?? "") };
         }).filter(Boolean);
+      } else if (fileType === "piutang") {
+        records = allRows.map(row => {
+          const debtor = getValP(row, "debtorName", ["debitur", "customer", "pelanggan", "nama"]);
+          if (!debtor || SUMMARY_RE.test(String(debtor).trim())) return null;
+          const totalAmount = cnP(getValP(row, "totalAmount", ["jumlah", "piutang", "tagihan", "nilai", "total"]));
+          if (totalAmount === 0 && !debtor) return null;
+          return {
+            debtorName: String(debtor).trim(),
+            category: String(getValP(row, "category", ["kategori"]) ?? "customer").trim() || "customer",
+            totalAmount,
+            dueDate: getValP(row, "dueDate", ["jatuh", "tempo", "due"]) ?? "",
+            notes: String(getValP(row, "notes", ["keterangan", "catatan", "note"]) ?? ""),
+          };
+        }).filter(Boolean);
+      } else if (["cashflow", "general_ledger", "bank"].includes(fileType)) {
+        records = allRows.map(row => {
+          const amount = cnP(getValP(row, "amount", ["jumlah", "nominal", "amount", "nilai", "debit", "kredit"]));
+          const transactionDate = getValP(row, "transactionDate", ["tanggal", "tgl", "date"]) ?? "";
+          const description = getValP(row, "description", ["keterangan", "uraian", "deskripsi", "description"]);
+          if (!transactionDate && amount === 0 && !description) return null;
+          return {
+            transactionDate,
+            type: inferCashflowType(getValP(row, "type", ["jenis", "tipe", "debit", "kredit"]), amount),
+            category: String(getValP(row, "category", ["kategori"]) ?? (fileType === "bank" ? "bank" : "lainnya")),
+            projectName: String(getValP(row, "projectName", ["proyek", "project"]) ?? ""),
+            amount: Math.abs(amount),
+            description: String(description ?? ""),
+            referenceNumber: String(getValP(row, "referenceNumber", ["nomor", "no", "ref", "reference"]) ?? ""),
+          };
+        }).filter(Boolean);
+      } else if (fileType === "rab") {
+        records = allRows.map(row => {
+          const itemName = getValP(row, "itemName", ["item", "pekerjaan", "uraian", "nama"]);
+          if (!itemName || SUMMARY_RE.test(String(itemName).trim())) return null;
+          const rabAmount = cnP(getValP(row, "rabAmount", ["anggaran", "rab", "rencana", "nilai"]));
+          const realizationAmount = cnP(getValP(row, "realizationAmount", ["realisasi", "aktual", "terbayar"]));
+          if (rabAmount === 0 && realizationAmount === 0 && !itemName) return null;
+          return {
+            projectName: String(getValP(row, "projectName", ["proyek", "project"]) ?? ""),
+            stageCode: String(getValP(row, "stageCode", ["tahap", "kode", "stage"]) ?? ""),
+            itemName: String(itemName).trim(),
+            itemCategory: String(getValP(row, "itemCategory", ["kategori"]) ?? ""),
+            rabAmount,
+            realizationAmount,
+          };
+        }).filter(Boolean);
       }
     }
 
     let docTotal = 0;
+    let paidTotal = 0;
+    let remainingTotal = 0;
+    let cashIn = 0;
+    let cashOut = 0;
     if (fileType === "hutang") docTotal = records.reduce((s: number, r: any) => s + (Number(r.totalAmount) || 0), 0);
     else if (fileType === "piutang") docTotal = records.reduce((s: number, r: any) => s + (Number(r.totalAmount) || 0), 0);
-    else if (["cashflow", "general_ledger", "bank"].includes(fileType)) docTotal = records.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+    else if (["cashflow", "general_ledger", "bank"].includes(fileType)) {
+      cashIn = records.filter((r: any) => r.type === "cash_in").reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+      cashOut = records.filter((r: any) => r.type === "cash_out").reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+      docTotal = cashIn - cashOut;
+    }
     else if (fileType === "rab") docTotal = records.reduce((s: number, r: any) => s + (Number(r.rabAmount) || 0), 0);
+    if (fileType === "hutang") {
+      paidTotal = records.reduce((s: number, r: any) => s + (Number(r.paidAmount) || 0), 0);
+      remainingTotal = records.reduce((s: number, r: any) => s + (Number(r.remainingAmount) || 0), 0);
+    }
 
-    res.json({ records: records.slice(0, 200), count: records.length, docTotal });
+    const warnings: string[] = [];
+    if (!records.length) warnings.push("AI tidak menemukan baris valid dari Excel. Cek header dan sheet yang diupload.");
+    if (fileType === "hutang" && !colMap.creditorName) warnings.push("Kolom kreditur belum terdeteksi kuat. Periksa preview sebelum simpan.");
+    if (fileType === "hutang" && !colMap.totalAmount) warnings.push("Kolom nilai hutang belum terdeteksi kuat. Pastikan total nominal sudah benar.");
+    if (["cashflow", "general_ledger", "bank"].includes(fileType) && !colMap.amount) warnings.push("Kolom nominal belum terdeteksi kuat. Periksa cash in/cash out sebelum simpan.");
+
+    res.json({
+      records: records.slice(0, 500),
+      count: records.length,
+      docTotal,
+      paidTotal,
+      remainingTotal,
+      cashIn,
+      cashOut,
+      colMap,
+      warnings,
+      summary: `${records.length} baris valid dibaca dari ${sheets?.length ?? 0} sheet Excel.`,
+    });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

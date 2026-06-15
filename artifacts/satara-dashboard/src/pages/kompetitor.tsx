@@ -186,7 +186,7 @@ function AddModal({ initial, onSave, onClose }: {
 
   return (
     <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50">
-      <div className="bg-background border rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+      <div className="bg-background border rounded-xl shadow-2xl w-full max-w-none mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b">
           <div>
             <h2 className="text-sm font-semibold">{initial ? "Edit Kompetitor" : "Tambah Kompetitor"}</h2>
@@ -296,7 +296,7 @@ function ImportModal({ onImported, onClose }: {
 
   return (
     <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50">
-      <div className="bg-background border rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+      <div className="bg-background border rounded-xl shadow-2xl w-full max-w-none mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b">
           <div>
             <h2 className="text-sm font-semibold">Import Data Kompetitor dari Excel</h2>

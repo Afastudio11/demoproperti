@@ -86,7 +86,7 @@ export default function CustomerDetail() {
   ];
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4 w-full">
       <div className="flex items-center justify-between gap-3">
         <Link href="/administrasi/customer">
           <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">

@@ -161,7 +161,7 @@ export default function Rekrutmen() {
       {/* Need Form Modal */}
       {showNeedForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl border shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-background rounded-xl border shadow-xl w-full max-w-none max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-semibold">{editNeedId ? "Edit" : "Tambah"} Kebutuhan Posisi</h3>
               <button onClick={() => { setShowNeedForm(false); setNeedForm(EMPTY_NEED); setEditNeedId(null); }}><X className="size-4" /></button>
@@ -192,7 +192,7 @@ export default function Rekrutmen() {
       {/* Candidate Form Modal */}
       {showCandForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl border shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-background rounded-xl border shadow-xl w-full max-w-none max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-semibold">{editCandId ? "Edit" : "Tambah"} Kandidat</h3>
               <button onClick={() => { setShowCandForm(false); setCandForm(EMPTY_CAND); setEditCandId(null); }}><X className="size-4" /></button>

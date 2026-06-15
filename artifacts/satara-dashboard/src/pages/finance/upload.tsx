@@ -146,6 +146,19 @@ type VerifyResult = {
   totalCount: number;
 };
 
+type AiPreviewResult = {
+  records: Record<string, any>[];
+  count: number;
+  docTotal: number;
+  paidTotal?: number;
+  remainingTotal?: number;
+  cashIn?: number;
+  cashOut?: number;
+  colMap?: Record<string, string | null>;
+  warnings?: string[];
+  summary?: string;
+};
+
 // ─── Manual totals per type for summary display ───────────────────────────────
 function computeManualTotals(type: string, rows: Record<string, any>[]) {
   const n = (v: any) => parseFloat(String(v).replace(/[^\d.-]/g, "")) || 0;
@@ -214,6 +227,7 @@ export default function UploadCenter() {
 
   // AI verify result
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
+  const [aiPreview, setAiPreview] = useState<AiPreviewResult | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -241,6 +255,10 @@ export default function UploadCenter() {
     setExtraCols([]);
     setNewColName("");
     setShowAddCol(false);
+    setAiPreview(null);
+    setFileName("");
+    setSheets([]);
+    setFileKind(null);
     setErrorMsg("");
     setStep("manualInput");
   }
@@ -255,6 +273,12 @@ export default function UploadCenter() {
   }
   function removeRow(i: number) {
     setManualRows(rows => rows.filter((_, idx) => idx !== i));
+  }
+  function clearTable() {
+    setManualRows([]);
+    setExtraCols([]);
+    setNewColName("");
+    setShowAddCol(false);
   }
   function addExtraCol() {
     const name = newColName.trim();
@@ -275,22 +299,13 @@ export default function UploadCenter() {
     if (!file) return;
     setFileName(file.name);
     setErrorMsg("");
+    setAiPreview(null);
     const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
     if (isPdf) {
-      setFileKind("pdf");
-      const reader = new FileReader();
-      reader.onload = ev => {
-        try {
-          const bytes = new Uint8Array(ev.target?.result as ArrayBuffer);
-          let binary = "";
-          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-          setPdfBase64(btoa(binary));
-          const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-          const pageCount = (text.match(/\/Page\b/g) || []).length;
-          setPdfInfo({ pages: Math.max(1, Math.floor(pageCount / 2)) });
-        } catch { setErrorMsg("Gagal membaca file PDF."); }
-      };
-      reader.readAsArrayBuffer(file);
+      setErrorMsg("Finance Upload sekarang dibuat paten ke Excel. Gunakan file .xlsx, .xls, atau .csv.");
+      setFileName("");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
     } else {
       setFileKind("excel");
       const reader = new FileReader();
@@ -325,13 +340,37 @@ export default function UploadCenter() {
           }
           if (!parsed.length) { setErrorMsg("File tidak memiliki data yang bisa dibaca."); return; }
           setSheets(parsed); setActiveSheet(0);
+          runExcelPreview(file.name, parsed);
         } catch { setErrorMsg("Gagal membaca file Excel. Pastikan format .xlsx atau .xls."); }
       };
       reader.readAsBinaryString(file);
     }
   }
 
-  const fileReady = fileName && (fileKind === "pdf" ? !!pdfBase64 : sheets.length > 0);
+  async function runExcelPreview(nextFileName = fileName, nextSheets = sheets) {
+    if (!nextSheets.length) { setErrorMsg("Upload Excel terlebih dahulu."); return; }
+    setStep("saving");
+    setProcessingMsg("AI membaca Excel, mendeteksi mapping kolom, dan menyiapkan preview data...");
+    try {
+      const res = await fetch("/api/finance/uploads/ai-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileType: selected, fileName: nextFileName, fileKind: "excel", sheets: nextSheets }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI gagal membaca Excel");
+      const rows = Array.isArray(data.records) ? data.records : [];
+      setAiPreview(data);
+      setManualRows(rows.length ? rows : [emptyRow(TYPE_FIELDS[selected] ?? [], [])]);
+      setExtraCols([]);
+      setStep("manualInput");
+    } catch (err: any) {
+      setErrorMsg(err.message ?? "Gagal menganalisis Excel");
+      setStep("docUpload");
+    }
+  }
+
+  const fileReady = fileName && fileKind === "excel" && sheets.length > 0;
   const totalRows = sheets.reduce((s, sh) => s + sh.rows.length, 0);
   const curSheet = sheets[activeSheet];
 
@@ -346,7 +385,7 @@ export default function UploadCenter() {
         manualEntries: manualRows,
         fileName,
         fileKind,
-        ...(fileKind === "pdf" ? { pdfBase64 } : { sheets }),
+        sheets,
       };
       const res = await fetch("/api/finance/uploads/ai-verify", {
         method: "POST",
@@ -373,7 +412,7 @@ export default function UploadCenter() {
       const res = await fetch("/api/finance/uploads/manual-save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileType: selected, fileName: fileName || `Manual ${new Date().toLocaleDateString("id-ID")}`, entries: valid }),
+        body: JSON.stringify({ fileType: selected, sessionName: fileName || `Manual ${new Date().toLocaleDateString("id-ID")}`, entries: valid }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Gagal menyimpan");
@@ -400,7 +439,7 @@ export default function UploadCenter() {
     setStep("type"); setFileName(""); setSheets([]); setFileKind(null); setPdfBase64(null);
     setPdfInfo(null); setErrorMsg(""); setResultMsg(""); setActiveSheet(0);
     setManualRows([]); setExtraCols([]); setNewColName(""); setShowAddCol(false);
-    setVerifyResult(null);
+    setVerifyResult(null); setAiPreview(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -413,7 +452,7 @@ export default function UploadCenter() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Upload Center</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Input data keuangan manual, upload bukti Excel, lalu verifikasi dengan AI</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Upload Excel keuangan, AI membaca isi file, lalu Finance tinggal review dan simpan.</p>
       </div>
 
       {/* ── STEP: TYPE ──────────────────────────────────────────────────────────── */}
@@ -424,11 +463,11 @@ export default function UploadCenter() {
             <span className="flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-background font-bold text-[10px]">1</span>
             <span className="font-medium text-foreground">Pilih Jenis Data</span>
             <span className="text-muted-foreground/50">→</span>
-            <span>2. Input Manual</span>
+            <span>2. Upload Excel</span>
             <span className="text-muted-foreground/50">→</span>
-            <span>3. Upload Bukti</span>
+            <span>3. AI Analisis</span>
             <span className="text-muted-foreground/50">→</span>
-            <span>4. Verifikasi AI</span>
+            <span>4. Review & Simpan</span>
           </div>
 
           <div className="rounded-xl border bg-card">
@@ -456,9 +495,13 @@ export default function UploadCenter() {
             </div>
           </div>
 
-          <button onClick={startManualInput}
+          <button onClick={() => setStep("docUpload")}
             className="bg-foreground text-background text-sm font-medium px-5 py-2.5 rounded-md hover:opacity-90 flex items-center gap-2">
-            <Plus className="size-3.5" /> Mulai Input Data {typeName}
+            <Upload className="size-3.5" /> Upload Excel {typeName}
+          </button>
+          <button onClick={startManualInput}
+            className="border text-sm font-medium px-5 py-2.5 rounded-md hover:bg-muted flex items-center gap-2">
+            <Plus className="size-3.5" /> Input Manual dari Template
           </button>
         </div>
       )}
@@ -471,11 +514,73 @@ export default function UploadCenter() {
               <ChevronLeft className="size-3.5" />Kembali
             </button>
             <div className="flex-1">
-              <div className="text-sm font-semibold">{typeName} — Input Data Manual</div>
-              <div className="text-xs text-muted-foreground">Masukkan data secara langsung. Tidak perlu mengetik nama karyawan atau data lain — langsung isi per baris.</div>
+              <div className="text-sm font-semibold">{typeName} — Review Tabel Finance</div>
+              <div className="text-xs text-muted-foreground">
+                {aiPreview ? "AI sudah membaca Excel. Periksa mapping, edit baris jika perlu, lalu simpan." : "Input manual dari template. Kolom dan baris bisa ditambah atau dikosongkan ulang."}
+              </div>
             </div>
             <span className="text-xs bg-muted text-muted-foreground px-2.5 py-0.5 rounded-full">{manualRows.length} baris</span>
           </div>
+
+          {aiPreview && (
+            <div className="rounded-xl border bg-card p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Hasil Analisis Excel</div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{aiPreview.summary ?? `${aiPreview.count} baris valid dibaca.`}</p>
+                </div>
+                <span className="text-xs rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-0.5 font-medium">
+                  {aiPreview.count.toLocaleString("id-ID")} baris
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="rounded-lg bg-muted/40 p-3">
+                  <div className="text-[10px] text-muted-foreground">Total terbaca</div>
+                  <div className="text-sm font-semibold">{fmtRp(aiPreview.docTotal ?? 0)}</div>
+                </div>
+                {selected === "hutang" && (
+                  <>
+                    <div className="rounded-lg bg-muted/40 p-3">
+                      <div className="text-[10px] text-muted-foreground">Terbayar</div>
+                      <div className="text-sm font-semibold">{fmtRp(aiPreview.paidTotal ?? 0)}</div>
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-3">
+                      <div className="text-[10px] text-muted-foreground">Sisa hutang</div>
+                      <div className="text-sm font-semibold">{fmtRp(aiPreview.remainingTotal ?? 0)}</div>
+                    </div>
+                  </>
+                )}
+                {["cashflow", "general_ledger", "bank"].includes(selected) && (
+                  <>
+                    <div className="rounded-lg bg-muted/40 p-3">
+                      <div className="text-[10px] text-muted-foreground">Cash in</div>
+                      <div className="text-sm font-semibold text-emerald-600">{fmtRp(aiPreview.cashIn ?? 0)}</div>
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-3">
+                      <div className="text-[10px] text-muted-foreground">Cash out</div>
+                      <div className="text-sm font-semibold text-red-500">{fmtRp(aiPreview.cashOut ?? 0)}</div>
+                    </div>
+                  </>
+                )}
+              </div>
+              {aiPreview.colMap && (
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(aiPreview.colMap).filter(([, v]) => v).map(([field, col]) => (
+                    <span key={field} className="text-[10px] rounded-full border px-2 py-0.5 text-muted-foreground">
+                      {field} → <strong>{col}</strong>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {!!aiPreview.warnings?.length && (
+                <div className="space-y-1">
+                  {aiPreview.warnings.map((w, i) => (
+                    <div key={i} className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">{w}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Running totals */}
           <div className="flex gap-2 flex-wrap">
@@ -560,8 +665,8 @@ export default function UploadCenter() {
                       ))}
                       <td className="px-2 py-1 w-24" />
                       <td className="px-2 py-1 w-7">
-                        <button onClick={() => removeRow(i)} disabled={manualRows.length === 1}
-                          className="text-muted-foreground hover:text-red-500 disabled:opacity-20">
+                        <button onClick={() => removeRow(i)}
+                          className="text-muted-foreground hover:text-red-500">
                           <Trash2 className="size-3.5" />
                         </button>
                       </td>
@@ -571,9 +676,14 @@ export default function UploadCenter() {
               </table>
             </div>
             <div className="p-2 border-t">
-              <button onClick={addRow} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted">
-                <Plus className="size-3.5" />Tambah Baris
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={addRow} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted">
+                  <Plus className="size-3.5" />Tambah Baris
+                </button>
+                <button onClick={clearTable} className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
+                  <Trash2 className="size-3.5" />Kosongkan Tabel
+                </button>
+              </div>
             </div>
           </div>
 
@@ -582,11 +692,11 @@ export default function UploadCenter() {
           <div className="flex items-center gap-3">
             <button onClick={() => setStep("docUpload")}
               className="bg-foreground text-background text-sm font-medium px-5 py-2.5 rounded-md hover:opacity-90 flex items-center gap-2">
-              <Upload className="size-3.5" /> Lanjut, Upload Bukti Excel
+              <Upload className="size-3.5" /> Upload Excel Baru
             </button>
             <button onClick={saveManualData}
               className="border text-sm font-medium px-4 py-2.5 rounded-md hover:bg-muted flex items-center gap-2">
-              Simpan Tanpa Verifikasi
+              Simpan Tabel ke Database
             </button>
           </div>
         </div>
@@ -597,17 +707,17 @@ export default function UploadCenter() {
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <button onClick={() => setStep("manualInput")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-              <ChevronLeft className="size-3.5" />Kembali
+              <ChevronLeft className="size-3.5" />Kembali ke Review
             </button>
             <div className="flex-1">
-              <div className="text-sm font-semibold">{typeName} — Upload Bukti Dokumen</div>
-              <div className="text-xs text-muted-foreground">Upload Excel atau PDF sebagai bukti. AI akan membandingkan isi dokumen dengan data yang sudah diinput.</div>
+              <div className="text-sm font-semibold">{typeName} — Upload Excel</div>
+              <div className="text-xs text-muted-foreground">Pakai Excel sebagai sumber utama. Setelah file dipilih, AI langsung membaca isi sheet dan menyiapkan tabel preview.</div>
             </div>
           </div>
 
           {/* Summary of manual input */}
           <div className="rounded-xl border bg-muted/20 p-3">
-            <div className="text-xs font-medium text-muted-foreground mb-2">Ringkasan data yang diinput:</div>
+            <div className="text-xs font-medium text-muted-foreground mb-2">Ringkasan tabel sementara:</div>
             <div className="flex gap-2 flex-wrap">
               {manualTotals.map(t => (
                 <div key={t.label} className="text-xs">
@@ -620,10 +730,10 @@ export default function UploadCenter() {
 
           <div className={cn("rounded-xl border-2 border-dashed p-8 text-center cursor-pointer hover:bg-muted/20 transition-colors", errorMsg && "border-red-300")}
             onClick={() => inputRef.current?.click()}>
-            <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={handleFile} />
+            <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFile} />
             <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm font-medium">{fileName || "Klik atau seret file bukti ke sini"}</p>
-            <p className="text-xs text-muted-foreground mt-1">Format: Excel (.xlsx, .xls) atau PDF</p>
+            <p className="text-sm font-medium">{fileName || "Klik untuk pilih Excel finance"}</p>
+            <p className="text-xs text-muted-foreground mt-1">Format: Excel saja (.xlsx, .xls, .csv). PDF tidak dipakai di flow Finance.</p>
           </div>
 
           {errorMsg && <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg p-3">{errorMsg}</div>}
@@ -631,10 +741,10 @@ export default function UploadCenter() {
           {fileReady && (
             <div className="rounded-xl border bg-card p-4 space-y-3">
               <div className="flex items-center gap-2">
-                {fileKind === "pdf" ? <FileType className="size-4 text-blue-500" /> : <FileText className="size-4 text-emerald-500" />}
+                <FileText className="size-4 text-emerald-500" />
                 <span className="text-sm font-medium truncate">{fileName}</span>
                 <span className="text-xs text-muted-foreground ml-auto shrink-0">
-                  {fileKind === "pdf" ? `~${pdfInfo?.pages} hal.` : `${totalRows.toLocaleString("id-ID")} baris, ${sheets.length} sheet`}
+                  {`${totalRows.toLocaleString("id-ID")} baris, ${sheets.length} sheet`}
                 </span>
               </div>
               {fileKind === "excel" && sheets.length > 1 && (
@@ -673,14 +783,14 @@ export default function UploadCenter() {
 
           <div className="flex items-center gap-3 flex-wrap">
             {fileReady && (
-              <button onClick={runVerify}
+              <button onClick={() => runExcelPreview()}
                 className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-4 py-2.5 rounded-md hover:opacity-90">
-                <Sparkles className="size-3.5" /> Verifikasi dengan AI
+                <Sparkles className="size-3.5" /> Analisis Ulang Excel
               </button>
             )}
             <button onClick={saveManualData}
               className="border text-sm font-medium px-4 py-2.5 rounded-md hover:bg-muted flex items-center gap-2">
-              Simpan Tanpa Verifikasi
+              Simpan Tabel ke Database
             </button>
           </div>
         </div>

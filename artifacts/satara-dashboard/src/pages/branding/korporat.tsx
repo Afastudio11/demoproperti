@@ -37,7 +37,7 @@ export default function BrandingKorporat() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Corporate Branding</h1>
@@ -116,7 +116,7 @@ export default function BrandingKorporat() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-none p-6">
             <h2 className="font-bold text-slate-800 mb-4">Input Data Brand</h2>
             <div className="space-y-3">
               <div><label className="text-xs text-slate-500 block mb-1">Brand</label>

@@ -79,7 +79,7 @@ export default function KompetitorPage() {
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="size-3.5 mr-1" />Tambah Kompetitor</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-none w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="text-sm">Input Data Kompetitor</DialogTitle></DialogHeader>
             <div className="space-y-3 pt-2">
               <div className="grid grid-cols-2 gap-3">

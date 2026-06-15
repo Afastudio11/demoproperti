@@ -28,7 +28,7 @@ export default function BrandingKontenNew() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-6 w-full">
       <button onClick={() => navigate("/branding/konten")} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4"><ChevronLeft size={16} /> Kembali</button>
       <h1 className="text-2xl font-bold text-slate-800 mb-6">Tambah Konten Baru</h1>
 

@@ -43,25 +43,25 @@ const navItems = [
 type SubNavItem = { type: "link"; name: string; path: string } | { type: "group"; label: string };
 
 const financeSubNav: SubNavItem[] = [
-  { type: "link", name: "Finance Dashboard", path: "/finance" },
+  { type: "link", name: "Command Center", path: "/finance" },
   { type: "link", name: "Upload Center", path: "/finance/upload" },
-  { type: "group", label: "Cashflow & Proyek" },
+  { type: "group", label: "Kas & Proyek" },
   { type: "link", name: "Cashflow Aktual", path: "/finance/cashflow" },
-  { type: "link", name: "Project Finance", path: "/finance/proyek" },
+  { type: "link", name: "Keuangan Proyek", path: "/finance/proyek" },
   { type: "link", name: "Realisasi vs RAB", path: "/finance/rab" },
   { type: "group", label: "Kewajiban & Tagihan" },
-  { type: "link", name: "Kredit & Investment", path: "/finance/hutang" },
-  { type: "link", name: "Piutang Center", path: "/finance/piutang" },
+  { type: "link", name: "Hutang & Kredit", path: "/finance/hutang" },
+  { type: "link", name: "Piutang", path: "/finance/piutang" },
   { type: "link", name: "Approval Subkon", path: "/finance/approval" },
-  { type: "link", name: "Akad Cair Tracker", path: "/finance/akad-cair" },
+  { type: "link", name: "Akad Cair", path: "/finance/akad-cair" },
   { type: "group", label: "Analitik Keuangan" },
-  { type: "link", name: "Profitability Center", path: "/finance/profitabilitas" },
+  { type: "link", name: "Profitabilitas", path: "/finance/profitabilitas" },
   { type: "link", name: "Forecast Cashflow", path: "/finance/forecast" },
-  { type: "link", name: "Accounting Center", path: "/finance/accounting" },
+  { type: "link", name: "Accounting", path: "/finance/accounting" },
   { type: "group", label: "Kontrol & Strategi" },
-  { type: "link", name: "Audit Center", path: "/finance/audit" },
+  { type: "link", name: "Audit", path: "/finance/audit" },
   { type: "link", name: "Data Quality", path: "/finance/data-quality" },
-  { type: "link", name: "Early Warning System", path: "/finance/warning" },
+  { type: "link", name: "Early Warning", path: "/finance/warning" },
   { type: "link", name: "Analisis Ekspansi", path: "/finance/ekspansi" },
 ];
 
@@ -378,7 +378,7 @@ function DashboardSidebar() {
 function MainContent({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex-1 overflow-auto transition-all duration-200">
-      <div className="p-4 sm:p-5 lg:p-6 max-w-screen-2xl mx-auto">
+      <div className="w-full max-w-none p-4 sm:p-5 lg:p-6">
         {children}
       </div>
     </main>

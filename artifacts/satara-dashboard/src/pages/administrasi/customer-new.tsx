@@ -79,7 +79,7 @@ export default function CustomerNew() {
     setForm(f => ({ ...f, [field]: e.target.value }));
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 w-full">
       <div className="flex items-center gap-3">
         <Link href="/administrasi/customer">
           <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">

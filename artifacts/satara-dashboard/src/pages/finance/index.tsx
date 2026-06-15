@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Landmark, Upload, ArrowUpRight, ArrowDownRight, Activity, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,11 +12,11 @@ function fmtRp(n: number) {
 }
 
 function FinanceGauge({ score, status }: { score: number; status: string }) {
-  const color = status === "SEHAT" ? "text-emerald-600" : status === "WASPADA" ? "text-amber-500" : "text-red-500";
-  const bg = status === "SEHAT" ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800" : status === "WASPADA" ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800" : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800";
+  const color = status === "SEHAT" ? "text-emerald-600" : status === "WASPADA" ? "text-amber-500" : status === "BELUM ADA DATA" ? "text-muted-foreground" : "text-red-500";
+  const bg = status === "SEHAT" ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800" : status === "WASPADA" ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800" : status === "BELUM ADA DATA" ? "bg-muted/30 border-border" : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800";
   const pct = (score / 100) * 180;
   return (
-    <div className={cn("rounded-xl border p-5 flex items-center gap-6", bg)}>
+    <div className={cn("rounded-lg border p-4 sm:p-5 flex items-center gap-5", bg)}>
       <div className="relative w-28 h-16 shrink-0">
         <svg viewBox="0 0 100 55" className="w-full h-full">
           <path d="M10,50 A40,40 0 0,1 90,50" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" className="text-muted-foreground/20" />
@@ -43,7 +43,7 @@ function FinanceGauge({ score, status }: { score: number; status: string }) {
 
 function MetricCard({ label, value, sub, positive, icon: Icon }: { label: string; value: string; sub?: string; positive?: boolean; icon?: any }) {
   return (
-    <div className="rounded-xl border bg-card p-4 flex flex-col gap-1.5">
+    <div className="rounded-lg border bg-card p-4 flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {Icon && <Icon className="size-3" />}
         {label}
@@ -53,6 +53,28 @@ function MetricCard({ label, value, sub, positive, icon: Icon }: { label: string
       </div>
       {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
     </div>
+  );
+}
+
+type ActionTone = "default" | "warning" | "success";
+
+function ActionCard({ title, desc, href, icon: Icon, tone = "default" }: { title: string; desc: string; href: string; icon: any; tone?: ActionTone }) {
+  return (
+    <Link href={href}>
+      <div className={cn(
+        "rounded-lg border bg-card p-4 h-full cursor-pointer transition-colors hover:bg-muted/50",
+        tone === "warning" && "border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20",
+        tone === "success" && "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20",
+      )}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="text-sm font-semibold">{title}</div>
+            <p className="text-xs leading-relaxed text-muted-foreground">{desc}</p>
+          </div>
+          <Icon className="size-4 shrink-0 text-muted-foreground" />
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -74,8 +96,28 @@ export default function FinanceDashboard() {
   const hutangJT = data?.hutangJatuhTempo ?? 0;
   const piutangJT = data?.piutangJatuhTempo ?? 0;
   const score = aiScore ?? data?.financeScore ?? 0;
-  const status = score >= 80 ? "SEHAT" : score >= 60 ? "WASPADA" : "KRITIS";
+  const hasFinanceData = cashIn > 0 || cashOut > 0 || kpp > 0 || hutangJT > 0 || piutangJT > 0;
+  const status = !hasFinanceData ? "BELUM ADA DATA" : (data?.financeStatus ?? (score >= 80 ? "SEHAT" : score >= 60 ? "WASPADA" : "KRITIS"));
   const alerts: any[] = data?.alerts ?? [];
+  const cashRatio = cashOut > 0 ? cashIn / cashOut : cashIn > 0 ? 99 : 0;
+  const dueGap = piutangJT - hutangJT;
+  const priorityLabel = !hasFinanceData
+    ? "Mulai dari upload data cashflow, hutang, piutang, dan RAB."
+    : net < 0
+      ? "Cash out bulan ini lebih besar dari cash in. Cek kategori pengeluaran dan jadwal tagihan."
+      : hutangJT > piutangJT
+        ? "Hutang jatuh tempo lebih besar dari piutang tertagih. Prioritaskan rencana pembayaran."
+        : "Kondisi kas bulan ini cukup terkendali. Pantau KPP, RAB, dan alert aktif.";
+  const actionCards: Array<{ title: string; desc: string; href: string; icon: any; tone: ActionTone }> = [
+    { title: "Cashflow", desc: "Lihat arus masuk, keluar, net, dan kategori pengeluaran.", href: "/finance/cashflow", icon: TrendingUp, tone: net >= 0 ? "success" : "warning" },
+    { title: "Hutang & KPP", desc: "Pantau kewajiban bank, investor, dan jadwal pelunasan.", href: "/finance/hutang", icon: Landmark, tone: hutangJT > piutangJT ? "warning" : "default" },
+    { title: "Approval Subkon", desc: "Validasi pembayaran termin sebelum uang keluar.", href: "/finance/approval", icon: Shield, tone: "default" },
+    { title: "Audit & Data Quality", desc: "Cari anomali, data bolong, dan transaksi yang perlu dikoreksi.", href: "/finance/data-quality", icon: AlertTriangle, tone: alerts.length > 0 ? "warning" : "default" },
+    { title: "RAB Proyek", desc: "Bandingkan anggaran, realisasi, dan deviasi per proyek.", href: "/finance/rab", icon: Activity, tone: "default" },
+    { title: "Piutang", desc: "Lacak tagihan tertagih, belum tertagih, dan jatuh tempo.", href: "/finance/piutang", icon: ArrowDownRight, tone: piutangJT >= hutangJT ? "success" : "default" },
+    { title: "Forecast", desc: "Proyeksi kas dan tekanan likuiditas beberapa bulan ke depan.", href: "/finance/forecast", icon: TrendingDown, tone: "default" },
+    { title: "Ekspansi", desc: "Uji kelayakan finansial sebelum menambah proyek baru.", href: "/finance/ekspansi", icon: ArrowUpRight, tone: "default" },
+  ];
 
   async function getAiRecommendation() {
     setLoading(true);
@@ -95,8 +137,8 @@ export default function FinanceDashboard() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Finance & Accounting</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Satara Finance & Accounting Intelligence System (SFAIS)</p>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Finance Command Center</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Kas, kewajiban, piutang, RAB, dan approval dalam satu ruang keputusan.</p>
         </div>
         <Link href="/finance/upload">
           <button className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">
@@ -106,9 +148,50 @@ export default function FinanceDashboard() {
         </Link>
       </div>
 
-      {/* Row 4 — AI Recommendation */}
-      <div className="rounded-xl border bg-card p-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="grid gap-3 lg:grid-cols-[minmax(320px,0.9fr)_1.6fr]">
+        <FinanceGauge score={isLoading ? 0 : score} status={isLoading ? "BELUM ADA DATA" : status} />
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Prioritas Hari Ini</div>
+              <p className="mt-1 text-sm font-medium leading-relaxed">{isLoading ? "Memuat ringkasan finance..." : priorityLabel}</p>
+            </div>
+            <Activity className="size-4 text-muted-foreground" />
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-md bg-muted/50 p-3">
+              <div className="text-[11px] text-muted-foreground">Rasio masuk/keluar</div>
+              <div className={cn("mt-1 text-sm font-semibold tabular-nums", cashRatio >= 1 ? "text-emerald-600" : "text-red-500")}>
+                {isLoading ? "..." : cashOut > 0 ? `${cashRatio.toFixed(2)}x` : cashIn > 0 ? "Ada cash in" : "Belum ada"}
+              </div>
+            </div>
+            <div className="rounded-md bg-muted/50 p-3">
+              <div className="text-[11px] text-muted-foreground">Selisih piutang - hutang</div>
+              <div className={cn("mt-1 text-sm font-semibold tabular-nums", dueGap >= 0 ? "text-emerald-600" : "text-red-500")}>
+                {isLoading ? "..." : fmtRp(dueGap)}
+              </div>
+            </div>
+            <div className="rounded-md bg-muted/50 p-3">
+              <div className="text-[11px] text-muted-foreground">Alert aktif</div>
+              <div className={cn("mt-1 text-sm font-semibold tabular-nums", alerts.length > 0 ? "text-amber-600" : "text-emerald-600")}>
+                {isLoading ? "..." : `${alerts.length} item`}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+        <MetricCard label="Cash In Bulan Ini" value={isLoading ? "..." : fmtRp(cashIn)} sub="Dana masuk terposting" positive icon={ArrowDownRight} />
+        <MetricCard label="Cash Out Bulan Ini" value={isLoading ? "..." : fmtRp(cashOut)} sub="Dana keluar terposting" positive={false} icon={ArrowUpRight} />
+        <MetricCard label="Net Cashflow" value={isLoading ? "..." : `${net >= 0 ? "+" : ""}${fmtRp(net)}`} sub="Selisih kas bulan ini" positive={net >= 0} icon={DollarSign} />
+        <MetricCard label="KPP Outstanding" value={isLoading ? "..." : fmtRp(kpp)} sub="Fasilitas aktif belum lunas" icon={Landmark} />
+        <MetricCard label="Jatuh Tempo 30 Hari" value={isLoading ? "..." : fmtRp(hutangJT)} sub={`Piutang tertagih ${fmtRp(piutangJT)}`} positive={hutangJT <= piutangJT} icon={AlertTriangle} />
+      </div>
+
+      {/* AI Recommendation */}
+      <div className="rounded-lg border bg-card p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
           <h2 className="text-sm font-semibold">Rekomendasi AI</h2>
           <button onClick={getAiRecommendation} disabled={loading} className="text-xs px-3 py-1 rounded-md border hover:bg-muted transition-colors disabled:opacity-50">
             {loading ? "Menganalisis..." : "Refresh Analisis"}
@@ -124,12 +207,12 @@ export default function FinanceDashboard() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Klik "Refresh Analisis" untuk mendapatkan rekomendasi AI berdasarkan kondisi keuangan terkini.</p>
+          <p className="text-sm text-muted-foreground">{hasFinanceData ? "Klik Refresh Analisis untuk membaca risiko dari kas, KPP, hutang, dan piutang terkini." : "Upload data finance dulu supaya rekomendasi AI tidak sekadar menebak."}</p>
         )}
       </div>
 
-      {/* Row 5 — Early Warning Alerts */}
-      <div className="rounded-xl border bg-card p-4">
+      {/* Early Warning Alerts */}
+      <div className="rounded-lg border bg-card p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold">Early Warning Aktif</h2>
           <Link href="/finance/warning">
@@ -156,20 +239,9 @@ export default function FinanceDashboard() {
       </div>
 
       {/* Quick Links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {[
-          { label: "Cashflow Center", path: "/finance/cashflow" },
-          { label: "KPP Tracker", path: "/finance/kpp" },
-          { label: "Kredit & Investment", path: "/finance/hutang" },
-          { label: "Approval Subkon", path: "/finance/approval" },
-          { label: "Akad Cair", path: "/finance/akad-cair" },
-          { label: "Audit Center", path: "/finance/audit" },
-        ].map(item => (
-          <Link key={item.path} href={item.path}>
-            <div className="rounded-lg border bg-card p-3 text-center text-sm hover:bg-muted/50 transition-colors cursor-pointer">
-              {item.label}
-            </div>
-          </Link>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {actionCards.map(item => (
+          <ActionCard key={item.href} {...item} />
         ))}
       </div>
     </div>

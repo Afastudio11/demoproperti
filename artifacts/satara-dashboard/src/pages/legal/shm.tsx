@@ -24,7 +24,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-background border rounded-xl p-5 w-full max-w-md shadow-xl">
+      <div className="bg-background border rounded-xl p-5 w-full max-w-none shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold">Input / Update SHM Split</h3>
           <button onClick={onClose}><X className="size-4 text-muted-foreground" /></button>

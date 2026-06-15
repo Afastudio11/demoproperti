@@ -253,7 +253,7 @@ export default function Projects() {
       />
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-none w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Tambah Proyek Baru</DialogTitle>
           </DialogHeader>

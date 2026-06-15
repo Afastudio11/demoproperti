@@ -84,7 +84,7 @@ export default function CampaignPage() {
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="size-3.5 mr-1" />Tambah Campaign</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-none w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="text-sm">Tambah Campaign</DialogTitle></DialogHeader>
             <div className="space-y-3 pt-2">
               <div className="grid grid-cols-2 gap-3">

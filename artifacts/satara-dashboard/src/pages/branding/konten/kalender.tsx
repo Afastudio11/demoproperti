@@ -52,7 +52,7 @@ export default function BrandingKalender() {
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <div className="p-6 space-y-4 max-w-5xl mx-auto">
+    <div className="p-6 space-y-4 w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Kalender Konten</h1>

@@ -117,7 +117,7 @@ export default function ImportPage() {
   });
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 w-full">
       <div className="flex items-center gap-3">
         <Link href="/administrasi/customer"><Button variant="ghost" size="sm" className="h-7"><ArrowLeft className="size-3.5 mr-1" />Kembali</Button></Link>
         <div>

@@ -87,7 +87,7 @@ export default function LeadDetail() {
   ].filter(f => f.value);
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 w-full">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link href="/marketing/lead">

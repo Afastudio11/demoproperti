@@ -99,7 +99,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 w-full">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Pengaturan</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Kelola akun pengguna dan hak akses menu</p>

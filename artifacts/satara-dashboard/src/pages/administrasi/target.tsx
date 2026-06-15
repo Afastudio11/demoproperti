@@ -11,7 +11,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-background border rounded-xl p-5 w-full max-w-md shadow-lg">
+      <div className="bg-background border rounded-xl p-5 w-full max-w-none shadow-lg">
         {children}
       </div>
     </div>
