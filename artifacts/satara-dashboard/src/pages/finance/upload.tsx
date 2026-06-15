@@ -17,6 +17,8 @@ const TYPE_FIELDS: Record<string, FieldDef[]> = {
     { key: "creditorName", label: "Kreditur / Pemilik", type: "text", ac: true, w: 170 },
     { key: "totalAmount", label: "Nilai Awal (Rp)", type: "number", w: 140 },
     { key: "paidAmount", label: "Terbayar (Rp)", type: "number", w: 130 },
+    { key: "remainingAmount", label: "Sisa Kewajiban (Rp)", type: "number", w: 145 },
+    { key: "landArea", label: "Luas Tanah", type: "number", w: 110 },
     { key: "notes", label: "Keterangan", type: "text", w: 160 },
   ],
   piutang: [
@@ -77,13 +79,17 @@ function fmtDate(s: string) {
 
 function forwardFill(rows: any[][], headers: string[]): Record<string, any>[] {
   const last: Record<number, any> = {};
+  const canForwardFill = (header: string) => {
+    const h = header.toLowerCase();
+    return h.includes("project") || h.includes("proyek") || h.includes("tahap") || h.includes("stage") || h.includes("kategori") || h.includes("category");
+  };
   return rows.map(row => {
     const obj: Record<string, any> = {};
     headers.forEach((h, i) => {
       const val = row[i];
       const isBlank = val === null || val === undefined || String(val).trim() === "";
       if (!isBlank) { last[i] = val; obj[h] = val; }
-      else { obj[h] = i < 4 ? (last[i] ?? "") : ""; }
+      else { obj[h] = canForwardFill(h) ? (last[i] ?? "") : ""; }
     });
     return obj;
   });
@@ -113,6 +119,46 @@ function sanitizeCell(v: any): any {
   return v ?? "";
 }
 
+function parseLocaleNumber(v: any): number {
+  if (v === null || v === undefined || v === "") return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const raw = String(v).replace(/Rp\.?\s*/gi, "").replace(/\s/g, "").trim();
+  if (!raw) return 0;
+  const negative = raw.startsWith("(") && raw.endsWith(")");
+  const clean = raw.replace(/[()]/g, "").replace(/[^0-9,.-]/g, "");
+  const lastComma = clean.lastIndexOf(",");
+  const lastDot = clean.lastIndexOf(".");
+  let normalized = clean;
+  if (lastComma !== -1 && lastDot !== -1) {
+    normalized = lastComma > lastDot ? clean.replace(/\./g, "").replace(",", ".") : clean.replace(/,/g, "");
+  } else if (lastComma !== -1) {
+    const decimals = clean.length - lastComma - 1;
+    normalized = decimals > 0 && decimals <= 2 ? clean.replace(/\./g, "").replace(",", ".") : clean.replace(/,/g, "");
+  } else if (lastDot !== -1) {
+    const decimals = clean.length - lastDot - 1;
+    normalized = decimals > 0 && decimals <= 2 ? clean.replace(/,/g, "") : clean.replace(/\./g, "");
+  }
+  const parsed = parseFloat(normalized);
+  return Number.isFinite(parsed) ? (negative ? -parsed : parsed) : 0;
+}
+
+function formatFullRp(n: number) {
+  if (!n || isNaN(n)) return "Rp 0";
+  return `Rp ${n.toLocaleString("id-ID", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function isMoneyField(key: string) {
+  return /amount|nilai|paid|remaining|rab|realization/i.test(key);
+}
+
+function formatReviewNumber(v: any, key: string) {
+  if (v === "" || v === null || v === undefined) return "";
+  const n = parseLocaleNumber(v);
+  if (!Number.isFinite(n)) return "";
+  if (isMoneyField(key)) return formatFullRp(n);
+  return n.toLocaleString("id-ID", { maximumFractionDigits: 4 });
+}
+
 function emptyRow(fields: FieldDef[], extraCols: string[]): Record<string, any> {
   const row: Record<string, any> = {};
   for (const f of fields) row[f.key] = f.type === "select" ? (f.options?.[0] ?? "") : "";
@@ -127,7 +173,154 @@ function fmtRp(n: number) {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
-type ParsedSheet = { name: string; headers: string[]; rows: Record<string, any>[] };
+function columnLabel(index: number): string {
+  let n = index + 1;
+  let label = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    label = String.fromCharCode(65 + rem) + label;
+    n = Math.floor((n - 1) / 26);
+  }
+  return label;
+}
+
+function excelColorToCss(color?: { rgb?: string; indexed?: number; theme?: number; tint?: number }) {
+  if (!color?.rgb) return undefined;
+  const rgb = color.rgb.length === 8 ? color.rgb.slice(2) : color.rgb;
+  return /^[0-9a-f]{6}$/i.test(rgb) ? `#${rgb}` : undefined;
+}
+
+function borderCss(side?: { style?: string; color?: { rgb?: string } }) {
+  if (!side?.style) return undefined;
+  const color = excelColorToCss(side.color) ?? "#d4d4d8";
+  const width = ["medium", "thick", "double"].includes(side.style) ? "2px" : "1px";
+  return `${width} solid ${color}`;
+}
+
+function getCellStyle(cell: any): WorkbookCellStyle | undefined {
+  const s = cell?.s;
+  if (!s) return undefined;
+  const style: WorkbookCellStyle = {};
+  const bg = excelColorToCss(s.fgColor ?? s.fill?.fgColor);
+  const fg = excelColorToCss(s.font?.color);
+  if (bg) style.backgroundColor = bg;
+  if (fg) style.color = fg;
+  if (s.font?.bold) style.fontWeight = "700";
+  if (s.font?.italic) style.fontStyle = "italic";
+  if (s.alignment?.horizontal) {
+    const h = String(s.alignment.horizontal);
+    style.textAlign = h === "center" ? "center" : h === "right" ? "right" : "left";
+  } else if (cell?.t === "n") {
+    style.textAlign = "right";
+  }
+  style.borderTop = borderCss(s.border?.top);
+  style.borderRight = borderCss(s.border?.right);
+  style.borderBottom = borderCss(s.border?.bottom);
+  style.borderLeft = borderCss(s.border?.left);
+  return Object.keys(style).length ? style : undefined;
+}
+
+function rawCellValue(cell: any) {
+  if (!cell) return "";
+  if (cell.v instanceof Date) return cell.v.toISOString().split("T")[0];
+  return cell.v ?? "";
+}
+
+function buildWorkbookPreview(sheetName: string, ws: XLSX.WorkSheet): WorkbookSheetPreview | null {
+  const ref = ws["!ref"];
+  if (!ref) return null;
+  const range = XLSX.utils.decode_range(ref);
+  let startRow = Number.POSITIVE_INFINITY;
+  let endRow = -1;
+  let startCol = Number.POSITIVE_INFINITY;
+  let endCol = -1;
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      const text = String(cell?.w ?? cell?.v ?? "").trim();
+      if (!text) continue;
+      startRow = Math.min(startRow, r);
+      endRow = Math.max(endRow, r);
+      startCol = Math.min(startCol, c);
+      endCol = Math.max(endCol, c);
+    }
+  }
+  if (endRow < 0) return null;
+  const colMeta = ws["!cols"] ?? [];
+  const rowMeta = ws["!rows"] ?? [];
+  const cols: WorkbookColumn[] = [];
+  for (let c = startCol; c <= endCol; c++) {
+    cols.push({ index: c + 1, label: columnLabel(c), width: Math.max(64, Math.min(260, colMeta[c]?.wpx ?? 96)) });
+  }
+  const rows: WorkbookRow[] = [];
+  for (let r = startRow; r <= endRow; r++) {
+    const cells: WorkbookCell[] = [];
+    for (let c = startCol; c <= endCol; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      cells.push({
+        address: addr,
+        row: r + 1,
+        col: c + 1,
+        displayText: String(cell?.w ?? cell?.v ?? ""),
+        rawValue: rawCellValue(cell),
+        numberFormat: cell?.z,
+        formula: cell?.f,
+        style: getCellStyle(cell),
+      });
+    }
+    rows.push({ index: r + 1, height: rowMeta[r]?.hpx, cells });
+  }
+  return { name: sheetName, startRow: startRow + 1, endRow: endRow + 1, startCol: startCol + 1, endCol: endCol + 1, rows, cols };
+}
+
+type WorkbookCellStyle = {
+  backgroundColor?: string;
+  color?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  textAlign?: "left" | "center" | "right";
+  borderTop?: string;
+  borderRight?: string;
+  borderBottom?: string;
+  borderLeft?: string;
+};
+
+type WorkbookCell = {
+  address: string;
+  row: number;
+  col: number;
+  displayText: string;
+  rawValue: any;
+  numberFormat?: string;
+  formula?: string;
+  style?: WorkbookCellStyle;
+};
+
+type WorkbookRow = {
+  index: number;
+  height?: number;
+  cells: WorkbookCell[];
+};
+
+type WorkbookColumn = {
+  index: number;
+  label: string;
+  width: number;
+};
+
+type WorkbookSheetPreview = {
+  name: string;
+  startRow: number;
+  endRow: number;
+  startCol: number;
+  endCol: number;
+  rows: WorkbookRow[];
+  cols: WorkbookColumn[];
+};
+
+type ParsedSheet = { name: string; headers: string[]; rows: Record<string, any>[]; preview?: WorkbookSheetPreview };
 // Steps: type → manualInput → docUpload → aiVerify → saving → done | error
 type Step = "type" | "manualInput" | "docUpload" | "aiVerify" | "saving" | "done" | "error";
 type FileKind = "excel" | "pdf" | null;
@@ -161,14 +354,15 @@ type AiPreviewResult = {
 
 // ─── Manual totals per type for summary display ───────────────────────────────
 function computeManualTotals(type: string, rows: Record<string, any>[]) {
-  const n = (v: any) => parseFloat(String(v).replace(/[^\d.-]/g, "")) || 0;
+  const n = parseLocaleNumber;
   if (type === "hutang") {
     const total = rows.reduce((s, r) => s + n(r.totalAmount), 0);
     const paid = rows.reduce((s, r) => s + n(r.paidAmount), 0);
+    const remaining = rows.reduce((s, r) => s + (r.remainingAmount === "" || r.remainingAmount === undefined ? Math.max(0, n(r.totalAmount) - n(r.paidAmount)) : n(r.remainingAmount)), 0);
     return [
       { label: "Total Nilai Hutang", value: fmtRp(total) },
       { label: "Total Terbayar", value: fmtRp(paid) },
-      { label: "Sisa Hutang", value: fmtRp(total - paid) },
+      { label: "Sisa Hutang", value: fmtRp(remaining) },
       { label: "Jumlah Kreditur", value: `${rows.length} entri` },
     ];
   }
@@ -200,6 +394,79 @@ function computeManualTotals(type: string, rows: Record<string, any>[]) {
     ];
   }
   return [{ label: "Jumlah Entri", value: `${rows.length} baris` }];
+}
+
+function WorkbookPreview({ sheet }: { sheet?: ParsedSheet }) {
+  const preview = sheet?.preview;
+  if (!preview) return null;
+  return (
+    <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold">Workbook Preview</div>
+          <div className="text-xs text-muted-foreground">
+            {preview.name} · baris {preview.startRow}-{preview.endRow} · kolom {columnLabel(preview.startCol - 1)}-{columnLabel(preview.endCol - 1)}
+          </div>
+        </div>
+        <span className="text-xs rounded-full bg-muted px-2.5 py-0.5 text-muted-foreground">
+          Tampilan Excel asli
+        </span>
+      </div>
+      <div className="overflow-auto max-h-[520px] bg-white dark:bg-zinc-950">
+        <table className="border-collapse text-[11px] text-zinc-900">
+          <thead className="sticky top-0 z-20">
+            <tr>
+              <th className="sticky left-0 z-30 w-10 min-w-10 border border-zinc-300 bg-zinc-100 text-zinc-500 font-medium" />
+              {preview.cols.map(col => (
+                <th
+                  key={col.index}
+                  className="border border-zinc-300 bg-zinc-100 text-zinc-600 font-medium h-6 px-1"
+                  style={{ minWidth: col.width, width: col.width }}
+                >
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {preview.rows.map(row => (
+              <tr key={row.index} style={{ height: row.height ? Math.max(20, row.height) : 22 }}>
+                <th className="sticky left-0 z-10 border border-zinc-300 bg-zinc-100 text-zinc-500 font-medium px-1 w-10 min-w-10">
+                  {row.index}
+                </th>
+                {row.cells.map((cell, idx) => {
+                  const col = preview.cols[idx];
+                  return (
+                    <td
+                      key={cell.address}
+                      title={cell.formula ? `${cell.address}: =${cell.formula}` : `${cell.address}${cell.numberFormat ? ` · ${cell.numberFormat}` : ""}`}
+                      className="border border-zinc-300 px-1.5 py-0.5 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums align-middle"
+                      style={{
+                        minWidth: col?.width ?? 96,
+                        width: col?.width ?? 96,
+                        height: row.height ? Math.max(20, row.height) : 22,
+                        backgroundColor: cell.style?.backgroundColor ?? "#ffffff",
+                        color: cell.style?.color ?? "#18181b",
+                        fontWeight: cell.style?.fontWeight,
+                        fontStyle: cell.style?.fontStyle,
+                        textAlign: cell.style?.textAlign,
+                        borderTop: cell.style?.borderTop,
+                        borderRight: cell.style?.borderRight,
+                        borderBottom: cell.style?.borderBottom,
+                        borderLeft: cell.style?.borderLeft,
+                      }}
+                    >
+                      {cell.displayText}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 // ─── Main component ──────────────────────────────────────────────────────────
@@ -311,10 +578,11 @@ export default function UploadCenter() {
       const reader = new FileReader();
       reader.onload = ev => {
         try {
-          const wb = XLSX.read(ev.target?.result, { type: "binary", cellDates: true, cellNF: false, cellText: false });
+          const wb = XLSX.read(ev.target?.result, { type: "binary", cellDates: true, cellNF: true, cellText: true, cellStyles: true });
           const parsed: ParsedSheet[] = [];
           for (const sheetName of wb.SheetNames) {
             const ws = wb.Sheets[sheetName];
+            const preview = buildWorkbookPreview(sheetName, ws);
             const rawRows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
             const rawRowsRaw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
             if (rawRows.length < 2) continue;
@@ -322,9 +590,14 @@ export default function UploadCenter() {
             for (let i = 0; i < Math.min(6, rawRows.length); i++) {
               if ((rawRows[i] as any[]).filter(c => c !== null && c !== undefined && String(c).trim() !== "").length >= 2) { headerRowIdx = i; break; }
             }
-            const headers = (rawRows[headerRowIdx] as any[]).map(v => String(v ?? "").trim()).filter(h => h !== "");
-            const dataRawRows = rawRowsRaw.slice(headerRowIdx + 1).filter(row => (row as any[]).some(c => c !== null && c !== undefined && String(c).trim() !== ""));
-            const dataFormattedRows = rawRows.slice(headerRowIdx + 1).filter(row => (row as any[]).some(c => c !== null && c !== undefined && String(c).trim() !== ""));
+            const headerCells = (rawRows[headerRowIdx] as any[])
+              .map((v, index) => ({ index, header: String(v ?? "").trim() }))
+              .filter(h => h.header !== "");
+            const headers = headerCells.map(h => h.header);
+            const nonEmptyRowsRaw = rawRowsRaw.slice(headerRowIdx + 1).filter(row => (row as any[]).some(c => c !== null && c !== undefined && String(c).trim() !== ""));
+            const nonEmptyRowsFormatted = rawRows.slice(headerRowIdx + 1).filter(row => (row as any[]).some(c => c !== null && c !== undefined && String(c).trim() !== ""));
+            const dataRawRows = nonEmptyRowsRaw.map(row => headerCells.map(h => row[h.index] ?? ""));
+            const dataFormattedRows = nonEmptyRowsFormatted.map(row => headerCells.map(h => row[h.index] ?? ""));
             const dataRows = forwardFill(dataRawRows, headers).map((row, rowIdx) => {
               const formatted = dataFormattedRows[rowIdx] ?? [];
               const result: Record<string, any> = {};
@@ -336,7 +609,7 @@ export default function UploadCenter() {
               });
               return result;
             });
-            if (dataRows.length > 0) parsed.push({ name: sheetName, headers, rows: dataRows });
+            if (dataRows.length > 0 || preview) parsed.push({ name: sheetName, headers, rows: dataRows, preview: preview ?? undefined });
           }
           if (!parsed.length) { setErrorMsg("File tidak memiliki data yang bisa dibaca."); return; }
           setSheets(parsed); setActiveSheet(0);
@@ -582,6 +855,22 @@ export default function UploadCenter() {
             </div>
           )}
 
+          {fileReady && (
+            <div className="space-y-2">
+              {sheets.length > 1 && (
+                <div className="flex gap-1.5 flex-wrap">
+                  {sheets.map((sh, i) => (
+                    <button key={sh.name} onClick={() => setActiveSheet(i)}
+                      className={cn("text-xs px-2.5 py-1 rounded border", activeSheet === i ? "bg-foreground text-background" : "hover:bg-muted")}>
+                      {sh.name} ({sh.rows.length})
+                    </button>
+                  ))}
+                </div>
+              )}
+              <WorkbookPreview sheet={curSheet} />
+            </div>
+          )}
+
           {/* Running totals */}
           <div className="flex gap-2 flex-wrap">
             {manualTotals.map(t => (
@@ -594,6 +883,13 @@ export default function UploadCenter() {
 
           {/* Manual input table */}
           <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold">Data Siap Simpan</div>
+                <div className="text-xs text-muted-foreground">Record finance hasil ekstraksi. Subtotal dan grand total tetap terlihat di preview Excel, tapi tidak ikut disimpan sebagai record.</div>
+              </div>
+              <span className="text-xs rounded-full bg-muted px-2.5 py-0.5 text-muted-foreground">{manualRows.length} record</span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">
                 <thead>
@@ -648,8 +944,8 @@ export default function UploadCenter() {
                             <input type="date" value={row[f.key] ?? ""} onChange={e => updateCell(i, f.key, e.target.value)}
                               className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
                           ) : f.type === "number" ? (
-                            <input type="number" value={row[f.key] ?? ""} onChange={e => updateCell(i, f.key, e.target.value)}
-                              placeholder="0" min={0}
+                            <input type="text" inputMode="decimal" value={formatReviewNumber(row[f.key], f.key)} onChange={e => updateCell(i, f.key, parseLocaleNumber(e.target.value))}
+                              placeholder="0"
                               className="w-full text-xs px-2 py-1.5 border rounded-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                           ) : (
                             <input type="text" value={row[f.key] ?? ""} onChange={e => updateCell(i, f.key, e.target.value)}
@@ -757,27 +1053,7 @@ export default function UploadCenter() {
                   ))}
                 </div>
               )}
-              {fileKind === "excel" && curSheet && (
-                <div className="overflow-x-auto rounded-lg border text-xs max-h-40">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b bg-muted/30">
-                        {curSheet.headers.slice(0, 6).map(h => <th key={h} className="px-3 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}
-                        {curSheet.headers.length > 6 && <th className="px-3 py-1.5 text-muted-foreground">+{curSheet.headers.length - 6}</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {curSheet.rows.slice(0, 4).map((row, i) => (
-                        <tr key={i} className="border-b last:border-0">
-                          {curSheet.headers.slice(0, 6).map(h => (
-                            <td key={h} className="px-3 py-1 text-muted-foreground truncate max-w-[110px]">{String(row[h] ?? "")}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              {fileKind === "excel" && curSheet && <WorkbookPreview sheet={curSheet} />}
             </div>
           )}
 

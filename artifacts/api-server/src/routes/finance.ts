@@ -31,6 +31,80 @@ const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number; info:
 
 const router = Router();
 
+function parseFinanceNumber(v: any): number {
+  if (v === null || v === undefined || v === "") return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const raw = String(v).replace(/Rp\.?\s*/gi, "").replace(/\s/g, "").trim();
+  if (!raw) return 0;
+  const negative = raw.startsWith("(") && raw.endsWith(")");
+  const clean = raw.replace(/[()]/g, "").replace(/[^0-9,.-]/g, "");
+  const lastComma = clean.lastIndexOf(",");
+  const lastDot = clean.lastIndexOf(".");
+  let normalized = clean;
+  if (lastComma !== -1 && lastDot !== -1) {
+    normalized = lastComma > lastDot ? clean.replace(/\./g, "").replace(",", ".") : clean.replace(/,/g, "");
+  } else if (lastComma !== -1) {
+    const decimals = clean.length - lastComma - 1;
+    normalized = decimals > 0 && decimals <= 2 ? clean.replace(/\./g, "").replace(",", ".") : clean.replace(/,/g, "");
+  } else if (lastDot !== -1) {
+    const decimals = clean.length - lastDot - 1;
+    normalized = decimals > 0 && decimals <= 2 ? clean.replace(/,/g, "") : clean.replace(/\./g, "");
+  }
+  const parsed = parseFloat(normalized);
+  return Number.isFinite(parsed) ? (negative ? -parsed : parsed) : 0;
+}
+
+function normalizeFinanceHeader(v: string): string {
+  return String(v ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/m[²³]/g, "m2")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const FINANCE_FIELD_ALIASES: Record<string, string[]> = {
+  projectName: ["nama project", "nama proyek", "project", "proyek"],
+  stageInfo: ["tahap pembebasan lahan", "tahap", "fase", "stage"],
+  creditorName: ["nama pemilik", "pemilik", "nama kreditur", "kreditur", "nama vendor", "vendor"],
+  totalAmount: ["nilai awal", "total amount", "nilai hutang", "total hutang", "jumlah", "nilai", "total"],
+  dueDate: ["jatuh tempo", "tanggal jatuh tempo", "due date", "tempo"],
+  paidAmount: ["nilai terbayar", "terbayar", "sudah dibayar", "dibayar", "bayar"],
+  remainingAmount: ["sisa kewajiban", "sisa hutang", "sisa ekspansi", "remaining", "belum terbayar", "sisa"],
+  landArea: ["luas tanah m3", "luas tanah m2", "luas tanah", "luas"],
+  notes: ["keterangan", "catatan", "notes", "note"],
+  debtorName: ["nama debitur", "debitur", "customer", "pelanggan"],
+  transactionDate: ["tanggal", "tgl", "date", "transaction date"],
+  type: ["jenis", "tipe", "type", "debit kredit"],
+  category: ["kategori", "category"],
+  amount: ["jumlah", "nominal", "amount", "nilai", "debit", "kredit"],
+  description: ["keterangan", "uraian", "deskripsi", "description"],
+  referenceNumber: ["nomor", "no", "ref", "reference", "no ref"],
+  itemName: ["item", "pekerjaan", "uraian", "nama item", "nama pekerjaan"],
+  rabAmount: ["anggaran", "rab", "rencana", "nilai"],
+  realizationAmount: ["realisasi", "aktual", "terbayar"],
+  stageCode: ["tahap", "kode", "stage"],
+  itemCategory: ["kategori"],
+};
+
+function deterministicColumnMap(headers: string[], fields: string[]): Record<string, string | null> {
+  const normalizedHeaders = headers.map(h => ({ original: h, normalized: normalizeFinanceHeader(h) }));
+  const used = new Set<string>();
+  const out: Record<string, string | null> = {};
+  for (const field of fields) {
+    const aliases = FINANCE_FIELD_ALIASES[field] ?? [field];
+    const normalizedAliases = aliases.map(normalizeFinanceHeader);
+    let match = normalizedHeaders.find(h => !used.has(h.original) && normalizedAliases.includes(h.normalized));
+    if (!match) {
+      match = normalizedHeaders.find(h => !used.has(h.original) && normalizedAliases.some(a => h.normalized.includes(a) || a.includes(h.normalized)));
+    }
+    out[field] = match?.original ?? null;
+    if (match) used.add(match.original);
+  }
+  return out;
+}
+
 async function writeAudit(module: string, entityType: string, entityId: number | string, action: string, before: unknown, after: unknown, actor = "system", notes?: string) {
   try {
     await db.insert(appAuditLogsTable).values({
@@ -1562,9 +1636,7 @@ router.post("/finance/uploads/manual-save", async (req, res) => {
     const now = new Date();
     const label = sessionName || `Manual ${now.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}`;
     function cn2(v: any): number {
-      if (!v && v !== 0) return 0;
-      if (typeof v === "number") return v;
-      return parseFloat(String(v).replace(/[Rp\s.]/g, "").replace(",", ".")) || 0;
+      return parseFinanceNumber(v);
     }
     const [log] = await db.insert(financeUploadsTable).values({
       fileType, fileName: label, periodYear: now.getFullYear(), periodMonth: now.getMonth() + 1,
@@ -1580,6 +1652,7 @@ router.post("/finance/uploads/manual-save", async (req, res) => {
         return { uploadId, projectName: e.projectName || null, stageInfo: e.stageInfo || null,
           creditorName: String(e.creditorName || "Tidak diketahui").trim(), category: "supplier",
           totalAmount: String(orig), paidAmount: String(paid), remainingAmount: String(rem),
+          landArea: e.landArea === "" || e.landArea === null || e.landArea === undefined ? null : String(cn2(e.landArea)),
           status: rem <= 0 ? "paid" : "outstanding", notes: e.notes || "" };
       }).filter(Boolean);
       if (rows.length) { inserted = (await db.insert(debtRecordsTable).values(rows as any).returning()).length; }
@@ -1758,16 +1831,10 @@ router.post("/finance/uploads/ai-preview", async (req, res) => {
       fileType: string; fileName: string; fileKind: "excel";
       sheets?: Array<{ name: string; headers: string[]; rows: Record<string, any>[] }>;
     };
-    function cnP(v: any): number {
-      if (!v && v !== 0) return 0;
-      if (typeof v === "number") return v;
-      const s = String(v).replace(/Rp\.?\s*/gi, "").replace(/\./g, "").replace(/,/g, ".");
-      return parseFloat(s) || 0;
-    }
     const SUMMARY_RE = /^(grand\s*total|sub\s*total|subtotal|total|jumlah|rekapitulasi|rekap)$/i;
+    const SUMMARY_TEXT_RE = /(grand\s*total|sub\s*total|subtotal|total|jumlah|rekapitulasi|rekap|tunggu\s+siteplan)/i;
     let records: any[] = [];
     let colMap: Record<string, string | null> = {};
-    const ai = createDeepSeekClient();
 
     if (fileKind !== "excel") {
       res.status(400).json({ error: "Upload Finance sekarang hanya menerima Excel (.xlsx, .xls, .csv)." });
@@ -1775,79 +1842,125 @@ router.post("/finance/uploads/ai-preview", async (req, res) => {
     }
 
     if (fileKind === "excel" && sheets?.length) {
-      const firstSheet = sheets[0];
-      const mappingResp = await ai.chat.completions.create({
-        model: DEEPSEEK_MODEL,
-        messages: [
-          { role: "system", content: "Kembalikan hanya JSON object yang valid, tanpa penjelasan." },
-          { role: "user", content: `Deteksi mapping kolom Excel ke field target.\nHEADERS: ${JSON.stringify(firstSheet.headers)}\nSAMPLE: ${JSON.stringify(firstSheet.rows.slice(0, 3), null, 2)}\nField untuk ${fileType}: creditorName/projectName/stageInfo/totalAmount/paidAmount/notes (hutang), transactionDate/type/category/amount/description (cashflow), debtorName/totalAmount (piutang), projectName/itemName/rabAmount/realizationAmount (rab)\nKembalikan: {"targetField":"ExcelColumnName",...}` },
-        ],
-        temperature: 0, max_tokens: 400,
-      });
-      try { const raw = mappingResp.choices[0]?.message?.content ?? "{}"; const m = raw.match(/\{[\s\S]*\}/); colMap = m ? JSON.parse(m[0]) : {}; } catch { colMap = {}; }
+      const targetFields =
+        fileType === "hutang" ? ["projectName", "stageInfo", "creditorName", "totalAmount", "paidAmount", "remainingAmount", "landArea", "notes"] :
+        fileType === "piutang" ? ["debtorName", "category", "totalAmount", "dueDate", "notes"] :
+        ["cashflow", "general_ledger", "bank"].includes(fileType) ? ["transactionDate", "type", "category", "projectName", "amount", "description", "referenceNumber"] :
+        fileType === "rab" ? ["projectName", "stageCode", "itemName", "itemCategory", "rabAmount", "realizationAmount"] :
+        [];
+
+      function hasRequiredColumns(map: Record<string, string | null>) {
+        if (fileType === "hutang") return !!map.creditorName && (!!map.totalAmount || !!map.remainingAmount);
+        if (fileType === "piutang") return !!map.debtorName && !!map.totalAmount;
+        if (["cashflow", "general_ledger", "bank"].includes(fileType)) return !!map.amount || (!!map.description && !!map.transactionDate);
+        if (fileType === "rab") return !!map.itemName && !!map.rabAmount;
+        return false;
+      }
+
+      async function mapSheetColumns(sheet: { name: string; headers: string[]; rows: Record<string, any>[] }) {
+        let map = deterministicColumnMap(sheet.headers, targetFields);
+        if (hasRequiredColumns(map) || !targetFields.length) return map;
+        try {
+          const ai = createDeepSeekClient();
+          const mappingResp = await ai.chat.completions.create({
+            model: DEEPSEEK_MODEL,
+            messages: [
+              { role: "system", content: "Kembalikan hanya JSON object yang valid, tanpa penjelasan." },
+              { role: "user", content: `Deteksi mapping kolom Excel ke field target untuk sheet "${sheet.name}".\nHEADERS: ${JSON.stringify(sheet.headers)}\nSAMPLE: ${JSON.stringify(sheet.rows.slice(0, 3), null, 2)}\nField target: ${targetFields.join(", ")}\nKembalikan: {"targetField":"ExcelColumnName",...}` },
+            ],
+            temperature: 0, max_tokens: 400,
+          });
+          const raw = mappingResp.choices[0]?.message?.content ?? "{}";
+          const m = raw.match(/\{[\s\S]*\}/);
+          const aiMap = (m ? JSON.parse(m[0]) : {}) as Record<string, unknown>;
+          const cleanAiMap = Object.fromEntries(Object.entries(aiMap).filter(([, v]) => typeof v === "string" && v)) as Record<string, string>;
+          map = { ...map, ...cleanAiMap };
+        } catch {
+          // Deterministic mapping remains the source of truth when AI fallback is unavailable.
+        }
+        return map;
+      }
+
+      const sheetMaps = await Promise.all(sheets.map(async sh => ({ sheet: sh, colMap: await mapSheetColumns(sh) })));
+      colMap = sheetMaps.find(m => hasRequiredColumns(m.colMap))?.colMap ?? sheetMaps[0]?.colMap ?? {};
+
       function findColP(keys: string[], kws: string[]): string | null {
-        const low = keys.map(k => k.toLowerCase());
-        for (const kw of kws) { const i = low.findIndex(k => k.includes(kw.toLowerCase())); if (i !== -1) return keys[i]; }
+        const normalized = keys.map(k => normalizeFinanceHeader(k));
+        for (const kw of kws) {
+          const alias = normalizeFinanceHeader(kw);
+          const i = normalized.findIndex(k => k === alias || k.includes(alias) || alias.includes(k));
+          if (i !== -1) return keys[i];
+        }
         return null;
       }
-      function getValP(row: Record<string, any>, field: string, fbs: string[] = []): any {
-        const col = colMap[field]; if (col && row[col] !== undefined && row[col] !== "") return row[col];
-        for (const k of fbs) { const f = findColP(Object.keys(row), [k]); if (f && row[f] !== undefined && row[f] !== "") return row[f]; }
+      function getValP(row: Record<string, any>, rowColMap: Record<string, string | null>, field: string, fbs: string[] = []): any {
+        const col = rowColMap[field]; if (col && row[col] !== undefined && row[col] !== "") return row[col];
+        const aliases = [...(FINANCE_FIELD_ALIASES[field] ?? []), ...fbs];
+        for (const k of aliases) { const f = findColP(Object.keys(row), [k]); if (f && row[f] !== undefined && row[f] !== "") return row[f]; }
         return null;
       }
-      const allRows = sheets.flatMap(sh => sh.rows.map(r => ({ ...r, _sheet: sh.name })));
+      const allRows = sheetMaps
+        .filter(({ colMap: sheetColMap }) => hasRequiredColumns(sheetColMap))
+        .flatMap(({ sheet, colMap: sheetColMap }) => sheet.rows.map(r => ({ ...r, _sheet: sheet.name, _colMap: sheetColMap })));
       if (fileType === "hutang") {
         records = allRows.map(row => {
-          const creditor = getValP(row, "creditorName", ["pemilik", "kreditur", "nama"]);
-          if (!creditor || SUMMARY_RE.test(String(creditor).trim())) return null;
-          const orig = cnP(getValP(row, "totalAmount", ["awal", "total", "nilai"]));
-          const paid = cnP(getValP(row, "paidAmount", ["terbayar", "bayar"]));
-          const rem = cnP(getValP(row, "remainingAmount", ["sisa"])) || Math.max(0, orig - paid);
+          const rowColMap = row._colMap as Record<string, string | null>;
+          const creditor = getValP(row, rowColMap, "creditorName", ["pemilik", "kreditur", "vendor"]);
+          const rowText = Object.values(row).map(v => String(v ?? "")).join(" ");
+          if (!creditor || SUMMARY_RE.test(String(creditor).trim()) || SUMMARY_TEXT_RE.test(rowText) && !String(creditor).trim().match(/[A-Z]/i)) return null;
+          const orig = parseFinanceNumber(getValP(row, rowColMap, "totalAmount", ["awal", "total", "nilai"]));
+          const paid = parseFinanceNumber(getValP(row, rowColMap, "paidAmount", ["terbayar", "bayar"]));
+          const remRaw = getValP(row, rowColMap, "remainingAmount", ["sisa"]);
+          const rem = remRaw === null || remRaw === "" ? Math.max(0, orig - paid) : parseFinanceNumber(remRaw);
+          const landArea = parseFinanceNumber(getValP(row, rowColMap, "landArea", ["luas"]));
           if (orig === 0 && !creditor) return null;
-          return { projectName: String(getValP(row, "projectName", ["proyek"]) ?? "").trim() || null, stageInfo: String(getValP(row, "stageInfo", ["tahap"]) ?? "").trim() || null, creditorName: String(creditor).trim(), totalAmount: orig, paidAmount: paid, remainingAmount: rem, notes: String(getValP(row, "notes", ["keterangan"]) ?? "") };
+          return { projectName: String(getValP(row, rowColMap, "projectName", ["proyek"]) ?? "").trim() || null, stageInfo: String(getValP(row, rowColMap, "stageInfo", ["tahap"]) ?? "").trim() || null, creditorName: String(creditor).trim(), totalAmount: orig, paidAmount: paid, remainingAmount: rem, landArea, notes: String(getValP(row, rowColMap, "notes", ["keterangan"]) ?? "") };
         }).filter(Boolean);
       } else if (fileType === "piutang") {
         records = allRows.map(row => {
-          const debtor = getValP(row, "debtorName", ["debitur", "customer", "pelanggan", "nama"]);
+          const rowColMap = row._colMap as Record<string, string | null>;
+          const debtor = getValP(row, rowColMap, "debtorName", ["debitur", "customer", "pelanggan"]);
           if (!debtor || SUMMARY_RE.test(String(debtor).trim())) return null;
-          const totalAmount = cnP(getValP(row, "totalAmount", ["jumlah", "piutang", "tagihan", "nilai", "total"]));
+          const totalAmount = parseFinanceNumber(getValP(row, rowColMap, "totalAmount", ["jumlah", "piutang", "tagihan", "nilai", "total"]));
           if (totalAmount === 0 && !debtor) return null;
           return {
             debtorName: String(debtor).trim(),
-            category: String(getValP(row, "category", ["kategori"]) ?? "customer").trim() || "customer",
+            category: String(getValP(row, rowColMap, "category", ["kategori"]) ?? "customer").trim() || "customer",
             totalAmount,
-            dueDate: getValP(row, "dueDate", ["jatuh", "tempo", "due"]) ?? "",
-            notes: String(getValP(row, "notes", ["keterangan", "catatan", "note"]) ?? ""),
+            dueDate: getValP(row, rowColMap, "dueDate", ["jatuh", "tempo", "due"]) ?? "",
+            notes: String(getValP(row, rowColMap, "notes", ["keterangan", "catatan", "note"]) ?? ""),
           };
         }).filter(Boolean);
       } else if (["cashflow", "general_ledger", "bank"].includes(fileType)) {
         records = allRows.map(row => {
-          const amount = cnP(getValP(row, "amount", ["jumlah", "nominal", "amount", "nilai", "debit", "kredit"]));
-          const transactionDate = getValP(row, "transactionDate", ["tanggal", "tgl", "date"]) ?? "";
-          const description = getValP(row, "description", ["keterangan", "uraian", "deskripsi", "description"]);
+          const rowColMap = row._colMap as Record<string, string | null>;
+          const amount = parseFinanceNumber(getValP(row, rowColMap, "amount", ["jumlah", "nominal", "amount", "nilai", "debit", "kredit"]));
+          const transactionDate = getValP(row, rowColMap, "transactionDate", ["tanggal", "tgl", "date"]) ?? "";
+          const description = getValP(row, rowColMap, "description", ["keterangan", "uraian", "deskripsi", "description"]);
           if (!transactionDate && amount === 0 && !description) return null;
           return {
             transactionDate,
-            type: inferCashflowType(getValP(row, "type", ["jenis", "tipe", "debit", "kredit"]), amount),
-            category: String(getValP(row, "category", ["kategori"]) ?? (fileType === "bank" ? "bank" : "lainnya")),
-            projectName: String(getValP(row, "projectName", ["proyek", "project"]) ?? ""),
+            type: inferCashflowType(getValP(row, rowColMap, "type", ["jenis", "tipe", "debit", "kredit"]), amount),
+            category: String(getValP(row, rowColMap, "category", ["kategori"]) ?? (fileType === "bank" ? "bank" : "lainnya")),
+            projectName: String(getValP(row, rowColMap, "projectName", ["proyek", "project"]) ?? ""),
             amount: Math.abs(amount),
             description: String(description ?? ""),
-            referenceNumber: String(getValP(row, "referenceNumber", ["nomor", "no", "ref", "reference"]) ?? ""),
+            referenceNumber: String(getValP(row, rowColMap, "referenceNumber", ["nomor", "no", "ref", "reference"]) ?? ""),
           };
         }).filter(Boolean);
       } else if (fileType === "rab") {
         records = allRows.map(row => {
-          const itemName = getValP(row, "itemName", ["item", "pekerjaan", "uraian", "nama"]);
+          const rowColMap = row._colMap as Record<string, string | null>;
+          const itemName = getValP(row, rowColMap, "itemName", ["item", "pekerjaan", "uraian", "nama"]);
           if (!itemName || SUMMARY_RE.test(String(itemName).trim())) return null;
-          const rabAmount = cnP(getValP(row, "rabAmount", ["anggaran", "rab", "rencana", "nilai"]));
-          const realizationAmount = cnP(getValP(row, "realizationAmount", ["realisasi", "aktual", "terbayar"]));
+          const rabAmount = parseFinanceNumber(getValP(row, rowColMap, "rabAmount", ["anggaran", "rab", "rencana", "nilai"]));
+          const realizationAmount = parseFinanceNumber(getValP(row, rowColMap, "realizationAmount", ["realisasi", "aktual", "terbayar"]));
           if (rabAmount === 0 && realizationAmount === 0 && !itemName) return null;
           return {
-            projectName: String(getValP(row, "projectName", ["proyek", "project"]) ?? ""),
-            stageCode: String(getValP(row, "stageCode", ["tahap", "kode", "stage"]) ?? ""),
+            projectName: String(getValP(row, rowColMap, "projectName", ["proyek", "project"]) ?? ""),
+            stageCode: String(getValP(row, rowColMap, "stageCode", ["tahap", "kode", "stage"]) ?? ""),
             itemName: String(itemName).trim(),
-            itemCategory: String(getValP(row, "itemCategory", ["kategori"]) ?? ""),
+            itemCategory: String(getValP(row, rowColMap, "itemCategory", ["kategori"]) ?? ""),
             rabAmount,
             realizationAmount,
           };
@@ -1880,7 +1993,7 @@ router.post("/finance/uploads/ai-preview", async (req, res) => {
     if (["cashflow", "general_ledger", "bank"].includes(fileType) && !colMap.amount) warnings.push("Kolom nominal belum terdeteksi kuat. Periksa cash in/cash out sebelum simpan.");
 
     res.json({
-      records: records.slice(0, 500),
+      records,
       count: records.length,
       docTotal,
       paidTotal,
