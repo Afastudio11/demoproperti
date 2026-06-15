@@ -102,6 +102,47 @@ CREATE TABLE IF NOT EXISTS planning_siteplan_shapes (
 ALTER TABLE planning_siteplan_shapes ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
 ALTER TABLE planning_siteplan_shapes ADD COLUMN IF NOT EXISTS is_locked integer NOT NULL DEFAULT 0;
 
+CREATE TABLE IF NOT EXISTS planning_stages (
+  id serial PRIMARY KEY,
+  project_id integer NOT NULL,
+  stage_code text NOT NULL,
+  stage_name text NOT NULL,
+  target_start text,
+  target_end text,
+  status text NOT NULL DEFAULT 'draft',
+  total_units integer NOT NULL DEFAULT 0,
+  total_sales_value real NOT NULL DEFAULT 0,
+  total_subkon_value real NOT NULL DEFAULT 0,
+  published_at text,
+  locked_at timestamptz,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS planning_stage_blocks (
+  id serial PRIMARY KEY,
+  stage_id integer NOT NULL,
+  project_id integer NOT NULL,
+  stage_code text NOT NULL,
+  block_code text NOT NULL,
+  unit_count integer NOT NULL DEFAULT 0,
+  unit_type text NOT NULL DEFAULT 'Tipe 36',
+  price_per_unit real NOT NULL DEFAULT 0,
+  sales_value real NOT NULL DEFAULT 0,
+  subkon_name text,
+  subkon_value_per_unit real NOT NULL DEFAULT 0,
+  subkon_contract_value real NOT NULL DEFAULT 0,
+  contract_id integer,
+  target_start text,
+  target_end text,
+  siteplan_unit_count integer NOT NULL DEFAULT 0,
+  validation_status text NOT NULL DEFAULT 'belum_digambar',
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS finance_akad_disbursements (
   id serial PRIMARY KEY,
   akad_id integer NOT NULL,

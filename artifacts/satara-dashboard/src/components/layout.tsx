@@ -127,6 +127,7 @@ const perencanaanSubNav: SubNavItem[] = [
   { type: "link", name: "Land Bank", path: "/perencanaan/landbank" },
   { type: "group", label: "Produk & Kelayakan" },
   { type: "link", name: "Produk", path: "/perencanaan/produk" },
+  { type: "link", name: "Rencana Tahapan", path: "/perencanaan/tahapan" },
   { type: "link", name: "Feasibility", path: "/perencanaan/feasibility" },
   { type: "group", label: "Finansial & Jadwal" },
   { type: "link", name: "Rencana Cashflow & KPP", path: "/perencanaan/cashflow" },

@@ -16,6 +16,7 @@ import Perencanaan from "@/pages/perencanaan";
 import PasarPage from "@/pages/perencanaan/pasar";
 import LahanPage from "@/pages/perencanaan/lahan";
 import ProdukPage from "@/pages/perencanaan/produk";
+import TahapanPage from "@/pages/perencanaan/tahapan";
 import FeasibilityPage from "@/pages/perencanaan/feasibility";
 import TimelinePage from "@/pages/perencanaan/timeline";
 import CashflowPage from "@/pages/perencanaan/cashflow";
@@ -259,6 +260,7 @@ function AppRoutes() {
         <Route path="/perencanaan/pasar" component={PasarPage} />
         <Route path="/perencanaan/lahan" component={LahanPage} />
         <Route path="/perencanaan/produk" component={ProdukPage} />
+        <Route path="/perencanaan/tahapan" component={TahapanPage} />
         <Route path="/perencanaan/feasibility" component={FeasibilityPage} />
         <Route path="/perencanaan/timeline" component={TimelinePage} />
         <Route path="/perencanaan/cashflow" component={CashflowPage} />

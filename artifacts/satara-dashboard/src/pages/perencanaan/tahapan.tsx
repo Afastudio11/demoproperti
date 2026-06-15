@@ -1,0 +1,343 @@
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { NumericInput } from "@/components/ui/numeric-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { fmtCurrency } from "@/lib/planning-calc";
+import { CheckCircle2, GitBranch, Lock, Plus, RefreshCw, Save, Send, Trash2, Unlock, XCircle } from "lucide-react";
+
+type Project = { id: number; nama: string; lokasi?: string };
+
+type BlockRow = {
+  id?: number;
+  blockCode: string;
+  unitCount: number;
+  unitType: string;
+  pricePerUnit: number;
+  subkonName: string;
+  subkonValuePerUnit: number;
+  targetStart: string;
+  targetEnd: string;
+  siteplanUnitCount?: number;
+  validationStatus?: string;
+  contractId?: number | null;
+};
+
+type StageRow = {
+  id?: number;
+  stageCode: string;
+  stageName: string;
+  targetStart: string;
+  targetEnd: string;
+  status?: string;
+  lockedAt?: string | null;
+  blocks: BlockRow[];
+};
+
+const newBlock = (index = 0): BlockRow => ({
+  blockCode: String.fromCharCode(65 + index),
+  unitCount: 0,
+  unitType: "Tipe 36",
+  pricePerUnit: 0,
+  subkonName: "",
+  subkonValuePerUnit: 0,
+  targetStart: "",
+  targetEnd: "",
+});
+
+const newStage = (index = 0): StageRow => ({
+  stageCode: `T${index + 1}`,
+  stageName: `Tahap ${index + 1}`,
+  targetStart: "",
+  targetEnd: "",
+  status: "draft",
+  blocks: [newBlock(0)],
+});
+
+function statusLabel(status?: string) {
+  if (status === "sesuai") return { label: "Sesuai siteplan", tone: "text-emerald-700 bg-emerald-50 border-emerald-200" };
+  if (status === "kurang_shape") return { label: "Unit gambar kurang", tone: "text-amber-700 bg-amber-50 border-amber-200" };
+  if (status === "lebih_shape") return { label: "Unit gambar lebih", tone: "text-blue-700 bg-blue-50 border-blue-200" };
+  return { label: "Belum digambar", tone: "text-zinc-600 bg-zinc-50 border-zinc-200" };
+}
+
+export default function TahapanPage() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [projectId, setProjectId] = useState(0);
+  const [stages, setStages] = useState<StageRow[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const { data: projects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then(r => r.json()),
+  });
+
+  const { data: subkons } = useQuery({
+    queryKey: ["subkon-master", projectId],
+    queryFn: () => fetch(`/api/produksi/subkon/master${projectId ? `?projectId=${projectId}` : ""}`).then(r => r.json()),
+  });
+
+  async function selectProject(id: number) {
+    setProjectId(id);
+    const rows = await fetch(`/api/planning/stages?projectId=${id}`).then(r => r.json());
+    setStages(Array.isArray(rows) && rows.length ? rows.map(normalizeStage) : [newStage(0)]);
+  }
+
+  function normalizeStage(stage: Record<string, any>): StageRow {
+    return {
+      id: stage.id,
+      stageCode: stage.stageCode ?? "",
+      stageName: stage.stageName ?? "",
+      targetStart: stage.targetStart ?? "",
+      targetEnd: stage.targetEnd ?? "",
+      status: stage.status,
+      lockedAt: stage.lockedAt ?? null,
+      blocks: Array.isArray(stage.blocks) && stage.blocks.length ? stage.blocks.map((block: Record<string, any>) => ({
+        id: block.id,
+        blockCode: block.blockCode ?? "",
+        unitCount: Number(block.unitCount ?? 0),
+        unitType: block.unitType ?? "Tipe 36",
+        pricePerUnit: Number(block.pricePerUnit ?? 0),
+        subkonName: block.subkonName ?? "",
+        subkonValuePerUnit: Number(block.subkonValuePerUnit ?? 0),
+        targetStart: block.targetStart ?? "",
+        targetEnd: block.targetEnd ?? "",
+        siteplanUnitCount: Number(block.siteplanUnitCount ?? 0),
+        validationStatus: block.validationStatus,
+        contractId: block.contractId ?? null,
+      })) : [newBlock(0)],
+    };
+  }
+
+  const isLocked = stages.some(stage => !!stage.lockedAt);
+  const totalUnits = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount, 0), 0);
+  const totalSales = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount * block.pricePerUnit, 0), 0);
+  const totalSubkon = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount * block.subkonValuePerUnit, 0), 0);
+
+  function setStageField(stageIdx: number, key: keyof StageRow, value: string) {
+    setStages(prev => prev.map((stage, i) => i === stageIdx ? { ...stage, [key]: value } : stage));
+  }
+
+  function setBlockField(stageIdx: number, blockIdx: number, key: keyof BlockRow, value: string | number) {
+    setStages(prev => prev.map((stage, i) => {
+      if (i !== stageIdx) return stage;
+      return {
+        ...stage,
+        blocks: stage.blocks.map((block, j) => j === blockIdx ? { ...block, [key]: value } : block),
+      };
+    }));
+  }
+
+  function addStage() {
+    setStages(prev => [...prev, newStage(prev.length)]);
+  }
+
+  function removeStage(index: number) {
+    setStages(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function addBlock(stageIdx: number) {
+    setStages(prev => prev.map((stage, i) => i === stageIdx ? { ...stage, blocks: [...stage.blocks, newBlock(stage.blocks.length)] } : stage));
+  }
+
+  function removeBlock(stageIdx: number, blockIdx: number) {
+    setStages(prev => prev.map((stage, i) => i === stageIdx ? { ...stage, blocks: stage.blocks.filter((_, j) => j !== blockIdx) } : stage));
+  }
+
+  async function saveDraft() {
+    if (!projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return false; }
+    setIsSaving(true);
+    try {
+      const resp = await fetch("/api/planning/stages/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, stages }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error ?? "Gagal menyimpan");
+      setStages(data.map(normalizeStage));
+      await qc.invalidateQueries({ queryKey: ["planning-stages", projectId] });
+      toast({ title: "Rencana tahapan tersimpan" });
+      return true;
+    } catch (err) {
+      toast({ title: "Gagal menyimpan", description: err instanceof Error ? err.message : "Terjadi kesalahan", variant: "destructive" });
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function publish() {
+    if (!projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
+    setIsPublishing(true);
+    try {
+      const saved = await saveDraft();
+      if (!saved) return;
+      const resp = await fetch("/api/planning/stages/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error ?? "Gagal publish");
+      setStages(data.stages.map(normalizeStage));
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["units-list"] }),
+        qc.invalidateQueries({ queryKey: ["projects"] }),
+        qc.invalidateQueries({ queryKey: ["subkon-contracts"] }),
+      ]);
+      toast({ title: "Rencana dipublish ke Produksi", description: `${data.syncedUnits} unit tersinkron.` });
+    } catch (err) {
+      toast({ title: "Gagal publish", description: err instanceof Error ? err.message : "Terjadi kesalahan", variant: "destructive" });
+    } finally {
+      setIsPublishing(false);
+    }
+  }
+
+  async function createRevision() {
+    if (!projectId) return;
+    const resp = await fetch("/api/planning/stages/revision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      setStages(data.map(normalizeStage));
+      toast({ title: "Revisi draft dibuka" });
+    } else {
+      toast({ title: "Gagal membuat revisi", description: data.error, variant: "destructive" });
+    }
+  }
+
+  const projectList = Array.isArray(projects) ? projects as Project[] : [];
+  const subkonList = Array.isArray(subkons) ? subkons as Array<{ name: string }> : [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Rencana Tahapan Proyek</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Baseline tahap, blok, unit, harga, dan subkon sebelum masuk Produksi.</p>
+        </div>
+        <div className="flex gap-2">
+          {isLocked ? (
+            <Button size="sm" variant="outline" onClick={createRevision} className="gap-1.5"><Unlock className="size-3.5" />Buat Revisi</Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={addStage} className="gap-1.5"><Plus className="size-3.5" />Tambah Tahap</Button>
+          )}
+          <Button size="sm" variant="outline" onClick={saveDraft} disabled={isLocked || isSaving} className="gap-1.5">
+            <Save className="size-3.5" />{isSaving ? "Menyimpan..." : "Simpan Draft"}
+          </Button>
+          <Button size="sm" onClick={publish} disabled={isLocked || isPublishing} className="gap-1.5">
+            <Send className="size-3.5" />{isPublishing ? "Publish..." : "Publish ke Produksi"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Label className="text-sm shrink-0">Proyek</Label>
+        <Select value={projectId ? String(projectId) : ""} onValueChange={v => selectProject(parseInt(v))}>
+          <SelectTrigger className="h-8 w-72"><SelectValue placeholder="Pilih proyek..." /></SelectTrigger>
+          <SelectContent>
+            {projectList.map(project => <SelectItem key={project.id} value={String(project.id)}>{project.nama}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {isLocked && <span className="inline-flex items-center gap-1 text-xs border rounded-full px-2 py-1 text-emerald-700 bg-emerald-50"><Lock className="size-3" />Published & locked</span>}
+      </div>
+
+      <div className="grid sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total Unit", value: `${totalUnits.toLocaleString("id-ID")} unit` },
+          { label: "Total Nilai Unit", value: fmtCurrency(totalSales) },
+          { label: "Total Kontrak Subkon", value: fmtCurrency(totalSubkon) },
+          { label: "Estimasi Margin Kotor", value: fmtCurrency(totalSales - totalSubkon) },
+        ].map(item => (
+          <Card key={item.label}><CardContent className="p-3"><div className="text-xs text-muted-foreground">{item.label}</div><div className="text-lg font-semibold mt-1">{item.value}</div></CardContent></Card>
+        ))}
+      </div>
+
+      {!projectId ? (
+        <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Pilih proyek untuk mulai menyusun tahapan.</CardContent></Card>
+      ) : (
+        <div className="space-y-4">
+          {stages.map((stage, stageIdx) => {
+            const stageUnits = stage.blocks.reduce((sum, block) => sum + block.unitCount, 0);
+            const stageValue = stage.blocks.reduce((sum, block) => sum + block.unitCount * block.pricePerUnit, 0);
+            return (
+              <Card key={stageIdx}>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <CardTitle className="text-sm flex items-center gap-2"><GitBranch className="size-4" />{stage.stageCode || `T${stageIdx + 1}`} · {stage.stageName || "Tahap"}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{stageUnits} unit · {fmtCurrency(stageValue)}</span>
+                      <Button size="icon" variant="ghost" className="size-7" disabled={isLocked || stages.length <= 1} onClick={() => removeStage(stageIdx)}><Trash2 className="size-3.5 text-destructive" /></Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid md:grid-cols-4 gap-2">
+                    <div><Label className="text-xs">Kode Tahap</Label><Input disabled={isLocked} className="h-8 text-sm" value={stage.stageCode} onChange={e => setStageField(stageIdx, "stageCode", e.target.value.toUpperCase())} /></div>
+                    <div><Label className="text-xs">Nama Tahap</Label><Input disabled={isLocked} className="h-8 text-sm" value={stage.stageName} onChange={e => setStageField(stageIdx, "stageName", e.target.value)} /></div>
+                    <div><Label className="text-xs">Target Mulai</Label><Input disabled={isLocked} type="date" className="h-8 text-sm" value={stage.targetStart} onChange={e => setStageField(stageIdx, "targetStart", e.target.value)} /></div>
+                    <div><Label className="text-xs">Target Selesai</Label><Input disabled={isLocked} type="date" className="h-8 text-sm" value={stage.targetEnd} onChange={e => setStageField(stageIdx, "targetEnd", e.target.value)} /></div>
+                  </div>
+
+                  <div className="rounded-lg border overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/40 border-b">
+                        <tr>
+                          {["Blok", "Unit", "Tipe", "Harga/Unit", "Total Unit", "Subkon", "Nilai Subkon/Unit", "Kontrak Subkon", "Siteplan", ""].map(h => (
+                            <th key={h} className="px-2 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stage.blocks.map((block, blockIdx) => {
+                          const salesValue = block.unitCount * block.pricePerUnit;
+                          const subkonValue = block.unitCount * block.subkonValuePerUnit;
+                          const stat = statusLabel(block.validationStatus);
+                          return (
+                            <tr key={blockIdx} className="border-b last:border-0">
+                              <td className="px-2 py-1.5"><Input disabled={isLocked} className="h-7 w-16 text-xs" value={block.blockCode} onChange={e => setBlockField(stageIdx, blockIdx, "blockCode", e.target.value.toUpperCase())} /></td>
+                              <td className="px-2 py-1.5"><NumericInput disabled={isLocked} className="h-7 w-20 text-xs" value={block.unitCount} onChange={v => setBlockField(stageIdx, blockIdx, "unitCount", Math.round(v))} /></td>
+                              <td className="px-2 py-1.5"><Input disabled={isLocked} className="h-7 w-24 text-xs" value={block.unitType} onChange={e => setBlockField(stageIdx, blockIdx, "unitType", e.target.value)} /></td>
+                              <td className="px-2 py-1.5"><CurrencyInput disabled={isLocked} className="h-7 w-32 text-xs" value={block.pricePerUnit} onChange={raw => setBlockField(stageIdx, blockIdx, "pricePerUnit", raw ? Number(raw) : 0)} /></td>
+                              <td className="px-2 py-1.5 font-medium tabular-nums">{fmtCurrency(salesValue)}</td>
+                              <td className="px-2 py-1.5">
+                                <Input disabled={isLocked} className="h-7 w-36 text-xs" list={`subkon-${stageIdx}-${blockIdx}`} value={block.subkonName} onChange={e => setBlockField(stageIdx, blockIdx, "subkonName", e.target.value)} />
+                                <datalist id={`subkon-${stageIdx}-${blockIdx}`}>{subkonList.map(s => <option key={s.name} value={s.name} />)}</datalist>
+                              </td>
+                              <td className="px-2 py-1.5"><CurrencyInput disabled={isLocked} className="h-7 w-32 text-xs" value={block.subkonValuePerUnit} onChange={raw => setBlockField(stageIdx, blockIdx, "subkonValuePerUnit", raw ? Number(raw) : 0)} /></td>
+                              <td className="px-2 py-1.5 font-medium tabular-nums">{fmtCurrency(subkonValue)}</td>
+                              <td className="px-2 py-1.5">
+                                <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] whitespace-nowrap", stat.tone)}>
+                                  {block.validationStatus === "sesuai" ? <CheckCircle2 className="size-3" /> : block.validationStatus ? <XCircle className="size-3" /> : <RefreshCw className="size-3" />}
+                                  {stat.label} · {block.siteplanUnitCount ?? 0}/{block.unitCount}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1.5"><Button disabled={isLocked || stage.blocks.length <= 1} variant="ghost" size="icon" className="size-7" onClick={() => removeBlock(stageIdx, blockIdx)}><Trash2 className="size-3.5 text-destructive" /></Button></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Button disabled={isLocked} size="sm" variant="outline" onClick={() => addBlock(stageIdx)} className="gap-1.5"><Plus className="size-3.5" />Tambah Blok</Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

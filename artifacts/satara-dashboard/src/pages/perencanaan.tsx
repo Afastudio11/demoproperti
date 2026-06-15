@@ -18,6 +18,7 @@ const modules = [
   { name: "Analisis Pasar", path: "/perencanaan/pasar", icon: TrendingUp, desc: "Demografi, FLPP, kompetitor & demand score" },
   { name: "Analisis Lahan", path: "/perencanaan/lahan", icon: Building2, desc: "Kavling split 18/12/70, luas efektif, max unit" },
   { name: "Perencanaan Produk", path: "/perencanaan/produk", icon: Package, desc: "Tipe unit, harga, segmen & simulasi revenue" },
+  { name: "Rencana Tahapan", path: "/perencanaan/tahapan", icon: FolderOpen, desc: "Tahap, blok, unit, harga & sinkron Produksi" },
   { name: "Feasibility Engine", path: "/perencanaan/feasibility", icon: Calculator, desc: "ROI, IRR, NPV, payback & CEO report" },
   { name: "Timeline SPTIS", path: "/perencanaan/timeline", icon: Calendar, desc: "Master schedule & milestone tracking" },
   { name: "Cashflow & KPP", path: "/perencanaan/cashflow", icon: DollarSign, desc: "Cashflow 3 skenario & kredit konstruksi" },
