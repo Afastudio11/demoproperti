@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -300,6 +300,8 @@ export default function LahanPage() {
   const imageRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const draftPointsRef = useRef<CanvasPoint[]>([]);
+  // RAF ref — caps setDraftPoints at one React re-render per animation frame (~60fps)
+  const rafRef = useRef<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justLoadedEditingRef = useRef<number | null>(null);
@@ -760,6 +762,17 @@ export default function LahanPage() {
     e.currentTarget.setPointerCapture(e.pointerId);
   }
 
+  // Schedule a draftPoints update via requestAnimationFrame — caps React re-renders at ~60fps
+  // instead of one per pointermove event (which can fire 100-200+ times/sec on high-res mice).
+  function scheduleDraftPoints(next: CanvasPoint[]) {
+    draftPointsRef.current = next;
+    if (rafRef.current !== null) return; // already a frame queued — skip
+    rafRef.current = requestAnimationFrame(() => {
+      setDraftPoints(draftPointsRef.current);
+      rafRef.current = null;
+    });
+  }
+
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!imageRef.current || !dragRef.current) return;
     const rect = imageRef.current.getBoundingClientRect();
@@ -771,41 +784,32 @@ export default function LahanPage() {
       const width = Math.abs(point.x - drag.start.x);
       const height = Math.abs(point.y - drag.start.y);
       const next = width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, point) : rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation);
-      draftPointsRef.current = next;
-      setDraftPoints(next);
+      scheduleDraftPoints(next);
       return;
     }
     if (drag.mode === "corner") {
-      setDraftPoints(points => {
-        if (!isUnitRectangleDraft(shapeDraft.shapeType, points)) {
-          const next = points.map((p, i) => i === drag.index ? point : p);
-          draftPointsRef.current = next;
-          return next;
-        }
-        const next = resizeBox(points, drag.index, point);
+      const points = draftPointsRef.current;
+      const next = !isUnitRectangleDraft(shapeDraft.shapeType, points)
+        ? points.map((p, i) => i === drag.index ? point : p)
+        : resizeBox(points, drag.index, point);
+      if (isUnitRectangleDraft(shapeDraft.shapeType, points)) {
         const bounds = polygonBounds(next);
         setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height }));
-        draftPointsRef.current = next;
-        return next;
-      });
+      }
+      scheduleDraftPoints(next);
       return;
     }
     if (drag.mode === "edge") {
-      setDraftPoints(points => {
-        const next = resizeBox(points, drag.edge, point);
-        const bounds = polygonBounds(next);
-        setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height }));
-        draftPointsRef.current = next;
-        return next;
-      });
+      const next = resizeBox(draftPointsRef.current, drag.edge, point);
+      const bounds = polygonBounds(next);
+      setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height }));
+      scheduleDraftPoints(next);
       return;
     }
     if (drag.mode === "rotate") {
       const currentAngle = Math.atan2(point.y - drag.center.y, point.x - drag.center.x) * 180 / Math.PI;
       const angle = currentAngle - drag.startAngle;
-      const next = rotateAround(drag.startPoints, drag.center, e.shiftKey ? Math.round(angle / 15) * 15 : angle);
-      draftPointsRef.current = next;
-      setDraftPoints(next);
+      scheduleDraftPoints(rotateAround(drag.startPoints, drag.center, e.shiftKey ? Math.round(angle / 15) * 15 : angle));
       return;
     }
     if (drag.mode === "marquee") {
@@ -820,11 +824,7 @@ export default function LahanPage() {
     const dy = (clientDy / rect.height) * 100 / canvasZoom;
     dragRef.current = { ...drag, lastX: e.clientX, lastY: e.clientY };
     if (drag.mode === "shape") {
-      setDraftPoints(points => {
-        const next = offsetPoints(points, dx, dy);
-        draftPointsRef.current = next;
-        return next;
-      });
+      scheduleDraftPoints(offsetPoints(draftPointsRef.current, dx, dy));
     } else if (drag.mode === "pan") {
       // Pan mode moves the canvas viewport (in pixel space, before zoom adjustment)
       setCanvasPan(prev => ({ x: prev.x + clientDx, y: prev.y + clientDy }));
@@ -1267,6 +1267,66 @@ export default function LahanPage() {
   const density = totalBidangArea > 0 ? (totalPlannedUnits / totalBidangArea) * 1000 : 0;
   const hasMainPolygon = Array.isArray(selectedSiteplan?.mainPolygon) && selectedSiteplan.mainPolygon.length >= 3;
 
+  // Memoized shape list SVG — only recomputes when shapes/selection/zoom/tool change,
+  // NOT on every draftPoints update (drag). This eliminates per-frame re-render of all shapes.
+  const shapeListSvg = useMemo(() => {
+    const sw = 1 / canvasZoom;
+    const hs = 1 / canvasZoom;
+    return shapeList.map(shape => {
+      if (shape.id === editingShapeId) return null;
+      const isSelected = selectedShapeIds.includes(shape.id);
+      const isLocked = !!shape.isLocked;
+      const color = shapeColor(shape, shape.id === editingShapeId || isSelected);
+      const poly = Array.isArray(shape.polygon) ? shape.polygon as CanvasPoint[] : [];
+      const center = poly.length >= 3 ? polygonCenter(poly) : null;
+      return (
+        <g key={shape.id}>
+          <polygon
+            points={polygonPoints(shape.polygon)}
+            fill={isLocked ? color.fill.replace(/,[^,)]+\)$/, ",0.35)") : color.fill}
+            stroke={isLocked ? "#d97706" : color.stroke}
+            strokeWidth={isSelected ? 0.55 * sw : 0.3 * sw}
+            strokeDasharray={isLocked ? `${1.8 * sw} ${0.8 * sw}` : isSelected ? `${1.1 * sw} ${0.7 * sw}` : undefined}
+            onPointerDown={(e) => startShapeDrag(e, shape)}
+            className={drawTool === "select" ? (isLocked ? "cursor-not-allowed" : "cursor-move") : drawTool === "delete" ? "cursor-not-allowed" : ""}
+          />
+          {isLocked && center && (
+            <text x={center.x} y={center.y} textAnchor="middle" dominantBaseline="middle" fontSize={1.8 * hs} fill="#d97706" style={{ pointerEvents: "none", userSelect: "none" }}>⚿</text>
+          )}
+        </g>
+      );
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, drawTool]);
+
+  // Memoized label divs — only recomputes when shapes/zoom change, not on drag frames
+  const shapeLabels = useMemo(() => {
+    return shapeList.map(shape => {
+      if (shape.id === editingShapeId) return null;
+      const center = polygonCenter(Array.isArray(shape.polygon) ? shape.polygon : []);
+      return (
+        <div
+          key={`label-${shape.id}`}
+          className="absolute text-[9px] font-bold px-1 py-0.5 rounded select-none"
+          style={{
+            left: `${center.x}%`,
+            top: `${center.y}%`,
+            transform: "translate(-50%, -50%)",
+            background: "rgba(0,0,0,0.58)",
+            color: "#fff",
+            pointerEvents: "none",
+            lineHeight: 1.2,
+            whiteSpace: "nowrap",
+            fontSize: `${9 / canvasZoom}px`,
+          }}
+        >
+          {shape.label}
+        </div>
+      );
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapeList, editingShapeId, canvasZoom]);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -1646,30 +1706,7 @@ export default function LahanPage() {
                   {(() => { const hs = 1 / canvasZoom; const sw = 1 / canvasZoom; return (
                   <>
                   {hasMainPolygon && <polygon points={polygonPoints(selectedSiteplan.mainPolygon)} fill="rgba(15,23,42,.06)" stroke="#0f172a" strokeWidth={0.45 * sw} strokeDasharray={`${1.4 * sw} ${sw}`} />}
-                  {shapeList.map(shape => {
-                    if (shape.id === editingShapeId) return null;
-                    const isSelected = selectedShapeIds.includes(shape.id);
-                    const isLocked = !!shape.isLocked;
-                    const color = shapeColor(shape, shape.id === editingShapeId || isSelected);
-                    const poly = Array.isArray(shape.polygon) ? shape.polygon as CanvasPoint[] : [];
-                    const center = poly.length >= 3 ? polygonCenter(poly) : null;
-                    return (
-                      <g key={shape.id}>
-                        <polygon
-                          points={polygonPoints(shape.polygon)}
-                          fill={isLocked ? color.fill.replace(/,[^,)]+\)$/, ",0.35)") : color.fill}
-                          stroke={isLocked ? "#d97706" : color.stroke}
-                          strokeWidth={isSelected ? 0.55 * sw : 0.3 * sw}
-                          strokeDasharray={isLocked ? `${1.8 * sw} ${0.8 * sw}` : isSelected ? `${1.1 * sw} ${0.7 * sw}` : undefined}
-                          onPointerDown={(e) => startShapeDrag(e, shape)}
-                          className={drawTool === "select" ? (isLocked ? "cursor-not-allowed" : "cursor-move") : drawTool === "delete" ? "cursor-not-allowed" : ""}
-                        />
-                        {isLocked && center && (
-                          <text x={center.x} y={center.y} textAnchor="middle" dominantBaseline="middle" fontSize={1.8 * hs} fill="#d97706" style={{ pointerEvents: "none", userSelect: "none" }}>⚿</text>
-                        )}
-                      </g>
-                    );
-                  })}
+                  {shapeListSvg}
                   {selectionBox && (() => {
                     const bounds = normalizedBounds(selectionBox.start, selectionBox.current);
                     return (
@@ -1744,29 +1781,7 @@ export default function LahanPage() {
                   ))}
                   </>); })()}
                 </svg>
-                {shapeList.map(shape => {
-                  if (shape.id === editingShapeId) return null;
-                  const center = polygonCenter(Array.isArray(shape.polygon) ? shape.polygon : []);
-                  return (
-                    <div
-                      key={`label-${shape.id}`}
-                      className="absolute text-[9px] font-bold px-1 py-0.5 rounded select-none"
-                      style={{
-                        left: `${center.x}%`,
-                        top: `${center.y}%`,
-                        transform: "translate(-50%, -50%)",
-                        background: "rgba(0,0,0,0.58)",
-                        color: "#fff",
-                        pointerEvents: "none",
-                        lineHeight: 1.2,
-                        whiteSpace: "nowrap",
-                        fontSize: `${9 / canvasZoom}px`,
-                      }}
-                    >
-                      {shape.label}
-                    </div>
-                  );
-                })}
+                {shapeLabels}
                 </div>
                 {/* Zoom controls — outside zoom wrapper so they stay fixed size */}
                 <div
