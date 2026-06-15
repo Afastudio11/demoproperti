@@ -555,16 +555,21 @@ export default function LahanPage() {
     setDraftHistory(prev => draftPoints.length >= 3 ? [...prev.slice(-24), draftPoints] : prev);
   }
 
-  function nextUnitLabel() {
+  // Generate unique label per shape type — using distinct prefixes to avoid cross-type conflicts
+  // unit → "A-01", bidang → "B-01", akuisisi → "AKS-01", others → "X-01"
+  function nextShapeLabel(shapeType: string) {
     const existing = shapeList.map(shape => String(shape.label ?? ""));
+    const prefix = shapeType === "bidang" ? "B" : shapeType === "akuisisi" ? "AKS" : "A";
     let index = 1;
-    while (existing.includes(`A-${String(index).padStart(2, "0")}`)) index += 1;
-    return `A-${String(index).padStart(2, "0")}`;
+    while (existing.includes(`${prefix}-${String(index).padStart(2, "0")}`)) index += 1;
+    return `${prefix}-${String(index).padStart(2, "0")}`;
   }
+  // Backward-compat alias
+  function nextUnitLabel() { return nextShapeLabel("unit"); }
 
   async function autoSaveNewShape(points: CanvasPoint[], labelOverride?: string): Promise<any | null> {
     if (!selectedSiteplan || points.length < 3) return null;
-    const finalLabel = (labelOverride || shapeDraft.label.trim() || nextUnitLabel());
+    const finalLabel = (labelOverride || shapeDraft.label.trim() || nextShapeLabel(shapeDraft.shapeType));
     const isBox = isUnitRectangleDraft(shapeDraft.shapeType, points);
     const payload = {
       ...shapeDraft,
@@ -582,12 +587,17 @@ export default function LahanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!resp.ok) return null;
+      if (!resp.ok) {
+        const errJson = await resp.json().catch(() => ({}));
+        toast({ title: errJson.error || "Gagal menyimpan shape", variant: "destructive" });
+        return null;
+      }
       const saved = await resp.json();
       setShapeDraft(p => ({ ...p, label: finalLabel }));
       await refetchShapes();
       return saved;
     } catch {
+      toast({ title: "Gagal menyimpan shape — periksa koneksi", variant: "destructive" });
       return null;
     } finally {
       setIsSaving(false);
@@ -658,11 +668,15 @@ export default function LahanPage() {
       // Don't reset draftPoints if user already has an active box draft
       if (draftPoints.length !== 4) setPolygonClosed(true);
     } else if (tool === "polygon") {
-      setShapeDraft(p => ({ ...p, shapeType: shapeType ?? p.shapeType }));
-      // When switching to polygon, clear unsaved draft but keep saved shape being edited
-      if (!editingShapeId) {
+      const newShapeType = shapeType ?? shapeDraft.shapeType;
+      setShapeDraft(p => ({ ...p, shapeType: newShapeType }));
+      // If shapeType is explicitly given (user clicked "Gambar Bidang" / "Gambar Akuisisi"),
+      // always start fresh — clear any previous draft and editing state so new polygon can be drawn.
+      // If no shapeType given (just switching tool), keep draft only when editing existing shape.
+      if (shapeType || !editingShapeId) {
         setDraftPoints([]);
         setPolygonClosed(false);
+        setEditingShapeId(null);
       }
     }
     // Note: intentionally NOT clearing selectedShapeIds — Miro-like: tool change doesn't lose selection
@@ -1367,7 +1381,7 @@ export default function LahanPage() {
   useEffect(() => {
     if (!polygonClosed || editingShapeId || draftPoints.length < 3) return;
     if (isUnitRectangleDraft(shapeDraft.shapeType, draftPoints)) return; // handled by draw-box
-    const autoLabel = shapeDraft.label.trim() || nextUnitLabel();
+    const autoLabel = shapeDraft.label.trim() || nextShapeLabel(shapeDraft.shapeType);
     autoSaveNewShape(draftPoints, autoLabel).then(saved => {
       if (saved) {
         setDraftPoints([]);
