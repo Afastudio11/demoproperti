@@ -19,6 +19,7 @@ export const unitsTable = pgTable("units", {
   adminStatus: text("admin_status").notNull().default("stock"),
   htValue: real("ht_value"),
   weekStarted: integer("week_started"),
+  subkonId: integer("subkon_id"),
   subkonName: text("subkon_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

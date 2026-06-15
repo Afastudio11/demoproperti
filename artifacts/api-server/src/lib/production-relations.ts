@@ -26,6 +26,7 @@ export async function findSubkonContract(input: {
   contractId?: unknown;
   projectId?: unknown;
   stageCode?: unknown;
+  subkonId?: unknown;
   subkonName?: unknown;
   requireActive?: boolean;
 }) {
@@ -39,12 +40,16 @@ export async function findSubkonContract(input: {
     if (requireActive && contract.status !== "aktif") throw httpError("Kontrak subkon tidak aktif");
     const projectId = typeof input.projectId === "number" ? input.projectId : Number(input.projectId);
     const stageCode = typeof input.stageCode === "string" ? input.stageCode || null : null;
+    const subkonId = typeof input.subkonId === "number" ? input.subkonId : Number(input.subkonId);
     const subkonName = normalizeSubkonName(input.subkonName);
     if (Number.isFinite(projectId) && contract.projectId !== projectId) {
       throw httpError("Kontrak subkon tidak sesuai dengan proyek");
     }
     if (input.stageCode !== undefined && !sameStage(contract.stageCode, stageCode)) {
       throw httpError("Kontrak subkon tidak sesuai dengan tahap");
+    }
+    if (Number.isFinite(subkonId) && subkonId > 0 && contract.subkonId !== subkonId) {
+      throw httpError("Kontrak subkon tidak sesuai dengan master subkon");
     }
     if (subkonName && normalizeSubkonName(contract.subkonName).toLowerCase() !== subkonName.toLowerCase()) {
       throw httpError("Kontrak subkon tidak sesuai dengan nama subkon");
@@ -54,12 +59,13 @@ export async function findSubkonContract(input: {
 
   const projectId = typeof input.projectId === "number" ? input.projectId : Number(input.projectId);
   const stageCode = typeof input.stageCode === "string" ? input.stageCode || null : null;
+  const subkonId = typeof input.subkonId === "number" ? input.subkonId : Number(input.subkonId);
   const subkonName = normalizeSubkonName(input.subkonName);
-  if (!Number.isFinite(projectId) || !subkonName) return null;
+  if (!Number.isFinite(projectId) || (!subkonName && !(Number.isFinite(subkonId) && subkonId > 0))) return null;
 
   const matches = contracts.filter((contract) =>
     contract.projectId === projectId
-    && normalizeSubkonName(contract.subkonName).toLowerCase() === subkonName.toLowerCase()
+    && ((Number.isFinite(subkonId) && subkonId > 0 && contract.subkonId === subkonId) || normalizeSubkonName(contract.subkonName).toLowerCase() === subkonName.toLowerCase())
     && sameStage(contract.stageCode, stageCode)
     && (!requireActive || contract.status === "aktif")
   );

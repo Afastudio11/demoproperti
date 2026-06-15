@@ -15,6 +15,7 @@ export const prodMaterialOutTable = pgTable("prod_material_out", {
   batchUnits: text("batch_units"),
   takenBy: text("taken_by"),
   receiverName: text("receiver_name"),
+  subkonId: integer("subkon_id"),
   subkonName: text("subkon_name"),
   sourceType: text("source_type").default("normal"),
   sourceId: integer("source_id"),

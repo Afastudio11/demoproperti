@@ -9,7 +9,7 @@ import {
   unitsTable,
 } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
-import { normalizeSubkonName } from "../lib/subkon-master";
+import { normalizeSubkonName, resolveSubkonMaster } from "../lib/subkon-master";
 
 const router = Router();
 
@@ -19,6 +19,7 @@ type BlockInput = {
   unitCount: number;
   unitType: string;
   pricePerUnit: number;
+  subkonId?: number | null;
   subkonName?: string | null;
   subkonValuePerUnit?: number;
   targetStart?: string | null;
@@ -56,13 +57,28 @@ function parseBlockFromLabel(label: string) {
   return match ? match[1].toUpperCase() : text.split(/[-\s_]/)[0]?.toUpperCase() || "";
 }
 
+function parseUnitRef(shape: typeof planningSiteplanShapesTable.$inferSelect) {
+  const label = cleanText(shape.label);
+  const match = label.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
+  const fallbackBlock = cleanText(shape.blockCode);
+  return {
+    stageCode: cleanText(shape.blockCode).toUpperCase(),
+    blockCode: (match?.[1] ?? fallbackBlock ?? "").toUpperCase(),
+    nomor: match?.[2] ?? "",
+    unitType: cleanText(shape.unitType, "Tipe 36"),
+    subkonId: shape.subkonId ?? null,
+    subkonName: normalizeSubkonName(shape.subkonName) || "",
+  };
+}
+
 async function getSiteplanCounts(projectId: number) {
   const shapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId));
   const counts = new Map<string, number>();
   for (const shape of shapes) {
     if (shape.shapeType !== "unit") continue;
-    const stageCode = cleanCode(shape.blockCode, cleanText(shape.blockCode, ""));
-    const blockCode = parseBlockFromLabel(shape.label);
+    const ref = parseUnitRef(shape);
+    const stageCode = ref.stageCode;
+    const blockCode = ref.blockCode || parseBlockFromLabel(shape.label);
     const keys = [
       `${stageCode}::${blockCode}`,
       `::${blockCode}`,
@@ -113,20 +129,22 @@ async function enrichStages(projectId: number) {
 async function findOrCreateContract(input: {
   projectId: number;
   stageCode: string;
+  subkonId?: number | null;
   subkonName: string;
   unitCount: number;
   valuePerUnit: number;
   targetStart?: string | null;
   targetEnd?: string | null;
 }) {
-  const subkonName = normalizeSubkonName(input.subkonName);
-  if (!subkonName) return null;
+  const master = await resolveSubkonMaster({ subkonId: input.subkonId, subkonName: input.subkonName, allowCreate: true });
+  if (!master) return null;
+  const subkonName = master.name;
 
   const contracts = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.projectId, input.projectId));
   const existing = contracts.find(contract =>
     contract.status === "aktif"
     && String(contract.stageCode ?? "") === input.stageCode
-    && normalizeSubkonName(contract.subkonName).toLowerCase() === subkonName.toLowerCase()
+    && (contract.subkonId === master.id || normalizeSubkonName(contract.subkonName).toLowerCase() === subkonName.toLowerCase())
   );
   const contractValue = input.unitCount * input.valuePerUnit;
   const retentionPerUnit = existing?.retentionPerUnit ?? 500000;
@@ -134,6 +152,7 @@ async function findOrCreateContract(input: {
   const values = {
     projectId: input.projectId,
     stageCode: input.stageCode,
+    subkonId: master.id,
     subkonName,
     unitCount: input.unitCount,
     valuePerUnit: input.valuePerUnit,
@@ -160,6 +179,7 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
     ? await findOrCreateContract({
         projectId: block.projectId,
         stageCode: block.stageCode,
+        subkonId: block.subkonId,
         subkonName: block.subkonName,
         unitCount: block.unitCount,
         valuePerUnit: block.subkonValuePerUnit,
@@ -169,13 +189,13 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
     : null;
 
   const existingUnits = await db.select().from(unitsTable).where(eq(unitsTable.projectId, block.projectId));
-  const matchingUnits = existingUnits.filter(unit =>
-    String(unit.stageCode ?? "") === block.stageCode
-    && unit.blok.toUpperCase() === block.blockCode.toUpperCase()
-  );
+  const unitShapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, block.projectId));
   for (let i = 1; i <= block.unitCount; i++) {
     const nomor = String(i).padStart(2, "0");
-    const existing = matchingUnits.find(unit => unit.nomor === nomor);
+    const existing = existingUnits.find(unit =>
+      unit.blok.toUpperCase() === block.blockCode.toUpperCase()
+      && unit.nomor.toLowerCase() === nomor.toLowerCase()
+    );
     const values = {
       projectId: block.projectId,
       contractId: contract?.id ?? null,
@@ -187,16 +207,81 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
       progress: existing?.progress ?? 0,
       readyAkad: existing?.readyAkad ?? false,
       stageCode: block.stageCode,
+      subkonId: block.subkonId ?? null,
       subkonName: block.subkonName ?? null,
     };
+    let unitId = existing?.id ?? null;
     if (existing) {
-      await db.update(unitsTable).set(values).where(eq(unitsTable.id, existing.id));
+      const [updated] = await db.update(unitsTable).set(values).where(eq(unitsTable.id, existing.id)).returning();
+      unitId = updated.id;
     } else {
-      await db.insert(unitsTable).values(values);
+      const [created] = await db.insert(unitsTable).values(values).returning();
+      unitId = created.id;
+    }
+    const matchingShape = unitShapes.find(shape => {
+      if (shape.shapeType !== "unit") return false;
+      const ref = parseUnitRef(shape);
+      return ref.blockCode === block.blockCode.toUpperCase() && ref.nomor.toLowerCase() === nomor.toLowerCase();
+    });
+    if (matchingShape && unitId) {
+      await db.update(planningSiteplanShapesTable)
+        .set({
+          unitId,
+          blockCode: block.stageCode,
+          unitType: block.unitType,
+          subkonId: block.subkonId ?? null,
+          subkonName: block.subkonName ?? null,
+        })
+        .where(eq(planningSiteplanShapesTable.id, matchingShape.id));
     }
   }
   return contract?.id ?? null;
 }
+
+router.get("/planning/stages/siteplan-summary", async (req, res) => {
+  try {
+    const projectId = Number(req.query.projectId);
+    if (!Number.isFinite(projectId) || projectId <= 0) return res.status(400).json({ error: "projectId wajib diisi" });
+
+    const shapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId));
+    const blocks = new Map<string, {
+      blockCode: string;
+      unitCount: number;
+      unitType: string;
+      subkonId: number | null;
+      subkonName: string;
+      labels: string[];
+    }>();
+    for (const shape of shapes) {
+      if (shape.shapeType !== "unit") continue;
+      const ref = parseUnitRef(shape);
+      if (!ref.blockCode) continue;
+      const current = blocks.get(ref.blockCode) ?? {
+        blockCode: ref.blockCode,
+        unitCount: 0,
+        unitType: ref.unitType,
+        subkonId: ref.subkonId,
+        subkonName: ref.subkonName,
+        labels: [],
+      };
+      current.unitCount += 1;
+      current.labels.push(cleanText(shape.label));
+      if (!current.subkonId && ref.subkonId) current.subkonId = ref.subkonId;
+      if (!current.subkonName && ref.subkonName) current.subkonName = ref.subkonName;
+      if ((!current.unitType || current.unitType === "Tipe 36") && ref.unitType) current.unitType = ref.unitType;
+      blocks.set(ref.blockCode, current);
+    }
+
+    res.json({
+      projectId,
+      totalUnitShapes: Array.from(blocks.values()).reduce((sum, block) => sum + block.unitCount, 0),
+      blocks: Array.from(blocks.values()).sort((a, b) => a.blockCode.localeCompare(b.blockCode, undefined, { numeric: true })),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to summarize siteplan for planning stages");
+    res.status(500).json({ error: "Gagal membaca ringkasan Analisis Lahan" });
+  }
+});
 
 router.get("/planning/stages", async (req, res) => {
   try {
@@ -241,11 +326,13 @@ router.post("/planning/stages/bulk", async (req, res) => {
       }).returning();
 
       if (blocks.length) {
-        await db.insert(planningStageBlocksTable).values(blocks.map(block => {
+        const blockRows = [];
+        for (const block of blocks) {
           const unitCount = Math.max(0, Math.round(numberValue(block.unitCount)));
           const pricePerUnit = numberValue(block.pricePerUnit);
           const subkonValuePerUnit = numberValue(block.subkonValuePerUnit);
-          return {
+          const master = await resolveSubkonMaster({ subkonId: block.subkonId, subkonName: block.subkonName, allowCreate: true });
+          blockRows.push({
             stageId: createdStage.id,
             projectId,
             stageCode,
@@ -254,14 +341,16 @@ router.post("/planning/stages/bulk", async (req, res) => {
             unitType: cleanText(block.unitType, "Tipe 36"),
             pricePerUnit,
             salesValue: unitCount * pricePerUnit,
-            subkonName: normalizeSubkonName(block.subkonName) || null,
+            subkonId: master?.id ?? null,
+            subkonName: master?.name ?? (normalizeSubkonName(block.subkonName) || null),
             subkonValuePerUnit,
             subkonContractValue: unitCount * subkonValuePerUnit,
             targetStart: block.targetStart || null,
             targetEnd: block.targetEnd || null,
             notes: block.notes || null,
-          };
-        }));
+          });
+        }
+        await db.insert(planningStageBlocksTable).values(blockRows);
       }
     }
 

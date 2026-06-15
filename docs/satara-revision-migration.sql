@@ -196,3 +196,63 @@ CREATE TABLE IF NOT EXISTS app_audit_logs (
   notes text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS subkon_master (
+  id serial PRIMARY KEY,
+  name text NOT NULL,
+  normalized_name text NOT NULL UNIQUE,
+  type text NOT NULL DEFAULT 'subkon',
+  pic_name text,
+  phone text,
+  address text,
+  status text NOT NULL DEFAULT 'active',
+  default_retention_per_unit integer NOT NULL DEFAULT 500000,
+  default_maintenance_months integer NOT NULL DEFAULT 3,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE subkon_contracts ADD COLUMN IF NOT EXISTS subkon_id integer;
+ALTER TABLE units ADD COLUMN IF NOT EXISTS subkon_id integer;
+ALTER TABLE planning_stage_blocks ADD COLUMN IF NOT EXISTS subkon_id integer;
+ALTER TABLE planning_siteplan_shapes ADD COLUMN IF NOT EXISTS subkon_id integer;
+ALTER TABLE prod_material_standards ADD COLUMN IF NOT EXISTS subkon_id integer;
+ALTER TABLE prod_material_in ADD COLUMN IF NOT EXISTS subkon_id integer;
+ALTER TABLE prod_material_out ADD COLUMN IF NOT EXISTS subkon_id integer;
+ALTER TABLE fasum_progress ADD COLUMN IF NOT EXISTS subkon_id integer;
+ALTER TABLE reworks ADD COLUMN IF NOT EXISTS subkon_id integer;
+
+INSERT INTO subkon_master (name, normalized_name)
+SELECT MIN(clean_name) AS name, lower(MIN(clean_name)) AS normalized_name
+FROM (
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) AS clean_name FROM subkon_contracts WHERE coalesce(trim(subkon_name), '') <> ''
+  UNION
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) FROM units WHERE coalesce(trim(subkon_name), '') <> ''
+  UNION
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) FROM planning_stage_blocks WHERE coalesce(trim(subkon_name), '') <> ''
+  UNION
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) FROM planning_siteplan_shapes WHERE coalesce(trim(subkon_name), '') <> ''
+  UNION
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) FROM prod_material_standards WHERE coalesce(trim(subkon_name), '') <> ''
+  UNION
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) FROM prod_material_in WHERE coalesce(trim(subkon_name), '') <> ''
+  UNION
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) FROM prod_material_out WHERE coalesce(trim(subkon_name), '') <> ''
+  UNION
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) FROM fasum_progress WHERE coalesce(trim(subkon_name), '') <> ''
+  UNION
+  SELECT trim(regexp_replace(subkon_name, '[[:space:]]+', ' ', 'g')) FROM reworks WHERE coalesce(trim(subkon_name), '') <> ''
+) names
+GROUP BY lower(clean_name)
+ON CONFLICT (normalized_name) DO NOTHING;
+
+UPDATE subkon_contracts t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;
+UPDATE units t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;
+UPDATE planning_stage_blocks t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;
+UPDATE planning_siteplan_shapes t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;
+UPDATE prod_material_standards t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;
+UPDATE prod_material_in t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;
+UPDATE prod_material_out t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;
+UPDATE fasum_progress t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;
+UPDATE reworks t SET subkon_id = m.id FROM subkon_master m WHERE t.subkon_id IS NULL AND lower(trim(regexp_replace(t.subkon_name, '[[:space:]]+', ' ', 'g'))) = m.normalized_name;

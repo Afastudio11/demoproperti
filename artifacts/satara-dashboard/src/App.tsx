@@ -69,6 +69,7 @@ import ProgressProyek from "@/pages/produksi/progress/proyek";
 import ProgressTahap from "@/pages/produksi/progress/tahap";
 import ProgressUnit from "@/pages/produksi/progress/unit";
 import FasumPage from "@/pages/produksi/fasum";
+import SubkonMasterPage from "@/pages/produksi/subkon/master";
 import SubkonKontrak from "@/pages/produksi/subkon/kontrak";
 import SubkonTermin from "@/pages/produksi/subkon/termin";
 import SubkonApproval from "@/pages/produksi/subkon/approval";
@@ -311,6 +312,7 @@ function AppRoutes() {
         <Route path="/produksi/progress/tahap" component={ProgressTahap} />
         <Route path="/produksi/progress/unit" component={ProgressUnit} />
         <Route path="/produksi/fasum" component={FasumPage} />
+        <Route path="/produksi/subkon/master" component={SubkonMasterPage} />
         <Route path="/produksi/subkon/kontrak" component={SubkonKontrak} />
         <Route path="/produksi/subkon/termin" component={SubkonTermin} />
         <Route path="/produksi/subkon/approval" component={SubkonApproval} />

@@ -5,30 +5,32 @@ import {
 } from "lucide-react";
 
 const quickLinks = [
-  { name: "Progress Unit",  path: "/produksi/progress/unit",    icon: CheckSquare },
-  { name: "Progress Tahap", path: "/produksi/progress/tahap",   icon: TrendingUp },
   { name: "Progress Proyek",path: "/produksi/progress/proyek",  icon: HardHat },
+  { name: "Progress Tahap", path: "/produksi/progress/tahap",   icon: TrendingUp },
+  { name: "Progress Unit",  path: "/produksi/progress/unit",    icon: CheckSquare },
+  { name: "Master Subkon",  path: "/produksi/subkon/master",    icon: Building2 },
   { name: "Termin Bayar",   path: "/produksi/subkon/termin",    icon: DollarSign },
   { name: "Stok Material",  path: "/produksi/material/stok",    icon: Package },
+  { name: "Fasum",          path: "/produksi/fasum",            icon: Building2 },
   { name: "QC Checklist",   path: "/produksi/qc/checklist",     icon: Shield },
   { name: "Ready Akad",     path: "/produksi/ready-akad",       icon: Key },
-  { name: "Fasum",          path: "/produksi/fasum",            icon: Building2 },
-  { name: "Analitik",       path: "/produksi/analitik/velocity",icon: BarChart3 },
-  { name: "Health Score",   path: "/produksi/health",           icon: Activity },
+  { name: "Monitoring",     path: "/produksi/health",           icon: Activity },
 ];
 
 const subModules = [
   {
-    group: "Progress Konstruksi",
+    group: "1. Baseline dari Perencanaan",
     items: [
-      { name: "Per Unit",    path: "/produksi/progress/unit",    desc: "Checklist 24 item per unit" },
-      { name: "Per Tahap",   path: "/produksi/progress/tahap",   desc: "Progress per tahap pekerjaan" },
-      { name: "Per Proyek",  path: "/produksi/progress/proyek",  desc: "Summary progress per proyek" },
+      { name: "Rencana Produksi", path: "/produksi/progress/unit", desc: "Unit hasil publish dari Rencana Tahapan" },
+      { name: "Progress Proyek",  path: "/produksi/progress/proyek", desc: "Summary progress per proyek" },
+      { name: "Progress Tahap",   path: "/produksi/progress/tahap", desc: "Progress per tahap pekerjaan" },
+      { name: "Progress Unit",    path: "/produksi/progress/unit", desc: "Checklist 24 item per unit" },
     ],
   },
   {
-    group: "Subkontraktor",
+    group: "2. Subkontraktor",
     items: [
+      { name: "Master Subkon", path: "/produksi/subkon/master", desc: "Satu data subkon untuk semua modul" },
       { name: "Kontrak",    path: "/produksi/subkon/kontrak",   desc: "Daftar & nilai kontrak subkon" },
       { name: "Termin",     path: "/produksi/subkon/termin",    desc: "Pembayaran termin & approval" },
       { name: "Approval",   path: "/produksi/subkon/approval",  desc: "Antrian approval termin" },
@@ -36,9 +38,10 @@ const subModules = [
     ],
   },
   {
-    group: "Material",
+    group: "3. Material",
     items: [
       { name: "Master",     path: "/produksi/material/master",   desc: "Daftar & harga satuan material" },
+      { name: "Master Acuan", path: "/produksi/material/acuan", desc: "Acuan pemakaian per proyek/subkon" },
       { name: "Stok",       path: "/produksi/material/stok",     desc: "Stok aktual & alert minimum" },
       { name: "Masuk",      path: "/produksi/material/masuk",    desc: "Penerimaan material" },
       { name: "Keluar",     path: "/produksi/material/keluar",   desc: "Pengeluaran material ke lapangan" },
@@ -46,24 +49,25 @@ const subModules = [
     ],
   },
   {
-    group: "Quality Control",
+    group: "4. Pelaksanaan Lapangan",
     items: [
+      { name: "Fasum", path: "/produksi/fasum", desc: "Progress fasilitas umum" },
       { name: "Checklist QC", path: "/produksi/qc/checklist", desc: "Penilaian kualitas per unit" },
       { name: "Defect",       path: "/produksi/qc/defect",    desc: "Daftar & tracking defect" },
       { name: "Rework",       path: "/produksi/qc/rework",    desc: "Pekerjaan ulang per subkon" },
     ],
   },
   {
-    group: "Fasilitas & Lainnya",
+    group: "5. Serah Terima",
     items: [
-      { name: "Fasum",        path: "/produksi/fasum",       desc: "Progress fasilitas umum" },
       { name: "Ready Akad",   path: "/produksi/ready-akad",  desc: "Unit siap akad kredit" },
-      { name: "Health Score", path: "/produksi/health",      desc: "Skor kesehatan proyek" },
     ],
   },
   {
-    group: "Analitik",
+    group: "6. Monitoring",
     items: [
+      { name: "Health Score", path: "/produksi/health", desc: "Skor kesehatan proyek" },
+      { name: "Analitik Produksi", path: "/produksi/analitik", desc: "Ringkasan analitik produksi" },
       { name: "Velocity",           path: "/produksi/analitik/velocity",       desc: "Kecepatan produksi per unit" },
       { name: "Produktivitas",      path: "/produksi/analitik/produktivitas",   desc: "Output subkon vs target" },
       { name: "Forecast Penyelesaian", path: "/produksi/analitik/forecast", desc: "Prediksi selesai per unit" },

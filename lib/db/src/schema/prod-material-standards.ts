@@ -6,6 +6,7 @@ export const prodMaterialStandardsTable = pgTable("prod_material_standards", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").notNull(),
   stageCode: text("stage_code"),
+  subkonId: integer("subkon_id"),
   subkonName: text("subkon_name"),
   unitBatchLabel: text("unit_batch_label"),
   referenceUnitCount: real("reference_unit_count").notNull().default(1),

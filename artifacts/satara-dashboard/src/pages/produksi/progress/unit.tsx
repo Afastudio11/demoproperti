@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import SubkonSelect from "@/components/subkon-select";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 
 const BASELINE: Record<number, number> = { 1: 10, 2: 25, 3: 40, 4: 55, 5: 70, 6: 85, 7: 95, 8: 100 };
 const TIPE_OPTIONS = ["Tipe 36", "Tipe 45", "Tipe 54", "Tipe 60", "Tipe 72", "Tipe 90"];
@@ -73,7 +73,7 @@ export default function ProgressUnit() {
   });
   const [expandedUnit, setExpandedUnit] = useState<number | null>(null);
   const [showTambahUnit, setShowTambahUnit] = useState(false);
-  const [form, setForm] = useState({ projectId: "", stageCode: "T1", blok: "", nomor: "", tipe: "Tipe 36", subkonName: "", weekStarted: "" });
+  const [form, setForm] = useState({ projectId: "", stageCode: "T1", blok: "", nomor: "", tipe: "Tipe 36", subkonId: "", subkonName: "", weekStarted: "" });
   const [quickProgress, setQuickProgress] = useState<Record<number, number>>({});
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -157,6 +157,7 @@ export default function ProgressUnit() {
         nomor: form.nomor,
         tipe: form.tipe,
         harga: 0,
+        subkonId: form.subkonId ? Number(form.subkonId) : null,
         subkonName: form.subkonName || null,
         weekStarted: form.weekStarted ? parseInt(form.weekStarted) : null,
       };
@@ -429,7 +430,14 @@ export default function ProgressUnit() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Nama Subkon</Label>
-                    <SubkonSelect value={form.subkonName} onValueChange={v => setForm(p => ({ ...p, subkonName: v }))} projectId={form.projectId} />
+                    <SubkonSelect
+                      valueMode="id"
+                      allowCreate
+                      value={form.subkonId}
+                      onValueChange={v => setForm(p => ({ ...p, subkonId: v }))}
+                      onOptionChange={option => setForm(p => ({ ...p, subkonName: option?.name ?? "" }))}
+                      projectId={form.projectId}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Mulai Minggu ke-</Label>
@@ -526,9 +534,16 @@ export default function ProgressUnit() {
               : "Unit tidak ditemukan dengan filter ini."}
           </p>
           {allUnits.length === 0 && (
-            <Button size="sm" onClick={() => setShowTambahUnit(true)} className="gap-1.5">
-              <Plus className="size-3.5" /> Tambah Unit Pertama
-            </Button>
+            <div className="flex justify-center gap-2">
+              <Link href={`/perencanaan/tahapan${filterProject !== "all" ? `?projectId=${filterProject}` : ""}`}>
+                <Button size="sm" className="gap-1.5">
+                  <RefreshCw className="size-3.5" /> Publish dari Rencana Tahapan
+                </Button>
+              </Link>
+              <Button size="sm" variant="outline" onClick={() => setShowTambahUnit(true)} className="gap-1.5">
+                <Plus className="size-3.5" /> Tambah Manual
+              </Button>
+            </div>
           )}
         </div>
       ) : (

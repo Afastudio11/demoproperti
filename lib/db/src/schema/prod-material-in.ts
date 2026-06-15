@@ -11,6 +11,7 @@ export const prodMaterialInTable = pgTable("prod_material_in", {
   materialId: integer("material_id").notNull(),
   quantity: real("quantity").notNull(),
   supplier: text("supplier"),
+  subkonId: integer("subkon_id"),
   subkonName: text("subkon_name"),
   documentNumber: text("document_number"),
   notes: text("notes"),

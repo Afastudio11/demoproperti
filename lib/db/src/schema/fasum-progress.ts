@@ -7,6 +7,7 @@ export const fasumProgressTable = pgTable("fasum_progress", {
   projectId: integer("project_id").notNull(),
   stageCode: text("stage_code"),
   fasumType: text("fasum_type").notNull(),
+  subkonId: integer("subkon_id"),
   subkonName: text("subkon_name"),
   progressPercent: real("progress_percent").notNull().default(0),
   notes: text("notes"),

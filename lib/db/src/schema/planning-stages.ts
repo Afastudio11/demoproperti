@@ -30,6 +30,7 @@ export const planningStageBlocksTable = pgTable("planning_stage_blocks", {
   unitType: text("unit_type").notNull().default("Tipe 36"),
   pricePerUnit: real("price_per_unit").notNull().default(0),
   salesValue: real("sales_value").notNull().default(0),
+  subkonId: integer("subkon_id"),
   subkonName: text("subkon_name"),
   subkonValuePerUnit: real("subkon_value_per_unit").notNull().default(0),
   subkonContractValue: real("subkon_contract_value").notNull().default(0),

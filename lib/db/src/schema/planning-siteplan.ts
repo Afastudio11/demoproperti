@@ -33,6 +33,7 @@ export const planningSiteplanShapesTable = pgTable("planning_siteplan_shapes", {
   unitId: integer("unit_id"),
   blockCode: text("block_code"),
   unitType: text("unit_type"),
+  subkonId: integer("subkon_id"),
   subkonName: text("subkon_name"),
   unitStatus: text("unit_status").default("belum_dibuka"),
   progress: real("progress").default(0),

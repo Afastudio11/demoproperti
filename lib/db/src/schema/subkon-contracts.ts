@@ -6,6 +6,7 @@ export const subkonContractsTable = pgTable("subkon_contracts", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").notNull(),
   stageCode: text("stage_code"),
+  subkonId: integer("subkon_id"),
   subkonName: text("subkon_name").notNull(),
   unitCount: integer("unit_count").notNull(),
   valuePerUnit: real("value_per_unit").notNull(),

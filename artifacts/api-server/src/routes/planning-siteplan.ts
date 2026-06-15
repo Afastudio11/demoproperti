@@ -107,6 +107,7 @@ async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect
     if (row.unitStatus) values.status = row.unitStatus;
     if (row.progress != null) values.progress = Number(row.progress);
     if (row.subkonName) values.subkonName = row.subkonName;
+    if (row.subkonId) values.subkonId = row.subkonId;
     if (row.blockCode) values.stageCode = row.blockCode;
     if (Object.keys(values).length > 0) {
       await db.update(unitsTable).set(values).where(eq(unitsTable.id, found.id));
@@ -122,6 +123,7 @@ async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect
     status: row.unitStatus || "available",
     progress: Number(row.progress ?? 0),
     stageCode: row.blockCode || null,
+    subkonId: row.subkonId || null,
     subkonName: row.subkonName || null,
   }).returning();
   return created.id;
@@ -348,6 +350,7 @@ router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
         if ("progress" in req.body) values.progress = Number(req.body.progress);
         if ("unitStatus" in req.body) values.status = req.body.unitStatus;
         if ("subkonName" in req.body) values.subkonName = req.body.subkonName;
+        if ("subkonId" in req.body) values.subkonId = req.body.subkonId;
         if ("blockCode" in req.body) values.stageCode = req.body.blockCode;
         if (Object.keys(values).length > 0) {
           await db.update(unitsTable).set(values).where(eq(unitsTable.id, unitId));

@@ -16,13 +16,14 @@ import {
 
 const modules = [
   { name: "Analisis Pasar", path: "/perencanaan/pasar", icon: TrendingUp, desc: "Demografi, FLPP, kompetitor & demand score" },
-  { name: "Analisis Lahan", path: "/perencanaan/lahan", icon: Building2, desc: "Kavling split 18/12/70, luas efektif, max unit" },
+  { name: "Analisis Lahan & Siteplan", path: "/perencanaan/lahan", icon: Building2, desc: "Gambar siteplan, bidang, blok, dan unit visual" },
+  { name: "Rencana Tahapan", path: "/perencanaan/tahapan", icon: FolderOpen, desc: "Tarik unit siteplan, susun tahap, blok, subkon" },
   { name: "Perencanaan Produk", path: "/perencanaan/produk", icon: Package, desc: "Tipe unit, harga, segmen & simulasi revenue" },
-  { name: "Rencana Tahapan", path: "/perencanaan/tahapan", icon: FolderOpen, desc: "Tahap, blok, unit, harga & sinkron Produksi" },
   { name: "Feasibility Engine", path: "/perencanaan/feasibility", icon: Calculator, desc: "ROI, IRR, NPV, payback & CEO report" },
-  { name: "Timeline SPTIS", path: "/perencanaan/timeline", icon: Calendar, desc: "Master schedule & milestone tracking" },
   { name: "Cashflow & KPP", path: "/perencanaan/cashflow", icon: DollarSign, desc: "Cashflow 3 skenario & kredit konstruksi" },
-  { name: "Sumber Daya", path: "/perencanaan/sdm", icon: Users, desc: "Kapasitas SDM & alokasi tim proyek" },
+  { name: "Timeline SPTIS", path: "/perencanaan/timeline", icon: Calendar, desc: "Master schedule & milestone tracking" },
+  { name: "SDM / Sumber Daya", path: "/perencanaan/sdm", icon: Users, desc: "Kapasitas SDM & alokasi tim proyek" },
+  { name: "Early Warning", path: "/perencanaan/timeline/warning", icon: AlertTriangle, desc: "Risiko jadwal, biaya, dan readiness" },
   { name: "Land Bank", path: "/perencanaan/landbank", icon: Map, desc: "Portofolio lahan & ekspansi readiness" },
 ];
 
@@ -222,7 +223,7 @@ export default function Perencanaan() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Perencanaan</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Analisis, kelayakan, dan kontrol timeline proyek</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Flow kerja dari pasar, siteplan, tahapan, kelayakan, cashflow, sampai siap publish ke Produksi</p>
       </div>
 
       {activeProject && (
@@ -266,16 +267,17 @@ export default function Perencanaan() {
 
       {/* Module Grid */}
       <div>
-        <h2 className="text-sm font-semibold mb-3">Modul Perencanaan</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {modules.map(mod => (
+        <h2 className="text-sm font-semibold mb-3">Alur Perencanaan</h2>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {modules.map((mod, index) => (
             <Link key={mod.path} href={moduleHref(mod.path)}>
               <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
                 <CardContent className="p-4 flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    <div className="size-8 rounded-md bg-primary/10 flex items-center justify-center">
+                    <div className="size-8 rounded-md bg-primary/10 flex items-center justify-center relative">
                       <mod.icon className="size-4 text-primary" />
                     </div>
+                    <span className="text-[10px] rounded-full border px-1.5 py-0.5 text-muted-foreground">{index + 1}</span>
                     <ChevronRight className="size-3.5 text-muted-foreground" />
                   </div>
                   <div>

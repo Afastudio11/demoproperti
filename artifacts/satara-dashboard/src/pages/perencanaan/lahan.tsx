@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearch } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1888,6 +1888,13 @@ export default function LahanPage() {
                   >
                     <RefreshCw className="size-3" /> Sync ke Unit
                   </Button>
+                  {form.projectId > 0 && (
+                    <Link href={`/perencanaan/tahapan?projectId=${form.projectId}`}>
+                      <Button type="button" variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5">
+                        <RefreshCw className="size-3" /> Lanjut ke Rencana Tahapan
+                      </Button>
+                    </Link>
+                  )}
                   <p className="text-[10px] text-muted-foreground">Data lahan dan kalibrasi siteplan ikut tersimpan lewat tombol Simpan di header.</p>
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-3 space-y-2">

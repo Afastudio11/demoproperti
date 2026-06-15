@@ -9,6 +9,7 @@ import { Plus, FileCheck, Trash2 } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { useToast } from "@/hooks/use-toast";
+import SubkonSelect from "@/components/subkon-select";
 
 const fmtRp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
 
@@ -25,7 +26,7 @@ type PaymentTerm = {
   notes?: string | null;
 };
 type Contract = {
-  id: number; projectId: number; stageCode: string | null; subkonName: string;
+  id: number; projectId: number; stageCode: string | null; subkonId: number | null; subkonName: string;
   unitCount: number; valuePerUnit: number; contractValue: number;
   retentionPerUnit: number; totalRetention: number; netPayableValue: number;
   maintenanceMonths: number; startDate: string | null; targetEndDate: string | null;
@@ -70,7 +71,7 @@ const makeDefaultTerms = (contractValue = 0, count = 4, firstDate = ""): Payment
 export default function SubkonKontrak() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
-    projectId: "", stageCode: "", subkonName: "",
+    projectId: "", stageCode: "", subkonId: "", subkonName: "",
     unitCount: "", valuePerUnit: "", retentionPerUnit: "500000",
     maintenanceMonths: "3", startDate: "", targetEndDate: "",
     terminCount: "4", firstTerminDate: "",
@@ -97,6 +98,7 @@ export default function SubkonKontrak() {
         body: JSON.stringify({
           projectId: parseInt(form.projectId),
           stageCode: form.stageCode || null,
+          subkonId: form.subkonId ? Number(form.subkonId) : null,
           subkonName: form.subkonName.trim().replace(/\s+/g, " "),
           unitCount: parseInt(form.unitCount),
           valuePerUnit: parseFloat(form.valuePerUnit),
@@ -116,7 +118,7 @@ export default function SubkonKontrak() {
       qc.invalidateQueries({ queryKey: ["subkon-contracts"] });
       toast({ title: "Kontrak berhasil dibuat" });
       setShowForm(false);
-      setForm({ projectId: "", stageCode: "", subkonName: "", unitCount: "", valuePerUnit: "", retentionPerUnit: "500000", maintenanceMonths: "3", startDate: "", targetEndDate: "", terminCount: "4", firstTerminDate: "", paymentTerms: makeDefaultTerms() });
+      setForm({ projectId: "", stageCode: "", subkonId: "", subkonName: "", unitCount: "", valuePerUnit: "", retentionPerUnit: "500000", maintenanceMonths: "3", startDate: "", targetEndDate: "", terminCount: "4", firstTerminDate: "", paymentTerms: makeDefaultTerms() });
     },
     onError: () => toast({ title: "Gagal membuat kontrak", variant: "destructive" }),
   });
@@ -218,7 +220,19 @@ export default function SubkonKontrak() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Nama Subkon</Label>
-                <Input value={form.subkonName} onChange={e => setForm(p => ({ ...p, subkonName: e.target.value }))} placeholder="CV. ..." className="h-8 text-sm" />
+                <SubkonSelect
+                  valueMode="id"
+                  allowCreate
+                  projectId={form.projectId}
+                  value={form.subkonId}
+                  onValueChange={v => setForm(p => ({ ...p, subkonId: v }))}
+                  onOptionChange={option => setForm(p => ({
+                    ...p,
+                    subkonName: option?.name ?? "",
+                    retentionPerUnit: option?.defaultRetentionPerUnit ? String(option.defaultRetentionPerUnit) : p.retentionPerUnit,
+                    maintenanceMonths: option?.defaultMaintenanceMonths ? String(option.defaultMaintenanceMonths) : p.maintenanceMonths,
+                  }))}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

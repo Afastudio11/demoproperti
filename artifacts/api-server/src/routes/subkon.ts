@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import {
   subkonContractsTable,
+  subkonMasterTable,
   subkonPaymentTermsTable,
   subkonPaymentsTable,
   paymentApprovalsTable,
@@ -9,7 +10,7 @@ import {
   prodMaterialOutTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { listSubkonMaster, normalizeSubkonName } from "../lib/subkon-master";
+import { createOrGetSubkonMaster, listSubkonMaster, normalizeSubkonName, normalizedSubkonKey, resolveSubkonMaster } from "../lib/subkon-master";
 import { getContractFieldProgress } from "../lib/production-relations";
 
 const router: IRouter = Router();
@@ -81,6 +82,64 @@ router.get("/produksi/subkon/master", async (req, res) => {
   }
 });
 
+router.post("/produksi/subkon/master", async (req, res) => {
+  try {
+    const row = await createOrGetSubkonMaster(req.body);
+    res.status(201).json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Failed to create subkon master");
+    res.status((err as { statusCode?: number }).statusCode ?? 400).json({ error: (err as Error).message ?? "Invalid request" });
+  }
+});
+
+router.patch("/produksi/subkon/master/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(subkonMasterTable).where(eq(subkonMasterTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Subkon tidak ditemukan" });
+    const body = { ...req.body };
+    if ("name" in body) {
+      body.name = normalizeSubkonName(body.name);
+      if (!body.name) return res.status(400).json({ error: "Nama subkon wajib diisi" });
+      body.normalizedName = normalizedSubkonKey(body.name);
+      const all = await db.select().from(subkonMasterTable);
+      const duplicate = all.find(row => row.id !== id && row.normalizedName === body.normalizedName);
+      if (duplicate) return res.status(409).json({ error: "Nama subkon sudah ada di master" });
+    }
+    if ("defaultRetentionPerUnit" in body) body.defaultRetentionPerUnit = Number(body.defaultRetentionPerUnit ?? existing.defaultRetentionPerUnit) || existing.defaultRetentionPerUnit;
+    if ("defaultMaintenanceMonths" in body) body.defaultMaintenanceMonths = Number(body.defaultMaintenanceMonths ?? existing.defaultMaintenanceMonths) || existing.defaultMaintenanceMonths;
+    const [row] = await db.update(subkonMasterTable).set(body).where(eq(subkonMasterTable.id, id)).returning();
+    res.json({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update subkon master");
+    res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+router.delete("/produksi/subkon/master/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [contracts, units, materialOut] = await Promise.all([
+      db.select().from(subkonContractsTable).where(eq(subkonContractsTable.subkonId, id)),
+      db.select().from(unitsTable).where(eq(unitsTable.subkonId, id)),
+      db.select().from(prodMaterialOutTable).where(eq(prodMaterialOutTable.subkonId, id)),
+    ]);
+    if (contracts.length || units.length || materialOut.length) {
+      const [row] = await db.update(subkonMasterTable).set({ status: "inactive" }).where(eq(subkonMasterTable.id, id)).returning();
+      return res.status(409).json({
+        error: "Subkon sudah dipakai. Status diubah menjadi inactive agar histori tetap aman.",
+        row,
+        usage: { contracts: contracts.length, units: units.length, materialOut: materialOut.length },
+      });
+    }
+    await db.delete(subkonMasterTable).where(eq(subkonMasterTable.id, id));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete subkon master");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get("/produksi/subkon/contracts", async (req, res) => {
   try {
     let rows = await db.select().from(subkonContractsTable).orderBy(subkonContractsTable.createdAt);
@@ -115,8 +174,9 @@ router.post("/produksi/subkon/contracts", async (req, res) => {
       targetEndDate?: string;
       paymentTerms?: PaymentTermInput[];
     };
-    const cleanSubkonName = normalizeSubkonName(subkonName);
-    if (!cleanSubkonName) return res.status(400).json({ error: "Nama subkon wajib diisi" });
+    const master = await resolveSubkonMaster({ subkonName, subkonId: (req.body as { subkonId?: unknown }).subkonId, allowCreate: true });
+    if (!master) return res.status(400).json({ error: "Nama subkon wajib diisi" });
+    const cleanSubkonName = master.name;
 
     const contractValue = valuePerUnit * unitCount;
     const totalRetention = retentionPerUnit * unitCount;
@@ -125,6 +185,7 @@ router.post("/produksi/subkon/contracts", async (req, res) => {
     const [row] = await db.insert(subkonContractsTable).values({
       projectId,
       stageCode: stageCode ?? null,
+      subkonId: master.id,
       subkonName: cleanSubkonName,
       unitCount,
       valuePerUnit,
@@ -164,8 +225,15 @@ router.patch("/produksi/subkon/contracts/:id", async (req, res) => {
 
     const body = { ...req.body };
     if ("subkonName" in body) {
-      body.subkonName = normalizeSubkonName(body.subkonName);
-      if (!body.subkonName) return res.status(400).json({ error: "Nama subkon wajib diisi" });
+      const master = await resolveSubkonMaster({ subkonName: body.subkonName, subkonId: body.subkonId, allowCreate: true });
+      if (!master) return res.status(400).json({ error: "Nama subkon wajib diisi" });
+      body.subkonId = master.id;
+      body.subkonName = master.name;
+    } else if ("subkonId" in body) {
+      const master = await resolveSubkonMaster({ subkonId: body.subkonId });
+      if (!master) return res.status(400).json({ error: "Subkon wajib diisi" });
+      body.subkonId = master.id;
+      body.subkonName = master.name;
     }
     const unitCount = Number(body.unitCount ?? existing.unitCount);
     const valuePerUnit = Number(body.valuePerUnit ?? existing.valuePerUnit);
