@@ -71,12 +71,22 @@ function parseUnitRef(shape: typeof planningSiteplanShapesTable.$inferSelect) {
   };
 }
 
-async function getSiteplanCounts(projectId: number) {
+async function getSiteplanBaseline(projectId: number) {
   const shapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId));
   const counts = new Map<string, number>();
+  const labels = new Set<string>();
+  const duplicateLabels = new Set<string>();
+  const invalidLabels: string[] = [];
+  const unallocatedUnitLabels: string[] = [];
+  const unitShapes = shapes.filter(shape => shape.shapeType === "unit");
   for (const shape of shapes) {
     if (shape.shapeType !== "unit") continue;
     const ref = parseUnitRef(shape);
+    const normalizedLabel = cleanText(shape.label).toUpperCase();
+    if (!ref.blockCode || !ref.nomor) invalidLabels.push(cleanText(shape.label));
+    if (labels.has(normalizedLabel)) duplicateLabels.add(cleanText(shape.label));
+    labels.add(normalizedLabel);
+    if (!ref.stageCode) unallocatedUnitLabels.push(cleanText(shape.label));
     const stageCode = ref.stageCode;
     const blockCode = ref.blockCode || parseBlockFromLabel(shape.label);
     const keys = [
@@ -85,7 +95,30 @@ async function getSiteplanCounts(projectId: number) {
     ];
     for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  return counts;
+  return {
+    shapes,
+    unitShapes,
+    counts,
+    totalUnitShapes: unitShapes.length,
+    duplicateLabels: Array.from(duplicateLabels),
+    invalidLabels,
+    unallocatedUnitLabels,
+  };
+}
+
+async function getSiteplanCounts(projectId: number) {
+  return (await getSiteplanBaseline(projectId)).counts;
+}
+
+async function assignUnallocatedShapesToStage(projectId: number, stageCode: string, blockCode: string) {
+  const shapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId));
+  for (const shape of shapes) {
+    if (shape.shapeType !== "unit" || cleanText(shape.blockCode)) continue;
+    const ref = parseUnitRef(shape);
+    if (ref.blockCode === blockCode) {
+      await db.update(planningSiteplanShapesTable).set({ blockCode: stageCode }).where(eq(planningSiteplanShapesTable.id, shape.id));
+    }
+  }
 }
 
 function validationStatus(planned: number, drawn: number) {
@@ -243,8 +276,9 @@ router.get("/planning/stages/siteplan-summary", async (req, res) => {
     const projectId = Number(req.query.projectId);
     if (!Number.isFinite(projectId) || projectId <= 0) return res.status(400).json({ error: "projectId wajib diisi" });
 
-    const shapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId));
+    const baseline = await getSiteplanBaseline(projectId);
     const blocks = new Map<string, {
+      stageCode: string;
       blockCode: string;
       unitCount: number;
       unitType: string;
@@ -252,11 +286,14 @@ router.get("/planning/stages/siteplan-summary", async (req, res) => {
       subkonName: string;
       labels: string[];
     }>();
-    for (const shape of shapes) {
+    for (const shape of baseline.unitShapes) {
       if (shape.shapeType !== "unit") continue;
       const ref = parseUnitRef(shape);
       if (!ref.blockCode) continue;
-      const current = blocks.get(ref.blockCode) ?? {
+      const stageCode = ref.stageCode || "T1";
+      const key = `${stageCode}::${ref.blockCode}`;
+      const current = blocks.get(key) ?? {
+        stageCode,
         blockCode: ref.blockCode,
         unitCount: 0,
         unitType: ref.unitType,
@@ -269,13 +306,32 @@ router.get("/planning/stages/siteplan-summary", async (req, res) => {
       if (!current.subkonId && ref.subkonId) current.subkonId = ref.subkonId;
       if (!current.subkonName && ref.subkonName) current.subkonName = ref.subkonName;
       if ((!current.unitType || current.unitType === "Tipe 36") && ref.unitType) current.unitType = ref.unitType;
-      blocks.set(ref.blockCode, current);
+      blocks.set(key, current);
     }
+    const blockList = Array.from(blocks.values()).sort((a, b) =>
+      a.stageCode.localeCompare(b.stageCode, undefined, { numeric: true })
+      || a.blockCode.localeCompare(b.blockCode, undefined, { numeric: true })
+    );
+    const stages = Array.from(blockList.reduce((map, block) => {
+      const current = map.get(block.stageCode) ?? [];
+      current.push(block);
+      map.set(block.stageCode, current);
+      return map;
+    }, new Map<string, typeof blockList>()).entries()).map(([stageCode, stageBlocks]) => ({
+      stageCode,
+      stageName: `Tahap ${stageCode.replace(/^T/i, "") || stageCode}`,
+      blocks: stageBlocks,
+      totalUnits: stageBlocks.reduce((sum, block) => sum + block.unitCount, 0),
+    }));
 
     res.json({
       projectId,
-      totalUnitShapes: Array.from(blocks.values()).reduce((sum, block) => sum + block.unitCount, 0),
-      blocks: Array.from(blocks.values()).sort((a, b) => a.blockCode.localeCompare(b.blockCode, undefined, { numeric: true })),
+      totalUnitShapes: baseline.totalUnitShapes,
+      duplicateLabels: baseline.duplicateLabels,
+      invalidLabels: baseline.invalidLabels,
+      unallocatedUnitLabels: baseline.unallocatedUnitLabels,
+      blocks: blockList,
+      stages,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to summarize siteplan for planning stages");
@@ -302,6 +358,10 @@ router.post("/planning/stages/bulk", async (req, res) => {
 
     const existing = await db.select().from(planningStagesTable).where(eq(planningStagesTable.projectId, projectId));
     if (existing.some(stage => stage.lockedAt)) return res.status(409).json({ error: "Rencana sudah locked. Buat revisi sebelum mengubah baseline." });
+    const baseline = await getSiteplanBaseline(projectId);
+    if (baseline.totalUnitShapes <= 0) return res.status(400).json({ error: "Belum ada unit rumah di siteplan. Gambar unit di Analisis Lahan dulu." });
+    if (baseline.duplicateLabels.length) return res.status(409).json({ error: `Label unit siteplan duplikat: ${baseline.duplicateLabels.join(", ")}` });
+    if (baseline.invalidLabels.length) return res.status(409).json({ error: `Label unit belum valid: ${baseline.invalidLabels.join(", ")}. Gunakan format seperti A-01.` });
 
     await db.delete(planningStageBlocksTable).where(eq(planningStageBlocksTable.projectId, projectId));
     await db.delete(planningStagesTable).where(eq(planningStagesTable.projectId, projectId));
@@ -309,9 +369,13 @@ router.post("/planning/stages/bulk", async (req, res) => {
     for (const [stageIndex, stage] of inputStages.entries()) {
       const stageCode = cleanCode(stage.stageCode, `T${stageIndex + 1}`);
       const blocks = (stage.blocks ?? []).filter(block => cleanText(block.blockCode));
-      const totalUnits = blocks.reduce((sum, block) => sum + Math.max(0, Math.round(numberValue(block.unitCount))), 0);
-      const totalSalesValue = blocks.reduce((sum, block) => sum + Math.max(0, Math.round(numberValue(block.unitCount))) * numberValue(block.pricePerUnit), 0);
-      const totalSubkonValue = blocks.reduce((sum, block) => sum + Math.max(0, Math.round(numberValue(block.unitCount))) * numberValue(block.subkonValuePerUnit), 0);
+      const blockUnitCount = (block: BlockInput) => {
+        const blockCode = cleanCode(block.blockCode, "A");
+        return baseline.counts.get(`${stageCode}::${blockCode}`) ?? baseline.counts.get(`::${blockCode}`) ?? 0;
+      };
+      const totalUnits = blocks.reduce((sum, block) => sum + blockUnitCount(block), 0);
+      const totalSalesValue = blocks.reduce((sum, block) => sum + blockUnitCount(block) * numberValue(block.pricePerUnit), 0);
+      const totalSubkonValue = blocks.reduce((sum, block) => sum + blockUnitCount(block) * numberValue(block.subkonValuePerUnit), 0);
       const [createdStage] = await db.insert(planningStagesTable).values({
         projectId,
         stageCode,
@@ -328,7 +392,12 @@ router.post("/planning/stages/bulk", async (req, res) => {
       if (blocks.length) {
         const blockRows = [];
         for (const block of blocks) {
-          const unitCount = Math.max(0, Math.round(numberValue(block.unitCount)));
+          const blockCode = cleanCode(block.blockCode, "A");
+          const drawn = baseline.counts.get(`${stageCode}::${blockCode}`) ?? baseline.counts.get(`::${blockCode}`) ?? 0;
+          if (!baseline.counts.get(`${stageCode}::${blockCode}`) && baseline.counts.get(`::${blockCode}`)) {
+            await assignUnallocatedShapesToStage(projectId, stageCode, blockCode);
+          }
+          const unitCount = drawn;
           const pricePerUnit = numberValue(block.pricePerUnit);
           const subkonValuePerUnit = numberValue(block.subkonValuePerUnit);
           const master = await resolveSubkonMaster({ subkonId: block.subkonId, subkonName: block.subkonName, allowCreate: true });
@@ -336,7 +405,7 @@ router.post("/planning/stages/bulk", async (req, res) => {
             stageId: createdStage.id,
             projectId,
             stageCode,
-            blockCode: cleanCode(block.blockCode, "A"),
+            blockCode,
             unitCount,
             unitType: cleanText(block.unitType, "Tipe 36"),
             pricePerUnit,
@@ -371,6 +440,21 @@ router.post("/planning/stages/publish", async (req, res) => {
     const stages = await db.select().from(planningStagesTable).where(eq(planningStagesTable.projectId, projectId));
     const blocks = await db.select().from(planningStageBlocksTable).where(eq(planningStageBlocksTable.projectId, projectId));
     if (!stages.length || !blocks.length) return res.status(400).json({ error: "Rencana tahap dan blok belum tersedia" });
+    const baseline = await getSiteplanBaseline(projectId);
+    if (baseline.totalUnitShapes <= 0) return res.status(400).json({ error: "Belum ada unit rumah di siteplan. Publish dibatalkan." });
+    if (baseline.duplicateLabels.length) return res.status(409).json({ error: `Label unit siteplan duplikat: ${baseline.duplicateLabels.join(", ")}` });
+    if (baseline.invalidLabels.length) return res.status(409).json({ error: `Label unit belum valid: ${baseline.invalidLabels.join(", ")}` });
+    if (baseline.unallocatedUnitLabels.length) return res.status(409).json({ error: `Unit siteplan belum masuk tahap: ${baseline.unallocatedUnitLabels.join(", ")}` });
+    const totalPlanned = blocks.reduce((sum, block) => sum + block.unitCount, 0);
+    if (totalPlanned !== baseline.totalUnitShapes) {
+      return res.status(409).json({ error: `Total rencana (${totalPlanned} unit) harus sama dengan siteplan (${baseline.totalUnitShapes} unit). Sinkron ulang dari Analisis Lahan.` });
+    }
+    for (const block of blocks) {
+      const drawn = baseline.counts.get(`${block.stageCode}::${block.blockCode}`) ?? 0;
+      if (drawn !== block.unitCount) {
+        return res.status(409).json({ error: `${block.stageCode} Blok ${block.blockCode} tidak sinkron siteplan: ${drawn}/${block.unitCount} unit.` });
+      }
+    }
 
     let syncedUnits = 0;
     for (const block of blocks) {

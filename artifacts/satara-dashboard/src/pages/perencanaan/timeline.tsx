@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { RefreshCw, Save, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
@@ -71,6 +71,27 @@ export default function TimelinePage() {
   };
 
   const addMs = () => setMilestones(prev => [...prev, newMs()]);
+
+  const generateFromStages = async () => {
+    if (!projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
+    const stages = await fetch(`/api/planning/stages?projectId=${projectId}`).then(r => r.json());
+    if (!Array.isArray(stages) || stages.length === 0) {
+      toast({ title: "Rencana tahapan belum tersedia", description: "Tarik dan simpan Rencana Tahapan dulu.", variant: "destructive" });
+      return;
+    }
+    const generated = stages.map((stage: any): Milestone => ({
+      phase: "BUILD",
+      taskName: `${stage.stageCode} - ${stage.stageName}`,
+      targetDate: stage.targetEnd ?? "",
+      actualDate: "",
+      status: "belum_mulai",
+      progressPct: 0,
+      unitsDone: 0,
+      notes: `${Number(stage.totalUnits ?? 0)} unit dari baseline siteplan`,
+    }));
+    setMilestones(generated.length ? generated : [newMs()]);
+    toast({ title: "Milestone dibuat dari Rencana Tahapan", description: `${generated.length} tahap masuk timeline.` });
+  };
 
   const removeMs = async (i: number) => {
     const ms = milestones[i];
@@ -153,6 +174,7 @@ export default function TimelinePage() {
           <p className="text-sm text-muted-foreground mt-0.5">Satara Project Timeline Intelligence System — master schedule & milestone tracking</p>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={generateFromStages} disabled={!projectId} className="gap-1.5"><RefreshCw className="size-3.5" />Generate dari Tahapan</Button>
           <Button size="sm" variant="outline" onClick={addMs} className="gap-1.5"><Plus className="size-3.5" />Tambah Milestone</Button>
           <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
         </div>

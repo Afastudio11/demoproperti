@@ -24,6 +24,8 @@ type ProductRow = {
   competitorPrice: number;
 };
 
+type TypeBaseline = { houseType: string; unitCount: number };
+
 const newRow = (projectId: number): ProductRow => ({
   projectId, houseType: "", buildingArea: 0, kavlingArea: 0,
   sellingPrice: 0, unitCount: 0, targetSegment: "MBR", competitorPrice: 0,
@@ -36,13 +38,31 @@ export default function ProdukPage() {
   const { toast } = useToast();
   const [projectId, setProjectId] = useState(0);
   const [rows, setRows] = useState<ProductRow[]>([]);
+  const [typeBaseline, setTypeBaseline] = useState<TypeBaseline[]>([]);
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
 
   const selectProject = async (id: number) => {
     setProjectId(id);
-    const existing = await fetch(`/api/planning/product?projectId=${id}`).then(r => r.json());
-    if (existing.length > 0) {
+    const [existing, summary] = await Promise.all([
+      fetch(`/api/planning/product?projectId=${id}`).then(r => r.json()),
+      fetch(`/api/planning/stages/siteplan-summary?projectId=${id}`).then(r => r.json()).catch(() => null),
+    ]);
+    const baselineMap = new Map<string, number>();
+    if (summary && Array.isArray(summary.blocks)) {
+      for (const block of summary.blocks) {
+        const type = String(block.unitType || "Tipe 36");
+        baselineMap.set(type, (baselineMap.get(type) ?? 0) + Number(block.unitCount ?? 0));
+      }
+    }
+    const baseline = Array.from(baselineMap.entries()).map(([houseType, unitCount]) => ({ houseType, unitCount }));
+    setTypeBaseline(baseline);
+    if (baseline.length > 0) {
+      setRows(baseline.map(base => {
+        const saved = existing.find((row: ProductRow) => row.houseType === base.houseType);
+        return { ...(saved ?? newRow(id)), projectId: id, houseType: base.houseType, unitCount: base.unitCount };
+      }));
+    } else if (existing.length > 0) {
       setRows(existing);
     } else {
       setRows([newRow(id)]);
@@ -57,7 +77,13 @@ export default function ProdukPage() {
     });
   };
 
-  const addRow = () => setRows(prev => [...prev, newRow(projectId)]);
+  const addRow = () => {
+    if (typeBaseline.length > 0) {
+      toast({ title: "Tipe mengikuti siteplan", description: "Tambah tipe dari Analisis Lahan & Siteplan agar jumlah unit tetap sinkron.", variant: "destructive" });
+      return;
+    }
+    setRows(prev => [...prev, newRow(projectId)]);
+  };
 
   const removeRow = async (i: number) => {
     const row = rows[i];
@@ -71,7 +97,8 @@ export default function ProdukPage() {
     if (!projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
     for (const row of rows) {
       if (!row.houseType) continue;
-      const payload = { ...row, projectId };
+      const baseline = typeBaseline.find(item => item.houseType === row.houseType);
+      const payload = { ...row, projectId, unitCount: baseline ? baseline.unitCount : row.unitCount };
       if (row.id) {
         await fetch(`/api/planning/product/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       } else {
@@ -123,6 +150,14 @@ export default function ProdukPage() {
         </Select>
       </div>
 
+      {projectId > 0 && typeBaseline.length > 0 && (
+        <Card>
+          <CardContent className="p-3 text-xs text-muted-foreground">
+            Jumlah unit per tipe dikunci dari siteplan: {typeBaseline.map(item => `${item.houseType} ${item.unitCount} unit`).join(", ")}.
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -138,7 +173,7 @@ export default function ProdukPage() {
                 {rows.map((row, i) => (
                   <tr key={i} className="border-t">
                     <td className="px-2 py-1.5">
-                      <Input className="h-7 w-28 text-xs" value={row.houseType} onChange={e => setRowField(i, "houseType", e.target.value)} placeholder="Tipe 36/72" />
+                      <Input disabled={typeBaseline.length > 0} className="h-7 w-28 text-xs" value={row.houseType} onChange={e => setRowField(i, "houseType", e.target.value)} placeholder="Tipe 36/72" />
                     </td>
                     <td className="px-2 py-1.5">
                       <NumericInput className="h-7 w-16 text-xs" decimals={1} value={row.buildingArea} onChange={v => setRowField(i, "buildingArea", v)} />
@@ -150,7 +185,7 @@ export default function ProdukPage() {
                       <CurrencyInput className="h-7 w-36 text-xs" value={row.sellingPrice} onChange={raw => setRowField(i, "sellingPrice", raw ? Number(raw) : 0)} />
                     </td>
                     <td className="px-2 py-1.5">
-                      <NumericInput className="h-7 w-16 text-xs" value={row.unitCount} onChange={v => setRowField(i, "unitCount", v)} />
+                      <NumericInput className="h-7 w-16 text-xs bg-muted/40" disabled={typeBaseline.length > 0} value={row.unitCount} onChange={v => setRowField(i, "unitCount", v)} />
                     </td>
                     <td className="px-2 py-1.5">
                       <Select value={row.targetSegment} onValueChange={v => setRowField(i, "targetSegment", v)}>
@@ -162,7 +197,7 @@ export default function ProdukPage() {
                       <CurrencyInput className="h-7 w-36 text-xs" value={row.competitorPrice} onChange={raw => setRowField(i, "competitorPrice", raw ? Number(raw) : 0)} />
                     </td>
                     <td className="px-2 py-1.5">
-                      <Button variant="ghost" size="icon" className="size-7" onClick={() => removeRow(i)}>
+                      <Button disabled={typeBaseline.length > 0} variant="ghost" size="icon" className="size-7" onClick={() => removeRow(i)}>
                         <Trash2 className="size-3 text-destructive" />
                       </Button>
                     </td>

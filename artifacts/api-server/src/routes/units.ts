@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { unitsTable } from "@workspace/db";
+import { planningSiteplanShapesTable, unitsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateUnitBody, UpdateUnitBody } from "@workspace/api-zod";
 import { resolveSubkonMaster } from "../lib/subkon-master";
@@ -93,6 +93,15 @@ router.patch("/units/:id", async (req, res) => {
     }
     const [unit] = await db.update(unitsTable).set(values).where(eq(unitsTable.id, parseInt(req.params.id))).returning();
     if (!unit) return res.status(404).json({ error: "Not found" });
+    const shapeValues: Record<string, unknown> = {};
+    if (Object.prototype.hasOwnProperty.call(values, "progress")) shapeValues.progress = values.progress;
+    if (Object.prototype.hasOwnProperty.call(values, "status")) shapeValues.unitStatus = values.status;
+    if (Object.prototype.hasOwnProperty.call(values, "subkonName")) shapeValues.subkonName = values.subkonName;
+    if (Object.prototype.hasOwnProperty.call(values, "subkonId")) shapeValues.subkonId = values.subkonId;
+    if (Object.prototype.hasOwnProperty.call(values, "stageCode")) shapeValues.blockCode = values.stageCode;
+    if (Object.keys(shapeValues).length > 0) {
+      await db.update(planningSiteplanShapesTable).set(shapeValues).where(eq(planningSiteplanShapesTable.unitId, unit.id));
+    }
     res.json({ ...unit, customerId: unit.customerId ?? null, createdAt: unit.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update unit");

@@ -13,6 +13,7 @@ import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc
 import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload, ZoomIn, ZoomOut, Lock, Unlock, RefreshCw } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import SubkonSelect from "@/components/subkon-select";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
@@ -292,6 +293,7 @@ export default function LahanPage() {
   const [copiedDraft, setCopiedDraft] = useState<CanvasPoint[] | null>(null);
   const [copiedShapes, setCopiedShapes] = useState<any[]>([]);
   const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "", isLocked: false });
+  const [batchUnitForm, setBatchUnitForm] = useState({ blockPrefix: "A", startNumber: 1, stageCode: "T1", unitType: "Tipe 36", unitStatus: "belum_dibuka", subkonId: "", subkonName: "" });
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
   const [selectedShapeIds, setSelectedShapeIds] = useState<number[]>([]);
@@ -604,17 +606,26 @@ export default function LahanPage() {
     }
   }
 
-  async function autoPatchShape(id: number, fields: Record<string, unknown>) {
-    setIsSaving(true);
+  async function autoPatchShape(id: number, fields: Record<string, unknown>, options: { quiet?: boolean } = {}) {
+    const siteplanId = selectedSiteplan?.id;
+    if (siteplanId) {
+      qc.setQueryData<any[]>(["planning-siteplan-shapes", siteplanId], rows => {
+        if (!Array.isArray(rows)) return rows;
+        return rows.map(row => row.id === id ? { ...row, ...fields } : row);
+      });
+    }
+    if (!options.quiet) setIsSaving(true);
     try {
       const resp = await fetch(`/api/planning/siteplan/shapes/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fields),
       });
-      if (resp.ok) await refetchShapes();
+      if (!resp.ok) {
+        toast({ title: "Gagal menyimpan posisi shape", variant: "destructive" });
+      }
     } finally {
-      setIsSaving(false);
+      if (!options.quiet) setIsSaving(false);
     }
   }
 
@@ -900,7 +911,7 @@ export default function LahanPage() {
 
     // Auto-patch polygon when dragging/resizing a saved shape
     if ((drag?.mode === "shape" || drag?.mode === "corner" || drag?.mode === "edge" || drag?.mode === "rotate") && editingShapeId) {
-      autoPatchShape(editingShapeId, { polygon: draftPointsRef.current });
+      autoPatchShape(editingShapeId, { polygon: draftPointsRef.current }, { quiet: true });
       return;
     }
 
@@ -914,7 +925,12 @@ export default function LahanPage() {
         .map(shape => shape.id);
       setSelectedShapeIds(selected);
       setSelectionBox(null);
-      if (selected.length > 0) resetDraft();
+      if (selected.length > 0) {
+        draftPointsRef.current = [];
+        setDraftPoints([]);
+        setPolygonClosed(false);
+        setEditingShapeId(null);
+      }
     }
   }
 
@@ -1244,6 +1260,54 @@ export default function LahanPage() {
     await refetchShapes();
   }
 
+  async function applyBatchUnitBlock() {
+    const selectedUnits = shapeList
+      .filter(shape => selectedShapeIds.includes(shape.id) && shape.shapeType === "unit")
+      .sort((a, b) => {
+        const ca = polygonCenter(Array.isArray(a.polygon) ? a.polygon : []);
+        const cb = polygonCenter(Array.isArray(b.polygon) ? b.polygon : []);
+        if (!ca || !cb) return String(a.label ?? "").localeCompare(String(b.label ?? ""), undefined, { numeric: true });
+        const rowDiff = Math.round(ca.y * 10) - Math.round(cb.y * 10);
+        return Math.abs(rowDiff) > 8 ? rowDiff : ca.x - cb.x;
+      });
+    if (selectedUnits.length === 0) {
+      toast({ title: "Pilih shape Unit Rumah dulu", variant: "destructive" });
+      return;
+    }
+    const prefix = batchUnitForm.blockPrefix.trim().toUpperCase();
+    if (!prefix) {
+      toast({ title: "Kode blok wajib diisi", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const results = await Promise.all(selectedUnits.map((shape, index) => {
+        const nomor = String(batchUnitForm.startNumber + index).padStart(2, "0");
+        return fetch(`/api/planning/siteplan/shapes/${shape.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            label: `${prefix}-${nomor}`,
+            blockCode: batchUnitForm.stageCode.trim().toUpperCase() || null,
+            unitType: batchUnitForm.unitType.trim() || "Tipe 36",
+            unitStatus: batchUnitForm.unitStatus,
+            subkonId: batchUnitForm.subkonId ? Number(batchUnitForm.subkonId) : null,
+            subkonName: batchUnitForm.subkonName || null,
+          }),
+        });
+      }));
+      const failed = results.filter(resp => !resp.ok).length;
+      await refetchShapes();
+      if (failed) {
+        toast({ title: "Sebagian shape gagal diblok", description: `${selectedUnits.length - failed}/${selectedUnits.length} unit berhasil.`, variant: "destructive" });
+      } else {
+        toast({ title: `${selectedUnits.length} unit masuk blok ${prefix}`, description: `Label ${prefix}-${String(batchUnitForm.startNumber).padStart(2, "0")} sampai ${prefix}-${String(batchUnitForm.startNumber + selectedUnits.length - 1).padStart(2, "0")}` });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function saveSiteplanTransform(next = siteplanTransform, silent = false) {
     if (!selectedSiteplan?.id) return;
     const resp = await fetch(`/api/planning/siteplan/${selectedSiteplan.id}`, {
@@ -1275,6 +1339,16 @@ export default function LahanPage() {
   const shapeList = Array.isArray(siteplanShapes) ? siteplanShapes as any[] : [];
   const bidangShapes = shapeList.filter(shape => shape.shapeType === "bidang");
   const unitShapes = shapeList.filter(shape => shape.shapeType === "unit");
+  const unitLabelCounts = unitShapes.reduce((map, shape) => {
+    const label = String(shape.label ?? "").trim().toUpperCase();
+    map.set(label, (map.get(label) ?? 0) + 1);
+    return map;
+  }, new Map<string, number>());
+  const invalidUnitShapes = unitShapes.filter(shape => !String(shape.label ?? "").trim().match(/^[A-Za-z]+[-\s_]*\d+[A-Za-z]?$/));
+  const duplicateUnitShapes = unitShapes.filter(shape => (unitLabelCounts.get(String(shape.label ?? "").trim().toUpperCase()) ?? 0) > 1);
+  const unallocatedUnitShapes = unitShapes.filter(shape => !String(shape.blockCode ?? "").trim());
+  const incompleteUnitShapes = unitShapes.filter(shape => !String(shape.unitType ?? "").trim() || !Array.isArray(shape.polygon) || shape.polygon.length < 3);
+  const baselineProblems = invalidUnitShapes.length + duplicateUnitShapes.length + unallocatedUnitShapes.length + incompleteUnitShapes.length;
   const totalBidangArea = bidangShapes.reduce((sum, shape) => sum + Number(shape.landArea ?? 0), 0);
   const totalPlannedUnits = bidangShapes.reduce((sum, shape) => sum + Number(shape.plannedUnits ?? 0), 0);
   const remainingLandArea = Math.max(0, Number(form.landArea || 0) - totalBidangArea);
@@ -1646,7 +1720,7 @@ export default function LahanPage() {
               {[
                 { label: "Total Bidang", value: `${(totalBidangArea ?? 0).toLocaleString("id-ID")} m²` },
                 { label: "Sisa Lahan", value: `${(remainingLandArea ?? 0).toLocaleString("id-ID")} m²` },
-                { label: "Rencana Unit", value: `${(totalPlannedUnits ?? 0).toLocaleString("id-ID")} unit` },
+                { label: "Unit Siteplan", value: `${unitShapes.length.toLocaleString("id-ID")} unit` },
                 { label: "Kepadatan", value: `${density.toFixed(1)} unit/1.000 m²` },
               ].map(item => (
                 <div key={item.label} className="rounded-md border bg-muted/20 p-2">
@@ -1654,6 +1728,44 @@ export default function LahanPage() {
                   <div className="text-sm font-semibold">{item.value}</div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {selectedSiteplan?.id && (
+            <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs text-muted-foreground">Validasi Baseline Siteplan</div>
+                  <div className={cn("text-sm font-semibold", baselineProblems === 0 ? "text-emerald-600" : "text-amber-600")}>
+                    {baselineProblems === 0 ? "Siap ditarik ke Rencana Tahapan" : "Perlu dilengkapi sebelum publish"}
+                  </div>
+                </div>
+                <Badge variant={baselineProblems === 0 ? "default" : "outline"}>{unitShapes.length}/{maxUnits || 0} unit</Badge>
+              </div>
+              <div className="grid sm:grid-cols-4 gap-2 text-xs">
+                <div className="rounded border bg-background p-2"><div className="text-muted-foreground">Label tidak valid</div><div className="font-semibold">{invalidUnitShapes.length}</div></div>
+                <div className="rounded border bg-background p-2"><div className="text-muted-foreground">Label duplikat</div><div className="font-semibold">{duplicateUnitShapes.length}</div></div>
+                <div className="rounded border bg-background p-2"><div className="text-muted-foreground">Belum tahap</div><div className="font-semibold">{unallocatedUnitShapes.length}</div></div>
+                <div className="rounded border bg-background p-2"><div className="text-muted-foreground">Data belum lengkap</div><div className="font-semibold">{incompleteUnitShapes.length}</div></div>
+              </div>
+              {unitShapes.length > 0 && (
+                <div className="max-h-32 overflow-y-auto rounded border bg-background">
+                  {unitShapes.map(shape => {
+                    const label = String(shape.label ?? "");
+                    const invalid = invalidUnitShapes.some(item => item.id === shape.id);
+                    const duplicate = duplicateUnitShapes.some(item => item.id === shape.id);
+                    const missingStage = unallocatedUnitShapes.some(item => item.id === shape.id);
+                    const incomplete = incompleteUnitShapes.some(item => item.id === shape.id);
+                    return (
+                      <button key={shape.id} type="button" className="flex w-full items-center gap-2 border-b last:border-0 px-2 py-1.5 text-left text-xs hover:bg-muted/40" onClick={() => startEditShape(shape)}>
+                        <span className="font-medium w-16 truncate">{label}</span>
+                        <span className="text-muted-foreground flex-1 truncate">{shape.blockCode || "Tanpa tahap"} · {shape.unitType || "Tanpa tipe"}</span>
+                        {(invalid || duplicate || missingStage || incomplete) ? <Badge variant="outline" className="text-[10px]">cek</Badge> : <Badge className="text-[10px]">ok</Badge>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1694,12 +1806,12 @@ export default function LahanPage() {
                   onPointerMove={handlePointerMove}
                   onPointerUp={stopCanvasDrag}
                   onPointerCancel={stopCanvasDrag}
-                  onPointerLeave={stopCanvasDrag}
+                  onPointerLeave={() => { if (!dragRef.current) stopCanvasDrag(); }}
                   onWheel={handleCanvasWheel}
                   className={cn("relative overflow-hidden rounded-lg border bg-background shadow-sm touch-none", drawTool === "unit_box" || drawTool === "polygon" ? "cursor-crosshair" : drawTool === "pan" ? "cursor-grab" : drawTool === "delete" ? "cursor-not-allowed" : "cursor-default")}
                 >
                 {/* Zoom/pan content wrapper — position:relative so SVG absolute inset-0 anchors here; height driven by img */}
-                <div style={{ transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`, transformOrigin: "0 0", position: "relative", width: "100%" }}>
+                <div style={{ transform: `translate3d(${canvasPan.x}px, ${canvasPan.y}px, 0) scale(${canvasZoom})`, transformOrigin: "0 0", position: "relative", width: "100%", willChange: "transform" }}>
                 {siteplanImageUrl ? (
                   <img
                     src={siteplanImageUrl}
@@ -1946,12 +2058,55 @@ export default function LahanPage() {
                   </div>
                   <p className="text-[10px] leading-relaxed text-muted-foreground">Shift/Cmd-drag untuk pilih banyak shape, lalu salin atau hapus sekaligus.</p>
                   {selectedShapeIds.length > 0 && (
-                    <div className="rounded-md border bg-background p-2 flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium">{selectedShapeIds.length} shape dipilih</span>
-                      <div className="flex gap-1">
-                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={copyDraft}><Copy className="size-3" />Salin</Button>
-                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelectedShapeIds([])}>Batal</Button>
-                        <Button type="button" variant="destructive" size="sm" className="h-7 text-xs" onClick={deleteSelectedShapes}>Hapus</Button>
+                    <div className="rounded-md border bg-background p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium">{selectedShapeIds.length} shape dipilih</span>
+                        <div className="flex gap-1">
+                          <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={copyDraft}><Copy className="size-3" />Salin</Button>
+                          <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelectedShapeIds([])}>Batal</Button>
+                          <Button type="button" variant="destructive" size="sm" className="h-7 text-xs" onClick={deleteSelectedShapes}>Hapus</Button>
+                        </div>
+                      </div>
+                      <div className="rounded-md bg-muted/30 p-2 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Blok Label</Label>
+                            <Input className="h-7 text-xs" value={batchUnitForm.blockPrefix} onChange={e => setBatchUnitForm(p => ({ ...p, blockPrefix: e.target.value.toUpperCase() }))} placeholder="A" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Nomor Mulai</Label>
+                            <NumericInput className="h-7 text-xs" decimals={0} value={batchUnitForm.startNumber} onChange={v => setBatchUnitForm(p => ({ ...p, startNumber: Math.max(1, Math.round(v)) }))} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Tahap</Label>
+                            <Input className="h-7 text-xs" value={batchUnitForm.stageCode} onChange={e => setBatchUnitForm(p => ({ ...p, stageCode: e.target.value.toUpperCase() }))} placeholder="T1" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Tipe</Label>
+                            <Input className="h-7 text-xs" value={batchUnitForm.unitType} onChange={e => setBatchUnitForm(p => ({ ...p, unitType: e.target.value }))} placeholder="Tipe 36" />
+                          </div>
+                          <div className="space-y-1 col-span-2">
+                            <Label className="text-[10px]">Subkon</Label>
+                            <SubkonSelect
+                              valueMode="id"
+                              allowCreate
+                              projectId={form.projectId}
+                              value={batchUnitForm.subkonId}
+                              triggerClassName="h-7 text-xs"
+                              onValueChange={v => setBatchUnitForm(p => ({ ...p, subkonId: v }))}
+                              onOptionChange={option => setBatchUnitForm(p => ({ ...p, subkonName: option?.name ?? "" }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button type="button" size="sm" className="h-7 flex-1 text-xs gap-1" onClick={applyBatchUnitBlock} disabled={isSaving}>
+                            <Save className="size-3" /> Blok Unit Terpilih
+                          </Button>
+                          <Select value={batchUnitForm.unitStatus} onValueChange={v => setBatchUnitForm(p => ({ ...p, unitStatus: v }))}>
+                            <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1978,6 +2133,7 @@ export default function LahanPage() {
                     </>
                   )}
                   <div className="space-y-1"><Label className="text-xs">Tipe Rumah</Label><Input className="h-8 text-sm" value={shapeDraft.unitType} onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))} /></div>
+                          <div className="space-y-1"><Label className="text-xs">Tahap</Label><Input className="h-8 text-sm" value={shapeDraft.blockCode} onChange={e => setShapeDraft(p => ({ ...p, blockCode: e.target.value.toUpperCase() }))} placeholder="T1" /></div>
                           <div className="space-y-1"><Label className="text-xs">Status Unit</Label><Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
                           <div className="space-y-1 col-span-2"><Label className="text-xs">Link Unit Produksi</Label><Select value={shapeDraft.unitId || "none"} onValueChange={v => {
                             const unit = (units as any[]).find(u => String(u.id) === v);

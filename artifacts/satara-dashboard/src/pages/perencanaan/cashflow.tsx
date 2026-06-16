@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { fmtCurrency } from "@/lib/planning-calc";
-import { Save, Plus, Trash2 } from "lucide-react";
+import { RefreshCw, Save, Plus, Trash2 } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
@@ -54,6 +54,54 @@ export default function CashflowPage() {
 
   const setEntry = (i: number, k: string, v: number) => {
     setEntries(prev => { const next = [...prev]; (next[i] as Record<string, unknown>)[k] = v; return next; });
+  };
+
+  const generateFromStages = async () => {
+    if (!projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
+    const stages = await fetch(`/api/planning/stages?projectId=${projectId}`).then(r => r.json());
+    if (!Array.isArray(stages) || stages.length === 0) {
+      toast({ title: "Rencana tahapan belum tersedia", description: "Tarik dan simpan Rencana Tahapan dulu.", variant: "destructive" });
+      return;
+    }
+    const next = buildDefaultEntries(DEFAULT_MONTHS);
+    const datedStages = stages
+      .filter((stage: any) => stage.targetStart || stage.targetEnd)
+      .map((stage: any) => ({
+        ...stage,
+        start: stage.targetStart ? new Date(stage.targetStart) : null,
+        end: stage.targetEnd ? new Date(stage.targetEnd) : null,
+      }));
+    const firstDate = datedStages.reduce<Date | null>((min, stage) => {
+      const date = stage.start ?? stage.end;
+      if (!date || Number.isNaN(date.getTime())) return min;
+      return !min || date < min ? date : min;
+    }, null);
+    const monthIndex = (date: Date | null) => {
+      if (!date || !firstDate || Number.isNaN(date.getTime())) return 0;
+      const diff = (date.getFullYear() - firstDate.getFullYear()) * 12 + date.getMonth() - firstDate.getMonth();
+      return Math.max(0, Math.min(DEFAULT_MONTHS - 1, diff));
+    };
+    let totalSubkon = 0;
+    for (const stage of stages) {
+      const startIdx = monthIndex(stage.targetStart ? new Date(stage.targetStart) : null);
+      const endIdx = monthIndex(stage.targetEnd ? new Date(stage.targetEnd) : null);
+      for (const block of stage.blocks ?? []) {
+        const units = Number(block.unitCount ?? 0);
+        const salesValue = Number(block.salesValue ?? units * Number(block.pricePerUnit ?? 0));
+        const subkonValue = Number(block.subkonContractValue ?? units * Number(block.subkonValuePerUnit ?? 0));
+        totalSubkon += subkonValue;
+        next[startIdx].constructionCostOut += subkonValue;
+        next[startIdx].moderateUnits += units;
+        next[startIdx].conservativeUnits += Math.max(0, Math.floor(units * 0.6));
+        next[startIdx].aggressiveUnits += units;
+        next[startIdx].bookingFeeIn += units * 1_000_000;
+        next[endIdx].htKprIn += salesValue * 0.75;
+        next[endIdx].downPaymentIn += salesValue * 0.15;
+      }
+    }
+    setEntries(next);
+    setKpp(prev => ({ ...prev, approvedAmount: prev.approvedAmount || totalSubkon }));
+    toast({ title: "Draft cashflow dibuat dari Rencana Tahapan", description: "Angka awal sudah diisi dan tetap bisa diedit sebagai simulasi." });
   };
 
   const saveCashflow = async () => {
@@ -114,6 +162,7 @@ export default function CashflowPage() {
           <h1 className="text-xl font-semibold">Cashflow & KPP</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Cashflow bulanan, kredit konstruksi & HT realisasi</p>
         </div>
+        <Button size="sm" variant="outline" onClick={generateFromStages} disabled={!projectId} className="gap-1.5"><RefreshCw className="size-3.5" />Generate dari Tahapan</Button>
       </div>
 
       <div className="flex items-center gap-3">

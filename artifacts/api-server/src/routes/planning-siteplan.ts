@@ -27,6 +27,15 @@ function parseUnitLabel(label: string) {
   return { blok: match[1].toUpperCase(), nomor: match[2] };
 }
 
+function validateUnitShapePayload(body: Record<string, unknown>) {
+  if (body.shapeType !== "unit") return null;
+  const label = String(body.label ?? "").trim();
+  if (!label.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/)) return "Label unit wajib format blok-nomor, contoh A-01.";
+  if (!Array.isArray(body.polygon) || body.polygon.length < 3) return "Polygon unit rumah wajib minimal 3 titik.";
+  if (!String(body.unitType ?? "").trim()) body.unitType = "Tipe 36";
+  return null;
+}
+
 // Batch enrichment: 2 queries total regardless of shape count
 async function enrichShapes(shapes: (typeof planningSiteplanShapesTable.$inferSelect)[]) {
   if (shapes.length === 0) return [];
@@ -290,6 +299,8 @@ router.post("/planning/siteplan/:id/shapes", async (req, res) => {
 
     const body = { ...req.body };
     if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
+    const validationError = validateUnitShapePayload(body);
+    if (validationError) return res.status(400).json({ error: validationError });
 
     if (body.label) {
       const dup = await db.select().from(planningSiteplanShapesTable)
@@ -321,14 +332,15 @@ router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
     const shapeId = Number(req.params.shapeId);
     const body = { ...req.body };
     if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
+    const [existingShape] = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
+    if (!existingShape) return res.status(404).json({ error: "Shape tidak ditemukan" });
+    const validationError = validateUnitShapePayload({ ...existingShape, ...body });
+    if (validationError) return res.status(400).json({ error: validationError });
 
     if (body.label) {
-      const [current] = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
-      if (current) {
-        const dup = await db.select().from(planningSiteplanShapesTable)
-          .where(and(eq(planningSiteplanShapesTable.siteplanId, current.siteplanId), eq(planningSiteplanShapesTable.label, String(body.label)), ne(planningSiteplanShapesTable.id, shapeId)));
-        if (dup.length > 0) return res.status(409).json({ error: `Label "${body.label}" sudah dipakai shape lain. Gunakan label yang berbeda.` });
-      }
+      const dup = await db.select().from(planningSiteplanShapesTable)
+        .where(and(eq(planningSiteplanShapesTable.siteplanId, existingShape.siteplanId), eq(planningSiteplanShapesTable.label, String(body.label)), ne(planningSiteplanShapesTable.id, shapeId)));
+      if (dup.length > 0) return res.status(409).json({ error: `Label "${body.label}" sudah dipakai shape lain. Gunakan label yang berbeda.` });
     }
 
     const [row] = await db.update(planningSiteplanShapesTable).set(body).where(eq(planningSiteplanShapesTable.id, shapeId)).returning();

@@ -32,8 +32,8 @@ function StatusBadge({ pass }: { pass: boolean }) {
     : <Badge className="bg-red-100 text-red-700 border-red-200 gap-1"><XCircle className="size-3" />FAIL</Badge>;
 }
 
-function NumField({ label, value, onChange, unit, prefix, hint, decimals, currency }: {
-  label: string; value: number; onChange: (v: number) => void; unit?: string; prefix?: string; hint?: string; decimals?: number; currency?: boolean;
+function NumField({ label, value, onChange, unit, prefix, hint, decimals, currency, disabled }: {
+  label: string; value: number; onChange: (v: number) => void; unit?: string; prefix?: string; hint?: string; decimals?: number; currency?: boolean; disabled?: boolean;
 }) {
   return (
     <div className="space-y-1">
@@ -41,8 +41,8 @@ function NumField({ label, value, onChange, unit, prefix, hint, decimals, curren
       <div className="flex items-center gap-1">
         {prefix && <span className="text-xs text-muted-foreground">{prefix}</span>}
         {currency
-          ? <CurrencyInput className="h-8 text-sm" value={value} onChange={raw => onChange(raw ? Number(raw) : 0)} />
-          : <NumericInput className="h-8 text-sm" value={value} onChange={onChange} decimals={decimals} />
+          ? <CurrencyInput disabled={disabled} className="h-8 text-sm" value={value} onChange={raw => onChange(raw ? Number(raw) : 0)} />
+          : <NumericInput disabled={disabled} className="h-8 text-sm" value={value} onChange={onChange} decimals={decimals} />
         }
         {unit && <span className="text-xs text-muted-foreground shrink-0">{unit}</span>}
       </div>
@@ -60,6 +60,8 @@ export default function FeasibilityPage() {
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [autoSelected, setAutoSelected] = useState(false);
+  const [baselineUnits, setBaselineUnits] = useState<number | null>(null);
+  const [landMaxUnits, setLandMaxUnits] = useState<number | null>(null);
 
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
@@ -77,6 +79,12 @@ export default function FeasibilityPage() {
   const selectProject = async (id: number) => {
     setProjectId(id);
     setAiText("");
+    const summary = await fetch(`/api/planning/stages/siteplan-summary?projectId=${id}`).then(r => r.json()).catch(() => null);
+    const siteplanUnits = summary && Number.isFinite(Number(summary.totalUnitShapes)) ? Number(summary.totalUnitShapes) : 0;
+    setBaselineUnits(siteplanUnits || null);
+    const landRows = await fetch(`/api/planning/land?projectId=${id}`).then(r => r.json());
+    const land = landRows.length > 0 ? landRows[0] : null;
+    setLandMaxUnits(land?.maxUnits ?? null);
     // Load feasibility data
     const rows = await fetch(`/api/planning/feasibility?projectId=${id}`).then(r => r.json());
     if (rows.length > 0) {
@@ -87,7 +95,7 @@ export default function FeasibilityPage() {
         constructionCostPerUnit: d.constructionCostPerUnit ?? 0, fasumRoadCost: d.fasumRoadCost ?? 0,
         permitCost: d.permitCost ?? 0, marketingCost: d.marketingCost ?? 0,
         overheadCost: d.overheadCost ?? 0, contingencyPct: d.contingencyPct ?? 5,
-        sellingPricePerUnit: d.sellingPricePerUnit ?? 0, totalUnits: d.totalUnits ?? 0,
+        sellingPricePerUnit: d.sellingPricePerUnit ?? 0, totalUnits: siteplanUnits || (d.totalUnits ?? 0),
         bookingFeePerUnit: d.bookingFeePerUnit ?? 0, salesPerMonth: d.salesPerMonth ?? 2,
         kprPct: d.kprPct ?? 75, cashHardPct: d.cashHardPct ?? 15,
         cashInstallmentPct: d.cashInstallmentPct ?? 10, discountRate: d.discountRate ?? 12,
@@ -95,13 +103,11 @@ export default function FeasibilityPage() {
     } else {
       setSavedId(null);
       // Try auto-fill from land analysis
-      const landRows = await fetch(`/api/planning/land?projectId=${id}`).then(r => r.json());
-      if (landRows.length > 0) {
-        const land = landRows[0];
+      if (land) {
         setInputs(prev => ({
           ...prev,
           landCost: land.landPriceTotal ?? 0,
-          totalUnits: land.maxUnits ?? 0,
+          totalUnits: siteplanUnits || (land.maxUnits ?? 0),
         }));
         toast({ title: "Data lahan diisi otomatis dari Analisis Lahan" });
       } else {
@@ -110,12 +116,14 @@ export default function FeasibilityPage() {
       // Also try auto-fill selling price from product planning
       const prodRows = await fetch(`/api/planning/product?projectId=${id}`).then(r => r.json());
       if (prodRows.length > 0) {
-        const avgPrice = prodRows.reduce((s: number, r: Record<string, number>) => s + r.sellingPrice, 0) / prodRows.length;
-        const totalUnitsFromProd = prodRows.reduce((s: number, r: Record<string, number>) => s + r.unitCount, 0);
+        const totalUnitsFromProd = prodRows.reduce((s: number, r: Record<string, number>) => s + Number(r.unitCount ?? 0), 0);
+        const avgPrice = totalUnitsFromProd > 0
+          ? prodRows.reduce((s: number, r: Record<string, number>) => s + Number(r.sellingPrice ?? 0) * Number(r.unitCount ?? 0), 0) / totalUnitsFromProd
+          : prodRows.reduce((s: number, r: Record<string, number>) => s + Number(r.sellingPrice ?? 0), 0) / prodRows.length;
         setInputs(prev => ({
           ...prev,
           sellingPricePerUnit: avgPrice || prev.sellingPricePerUnit,
-          totalUnits: totalUnitsFromProd || prev.totalUnits,
+          totalUnits: siteplanUnits || totalUnitsFromProd || prev.totalUnits,
         }));
         if (prodRows.length > 0) toast({ title: "Harga jual diisi otomatis dari Perencanaan Produk" });
       }
@@ -129,8 +137,9 @@ export default function FeasibilityPage() {
 
   const save = async () => {
     if (!projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
+    const lockedInputs = { ...inputs, totalUnits: baselineUnits ?? inputs.totalUnits };
     const payload = {
-      projectId, ...inputs,
+      projectId, ...lockedInputs,
       totalRevenue: result?.totalRevenue ?? 0,
       totalCost: result?.totalCost ?? 0,
       grossProfit: result?.grossProfit ?? 0,
@@ -226,6 +235,7 @@ export default function FeasibilityPage() {
   };
 
   const projectList = Array.isArray(projects) ? projects : [];
+  const hasLandMismatch = baselineUnits !== null && landMaxUnits !== null && baselineUnits !== landMaxUnits;
 
   const cashflowChartData = result?.monthlyCashflows.reduce((acc: { month: number; cumulative: number }[], cf, i) => {
     acc.push({ month: i + 1, cumulative: (acc[i - 1]?.cumulative ?? 0) + cf / 1_000_000 });
@@ -259,6 +269,15 @@ export default function FeasibilityPage() {
           </Link>
         ) : null}
       </div>
+
+      {projectId > 0 && baselineUnits !== null && (
+        <Card>
+          <CardContent className="p-3 text-xs text-muted-foreground">
+            Total unit dikunci dari siteplan: <span className="font-semibold text-foreground">{baselineUnits} unit</span>
+            {hasLandMismatch && <> · Max unit Analisis Lahan: <span className="font-semibold text-amber-600">{landMaxUnits} unit</span></>}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="biaya">
         <TabsList>
@@ -306,7 +325,7 @@ export default function FeasibilityPage() {
             <CardHeader><CardTitle className="text-sm">Asumsi Revenue</CardTitle></CardHeader>
             <CardContent className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <NumField label="Harga Jual/Unit (Rp)" value={inputs.sellingPricePerUnit} onChange={v => setI("sellingPricePerUnit", v)} prefix="Rp" hint="Auto-fill dari Perencanaan Produk" currency />
-              <NumField label="Total Unit" value={inputs.totalUnits} onChange={v => setI("totalUnits", v)} unit="unit" hint="Auto-fill dari Analisis Lahan" />
+              <NumField label="Total Unit" value={baselineUnits ?? inputs.totalUnits} onChange={v => setI("totalUnits", v)} unit="unit" hint="Dikunci dari siteplan" disabled={baselineUnits !== null} />
               <NumField label="Booking Fee/Unit (Rp)" value={inputs.bookingFeePerUnit} onChange={v => setI("bookingFeePerUnit", v)} prefix="Rp" currency />
               <NumField label="Sales/Bulan" value={inputs.salesPerMonth} onChange={v => setI("salesPerMonth", v)} unit="unit/bln" />
               <NumField label="Porsi KPR (%)" value={inputs.kprPct} onChange={v => setI("kprPct", v)} unit="%" />

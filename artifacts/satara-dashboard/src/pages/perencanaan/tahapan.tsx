@@ -43,6 +43,14 @@ type StageRow = {
   blocks: BlockRow[];
 };
 
+type BaselineSummary = {
+  totalUnitShapes: number;
+  duplicateLabels: string[];
+  invalidLabels: string[];
+  unallocatedUnitLabels: string[];
+  stages?: Array<{ stageCode: string; stageName: string; totalUnits: number; blocks: Array<Record<string, any>> }>;
+};
+
 const newBlock = (index = 0): BlockRow => ({
   blockCode: String.fromCharCode(65 + index),
   unitCount: 0,
@@ -80,6 +88,7 @@ export default function TahapanPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isImportingSiteplan, setIsImportingSiteplan] = useState(false);
+  const [baselineSummary, setBaselineSummary] = useState<BaselineSummary | null>(null);
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -88,7 +97,11 @@ export default function TahapanPage() {
 
   async function selectProject(id: number) {
     setProjectId(id);
-    const rows = await fetch(`/api/planning/stages?projectId=${id}`).then(r => r.json());
+    const [rows, summary] = await Promise.all([
+      fetch(`/api/planning/stages?projectId=${id}`).then(r => r.json()),
+      fetch(`/api/planning/stages/siteplan-summary?projectId=${id}`).then(r => r.json()).catch(() => null),
+    ]);
+    setBaselineSummary(summary && !summary.error ? summary : null);
     setStages(Array.isArray(rows) && rows.length ? rows.map(normalizeStage) : [newStage(0)]);
   }
 
@@ -173,6 +186,8 @@ export default function TahapanPage() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error ?? "Gagal menyimpan");
       setStages(data.map(normalizeStage));
+      const summary = await fetch(`/api/planning/stages/siteplan-summary?projectId=${projectId}`).then(r => r.json()).catch(() => null);
+      if (summary && !summary.error) setBaselineSummary(summary);
       await qc.invalidateQueries({ queryKey: ["planning-stages", projectId] });
       toast({ title: "Rencana tahapan tersimpan" });
       return true;
@@ -198,6 +213,8 @@ export default function TahapanPage() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error ?? "Gagal publish");
       setStages(data.stages.map(normalizeStage));
+      const summary = await fetch(`/api/planning/stages/siteplan-summary?projectId=${projectId}`).then(r => r.json()).catch(() => null);
+      if (summary && !summary.error) setBaselineSummary(summary);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["units-list"] }),
         qc.invalidateQueries({ queryKey: ["projects"] }),
@@ -239,33 +256,39 @@ export default function TahapanPage() {
         toast({ title: "Belum ada unit di Analisis Lahan", description: "Gambar atau simpan shape Unit Rumah dulu di Analisis Lahan.", variant: "destructive" });
         return;
       }
+      setBaselineSummary(data);
 
       setStages(prev => {
-        const baseStage = prev[0] ?? newStage(0);
         const existingBlocks = new Map<string, BlockRow>();
         for (const stage of prev) {
-          for (const block of stage.blocks) existingBlocks.set(block.blockCode.toUpperCase(), block);
+          for (const block of stage.blocks) existingBlocks.set(`${stage.stageCode.toUpperCase()}::${block.blockCode.toUpperCase()}`, block);
         }
-        const importedBlocks = blocks.map((block: Record<string, any>, idx: number) => {
-          const code = String(block.blockCode ?? String.fromCharCode(65 + idx)).toUpperCase();
-          const existing = existingBlocks.get(code);
+        const incomingStages = Array.isArray(data.stages) && data.stages.length
+          ? data.stages
+          : [{ stageCode: "T1", stageName: "Tahap 1", blocks }];
+        return incomingStages.map((stage: Record<string, any>, stageIdx: number) => {
+          const stageCode = String(stage.stageCode ?? `T${stageIdx + 1}`).toUpperCase();
+          const existingStage = prev.find(row => row.stageCode.toUpperCase() === stageCode) ?? newStage(stageIdx);
           return {
-            ...(existing ?? newBlock(idx)),
-            blockCode: code,
-            unitCount: Number(block.unitCount ?? existing?.unitCount ?? 0),
-            unitType: String(block.unitType ?? existing?.unitType ?? "Tipe 36"),
-            subkonId: Number(block.subkonId ?? existing?.subkonId ?? 0) || null,
-            subkonName: String(block.subkonName ?? existing?.subkonName ?? ""),
-            siteplanUnitCount: Number(block.unitCount ?? 0),
-            validationStatus: "sesuai",
+            ...existingStage,
+            stageCode,
+            stageName: existingStage.stageName || String(stage.stageName ?? `Tahap ${stageIdx + 1}`),
+            blocks: (Array.isArray(stage.blocks) ? stage.blocks : []).map((block: Record<string, any>, idx: number) => {
+              const code = String(block.blockCode ?? String.fromCharCode(65 + idx)).toUpperCase();
+              const existing = existingBlocks.get(`${stageCode}::${code}`);
+              return {
+                ...(existing ?? newBlock(idx)),
+                blockCode: code,
+                unitCount: Number(block.unitCount ?? 0),
+                unitType: String(block.unitType ?? existing?.unitType ?? "Tipe 36"),
+                subkonId: Number(block.subkonId ?? existing?.subkonId ?? 0) || null,
+                subkonName: String(block.subkonName ?? existing?.subkonName ?? ""),
+                siteplanUnitCount: Number(block.unitCount ?? 0),
+                validationStatus: "sesuai",
+              };
+            }),
           };
         });
-        return [{
-          ...baseStage,
-          stageCode: baseStage.stageCode || "T1",
-          stageName: baseStage.stageName || "Tahap 1",
-          blocks: importedBlocks,
-        }, ...prev.slice(1)];
       });
       toast({ title: "Struktur ditarik dari Analisis Lahan", description: `${data.totalUnitShapes} unit siteplan masuk ke draft tahap pertama.` });
     } catch (err) {
@@ -276,6 +299,20 @@ export default function TahapanPage() {
   }
 
   const projectList = Array.isArray(projects) ? projects as Project[] : [];
+  const baselineTotal = baselineSummary?.totalUnitShapes ?? 0;
+  const unallocatedTotal = baselineSummary?.unallocatedUnitLabels?.length ?? 0;
+  const invalidTotal = (baselineSummary?.duplicateLabels?.length ?? 0) + (baselineSummary?.invalidLabels?.length ?? 0);
+  const syncStatus = !projectId
+    ? "Pilih proyek"
+    : baselineTotal <= 0
+    ? "Belum ada unit siteplan"
+    : invalidTotal > 0
+    ? "Label perlu dibenahi"
+    : unallocatedTotal > 0
+    ? "Unit belum masuk tahap"
+    : totalUnits === baselineTotal
+    ? "Sinkron"
+    : "Perlu sinkron ulang";
 
   return (
     <div className="space-y-4">
@@ -329,6 +366,25 @@ export default function TahapanPage() {
         ))}
       </div>
 
+      {projectId > 0 && (
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-muted-foreground">Status Baseline Siteplan</div>
+                <div className={cn("text-sm font-semibold mt-0.5", syncStatus === "Sinkron" ? "text-emerald-600" : "text-amber-600")}>{syncStatus}</div>
+              </div>
+              <div className="grid grid-cols-4 gap-3 text-xs">
+                <div><span className="text-muted-foreground">Unit siteplan</span><div className="font-semibold">{baselineTotal}</div></div>
+                <div><span className="text-muted-foreground">Masuk tahap</span><div className="font-semibold">{totalUnits}</div></div>
+                <div><span className="text-muted-foreground">Belum tahap</span><div className="font-semibold">{unallocatedTotal}</div></div>
+                <div><span className="text-muted-foreground">Masalah label</span><div className="font-semibold">{invalidTotal}</div></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {!projectId ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Pilih proyek untuk mulai menyusun tahapan.</CardContent></Card>
       ) : (
@@ -372,7 +428,7 @@ export default function TahapanPage() {
                           return (
                             <tr key={blockIdx} className="border-b last:border-0">
                               <td className="px-2 py-1.5"><Input disabled={isLocked} className="h-7 w-16 text-xs" value={block.blockCode} onChange={e => setBlockField(stageIdx, blockIdx, "blockCode", e.target.value.toUpperCase())} /></td>
-                              <td className="px-2 py-1.5"><NumericInput disabled={isLocked} className="h-7 w-20 text-xs" value={block.unitCount} onChange={v => setBlockField(stageIdx, blockIdx, "unitCount", Math.round(v))} /></td>
+                              <td className="px-2 py-1.5"><NumericInput disabled className="h-7 w-20 text-xs bg-muted/40" value={block.unitCount} onChange={() => {}} /></td>
                               <td className="px-2 py-1.5"><Input disabled={isLocked} className="h-7 w-24 text-xs" value={block.unitType} onChange={e => setBlockField(stageIdx, blockIdx, "unitType", e.target.value)} /></td>
                               <td className="px-2 py-1.5"><CurrencyInput disabled={isLocked} className="h-7 w-32 text-xs" value={block.pricePerUnit} onChange={raw => setBlockField(stageIdx, blockIdx, "pricePerUnit", raw ? Number(raw) : 0)} /></td>
                               <td className="px-2 py-1.5 font-medium tabular-nums">{fmtCurrency(salesValue)}</td>

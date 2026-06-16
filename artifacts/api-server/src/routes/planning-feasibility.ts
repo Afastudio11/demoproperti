@@ -1,9 +1,18 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { planningFeasibilityTable } from "@workspace/db/schema";
+import { planningFeasibilityTable, planningSiteplanShapesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 const router = Router();
+type PlanningFeasibilityInsert = typeof planningFeasibilityTable.$inferInsert;
+
+async function applySiteplanUnitBaseline(body: PlanningFeasibilityInsert): Promise<PlanningFeasibilityInsert> {
+  const projectId = Number(body.projectId);
+  if (!Number.isFinite(projectId)) return body;
+  const shapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId));
+  const totalUnits = shapes.filter(shape => shape.shapeType === "unit").length;
+  return totalUnits > 0 ? { ...body, totalUnits } : body;
+}
 
 router.get("/planning/feasibility", async (req, res) => {
   const projectId = req.query.projectId ? Number(req.query.projectId) : undefined;
@@ -14,13 +23,16 @@ router.get("/planning/feasibility", async (req, res) => {
 });
 
 router.post("/planning/feasibility", async (req, res) => {
-  const [row] = await db.insert(planningFeasibilityTable).values(req.body).returning();
+  const body = await applySiteplanUnitBaseline(req.body as PlanningFeasibilityInsert);
+  const [row] = await db.insert(planningFeasibilityTable).values(body).returning();
   res.status(201).json(row);
 });
 
 router.patch("/planning/feasibility/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const [row] = await db.update(planningFeasibilityTable).set(req.body).where(eq(planningFeasibilityTable.id, id)).returning();
+  const [existing] = await db.select().from(planningFeasibilityTable).where(eq(planningFeasibilityTable.id, id));
+  const body = await applySiteplanUnitBaseline({ ...existing, ...req.body } as PlanningFeasibilityInsert);
+  const [row] = await db.update(planningFeasibilityTable).set(body).where(eq(planningFeasibilityTable.id, id)).returning();
   res.json(row);
 });
 
