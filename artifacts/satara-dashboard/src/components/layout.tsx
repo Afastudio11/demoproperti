@@ -27,16 +27,16 @@ import {
 // ─── Module key → nav item definition ────────────────────────────────────────
 const navItems = [
   { moduleKey: "executive_overview", name: "Executive Overview", path: "/teamwork", icon: LayoutDashboard },
-  { moduleKey: "projects", name: "Daftar Proyek", path: "/projects", icon: Building2 },
   { moduleKey: "akuisisi", name: "Akuisisi Lahan", path: "/akuisisi", icon: MapPin },
   { moduleKey: "perencanaan", name: "Perencanaan", path: "/perencanaan", icon: Calculator },
+  { moduleKey: "projects", name: "Daftar Proyek", path: "/projects", icon: Building2 },
   { moduleKey: "legal", name: "Legal & Perizinan", path: "/legal", icon: ShieldCheck },
   { moduleKey: "marketing", name: "Marketing", path: "/marketing", icon: Megaphone },
-  { moduleKey: "branding", name: "Branding", path: "/branding", icon: Megaphone },
   { moduleKey: "administrasi", name: "Administrasi KPR", path: "/administrasi", icon: FileCheck2 },
   { moduleKey: "produksi", name: "Produksi", path: "/produksi", icon: HardHat },
-  { moduleKey: "hr", name: "Human Resource", path: "/hr", icon: UserCog },
   { moduleKey: "finance", name: "Finance & Accounting", path: "/finance", icon: Landmark },
+  { moduleKey: "branding", name: "Branding", path: "/branding", icon: Megaphone },
+  { moduleKey: "hr", name: "Human Resource", path: "/hr", icon: UserCog },
   { moduleKey: "settings", name: "Settings", path: "/settings", icon: Settings },
 ];
 
