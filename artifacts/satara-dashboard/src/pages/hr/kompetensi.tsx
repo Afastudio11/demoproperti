@@ -238,7 +238,7 @@ export default function Kompetensi() {
       {/* Definition Form */}
       {showDefForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl border shadow-xl w-full max-w-none max-h-[90vh] overflow-y-auto">
+          <div className="bg-background rounded-xl border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b"><h3 className="font-semibold">{editDefId ? "Edit" : "Tambah"} Definisi Kompetensi</h3><button onClick={() => { setShowDefForm(false); setDefForm(EMPTY_DEF); setEditDefId(null); }}><X className="size-4" /></button></div>
             <div className="p-4 space-y-3">
               {[{ label: "Jabatan *", field: "position" }, { label: "Nama Kompetensi *", field: "competencyName" }, { label: "Deskripsi", field: "description" }].map(({ label, field }) => (
@@ -260,7 +260,7 @@ export default function Kompetensi() {
       {/* Score Form */}
       {showScoreForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl border shadow-xl w-full max-w-none max-h-[90vh] overflow-y-auto">
+          <div className="bg-background rounded-xl border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b"><h3 className="font-semibold">{editScoreId ? "Edit" : "Input"} Assessment Kompetensi</h3><button onClick={() => { setShowScoreForm(false); setScoreForm(EMPTY_SCORE); setEditScoreId(null); }}><X className="size-4" /></button></div>
             <div className="p-4 space-y-3">
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Karyawan *</label><select value={scoreForm.employeeId} onChange={e => setScoreForm((f: any) => ({ ...f, employeeId: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value={0}>— Pilih karyawan —</option>{employees.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>

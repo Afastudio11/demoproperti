@@ -13,6 +13,7 @@ import {
   customerComplaintsTable,
   banksTable,
   unitsTable,
+  projectsTable,
 } from "@workspace/db";
 import { eq, and, desc, or, like, sql } from "drizzle-orm";
 import { recordFinanceCashflow } from "../lib/finance-sync";
@@ -851,6 +852,7 @@ router.get("/administrasi/target-realisasi", async (req, res) => {
     const akadAll = await db.select().from(akadRecordsTable);
     const sp3kAll = await db.select().from(sp3kRecordsTable);
     const customers = await db.select().from(customersTable);
+    const projects = await db.select().from(projectsTable);
 
     const akadBulan = akadAll.filter(a => {
       if (!a.akadDate || a.status !== "selesai") return false;
@@ -865,6 +867,7 @@ router.get("/administrasi/target-realisasi", async (req, res) => {
     });
 
     const totalTargetAkad = targets.reduce((s, t) => s + t.targetAkad, 0);
+    const totalTargetBerkas = targets.reduce((s, t) => s + t.targetBerkas, 0);
     const totalAkad = akadBulan.length;
     const totalSp3k = sp3kBulan.length;
 
@@ -887,9 +890,65 @@ router.get("/administrasi/target-realisasi", async (req, res) => {
       if (cust?.picAdmin && picPerforma[cust.picAdmin]) picPerforma[cust.picAdmin].sp3k++;
     });
 
+    const projectNames = new Map(projects.map(p => [p.id, p.nama]));
+    const targetByProject = new Map<string, {
+      targetIds: number[];
+      projectId: number | null;
+      projectName: string;
+      targetAkad: number;
+      targetBerkas: number;
+    }>();
+
+    targets.forEach(target => {
+      const projectId = target.projectId ?? null;
+      const key = projectId === null ? "all" : String(projectId);
+      const current = targetByProject.get(key) ?? {
+        targetIds: [],
+        projectId,
+        projectName: projectId === null ? "Semua Proyek" : projectNames.get(projectId) ?? `Proyek #${projectId}`,
+        targetAkad: 0,
+        targetBerkas: 0,
+      };
+      current.targetIds.push(target.id);
+      current.targetAkad += target.targetAkad;
+      current.targetBerkas += target.targetBerkas;
+      targetByProject.set(key, current);
+    });
+
+    const countForProject = <T extends { customerId: number }>(rows: T[], projectId: number | null) => rows.filter(row => {
+      const customer = customers.find(c => c.id === row.customerId);
+      return projectId === null || customer?.projectId === projectId;
+    }).length;
+
+    const countPipelineForProject = (projectId: number | null) => customers.filter(c =>
+      (projectId === null || c.projectId === projectId)
+      && ["SETOR_BANK", "OTS", "REVISI", "SP3K", "AKAD"].includes(c.pipelineStatus ?? "")
+    ).length;
+
+    const targetBreakdown = Array.from(targetByProject.values()).map(row => {
+      const akad = countForProject(akadBulan, row.projectId);
+      const sp3k = countForProject(sp3kBulan, row.projectId);
+      const pipeline = countPipelineForProject(row.projectId);
+      return {
+        ...row,
+        akad,
+        sp3k,
+        pipeline,
+        akadRate: row.targetAkad > 0 ? Math.round((akad / row.targetAkad) * 100) : 0,
+        sp3kRate: row.targetAkad > 0 ? Math.round((sp3k / row.targetAkad) * 100) : 0,
+        pipelineRate: row.targetAkad > 0 ? Math.round((pipeline / row.targetAkad) * 100) : 0,
+      };
+    }).sort((a, b) => {
+      if (a.projectId === null) return -1;
+      if (b.projectId === null) return 1;
+      return a.projectName.localeCompare(b.projectName);
+    });
+
     res.json({
       targets,
+      targetBreakdown,
       totalTargetAkad,
+      totalTargetBerkas,
       totalAkad,
       totalSp3k,
       akadRate: totalTargetAkad > 0 ? Math.round((totalAkad / totalTargetAkad) * 100) : 0,

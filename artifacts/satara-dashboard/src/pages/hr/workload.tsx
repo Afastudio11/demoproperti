@@ -165,7 +165,7 @@ export default function Workload() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl border shadow-xl w-full max-w-none max-h-[90vh] overflow-y-auto">
+          <div className="bg-background rounded-xl border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b"><h3 className="font-semibold">{editId ? "Edit" : "Input"} Beban Kerja</h3><button onClick={resetForm}><X className="size-4" /></button></div>
             <div className="p-4 space-y-3">
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Divisi</label><CategorySelect type="hr_divisi" defaults={DEFAULT_DIVISIONS} value={form.division ?? ""} onChange={v => setForm((f: any) => ({ ...f, division: v }))} /></div>

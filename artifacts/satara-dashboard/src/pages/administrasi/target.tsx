@@ -10,8 +10,8 @@ const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background fo
 function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-background border rounded-xl p-5 w-full max-w-none shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-background border rounded-xl p-5 w-full max-w-xl shadow-lg max-h-[90vh] overflow-y-auto">
         {children}
       </div>
     </div>
@@ -46,6 +46,7 @@ export default function TargetPage() {
   });
 
   const set = (f: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [f]: e.target.value }));
+  const targetBreakdown = data?.targetBreakdown ?? [];
 
   return (
     <div className="space-y-4">
@@ -54,7 +55,13 @@ export default function TargetPage() {
           <h1 className="text-xl font-semibold">Target & Realisasi</h1>
           <p className="text-sm text-muted-foreground">Tracking progress terhadap target bulanan dan tahunan</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
+        <button
+          onClick={() => {
+            setForm(p => ({ ...p, year: String(selectedYear), month: String(selectedMonth) }));
+            setShowForm(true);
+          }}
+          className="flex items-center gap-1.5 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90"
+        >
           <Plus className="size-3.5" /> Set Target
         </button>
       </div>
@@ -93,6 +100,70 @@ export default function TargetPage() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* Target Breakdown */}
+      <div className="bg-card border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <Target className="size-3.5" />
+              <span>Rincian Target per Proyek</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Komposisi angka target {MONTHS[selectedMonth - 1]} {selectedYear} yang muncul di kartu utama.
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-[11px] text-muted-foreground">Total target berkas</div>
+            <div className="text-sm font-semibold">{data?.totalTargetBerkas ?? 0}</div>
+          </div>
+        </div>
+        {isLoading ? (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">Memuat rincian target...</div>
+        ) : targetBreakdown.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+            Belum ada target untuk periode ini. Klik Set Target untuk mulai mengisi per proyek.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[760px]">
+              <thead>
+                <tr className="border-b">
+                  {["Proyek", "Target Akad", "Target Berkas", "Realisasi Akad", "SP3K", "Pipeline", "Progress Akad"].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-left text-[11px] font-medium text-muted-foreground">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {targetBreakdown.map((row: any) => (
+                  <tr key={row.projectId ?? "all"} className="border-b last:border-0 hover:bg-muted/20">
+                    <td className="px-3 py-2.5">
+                      <div className="font-semibold">{row.projectName}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {row.projectId ? `ID Proyek ${row.projectId}` : "Target global"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 font-semibold">{row.targetAkad}</td>
+                    <td className="px-3 py-2.5">{row.targetBerkas}</td>
+                    <td className="px-3 py-2.5 text-emerald-600 font-semibold">{row.akad}</td>
+                    <td className="px-3 py-2.5 text-blue-600 font-semibold">{row.sp3k}</td>
+                    <td className="px-3 py-2.5">{row.pipeline}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-24 bg-border rounded-full overflow-hidden">
+                          <div className={cn("h-full rounded-full", row.akadRate >= 100 ? "bg-emerald-500" : row.akadRate >= 50 ? "bg-blue-500" : "bg-amber-500")}
+                            style={{ width: `${Math.min(row.akadRate, 100)}%` }} />
+                        </div>
+                        <span className="text-xs font-medium">{row.akadRate}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Rasio Table */}
@@ -144,6 +215,19 @@ export default function TargetPage() {
       <Modal open={showForm} onClose={() => setShowForm(false)}>
         <h3 className="font-semibold text-sm mb-4">Set Target Bulanan</h3>
         <form onSubmit={e => { e.preventDefault(); save.mutate(form); }} className="space-y-3">
+          {targetBreakdown.length > 0 && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <div className="text-xs font-semibold mb-2">Target yang sudah tersimpan</div>
+              <div className="space-y-1.5">
+                {targetBreakdown.map((row: any) => (
+                  <div key={row.projectId ?? "all"} className="flex items-center justify-between gap-3 text-xs">
+                    <span className="truncate text-muted-foreground">{row.projectName}</span>
+                    <span className="font-semibold whitespace-nowrap">{row.targetAkad} akad / {row.targetBerkas} berkas</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div><label className="text-xs font-medium text-muted-foreground">Proyek</label>
             <select className={selectCls} value={form.projectId} onChange={set("projectId")}>
               <option value="">-- Semua Proyek --</option>

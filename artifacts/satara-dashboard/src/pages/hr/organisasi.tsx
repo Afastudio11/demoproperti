@@ -165,7 +165,7 @@ export default function Organisasi() {
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl border shadow-xl w-full max-w-none max-h-[90vh] overflow-y-auto">
+          <div className="bg-background rounded-xl border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-semibold">{editId ? "Edit" : "Tambah"} Karyawan</h3>
               <button onClick={resetForm}><X className="size-4" /></button>

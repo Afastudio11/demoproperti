@@ -311,7 +311,7 @@ export default function HutangCenter() {
       {/* ── Add form modal ─────────────────────────────────────────────────────── */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-none p-5 space-y-3 max-h-[90vh] overflow-y-auto">
+          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3 max-h-[90vh] overflow-y-auto">
             <h2 className="text-sm font-semibold">Tambah Kredit / Investment</h2>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -363,7 +363,7 @@ export default function HutangCenter() {
       {/* ── Edit modal ─────────────────────────────────────────────────────────── */}
       {editingRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-none p-5 space-y-3 max-h-[90vh] overflow-y-auto">
+          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-2">
               <Pencil className="size-4 text-muted-foreground" />
               <h2 className="text-sm font-semibold">Edit Kredit / Investment</h2>

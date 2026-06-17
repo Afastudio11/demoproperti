@@ -389,7 +389,7 @@ export default function ProgressUnit() {
                 <Plus className="size-3.5" /> Tambah Unit
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-none w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-5xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-sm">Tambah Unit ke Proyek</DialogTitle>
               </DialogHeader>

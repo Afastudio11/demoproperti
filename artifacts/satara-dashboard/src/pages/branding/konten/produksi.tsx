@@ -121,7 +121,7 @@ export default function BrandingProduksi() {
 
       {confirmCard && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-none p-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6">
             <h3 className="font-bold text-slate-800 mb-2">Konfirmasi Perubahan Status</h3>
             <p className="text-sm text-slate-600 mb-4">Pindahkan <span className="font-medium">"{confirmCard.title}"</span> dari <b>{STAGE_LABELS[confirmCard.from]}</b> → <b>{STAGE_LABELS[confirmCard.to]}</b>?</p>
             <div className="flex gap-2">

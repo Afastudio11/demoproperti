@@ -110,7 +110,7 @@ export default function BrandingPR() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-none p-6 my-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 my-4">
             <h2 className="font-bold text-slate-800 mb-4">{editId ? "Edit" : "Tambah"} Kegiatan PR</h2>
             <div className="space-y-3">
               <div><label className="text-xs text-slate-500 block mb-1">Judul Kegiatan</label><input type="text" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={form.title} onChange={e => setForm({...form, title: e.target.value})} /></div>

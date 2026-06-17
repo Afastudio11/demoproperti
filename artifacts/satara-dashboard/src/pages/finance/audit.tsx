@@ -146,7 +146,7 @@ export default function AuditCenter() {
       {/* Action modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-none p-5 space-y-3">
+          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3">
             <h2 className="text-sm font-semibold">Tindak Lanjut Temuan</h2>
             <p className="text-xs text-muted-foreground">{selected.description}</p>
             <div>
@@ -166,7 +166,7 @@ export default function AuditCenter() {
       {/* Add finding form */}
       {showAddForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-none p-5 space-y-3">
+          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3">
             <h2 className="text-sm font-semibold">Tambah Temuan Manual</h2>
             <div><label className="text-xs text-muted-foreground">Jenis Temuan</label>
               <select value={addForm.findingType} onChange={e => setAddForm(p => ({ ...p, findingType: e.target.value }))} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background">

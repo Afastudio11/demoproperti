@@ -16,8 +16,8 @@ const STATUS_BADGE: Record<string, string> = { belum: "bg-zinc-100 text-zinc-600
 function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-background border rounded-xl p-5 w-full max-w-none shadow-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-background border rounded-xl p-5 w-full max-w-xl shadow-lg max-h-[90vh] overflow-y-auto">
         {children}
       </div>
     </div>

@@ -165,7 +165,7 @@ export default function KppTracker() {
       {/* Form Tambah KPP */}
       {showKppForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-none p-5 space-y-3 max-h-[90vh] overflow-y-auto">
+          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3 max-h-[90vh] overflow-y-auto">
             <h2 className="text-sm font-semibold">Tambah KPP Baru</h2>
             <div>
               <label className="text-xs text-muted-foreground">Nama Proyek</label>
@@ -208,7 +208,7 @@ export default function KppTracker() {
       {/* Form Bayar KPP */}
       {showPayForm !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-none p-5 space-y-3">
+          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3">
             <h2 className="text-sm font-semibold">Input Pembayaran KPP</h2>
             <div className="text-xs text-muted-foreground">{facilities.find(f => f.id === showPayForm)?.projectName}</div>
             {[

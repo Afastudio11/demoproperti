@@ -52,8 +52,8 @@ const selectCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background fo
 function Modal({ open, onClose, children, title }: { open: boolean; onClose: () => void; children: React.ReactNode; title: string }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-background border rounded-xl p-5 w-full max-w-none shadow-xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-background border rounded-xl p-5 w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold">{title}</h3>
           <button onClick={onClose}><X className="size-4 text-muted-foreground" /></button>

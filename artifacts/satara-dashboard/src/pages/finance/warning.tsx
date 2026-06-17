@@ -149,7 +149,7 @@ export default function EarlyWarningSystem() {
       {/* Add form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-none p-5 space-y-3">
+          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3">
             <h2 className="text-sm font-semibold">Tambah Alert Manual</h2>
             <div><label className="text-xs text-muted-foreground">Level</label>
               <select value={form.level} onChange={e => setForm(p => ({ ...p, level: e.target.value }))} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background">
