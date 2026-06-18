@@ -10,6 +10,7 @@ export type SubkonMasterOption = {
   phone: string | null;
   address: string | null;
   status: string;
+  defaultValuePerUnit: number;
   defaultRetentionPerUnit: number;
   defaultMaintenanceMonths: number;
   contractCount: number;
@@ -71,6 +72,7 @@ export async function listSubkonMaster(projectId?: number): Promise<SubkonMaster
       phone: master.phone,
       address: master.address,
       status: master.status,
+      defaultValuePerUnit: master.defaultValuePerUnit,
       defaultRetentionPerUnit: master.defaultRetentionPerUnit,
       defaultMaintenanceMonths: master.defaultMaintenanceMonths,
       ...stat,
@@ -107,6 +109,7 @@ export async function createOrGetSubkonMaster(input: {
   picName?: unknown;
   phone?: unknown;
   address?: unknown;
+  defaultValuePerUnit?: unknown;
   defaultRetentionPerUnit?: unknown;
   defaultMaintenanceMonths?: unknown;
   notes?: unknown;
@@ -126,6 +129,7 @@ export async function createOrGetSubkonMaster(input: {
     picName: typeof input.picName === "string" && input.picName.trim() ? input.picName.trim() : null,
     phone: typeof input.phone === "string" && input.phone.trim() ? input.phone.trim() : null,
     address: typeof input.address === "string" && input.address.trim() ? input.address.trim() : null,
+    defaultValuePerUnit: Number(input.defaultValuePerUnit ?? 0) || 0,
     defaultRetentionPerUnit: Number(input.defaultRetentionPerUnit ?? 500000) || 500000,
     defaultMaintenanceMonths: Number(input.defaultMaintenanceMonths ?? 3) || 3,
     notes: typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null,

@@ -1,0 +1,86 @@
+# Revisi Flow Proyek, Siteplan, Subkon, QR Pembayaran, dan Kredit/Investment
+
+## Summary
+Sistem akan dibuat lebih mengikuti flow bisnis: proyek bisa di-archive, siteplan menjadi sumber grouping tahap/termin, pembayaran subkon mengikuti progress aktual, approval dan QR bukti bayar diperbaiki, serta Kredit/Investment dipisahkan dari Hutang dan terhubung langsung ke unit, akad cair, dan tracking pelunasan bank.
+
+## Key Changes
+- **Daftar Proyek**
+  - Tambahkan action `Archive` di Daftar Proyek dengan dialog konfirmasi.
+  - API `DELETE /api/projects/:id` melakukan soft delete dengan `status = archived`, bukan hard delete.
+  - Daftar proyek default hanya menampilkan proyek aktif; histori relasi tetap aman.
+
+- **Siteplan → Tahap/Termin**
+  - Di `Analisis Lahan & Siteplan`, user bisa multi-select unit di canvas lalu assign ke `stageCode`, `blockCode`, dan `terminGroup` lewat panel samping.
+  - Panel menampilkan kelompok: tahap, blok, termin, jumlah unit, tipe, subkon, progress rata-rata, dan unit yang belum lengkap.
+  - `Rencana Tahapan` menarik grouping dari siteplan; publish ditolak kalau ada unit belum masuk kelompok.
+
+- **Menu Flow**
+  - Pastikan urutan sidebar dan Settings:
+    `Executive Overview → Akuisisi Lahan → Perencanaan → Daftar Proyek → Legal & Perizinan → Marketing → Administrasi KPR → Produksi → Finance & Accounting → Branding → Human Resource → Settings`.
+
+- **Kontrak & Pembayaran Subkon**
+  - Termin kontrak menjadi preset/milestone, bukan nominal fixed bagi rata.
+  - Saat submit pembayaran, nominal dihitung dari delta progress:
+    `grossEligibleAmount = contractValue × (progressCurrent - progressPrevious) / 100`.
+  - Retensi dipotong proporsional; `netPayment = grossEligibleAmount - retentionDeducted`.
+  - Tambahkan preview kelayakan submit agar tombol tidak mati tanpa alasan; UI menampilkan alasan jika belum bisa submit.
+
+- **Approval & QR Bukti Bayar**
+  - Alur Finance: `Approve → Tandai Dibayar → Cetak Bukti Bayar`.
+  - PDF sebelum paid disebut PDF Approval, bukan bukti bayar.
+  - QR public proof hanya `verified: true` jika status payment sudah `paid`.
+
+- **Kredit/Investment Terhubung Akad Cair**
+  - Pisahkan `Kredit & Investment` dari draft `Hutang`.
+  - Kredit/Investment dibuat sebagai fasilitas bank/investor yang punya:
+    project, tahap/blok, daftar unit teralokasi, plafon/pokok, bunga, tenor, outstanding, dan status.
+  - User bisa mengalokasikan kredit ke unit tertentu, contoh: Proyek A Tahap 1 untuk 10 unit rumah.
+  - Saat nasabah/unit di daftar `Akad Cair` menerima pencairan, sistem mengurangi outstanding kredit yang terhubung ke unit/tahap tersebut.
+  - Jika 10 unit yang dialokasikan sudah akad cair penuh dan total pencairannya menutup pokok kredit, fasilitas otomatis menjadi lunas/closed.
+  - Tambahkan dashboard tracking: total unit dialokasikan, unit sudah akad cair, nilai cair, sisa pokok, bunga bulan ini, dan estimasi pelunasan.
+  - Jika tidak ada alokasi unit spesifik, fallback sinkronisasi boleh berdasarkan proyek+tahap, tapi UI harus memberi warning bahwa mapping belum presisi.
+
+- **Bunga Kredit**
+  - Bunga dicatat sebagai biaya bunga bulanan, bukan pengurang pokok.
+  - Rumus default: `interestMonthly = outstandingPrincipal × annualInterestRate / 12`.
+  - Sistem membuat/menampilkan accrual bunga bulanan dan cash out saat dibayar.
+  - Pokok hanya berkurang dari akad cair terkait atau pembayaran pokok manual.
+
+- **Hutang Finance**
+  - Upload draft hutang tetap untuk supplier/vendor/internal/project liabilities.
+  - Data bank/KPP/kredit investasi tidak dicampur ke Hutang kecuali memang di-link sebagai kewajiban proyek.
+  - Jika draft hutang upload berisi bank/kredit, sistem beri opsi mapping ke Kredit/Investment, bukan otomatis masuk Hutang umum.
+
+## API / Data Interface Changes
+- Tambah endpoint:
+  - `DELETE /api/projects/:id` untuk archive.
+  - `GET /api/projects?includeArchived=1`.
+  - `GET /api/produksi/subkon/contracts/:id/payment-preview?paymentTermId=...`.
+  - `POST /api/finance/credit-facilities`.
+  - `GET /api/finance/credit-facilities`.
+  - `POST /api/finance/credit-facilities/:id/allocations` untuk link unit/tahap.
+  - `POST /api/finance/credit-facilities/:id/sync-akad` untuk sinkronisasi manual dari akad cair.
+  - `POST /api/finance/credit-facilities/accrue-interest?period=YYYY-MM`.
+- Tambah data model minimal:
+  - `finance_credit_facilities`: bank/investor, projectId, stageCode, plafon, outstandingPrincipal, interestRateAnnual, tenorMonths, startDate, status.
+  - `finance_credit_allocations`: facilityId, unitId, projectId, stageCode, allocatedPrincipal.
+  - `finance_credit_transactions`: facilityId, type `principal_reduction|interest_accrual|interest_payment|manual_payment`, amount, source, sourceId, transactionDate.
+
+## Test Plan
+- Archive proyek dari Daftar Proyek; pastikan hilang dari daftar aktif dan histori tetap ada.
+- Buat siteplan 5 unit; pilih 3 unit untuk Termin 1 dan 2 unit untuk Termin 2; tarik ke Rencana Tahapan dan publish sesuai grouping.
+- Buat kontrak subkon Rp100 juta; progress naik 10%; pengajuan termin menghasilkan pembayaran 10% dari kontrak sebelum retensi.
+- Submit approval dari Produksi harus aktif jika preview valid; jika tidak valid, alasan tampil jelas.
+- Approve dan mark paid dari Finance; QR baru verified setelah status paid.
+- Buat fasilitas Kredit Bank untuk Proyek A Tahap 1 dengan alokasi 10 unit.
+- Cairkan akad untuk beberapa unit teralokasi; outstanding kredit berkurang sesuai nominal cair.
+- Cairkan semua 10 unit sampai menutup pokok; fasilitas berubah lunas/closed.
+- Jalankan accrual bunga bulanan; pastikan bunga tercatat sebagai biaya/cash out bunga dan tidak mengurangi pokok.
+- Upload draft hutang supplier; pastikan tidak masuk ke Kredit/Investment.
+
+## Assumptions
+- Hapus proyek memakai archive aman.
+- Grouping siteplan dilakukan manual lewat multi-select unit dan panel tahap/termin.
+- Pembayaran subkon selalu berdasarkan kenaikan progress aktual.
+- PDF Bukti Bayar hanya boleh muncul setelah payment `paid`.
+- Bunga kredit dicatat sebagai biaya bunga bulanan; pokok berkurang dari akad cair atau pembayaran pokok manual.

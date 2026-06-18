@@ -187,6 +187,7 @@ router.patch("/produksi/subkon/master/:id", async (req, res) => {
       const duplicate = all.find(row => row.id !== id && row.normalizedName === body.normalizedName);
       if (duplicate) return res.status(409).json({ error: "Nama subkon sudah ada di master" });
     }
+    if ("defaultValuePerUnit" in body) body.defaultValuePerUnit = Number(body.defaultValuePerUnit ?? existing.defaultValuePerUnit) || 0;
     if ("defaultRetentionPerUnit" in body) body.defaultRetentionPerUnit = Number(body.defaultRetentionPerUnit ?? existing.defaultRetentionPerUnit) || existing.defaultRetentionPerUnit;
     if ("defaultMaintenanceMonths" in body) body.defaultMaintenanceMonths = Number(body.defaultMaintenanceMonths ?? existing.defaultMaintenanceMonths) || existing.defaultMaintenanceMonths;
     const [row] = await db.update(subkonMasterTable).set(body).where(eq(subkonMasterTable.id, id)).returning();

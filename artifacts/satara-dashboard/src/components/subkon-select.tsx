@@ -23,6 +23,7 @@ type SubkonMasterOption = {
   phone: string | null;
   address: string | null;
   status: string;
+  defaultValuePerUnit: number;
   defaultRetentionPerUnit: number;
   defaultMaintenanceMonths: number;
   contractCount: number;

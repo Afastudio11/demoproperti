@@ -477,8 +477,8 @@ export default function TahapanPage() {
                                   onValueChange={v => setBlockField(stageIdx, blockIdx, "subkonId", Number(v) || null)}
                                   onOptionChange={option => {
                                     setBlockField(stageIdx, blockIdx, "subkonName", option?.name ?? "");
-                                    if (option?.defaultRetentionPerUnit && !block.subkonValuePerUnit) {
-                                      setBlockField(stageIdx, blockIdx, "subkonValuePerUnit", option.defaultRetentionPerUnit);
+                                    if (option?.defaultValuePerUnit && option.defaultValuePerUnit > 0) {
+                                      setBlockField(stageIdx, blockIdx, "subkonValuePerUnit", option.defaultValuePerUnit);
                                     }
                                   }}
                                 />

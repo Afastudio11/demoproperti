@@ -15,6 +15,7 @@ type SubkonMaster = {
   picName: string | null;
   phone: string | null;
   status: string;
+  defaultValuePerUnit: number;
   defaultRetentionPerUnit: number;
   defaultMaintenanceMonths: number;
   contractCount: number;
@@ -25,6 +26,7 @@ const emptyForm = {
   name: "",
   picName: "",
   phone: "",
+  defaultValuePerUnit: 0,
   defaultRetentionPerUnit: 500000,
   defaultMaintenanceMonths: 3,
 };
@@ -80,33 +82,43 @@ export default function SubkonMasterPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-lg font-bold">Master Subkon</h1>
-        <p className="text-sm text-muted-foreground">Satu data subkon untuk rencana, kontrak, unit, material, dan QC.</p>
+        <p className="text-sm text-muted-foreground">Satu data subkon untuk rencana, kontrak, unit, material, dan QC. Harga per unit otomatis terbawa saat subkon dipilih di Perencanaan.</p>
       </div>
 
       <Card>
-        <CardContent className="p-4 grid md:grid-cols-5 gap-3 items-end">
-          <div className="space-y-1.5 md:col-span-2">
-            <Label className="text-xs">Nama Subkon</Label>
-            <Input className="h-8 text-sm" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="CV / mandor / subkon..." />
+        <CardContent className="p-4 space-y-3">
+          <div className="grid md:grid-cols-3 gap-3">
+            <div className="space-y-1.5 md:col-span-1">
+              <Label className="text-xs">Nama Subkon</Label>
+              <Input className="h-8 text-sm" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="CV / mandor / subkon..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">PIC</Label>
+              <Input className="h-8 text-sm" value={form.picName} onChange={e => setForm(p => ({ ...p, picName: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Telepon</Label>
+              <Input className="h-8 text-sm" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">PIC</Label>
-            <Input className="h-8 text-sm" value={form.picName} onChange={e => setForm(p => ({ ...p, picName: e.target.value }))} />
+          <div className="grid md:grid-cols-3 gap-3 items-end">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Harga per Unit (Rp)</Label>
+              <NumericInput className="h-8 text-sm" value={form.defaultValuePerUnit} onChange={v => setForm(p => ({ ...p, defaultValuePerUnit: v }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Default Retensi per Unit (Rp)</Label>
+              <NumericInput className="h-8 text-sm" value={form.defaultRetentionPerUnit} onChange={v => setForm(p => ({ ...p, defaultRetentionPerUnit: v }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Default Maintenance (bulan)</Label>
+              <NumericInput className="h-8 text-sm" value={form.defaultMaintenanceMonths} onChange={v => setForm(p => ({ ...p, defaultMaintenanceMonths: Math.round(v) }))} />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Telepon</Label>
-            <Input className="h-8 text-sm" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
-          </div>
-          <Button className="h-8 gap-1.5" onClick={() => createMutation.mutate()} disabled={!form.name.trim() || createMutation.isPending}>
-            <Plus className="size-3.5" /> Tambah
-          </Button>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Default Retensi/Unit</Label>
-            <NumericInput className="h-8 text-sm" value={form.defaultRetentionPerUnit} onChange={v => setForm(p => ({ ...p, defaultRetentionPerUnit: v }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Default Maintenance (bulan)</Label>
-            <NumericInput className="h-8 text-sm" value={form.defaultMaintenanceMonths} onChange={v => setForm(p => ({ ...p, defaultMaintenanceMonths: Math.round(v) }))} />
+          <div className="flex justify-end">
+            <Button className="h-8 gap-1.5" onClick={() => createMutation.mutate()} disabled={!form.name.trim() || createMutation.isPending}>
+              <Plus className="size-3.5" /> Tambah Subkon
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -115,7 +127,9 @@ export default function SubkonMasterPage() {
         <table className="w-full text-sm">
           <thead className="bg-muted/40 border-b">
             <tr>
-              {["Subkon", "PIC", "Telepon", "Default", "Kontrak", "Status", ""].map(h => <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>)}
+              {["Subkon", "PIC", "Telepon", "Harga/Unit", "Retensi/Unit", "Maintenance", "Kontrak", "Status", ""].map(h => (
+                <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -124,7 +138,9 @@ export default function SubkonMasterPage() {
                 <td className="px-3 py-2 font-medium">{row.name}</td>
                 <td className="px-3 py-2 text-muted-foreground">{row.picName || "-"}</td>
                 <td className="px-3 py-2 text-muted-foreground">{row.phone || "-"}</td>
-                <td className="px-3 py-2 text-xs">Rp {row.defaultRetentionPerUnit.toLocaleString("id-ID")} · {row.defaultMaintenanceMonths} bln</td>
+                <td className="px-3 py-2 text-xs font-medium text-emerald-600">Rp {row.defaultValuePerUnit.toLocaleString("id-ID")}</td>
+                <td className="px-3 py-2 text-xs text-amber-600">Rp {row.defaultRetentionPerUnit.toLocaleString("id-ID")}</td>
+                <td className="px-3 py-2 text-xs">{row.defaultMaintenanceMonths} bln</td>
                 <td className="px-3 py-2 text-xs">{row.activeContractCount}/{row.contractCount} aktif</td>
                 <td className="px-3 py-2">
                   <Select value={row.status} onValueChange={status => updateRow(row.id, { status })}>

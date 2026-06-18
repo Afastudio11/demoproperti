@@ -11,6 +11,7 @@ export const subkonMasterTable = pgTable("subkon_master", {
   phone: text("phone"),
   address: text("address"),
   status: text("status").notNull().default("active"),
+  defaultValuePerUnit: integer("default_value_per_unit").notNull().default(0),
   defaultRetentionPerUnit: integer("default_retention_per_unit").notNull().default(500000),
   defaultMaintenanceMonths: integer("default_maintenance_months").notNull().default(3),
   notes: text("notes"),

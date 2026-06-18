@@ -78,7 +78,7 @@ async function downloadReceipt(items: Approval[]) {
   const lightBg     = [248, 248, 248] as [number, number, number];
   const white       = [255, 255, 255] as [number, number, number];
 
-  const docId = `SPK-${String(c?.id ?? 0).padStart(4, "0")}-T${p?.terminNumber ?? "?"}-${String(first.paymentId).padStart(5, "0")}`;
+  const docId = `SPK-${String(c?.id ?? 0).padStart(4, "0")}-P${String(first.paymentId).padStart(5, "0")}`;
   const tanggal = p?.paymentDate ?? new Date().toISOString().split("T")[0];
   const generatedAt = new Date().toLocaleString("id-ID");
   const isPaid = true;
@@ -181,7 +181,7 @@ async function downloadReceipt(items: Approval[]) {
   drawField("Nama Subkontraktor", c?.subkonName ?? "-", M, y + 2, infoColW);
   drawField("Proyek / Tahap", `#${c?.projectId ?? "-"} / ${c?.stageCode ?? "-"}`, M, y + 17, halfW);
   drawField("Jumlah Unit", `${c?.unitCount ?? 0} unit`, M + halfW + 6, y + 17, halfW);
-  drawField("Termin ke-", `T${p?.terminNumber ?? "-"}`, M, y + 32, halfW);
+  drawField("Klaim Progress", `${p?.progressPrevious ?? 0}% \u2192 ${p?.progressCurrent ?? 0}%`, M, y + 32, halfW);
   drawField("Tanggal Bayar", tanggal, M + halfW + 6, y + 32, halfW);
 
   y = Math.max(y + qrSize + 22, y + 52);
@@ -233,7 +233,7 @@ async function downloadReceipt(items: Approval[]) {
 
   const tableRows = [
     { label: "Nilai Kontrak Total", value: fmtRp(c?.contractValue ?? 0), sub: true },
-    { label: "Nilai Termin", value: fmtRp(p?.grossEligibleAmount ?? 0), sub: false },
+    { label: `Nilai Klaim (progress ${p?.progressPrevious ?? 0}% \u2192 ${p?.progressCurrent ?? 0}%)`, value: fmtRp(p?.grossEligibleAmount ?? 0), sub: false },
     { label: `Retensi (${c && p ? Math.round(((p.retentionDeducted ?? 0) / Math.max(p.grossEligibleAmount ?? 1, 1)) * 100) : 0}%)`, value: `– ${fmtRp(p?.retentionDeducted ?? 0)}`, sub: false },
   ];
 
@@ -437,7 +437,7 @@ export default function FinanceApproval() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold">Approval Subkon</h1>
-        <p className="text-sm text-muted-foreground">Mirror pengajuan termin dari Produksi, diproses oleh Finance.</p>
+        <p className="text-sm text-muted-foreground">Pengajuan pembayaran berdasarkan progress per unit dari Produksi, diproses oleh Finance.</p>
       </div>
       {isLoading ? (
         <div className="py-10 text-center text-sm text-muted-foreground">Memuat approval...</div>
@@ -455,7 +455,7 @@ export default function FinanceApproval() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-sm font-semibold">{c?.subkonName ?? "-"}</h2>
-                    <Badge variant="outline">Termin {p?.terminNumber ?? "-"}</Badge>
+                    <Badge variant="outline">Progress {p?.progressPrevious ?? 0}% → {p?.progressCurrent ?? 0}%</Badge>
                     <Badge className={p?.status === "paid" ? "bg-emerald-600" : ""}>{p?.status ?? "-"}</Badge>
                     {isLocked && <Badge variant="outline" className="gap-1 text-muted-foreground"><Lock className="size-2.5" /> Terkunci</Badge>}
                   </div>
@@ -472,7 +472,7 @@ export default function FinanceApproval() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
                 <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Progress</span><div className="font-semibold">{p?.progressPrevious ?? 0}% {"→"} {p?.progressCurrent ?? 0}%</div></div>
                 <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Velocity</span><div className="font-semibold">{p?.velocity ?? 0}%</div></div>
-                <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Nilai Termin</span><div className="font-semibold">{fmtRp(p?.grossEligibleAmount ?? 0)}</div></div>
+                <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Nilai Klaim</span><div className="font-semibold">{fmtRp(p?.grossEligibleAmount ?? 0)}</div></div>
                 <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Retensi</span><div className="font-semibold">{fmtRp(p?.retentionDeducted ?? 0)}</div></div>
                 <div className="rounded-md bg-muted/40 p-2"><span className="text-muted-foreground">Catatan</span><div className="font-semibold truncate">{p?.notes ?? "-"}</div></div>
               </div>

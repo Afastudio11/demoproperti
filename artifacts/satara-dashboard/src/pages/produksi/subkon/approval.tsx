@@ -74,7 +74,7 @@ async function downloadReceipt(items: Approval[]) {
   const lightBg     = [248, 248, 248] as [number, number, number];
   const white       = [255, 255, 255] as [number, number, number];
 
-  const docId = `SPK-${String(c?.id ?? 0).padStart(4, "0")}-T${p?.terminNumber ?? "?"}-${String(first.paymentId).padStart(5, "0")}`;
+  const docId = `SPK-${String(c?.id ?? 0).padStart(4, "0")}-P${String(first.paymentId).padStart(5, "0")}`;
   const tanggal = p?.paymentDate ?? new Date().toISOString().split("T")[0];
   const generatedAt = new Date().toLocaleString("id-ID");
   const isPaid = true;
@@ -177,7 +177,7 @@ async function downloadReceipt(items: Approval[]) {
   drawField("Nama Subkontraktor", c?.subkonName ?? "-", M, y + 2, infoColW);
   drawField("Proyek / Tahap", `#${c?.projectId ?? "-"} / ${c?.stageCode ?? "-"}`, M, y + 17, halfW);
   drawField("Jumlah Unit", `${c?.unitCount ?? 0} unit`, M + halfW + 6, y + 17, halfW);
-  drawField("Termin ke-", `T${p?.terminNumber ?? "-"}`, M, y + 32, halfW);
+  drawField("Klaim Progress", `${p?.progressPrevious ?? 0}% \u2192 ${p?.progressCurrent ?? 0}%`, M, y + 32, halfW);
   drawField("Tanggal Bayar", tanggal, M + halfW + 6, y + 32, halfW);
 
   y = Math.max(y + qrSize + 22, y + 52);
@@ -229,7 +229,7 @@ async function downloadReceipt(items: Approval[]) {
 
   const tableRows = [
     { label: "Nilai Kontrak Total", value: fmtRp(c?.contractValue ?? 0), sub: true },
-    { label: "Nilai Termin", value: fmtRp(p?.grossEligibleAmount ?? 0), sub: false },
+    { label: `Nilai Klaim (progress ${p?.progressPrevious ?? 0}% \u2192 ${p?.progressCurrent ?? 0}%)`, value: fmtRp(p?.grossEligibleAmount ?? 0), sub: false },
     { label: `Retensi (${c && p ? Math.round(((p.retentionDeducted ?? 0) / Math.max(p.grossEligibleAmount ?? 1, 1)) * 100) : 0}%)`, value: `– ${fmtRp(p?.retentionDeducted ?? 0)}`, sub: false },
   ];
 
@@ -435,7 +435,7 @@ export default function SubkonApproval() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <span className="font-medium text-sm">{first.contract?.subkonName ?? "—"} {first.contract?.stageCode ? `(${first.contract.stageCode})` : ""}</span>
-                    <span className="text-xs text-muted-foreground ml-2">— Termin T{first.payment?.terminNumber ?? "?"} — {fmtRp(first.payment?.netPayment ?? 0)}</span>
+                    <span className="text-xs text-muted-foreground ml-2">— Progress {first.payment?.progressPrevious ?? 0}%{"\u2192"}{first.payment?.progressCurrent ?? 0}% — {fmtRp(first.payment?.netPayment ?? 0)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Progress: {first.payment?.progressCurrent}%</span>
