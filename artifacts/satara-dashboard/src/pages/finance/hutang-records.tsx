@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { PeriodFilter, filterByPeriod, type DateRange } from "@/components/finance/period-filter";
 
 const fmtRp = (n: number) => {
   if (Math.abs(n) >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)} M`;
@@ -81,6 +82,7 @@ export default function HutangRecordsPage() {
   const [filterProject, setFilterProject] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("outstanding");
+  const [period, setPeriod] = useState<DateRange>({ from: null, to: null });
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [editRow, setEditRow] = useState<DebtRecord | null>(null);
   const [editForm, setEditForm] = useState(EMPTY_EDIT);
@@ -115,13 +117,15 @@ export default function HutangRecordsPage() {
 
   const filteredRecords = useMemo(() => {
     if (!data) return [];
-    return data.records.filter((r) => {
+    let list = data.records.filter((r) => {
       if (filterProject !== "all" && r.projectName !== filterProject) return false;
       if (filterCategory !== "all" && r.category !== filterCategory) return false;
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
       return true;
     });
-  }, [data, filterProject, filterCategory, filterStatus]);
+    list = filterByPeriod(list as any, period, "createdAt" as any) as any;
+    return list;
+  }, [data, filterProject, filterCategory, filterStatus, period]);
 
   const groupedFiltered = useMemo(() => {
     const map: Record<string, DebtRecord[]> = {};
@@ -277,6 +281,7 @@ export default function HutangRecordsPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+        <PeriodFilter value={period} onChange={setPeriod} />
         <Select value={filterProject} onValueChange={setFilterProject}>
           <SelectTrigger className="w-44 h-8 text-xs">
             <SelectValue placeholder="Semua Proyek" />
@@ -309,9 +314,10 @@ export default function HutangRecordsPage() {
             <SelectItem value="paid">Lunas</SelectItem>
           </SelectContent>
         </Select>
-        {(filterProject !== "all" || filterCategory !== "all" || filterStatus !== "outstanding") && (
+        {(filterProject !== "all" || filterCategory !== "all" || filterStatus !== "outstanding" || period.from) && (
           <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => {
             setFilterProject("all"); setFilterCategory("all"); setFilterStatus("outstanding");
+            setPeriod({ from: null, to: null });
           }}>
             <X className="h-3 w-3" /> Reset
           </Button>

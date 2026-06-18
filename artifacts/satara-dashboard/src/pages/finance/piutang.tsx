@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Plus, Upload, TrendingDown } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { PeriodFilter, filterByPeriod, type DateRange } from "@/components/finance/period-filter";
 
 function fmtRp(n: number) {
   if (Math.abs(n) >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)} M`;
@@ -18,6 +19,7 @@ export default function PiutangCenter() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [catFilter, setCatFilter] = useState("semua");
+  const [period, setPeriod] = useState<DateRange>({ from: null, to: null });
 
   const { data, isLoading } = useQuery({
     queryKey: ["finance-piutang"],
@@ -36,7 +38,11 @@ export default function PiutangCenter() {
   });
 
   const totalCurrent = CATS.reduce((s, c) => s + (byCategory[c]?.current ?? 0), 0);
-  const filtered = catFilter === "semua" ? records : records.filter(r => r.category === catFilter);
+  const filtered = useMemo(() => {
+    let list = catFilter === "semua" ? records : records.filter((r: any) => r.category === catFilter);
+    list = filterByPeriod(list, period, "createdAt" as any);
+    return list;
+  }, [records, catFilter, period]);
   const isEmpty = records.length === 0;
 
   return (
@@ -46,10 +52,13 @@ export default function PiutangCenter() {
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Piutang Center</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Monitoring seluruh tagihan yang belum diterima perusahaan</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
-          <Plus className="size-3.5" />
-          Tambah Piutang
-        </button>
+        <div className="flex items-center gap-2">
+          <PeriodFilter value={period} onChange={setPeriod} />
+          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
+            <Plus className="size-3.5" />
+            Tambah Piutang
+          </button>
+        </div>
       </div>
 
       {isEmpty && !isLoading && (

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { PeriodFilter, filterByPeriod, type DateRange } from "@/components/finance/period-filter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -164,6 +165,7 @@ export default function FinanceAkadCair() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [edits, setEdits] = useState<Record<number, any>>({});
+  const [period, setPeriod] = useState<DateRange>({ from: null, to: null });
   const { data, isLoading } = useQuery({
     queryKey: ["finance-akad-cair"],
     queryFn: () => fetch("/api/finance/akad-cair").then(r => r.json()),
@@ -180,14 +182,21 @@ export default function FinanceAkadCair() {
     },
   });
 
-  const rows: any[] = data?.records ?? [];
+  const allRows: any[] = data?.records ?? [];
+  const rows = useMemo(
+    () => filterByPeriod(allRows, period, "createdAt" as any),
+    [allRows, period]
+  );
   const totals = rows.reduce((acc, r) => ({ akad: acc.akad + (r.akadAmount ?? 0), cair: acc.cair + (r.nominalCair ?? 0), sisa: acc.sisa + (r.sisaBelumCair ?? 0) }), { akad: 0, cair: 0, sisa: 0 });
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">Akad Cair Tracker</h1>
-        <p className="text-sm text-muted-foreground">Mirror akad dari Administrasi, status cair & multi-pencairan dikelola Finance.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-semibold">Akad Cair Tracker</h1>
+          <p className="text-sm text-muted-foreground">Mirror akad dari Administrasi, status cair & multi-pencairan dikelola Finance.</p>
+        </div>
+        <PeriodFilter value={period} onChange={setPeriod} />
       </div>
       <div className="grid grid-cols-3 gap-3">
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Nilai Akad</p><p className="text-xl font-bold">{fmtRp(totals.akad)}</p></CardContent></Card>
@@ -200,7 +209,7 @@ export default function FinanceAkadCair() {
             {["Customer", "Unit", "Bank", "Nilai Akad", "Progress", "Status Cair", "Total Cair", "Sisa", "Pencairan", ""].map(h => <th key={h} className="px-3 py-2 text-left whitespace-nowrap">{h}</th>)}
           </tr></thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={10} className="py-10 text-center text-muted-foreground">Memuat...</td></tr> : rows.map(r => {
+            {isLoading ? <tr><td colSpan={10} className="py-10 text-center text-muted-foreground">Memuat...</td></tr> : rows.map((r: any) => {
               const e = edits[r.id] ?? {};
               const status = e.statusCair ?? r.statusCair;
               const isLocked = !!r.finance?.lockedAt;

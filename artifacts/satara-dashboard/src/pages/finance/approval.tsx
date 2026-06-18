@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { PeriodFilter, filterByPeriod, type DateRange } from "@/components/finance/period-filter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -386,6 +387,7 @@ async function downloadReceipt(items: Approval[]) {
 export default function FinanceApproval() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [period, setPeriod] = useState<DateRange>({ from: null, to: null });
   const { data = [], isLoading } = useQuery({
     queryKey: ["finance-approval-subkon"],
     queryFn: () => fetch("/api/finance/approval/subkon").then(r => r.json()) as Promise<Approval[]>,
@@ -428,16 +430,20 @@ export default function FinanceApproval() {
   });
 
   const grouped = useMemo(() => {
+    const filtered = filterByPeriod(data as any, period, "createdAt" as any) as Approval[];
     const map = new Map<number, Approval[]>();
-    data.forEach(a => map.set(a.paymentId, [...(map.get(a.paymentId) ?? []), a]));
+    filtered.forEach(a => map.set(a.paymentId, [...(map.get(a.paymentId) ?? []), a]));
     return Array.from(map.values());
-  }, [data]);
+  }, [data, period]);
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">Approval Subkon</h1>
-        <p className="text-sm text-muted-foreground">Pengajuan pembayaran berdasarkan progress per unit dari Produksi, diproses oleh Finance.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-semibold">Approval Subkon</h1>
+          <p className="text-sm text-muted-foreground">Pengajuan pembayaran berdasarkan progress per unit dari Produksi, diproses oleh Finance.</p>
+        </div>
+        <PeriodFilter value={period} onChange={setPeriod} />
       </div>
       {isLoading ? (
         <div className="py-10 text-center text-sm text-muted-foreground">Memuat approval...</div>
