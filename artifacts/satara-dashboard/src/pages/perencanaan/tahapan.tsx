@@ -49,6 +49,7 @@ type BaselineSummary = {
   invalidLabels: string[];
   unallocatedUnitLabels: string[];
   stages?: Array<{ stageCode: string; stageName: string; totalUnits: number; blocks: Array<Record<string, any>> }>;
+  blocks?: Array<Record<string, any>>;
 };
 
 const newBlock = (index = 0): BlockRow => ({
@@ -101,8 +102,19 @@ export default function TahapanPage() {
       fetch(`/api/planning/stages?projectId=${id}`).then(r => r.json()),
       fetch(`/api/planning/stages/siteplan-summary?projectId=${id}`).then(r => r.json()).catch(() => null),
     ]);
-    setBaselineSummary(summary && !summary.error ? summary : null);
-    setStages(Array.isArray(rows) && rows.length ? rows.map(normalizeStage) : [newStage(0)]);
+    const cleanSummary = summary && !summary.error ? summary : null;
+    const savedStages = Array.isArray(rows) && rows.length ? rows.map(normalizeStage) : [];
+    const savedTotal = savedStages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount, 0), 0);
+    const siteplanStages = cleanSummary?.totalUnitShapes > 0 ? buildStagesFromSiteplan(cleanSummary, savedStages) : [];
+    setBaselineSummary(cleanSummary);
+    if (
+      cleanSummary?.totalUnitShapes > 0
+      && (savedTotal !== cleanSummary.totalUnitShapes || stageShapeSignature(savedStages) !== stageShapeSignature(siteplanStages))
+    ) {
+      setStages(siteplanStages);
+    } else {
+      setStages(savedStages.length ? savedStages : [newStage(0)]);
+    }
   }
 
   function normalizeStage(stage: Record<string, any>): StageRow {
@@ -130,6 +142,48 @@ export default function TahapanPage() {
         contractId: block.contractId ?? null,
       })) : [newBlock(0)],
     };
+  }
+
+  function buildStagesFromSiteplan(summary: BaselineSummary, existingStages = stages): StageRow[] {
+    const existingBlocks = new Map<string, BlockRow>();
+    for (const stage of existingStages) {
+      for (const block of stage.blocks) existingBlocks.set(`${stage.stageCode.toUpperCase()}::${block.blockCode.toUpperCase()}`, block);
+    }
+    const incomingStages = Array.isArray(summary.stages) && summary.stages.length
+      ? summary.stages
+      : [{ stageCode: "T1", stageName: "Tahap 1", blocks: Array.isArray(summary.blocks) ? summary.blocks : [] }];
+    if (!incomingStages.length) return [newStage(0)];
+    return incomingStages.map((stage: Record<string, any>, stageIdx: number) => {
+      const stageCode = String(stage.stageCode ?? `T${stageIdx + 1}`).toUpperCase();
+      const existingStage = existingStages.find(row => row.stageCode.toUpperCase() === stageCode) ?? newStage(stageIdx);
+      const incomingBlocks = Array.isArray(stage.blocks) ? stage.blocks : [];
+      return {
+        ...existingStage,
+        stageCode,
+        stageName: String(stage.stageName ?? existingStage.stageName ?? `Tahap ${stageIdx + 1}`),
+        blocks: incomingBlocks.length ? incomingBlocks.map((block: Record<string, any>, idx: number) => {
+          const code = String(block.blockCode ?? String.fromCharCode(65 + idx)).toUpperCase();
+          const existing = existingBlocks.get(`${stageCode}::${code}`);
+          return {
+            ...(existing ?? newBlock(idx)),
+            blockCode: code,
+            unitCount: Number(block.unitCount ?? 0),
+            unitType: String(block.unitType ?? existing?.unitType ?? "Tipe 36"),
+            subkonId: Number(block.subkonId ?? existing?.subkonId ?? 0) || null,
+            subkonName: String(block.subkonName ?? existing?.subkonName ?? ""),
+            siteplanUnitCount: Number(block.unitCount ?? 0),
+            validationStatus: "sesuai",
+          };
+        }) : [newBlock(0)],
+      };
+    });
+  }
+
+  function stageShapeSignature(rows: StageRow[]) {
+    return rows
+      .flatMap(stage => stage.blocks.map(block => `${stage.stageCode.toUpperCase()}::${block.blockCode.toUpperCase()}::${block.unitCount}`))
+      .sort()
+      .join("|");
   }
 
   const isLocked = stages.some(stage => !!stage.lockedAt);
@@ -257,39 +311,7 @@ export default function TahapanPage() {
         return;
       }
       setBaselineSummary(data);
-
-      setStages(prev => {
-        const existingBlocks = new Map<string, BlockRow>();
-        for (const stage of prev) {
-          for (const block of stage.blocks) existingBlocks.set(`${stage.stageCode.toUpperCase()}::${block.blockCode.toUpperCase()}`, block);
-        }
-        const incomingStages = Array.isArray(data.stages) && data.stages.length
-          ? data.stages
-          : [{ stageCode: "T1", stageName: "Tahap 1", blocks }];
-        return incomingStages.map((stage: Record<string, any>, stageIdx: number) => {
-          const stageCode = String(stage.stageCode ?? `T${stageIdx + 1}`).toUpperCase();
-          const existingStage = prev.find(row => row.stageCode.toUpperCase() === stageCode) ?? newStage(stageIdx);
-          return {
-            ...existingStage,
-            stageCode,
-            stageName: existingStage.stageName || String(stage.stageName ?? `Tahap ${stageIdx + 1}`),
-            blocks: (Array.isArray(stage.blocks) ? stage.blocks : []).map((block: Record<string, any>, idx: number) => {
-              const code = String(block.blockCode ?? String.fromCharCode(65 + idx)).toUpperCase();
-              const existing = existingBlocks.get(`${stageCode}::${code}`);
-              return {
-                ...(existing ?? newBlock(idx)),
-                blockCode: code,
-                unitCount: Number(block.unitCount ?? 0),
-                unitType: String(block.unitType ?? existing?.unitType ?? "Tipe 36"),
-                subkonId: Number(block.subkonId ?? existing?.subkonId ?? 0) || null,
-                subkonName: String(block.subkonName ?? existing?.subkonName ?? ""),
-                siteplanUnitCount: Number(block.unitCount ?? 0),
-                validationStatus: "sesuai",
-              };
-            }),
-          };
-        });
-      });
+      setStages(prev => buildStagesFromSiteplan(data, prev));
       toast({ title: "Struktur ditarik dari Analisis Lahan", description: `${data.totalUnitShapes} unit siteplan masuk ke draft tahap pertama.` });
     } catch (err) {
       toast({ title: "Gagal sinkron Analisis Lahan", description: err instanceof Error ? err.message : "Terjadi kesalahan", variant: "destructive" });
