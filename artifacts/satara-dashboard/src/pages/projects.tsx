@@ -18,12 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  useListProjects,
   useCreateProject,
 } from "@workspace/api-client-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey } from "@workspace/api-client-react";
-import { Search, Plus, MapPin, Layers, HardHat, ClipboardList, Archive } from "lucide-react";
+import { Search, Plus, MapPin, Layers, HardHat, ClipboardList, Archive, RotateCcw } from "lucide-react";
 import { Link } from "wouter";
 import { ProyekBerjalanDialog } from "@/components/proyek-berjalan-dialog";
 
@@ -63,7 +62,16 @@ const defaultForm = {
 
 export default function Projects() {
   const queryClient = useQueryClient();
-  const { data: projects, isLoading } = useListProjects();
+  const [showArchived, setShowArchived] = useState(false);
+  const { data: projects, isLoading } = useQuery({
+    queryKey: ["projects", showArchived ? "archived" : "active"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects${showArchived ? "?includeArchived=1" : ""}`);
+      if (!res.ok) throw new Error("Gagal memuat proyek");
+      const rows = await res.json();
+      return (Array.isArray(rows) ? rows : []) as any[];
+    },
+  });
   const createProject = useCreateProject();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -78,16 +86,34 @@ export default function Projects() {
       return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
       setArchiveTarget(null);
     },
   });
+  const restoreProject = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal restore proyek");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+    },
+  });
 
-  const filtered = projects?.filter(
-    (p) =>
+  const filtered = projects?.filter((p) => {
+    const isVisibleStatus = showArchived ? p.status === "archived" : p.status !== "archived";
+    const matchesSearch =
       p.nama.toLowerCase().includes(search.toLowerCase()) ||
-      p.lokasi?.toLowerCase().includes(search.toLowerCase())
-  );
+      p.lokasi?.toLowerCase().includes(search.toLowerCase());
+    return isVisibleStatus && matchesSearch;
+  });
 
   function validate() {
     const e: Record<string, string> = {};
@@ -122,6 +148,7 @@ export default function Projects() {
           targetEnd: form.targetEnd || undefined,
         },
       });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
       setOpen(false);
       setForm(defaultForm);
@@ -162,14 +189,36 @@ export default function Projects() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 bg-card p-2.5 rounded-lg border">
-        <Search className="size-4 text-muted-foreground ml-1 shrink-0" />
-        <Input
-          placeholder="Cari proyek..."
-          className="border-0 bg-transparent ring-offset-0 focus-visible:ring-0 h-7 text-sm"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3 bg-card p-2.5 rounded-lg border flex-1">
+          <Search className="size-4 text-muted-foreground ml-1 shrink-0" />
+          <Input
+            placeholder={showArchived ? "Cari proyek archived..." : "Cari proyek aktif..."}
+            className="border-0 bg-transparent ring-offset-0 focus-visible:ring-0 h-7 text-sm"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex rounded-lg border bg-card p-1">
+          <Button
+            type="button"
+            variant={!showArchived ? "default" : "ghost"}
+            size="sm"
+            className={!showArchived ? "h-8 bg-foreground text-background hover:bg-foreground/90" : "h-8"}
+            onClick={() => setShowArchived(false)}
+          >
+            Aktif
+          </Button>
+          <Button
+            type="button"
+            variant={showArchived ? "default" : "ghost"}
+            size="sm"
+            className={showArchived ? "h-8 bg-foreground text-background hover:bg-foreground/90" : "h-8"}
+            onClick={() => setShowArchived(true)}
+          >
+            Archived
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -177,14 +226,18 @@ export default function Projects() {
       ) : filtered?.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
           <div className="text-4xl">🏗️</div>
-          <div className="font-medium">Belum ada proyek</div>
+          <div className="font-medium">{showArchived ? "Belum ada proyek archived" : "Belum ada proyek"}</div>
           <div className="text-sm text-muted-foreground max-w-xs">
-            Tambahkan proyek pertama Satara Development. Proyek ini akan tersambung ke semua modul — Perencanaan, Legal, Marketing, Produksi, dan Serah Terima.
+            {showArchived
+              ? "Proyek yang di-archive akan muncul di sini dan bisa di-restore kapan saja."
+              : "Tambahkan proyek pertama Satara Development. Proyek ini akan tersambung ke semua modul — Perencanaan, Legal, Marketing, Produksi, dan Serah Terima."}
           </div>
-          <Button onClick={handleOpen} className="mt-2 gap-1.5 bg-foreground hover:bg-foreground/90 text-background">
-            <Plus className="size-4" />
-            Tambah Proyek Baru
-          </Button>
+          {!showArchived && (
+            <Button onClick={handleOpen} className="mt-2 gap-1.5 bg-foreground hover:bg-foreground/90 text-background">
+              <Plus className="size-4" />
+              Tambah Proyek Baru
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -246,22 +299,38 @@ export default function Projects() {
                   size="sm"
                   className="h-7 text-xs gap-1 bg-muted/50 border-border/50"
                   title="Lihat di Produksi"
+                  disabled={showArchived}
                 >
                   <Link href={`/produksi?projectId=${project.id}`}>
                     <HardHat className="size-3" />
                     Produksi
                   </Link>
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1 bg-muted/50 border-border/50 text-muted-foreground hover:text-amber-700"
-                  title="Archive proyek"
-                  onClick={() => setArchiveTarget(project)}
-                >
-                  <Archive className="size-3" />
-                </Button>
+                {showArchived ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1 bg-muted/50 border-border/50 text-muted-foreground hover:text-emerald-700"
+                    title="Restore proyek"
+                    onClick={() => restoreProject.mutate(project.id)}
+                    disabled={restoreProject.isPending}
+                  >
+                    <RotateCcw className="size-3" />
+                    Restore
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1 bg-muted/50 border-border/50 text-muted-foreground hover:text-amber-700"
+                    title="Archive proyek"
+                    onClick={() => setArchiveTarget(project)}
+                  >
+                    <Archive className="size-3" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -271,7 +340,10 @@ export default function Projects() {
       <ProyekBerjalanDialog
         open={openWizard}
         onOpenChange={setOpenWizard}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() })}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["projects"] });
+          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+        }}
       />
 
       <Dialog open={open} onOpenChange={setOpen}>

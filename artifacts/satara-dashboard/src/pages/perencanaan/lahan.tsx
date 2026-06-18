@@ -221,6 +221,17 @@ function nextLabel(label: string, index: number) {
   return `${prefix}${String(value).padStart(numberText.length, "0")}`;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function readUnitNumber(label: unknown, blockPrefix: string) {
+  const prefix = blockPrefix.trim();
+  if (!prefix) return null;
+  const match = String(label ?? "").trim().match(new RegExp(`^${escapeRegExp(prefix)}[-\\s]?(\\d+)$`, "i"));
+  return match ? Number(match[1]) : null;
+}
+
 async function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -1282,7 +1293,7 @@ export default function LahanPage() {
     setIsSaving(true);
     try {
       const results = await Promise.all(selectedUnits.map((shape, index) => {
-        const nomor = String(batchUnitForm.startNumber + index).padStart(2, "0");
+        const nomor = String(autoBatchStartNumber + index).padStart(2, "0");
         return fetch(`/api/planning/siteplan/shapes/${shape.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -1303,7 +1314,7 @@ export default function LahanPage() {
       if (failed) {
         toast({ title: "Sebagian shape gagal diblok", description: `${selectedUnits.length - failed}/${selectedUnits.length} unit berhasil.`, variant: "destructive" });
       } else {
-        toast({ title: `${selectedUnits.length} unit masuk ${batchUnitForm.stageCode} / ${batchUnitForm.terminGroup}`, description: `Label ${prefix}-${String(batchUnitForm.startNumber).padStart(2, "0")} sampai ${prefix}-${String(batchUnitForm.startNumber + selectedUnits.length - 1).padStart(2, "0")}` });
+        toast({ title: `${selectedUnits.length} unit masuk ${batchUnitForm.stageCode} / ${batchUnitForm.terminGroup}`, description: `Label ${prefix}-${String(autoBatchStartNumber).padStart(2, "0")} sampai ${prefix}-${String(autoBatchStartNumber + selectedUnits.length - 1).padStart(2, "0")}` });
       }
     } finally {
       setIsSaving(false);
@@ -1377,6 +1388,25 @@ export default function LahanPage() {
   const remainingLandArea = Math.max(0, Number(form.landArea || 0) - totalBidangArea);
   const density = totalBidangArea > 0 ? (totalPlannedUnits / totalBidangArea) * 1000 : 0;
   const hasMainPolygon = Array.isArray(selectedSiteplan?.mainPolygon) && selectedSiteplan.mainPolygon.length >= 3;
+  const autoBatchStartNumber = useMemo(() => {
+    const prefix = batchUnitForm.blockPrefix.trim().toUpperCase();
+    if (!prefix) return 1;
+    const selected = new Set(selectedShapeIds);
+    const maxNumber = unitShapes.reduce((max, shape) => {
+      if (selected.has(shape.id)) return max;
+      const number = readUnitNumber(shape.label, prefix);
+      return number && number > max ? number : max;
+    }, 0);
+    return maxNumber + 1;
+  }, [batchUnitForm.blockPrefix, selectedShapeIds, unitShapes]);
+  const selectedBatchUnitCount = useMemo(
+    () => shapeList.filter(shape => selectedShapeIds.includes(shape.id) && shape.shapeType === "unit").length,
+    [selectedShapeIds, shapeList],
+  );
+
+  useEffect(() => {
+    setBatchUnitForm(prev => prev.startNumber === autoBatchStartNumber ? prev : { ...prev, startNumber: autoBatchStartNumber });
+  }, [autoBatchStartNumber]);
 
   // Memoized shape list SVG — only recomputes when shapes/selection/zoom/tool change,
   // NOT on every draftPoints update (drag). This eliminates per-frame re-render of all shapes.
@@ -1404,39 +1434,29 @@ export default function LahanPage() {
           {isLocked && center && (
             <text x={center.x} y={center.y} textAnchor="middle" dominantBaseline="middle" fontSize={1.8 * hs} fill="#d97706" style={{ pointerEvents: "none", userSelect: "none" }}>⚿</text>
           )}
+          {center && (
+            <text
+              x={center.x}
+              y={center.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={1.35 * hs}
+              fontWeight={700}
+              fill="#ffffff"
+              stroke="rgba(0,0,0,0.72)"
+              strokeWidth={0.34 * sw}
+              paintOrder="stroke"
+              vectorEffect="non-scaling-stroke"
+              style={{ pointerEvents: "none", userSelect: "none" }}
+            >
+              {shape.label}
+            </text>
+          )}
         </g>
       );
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, drawTool]);
-
-  // Memoized label divs — only recomputes when shapes/zoom change, not on drag frames
-  const shapeLabels = useMemo(() => {
-    return shapeList.map(shape => {
-      if (shape.id === editingShapeId) return null;
-      const center = polygonCenter(Array.isArray(shape.polygon) ? shape.polygon : []);
-      return (
-        <div
-          key={`label-${shape.id}`}
-          className="absolute text-[9px] font-bold px-1 py-0.5 rounded select-none"
-          style={{
-            left: `${center.x}%`,
-            top: `${center.y}%`,
-            transform: "translate(-50%, -50%)",
-            background: "rgba(0,0,0,0.58)",
-            color: "#fff",
-            pointerEvents: "none",
-            lineHeight: 1.2,
-            whiteSpace: "nowrap",
-            fontSize: `${9 / canvasZoom}px`,
-          }}
-        >
-          {shape.label}
-        </div>
-      );
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapeList, editingShapeId, canvasZoom]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1930,7 +1950,6 @@ export default function LahanPage() {
                   ))}
                   </>); })()}
                 </svg>
-                {shapeLabels}
                 </div>
                 {/* Zoom controls — outside zoom wrapper so they stay fixed size */}
                 <div
@@ -2098,9 +2117,12 @@ export default function LahanPage() {
                             <Input className="h-7 text-xs" value={batchUnitForm.blockPrefix} onChange={e => setBatchUnitForm(p => ({ ...p, blockPrefix: e.target.value.toUpperCase() }))} placeholder="A" />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px]">Nomor Mulai</Label>
-                            <NumericInput className="h-7 text-xs" decimals={0} value={batchUnitForm.startNumber} onChange={v => setBatchUnitForm(p => ({ ...p, startNumber: Math.max(1, Math.round(v)) }))} />
+                            <Label className="text-[10px]">Nomor Berikutnya</Label>
+                            <NumericInput className="h-7 text-xs bg-muted/60" decimals={0} value={autoBatchStartNumber} disabled onChange={() => {}} />
                           </div>
+                          <p className="col-span-2 text-[10px] leading-snug text-muted-foreground">
+                            Otomatis dari nomor terakhir di Blok {batchUnitForm.blockPrefix || "A"}: unit terpilih akan jadi {batchUnitForm.blockPrefix || "A"}-{String(autoBatchStartNumber).padStart(2, "0")} sampai {batchUnitForm.blockPrefix || "A"}-{String(autoBatchStartNumber + Math.max(0, selectedBatchUnitCount - 1)).padStart(2, "0")}.
+                          </p>
                           <div className="space-y-1">
                             <Label className="text-[10px]">Tahap</Label>
                             <Input className="h-7 text-xs" value={batchUnitForm.stageCode} onChange={e => setBatchUnitForm(p => ({ ...p, stageCode: e.target.value.toUpperCase() }))} placeholder="T1" />
