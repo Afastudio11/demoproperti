@@ -110,7 +110,7 @@ export default function FinanceDashboard() {
         : "Kondisi kas bulan ini cukup terkendali. Pantau KPP, RAB, dan alert aktif.";
   const actionCards: Array<{ title: string; desc: string; href: string; icon: any; tone: ActionTone }> = [
     { title: "Cashflow", desc: "Lihat arus masuk, keluar, net, dan kategori pengeluaran.", href: "/finance/cashflow", icon: TrendingUp, tone: net >= 0 ? "success" : "warning" },
-    { title: "Hutang & KPP", desc: "Pantau kewajiban bank, investor, dan jadwal pelunasan.", href: "/finance/hutang", icon: Landmark, tone: hutangJT > piutangJT ? "warning" : "default" },
+    { title: "Kredit & Investment", desc: "Pantau fasilitas bank/investor yang terhubung ke unit dan Akad Cair.", href: "/finance/hutang", icon: Landmark, tone: hutangJT > piutangJT ? "warning" : "default" },
     { title: "Approval Subkon", desc: "Validasi pembayaran termin sebelum uang keluar.", href: "/finance/approval", icon: Shield, tone: "default" },
     { title: "Audit & Data Quality", desc: "Cari anomali, data bolong, dan transaksi yang perlu dikoreksi.", href: "/finance/data-quality", icon: AlertTriangle, tone: alerts.length > 0 ? "warning" : "default" },
     { title: "RAB Proyek", desc: "Bandingkan anggaran, realisasi, dan deviasi per proyek.", href: "/finance/rab", icon: Activity, tone: "default" },

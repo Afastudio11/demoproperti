@@ -21,9 +21,9 @@ import {
   useListProjects,
   useCreateProject,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey } from "@workspace/api-client-react";
-import { Search, Plus, MapPin, Layers, HardHat, ClipboardList } from "lucide-react";
+import { Search, Plus, MapPin, Layers, HardHat, ClipboardList, Archive } from "lucide-react";
 import { Link } from "wouter";
 import { ProyekBerjalanDialog } from "@/components/proyek-berjalan-dialog";
 
@@ -68,8 +68,20 @@ export default function Projects() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [openWizard, setOpenWizard] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<any | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const archiveProject = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal archive proyek");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+      setArchiveTarget(null);
+    },
+  });
 
   const filtered = projects?.filter(
     (p) =>
@@ -240,6 +252,16 @@ export default function Projects() {
                     Produksi
                   </Link>
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1 bg-muted/50 border-border/50 text-muted-foreground hover:text-amber-700"
+                  title="Archive proyek"
+                  onClick={() => setArchiveTarget(project)}
+                >
+                  <Archive className="size-3" />
+                </Button>
               </div>
             </div>
           ))}
@@ -327,6 +349,27 @@ export default function Projects() {
               className="bg-foreground hover:bg-foreground/90 text-background"
             >
               {createProject.isPending ? "Menyimpan..." : "Simpan Proyek"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!archiveTarget} onOpenChange={open => !open && setArchiveTarget(null)}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+          <DialogHeader>
+            <DialogTitle>Archive Proyek</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Proyek <span className="font-semibold text-foreground">{archiveTarget?.nama}</span> akan disembunyikan dari daftar aktif. Histori produksi, finance, legal, dan customer tetap aman.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setArchiveTarget(null)}>Batal</Button>
+            <Button
+              onClick={() => archiveTarget && archiveProject.mutate(archiveTarget.id)}
+              disabled={archiveProject.isPending}
+              className="bg-amber-600 text-white hover:bg-amber-700"
+            >
+              {archiveProject.isPending ? "Mengarsipkan..." : "Archive"}
             </Button>
           </DialogFooter>
         </DialogContent>

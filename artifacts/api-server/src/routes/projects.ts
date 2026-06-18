@@ -11,7 +11,9 @@ const router: IRouter = Router();
 
 router.get("/projects", async (req, res) => {
   try {
-    const projects = await db.select().from(projectsTable);
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    const allProjects = await db.select().from(projectsTable);
+    const projects = includeArchived ? allProjects : allProjects.filter(p => p.status !== "archived");
     res.json(projects.map(p => ({
       ...p,
       targetStart: p.targetStart ?? null,
@@ -110,6 +112,34 @@ router.patch("/projects/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update project");
     res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+router.delete("/projects/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    const [project] = await db.update(projectsTable).set({ status: "archived" }).where(eq(projectsTable.id, id)).returning();
+    res.json({
+      ok: true,
+      project: {
+        ...project,
+        targetStart: project.targetStart ?? null,
+        targetEnd: project.targetEnd ?? null,
+        lat: project.lat ?? null,
+        lng: project.lng ?? null,
+        provinsi: project.provinsi ?? null,
+        kabupaten: project.kabupaten ?? null,
+        kecamatan: project.kecamatan ?? null,
+        desa: project.desa ?? null,
+        luas: project.luas ?? null,
+        createdAt: project.createdAt.toISOString(),
+      },
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to archive project");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

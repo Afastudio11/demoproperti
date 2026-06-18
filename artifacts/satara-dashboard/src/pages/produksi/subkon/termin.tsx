@@ -38,6 +38,16 @@ type Payment = {
   status: string; paymentDate: string | null; period: string | null;
   createdAt: string;
 };
+type PaymentPreview = {
+  canSubmit: boolean;
+  reasons: string[];
+  progressPrevious: number;
+  progressCurrent: number;
+  velocity: number;
+  grossEligibleAmount: number;
+  retentionDeducted: number;
+  netPayment: number;
+};
 
 const STATUS_INFO: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   draft: { label: "Draft", icon: Clock, color: "text-muted-foreground" },
@@ -79,6 +89,15 @@ export default function SubkonTermin() {
       return res.json() as Promise<Unit[]>;
     },
   });
+  const { data: preview } = useQuery({
+    queryKey: ["subkon-payment-preview", selectedContract, selectedTermId],
+    queryFn: async () => {
+      const res = await fetch(`/api/produksi/subkon/contracts/${selectedContract}/payment-preview?paymentTermId=${selectedTermId}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal preview");
+      return res.json() as Promise<PaymentPreview>;
+    },
+    enabled: !!selectedContract && !!selectedTermId,
+  });
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -87,7 +106,7 @@ export default function SubkonTermin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contractId: parseInt(selectedContract), paymentTermId: parseInt(selectedTermId) }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed");
       return res.json();
     },
     onSuccess: () => {
@@ -96,7 +115,7 @@ export default function SubkonTermin() {
       setShowForm(false);
       setSelectedTermId("");
     },
-    onError: () => toast({ title: "Gagal submit termin", variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Gagal submit termin", description: e.message, variant: "destructive" }),
   });
 
   const contract = contracts?.find(c => c.id === parseInt(selectedContract));
@@ -114,18 +133,19 @@ export default function SubkonTermin() {
     : 0;
   const prevProgress = payments?.filter(p => p.contractId === parseInt(selectedContract) && ["pending_approval", "approved", "paid"].includes(p.status))
     .reduce((m, p) => Math.max(m, p.progressCurrent), 0) ?? 0;
-  const curProgress = fieldProgress;
-  const velocity = curProgress - prevProgress;
-  const gross = selectedTerm?.grossAmount ?? 0;
-  const retention = selectedTerm?.retentionAmount ?? 0;
-  const net = selectedTerm?.netAmount ?? Math.max(0, gross - retention);
+  const curProgress = preview?.progressCurrent ?? fieldProgress;
+  const shownPrevProgress = preview?.progressPrevious ?? prevProgress;
+  const velocity = preview?.velocity ?? (curProgress - shownPrevProgress);
+  const gross = preview?.grossEligibleAmount ?? selectedTerm?.grossAmount ?? 0;
+  const retention = preview?.retentionDeducted ?? selectedTerm?.retentionAmount ?? 0;
+  const net = preview?.netPayment ?? selectedTerm?.netAmount ?? Math.max(0, gross - retention);
 
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-bold">Termin Pembayaran Subkon</h1>
-          <p className="text-sm text-muted-foreground">Pengajuan termin mengikuti jadwal nominal yang dibuat di Kontrak Subkon</p>
+          <p className="text-sm text-muted-foreground">Pengajuan termin mengikuti kenaikan progress aktual subkon</p>
         </div>
         <Button onClick={() => setShowForm(true)} size="sm" className="gap-1.5 h-8">
           <Plus className="size-3.5" /> Pengajuan Termin
@@ -135,7 +155,7 @@ export default function SubkonTermin() {
       {showForm && (
         <Card className="border-primary/30">
           <CardHeader className="pb-3 pt-4">
-            <CardTitle className="text-sm flex items-center gap-2"><Calculator className="size-4" /> Pengajuan Termin dari Jadwal Kontrak</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Calculator className="size-4" /> Pengajuan Termin dari Progress Lapangan</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -182,7 +202,7 @@ export default function SubkonTermin() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs">Progress Sebelumnya</Label>
-                <Input value={fmtPct(prevProgress)} disabled className="h-8 text-sm bg-muted" />
+                <Input value={fmtPct(shownPrevProgress)} disabled className="h-8 text-sm bg-muted" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Progress Lapangan Saat Ini</Label>
@@ -192,20 +212,23 @@ export default function SubkonTermin() {
 
             {selectedTerm && contract && (
               <div className="border rounded-lg p-3 space-y-2 bg-background">
-                <p className="text-xs font-medium text-muted-foreground">Nominal Sesuai Jadwal Kontrak</p>
+                <p className="text-xs font-medium text-muted-foreground">Nominal Sesuai Kenaikan Progress</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div><span className="text-muted-foreground block">Rencana Bayar</span><span className="font-semibold">{selectedTerm.plannedDate ?? "—"}</span></div>
-                  <div><span className="text-muted-foreground block">Nilai Termin</span><span className="font-semibold">{fmtRp(gross)}</span></div>
+                  <div><span className="text-muted-foreground block">Progress Eligible</span><span className="font-semibold">{fmtRp(gross)}</span></div>
                   <div><span className="text-muted-foreground block">Potongan Retensi</span><span className="font-semibold text-red-500">({fmtRp(retention)})</span></div>
                   <div><span className="text-muted-foreground block">Jumlah Dibayar</span><span className="font-bold text-emerald-600">{fmtRp(net)}</span></div>
                 </div>
-                <div className="text-[11px] text-muted-foreground">Progress pekerjaan saat pengajuan: {fmtPct(prevProgress)} → {fmtPct(curProgress)} ({fmtPct(velocity)} naik)</div>
+                <div className="text-[11px] text-muted-foreground">Progress pekerjaan saat pengajuan: {fmtPct(shownPrevProgress)} → {fmtPct(curProgress)} ({fmtPct(velocity)} naik)</div>
+                {preview && !preview.canSubmit && (
+                  <div className="text-[11px] text-amber-600">Belum bisa submit: {preview.reasons.join(", ")}</div>
+                )}
               </div>
             )}
 
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowForm(false)} className="h-8">Batal</Button>
-              <Button size="sm" onClick={() => submitMutation.mutate()} disabled={!selectedContract || !selectedTerm || contractUnits.length === 0 || (selectedTerm.paymentType !== "retensi" && curProgress <= prevProgress) || submitMutation.isPending} className="h-8">
+              <Button size="sm" onClick={() => submitMutation.mutate()} disabled={!selectedContract || !selectedTerm || (preview ? !preview.canSubmit : contractUnits.length === 0 || (selectedTerm.paymentType !== "retensi" && curProgress <= shownPrevProgress)) || submitMutation.isPending} className="h-8">
                 Submit untuk Approval
               </Button>
             </div>

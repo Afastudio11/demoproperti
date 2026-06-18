@@ -61,6 +61,46 @@ export const kppPaymentsTable = pgTable("finance_kpp_payments", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const creditFacilitiesTable = pgTable("finance_credit_facilities", {
+  id: serial("id").primaryKey(),
+  facilityName: text("facility_name").notNull(),
+  facilityType: text("facility_type").notNull().default("kredit"),
+  lenderName: text("lender_name").notNull(),
+  projectId: integer("project_id").notNull(),
+  stageCode: text("stage_code"),
+  plafon: numeric("plafon", { precision: 18, scale: 2 }).notNull(),
+  outstandingPrincipal: numeric("outstanding_principal", { precision: 18, scale: 2 }).notNull(),
+  interestRateAnnual: numeric("interest_rate_annual", { precision: 5, scale: 2 }).default("0"),
+  tenorMonths: integer("tenor_months"),
+  startDate: date("start_date"),
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const creditAllocationsTable = pgTable("finance_credit_allocations", {
+  id: serial("id").primaryKey(),
+  facilityId: integer("facility_id").notNull(),
+  unitId: integer("unit_id"),
+  projectId: integer("project_id").notNull(),
+  stageCode: text("stage_code"),
+  allocatedPrincipal: numeric("allocated_principal", { precision: 18, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const creditTransactionsTable = pgTable("finance_credit_transactions", {
+  id: serial("id").primaryKey(),
+  facilityId: integer("facility_id").notNull(),
+  type: text("type").notNull(),
+  amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
+  source: text("source"),
+  sourceId: integer("source_id"),
+  transactionDate: date("transaction_date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const debtRecordsTable = pgTable("finance_debt_records", {
   id: serial("id").primaryKey(),
   uploadId: integer("upload_id"),

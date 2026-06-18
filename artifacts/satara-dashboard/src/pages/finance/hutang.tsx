@@ -1,443 +1,328 @@
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Plus, ChevronDown, ChevronRight, Download, Trash2, Pencil } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Landmark, Link2, Percent, Plus, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
-import ProjectNameSelect from "@/components/project-name-select";
 
-function fmtRp(n: number) {
+const fmtRp = (n: number) => {
   if (Math.abs(n) >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)} M`;
-  if (Math.abs(n) >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(0)} Jt`;
-  return `Rp ${n.toLocaleString("id-ID")}`;
-}
+  if (Math.abs(n) >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)} Jt`;
+  return `Rp ${Math.round(n || 0).toLocaleString("id-ID")}`;
+};
 
-function fmtPct(paid: number, total: number) {
-  if (!total) return 0;
-  return Math.round((paid / total) * 100);
-}
+const EMPTY = {
+  facilityName: "",
+  facilityType: "kredit",
+  lenderName: "",
+  projectId: "",
+  stageCode: "",
+  plafon: "",
+  interestRateAnnual: "",
+  tenorMonths: "",
+  startDate: "",
+  notes: "",
+};
 
-const EMPTY = { creditorName: "", category: "kredit", totalAmount: "", paidAmount: "", dueDate: "", notes: "", projectName: "", stageInfo: "", collateral: "", interestRate: "", interestDueDay: "", akadDisbursementStatus: "belum_cair", manualReduction: "" };
+type Project = { id: number; nama: string };
+type Unit = { id: number; projectId: number; blok: string; nomor: string; tipe: string; stageCode: string | null; customerId: number | null; progress: number };
+type Facility = {
+  id: number;
+  facilityName: string;
+  facilityType: string;
+  lenderName: string;
+  projectId: number;
+  projectName: string;
+  stageCode: string | null;
+  plafon: number;
+  outstandingPrincipal: number;
+  interestRateAnnual: number;
+  interestMonthly: number;
+  status: string;
+  allocatedUnitCount: number;
+  akadCairUnitCount: number;
+  totalAkadCair: number;
+  allocationWarning: string | null;
+  allocations: Array<{ id: number; unitId: number | null; stageCode: string | null; allocatedPrincipal: number; unit: Unit | null }>;
+  transactions: Array<{ id: number; type: string; amount: number; transactionDate: string; notes: string | null }>;
+};
 
-export default function HutangCenter() {
+export default function CreditInvestmentCenter() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [viewMode, setViewMode] = useState<"proyek" | "daftar">("proyek");
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [editingRecord, setEditingRecord] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [allocationTarget, setAllocationTarget] = useState<Facility | null>(null);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<number[]>([]);
+  const [allocationStage, setAllocationStage] = useState("");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["finance-hutang"],
-    queryFn: () => fetch("/api/finance/hutang").then(r => r.json()),
-    refetchInterval: 60000,
+    queryKey: ["finance-credit-facilities"],
+    queryFn: () => fetch("/api/finance/credit-facilities").then(r => r.json()) as Promise<{ facilities: Facility[] }>,
+  });
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then(r => r.json()) as Promise<Project[]>,
+  });
+  const { data: units = [] } = useQuery({
+    queryKey: ["units-list"],
+    queryFn: () => fetch("/api/units").then(r => r.json()) as Promise<Unit[]>,
   });
 
-  const byProject: Record<string, any> = data?.byProject ?? {};
-  const records: any[] = data?.records ?? [];
-  const totalAll = data?.total ?? 0;
-  const totalPaid = data?.totalPaid ?? 0;
-  const totalRemaining = data?.totalRemaining ?? 0;
+  const facilities = data?.facilities ?? [];
+  const totals = facilities.reduce((acc, f) => ({
+    plafon: acc.plafon + f.plafon,
+    outstanding: acc.outstanding + f.outstandingPrincipal,
+    bunga: acc.bunga + f.interestMonthly,
+    akadCair: acc.akadCair + f.totalAkadCair,
+  }), { plafon: 0, outstanding: 0, bunga: 0, akadCair: 0 });
 
-  const addDebt = useMutation({
-    mutationFn: (body: any) => fetch("/api/finance/hutang", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-hutang"] }); setShowForm(false); setForm(EMPTY); },
+  const createFacility = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/finance/credit-facilities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          projectId: Number(form.projectId),
+          plafon: Number(form.plafon || 0),
+          outstandingPrincipal: Number(form.plafon || 0),
+          interestRateAnnual: Number(form.interestRateAnnual || 0),
+          tenorMonths: form.tenorMonths ? Number(form.tenorMonths) : null,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal menyimpan fasilitas");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance-credit-facilities"] });
+      setShowForm(false);
+      setForm(EMPTY);
+    },
   });
 
-  const updateDebt = useMutation({
-    mutationFn: ({ id, ...body }: any) => fetch(`/api/finance/hutang/${id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-hutang"] }); setEditingRecord(null); },
+  const saveAllocation = useMutation({
+    mutationFn: async () => {
+      if (!allocationTarget) return null;
+      const res = await fetch(`/api/finance/credit-facilities/${allocationTarget.id}/allocations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unitIds: selectedUnitIds, stageCode: allocationStage || allocationTarget.stageCode }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal menyimpan alokasi");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance-credit-facilities"] });
+      setAllocationTarget(null);
+      setSelectedUnitIds([]);
+      setAllocationStage("");
+    },
   });
 
-  const deleteDebt = useMutation({
-    mutationFn: (id: number) => fetch(`/api/finance/hutang/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance-hutang"] }); setDeletingId(null); },
+  const syncAkad = useMutation({
+    mutationFn: async (facilityId: number) => {
+      const res = await fetch(`/api/finance/credit-facilities/${facilityId}/sync-akad`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal sync akad");
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["finance-credit-facilities"] }),
   });
 
-  function openEdit(r: any) {
-    setEditingRecord(r);
-    setEditForm({
-      projectName: r.projectName ?? "",
-      stageInfo: r.stageInfo ?? "",
-      creditorName: r.creditorName ?? "",
-      totalAmount: r.totalAmount ?? "",
-      paidAmount: r.paidAmount ?? "",
-      notes: r.notes ?? "",
-      dueDate: r.dueDate ?? "",
-      category: r.category ?? "supplier",
-      collateral: r.metadata?.collateral ?? "",
-      interestRate: r.metadata?.interestRate ?? "",
-      interestDueDay: r.metadata?.interestDueDay ?? "",
-      akadDisbursementStatus: r.metadata?.akadDisbursementStatus ?? "belum_cair",
-      manualReduction: r.metadata?.manualReduction ?? "",
-    });
+  const accrueInterest = useMutation({
+    mutationFn: async () => {
+      const period = new Date().toISOString().slice(0, 7);
+      const res = await fetch(`/api/finance/credit-facilities/accrue-interest?period=${period}`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal accrue bunga");
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["finance-credit-facilities"] }),
+  });
+
+  const targetUnits = useMemo(() => {
+    if (!allocationTarget) return [];
+    return units.filter(u => u.projectId === allocationTarget.projectId && (!allocationStage || u.stageCode === allocationStage));
+  }, [allocationTarget, allocationStage, units]);
+
+  function openAllocation(f: Facility) {
+    setAllocationTarget(f);
+    setSelectedUnitIds(f.allocations.map(a => a.unitId).filter((id): id is number => typeof id === "number"));
+    setAllocationStage(f.stageCode ?? "");
   }
-
-  function exportExcel() {
-    const wb = XLSX.utils.book_new();
-    const projects = Object.keys(byProject).sort();
-    const allDataRows: any[][] = [];
-    allDataRows.push(["Tahap", "Nama Pemilik/Kreditur", "Nilai Awal", "Terbayar", "Sisa Kewajiban", "Status", "Keterangan"]);
-    for (const proj of projects) {
-      const pd = byProject[proj];
-      for (const r of pd.items) {
-        const remaining = Number(r.remainingAmount ?? 0);
-        allDataRows.push([r.stageInfo || "", r.creditorName, Number(r.totalAmount), Number(r.paidAmount ?? 0), remaining, remaining <= 0 ? "Lunas" : "Belum Lunas", r.notes || ""]);
-      }
-      allDataRows.push(["", `GRAND TOTAL ${proj}`, pd.totalAmount, pd.paidAmount, pd.remainingAmount, pd.remainingAmount <= 0 ? "Lunas" : "Belum Lunas", ""]);
-      allDataRows.push([`Subtotal ${proj}`, "", pd.totalAmount, pd.paidAmount, pd.remainingAmount, `${pd.items.filter((i: any) => i.status === "paid").length}/${pd.items.length} lunas`, ""]);
-      allDataRows.push(["", "", "", "", "", "", ""]);
-    }
-    allDataRows.push(["TOTAL KESELURUHAN", "", totalAll, totalPaid, totalRemaining, `${fmtPct(totalPaid, totalAll)}% terbayar`, ""]);
-    const ws = XLSX.utils.aoa_to_sheet(allDataRows);
-    ws["!cols"] = [{ wch: 20 }, { wch: 30 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 30 }];
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Hutang");
-    XLSX.writeFile(wb, `LAPORAN_HUTANG_${new Date().toISOString().split("T")[0]}.xlsx`);
-  }
-
-  const isEmpty = records.length === 0;
-  const projects = Object.keys(byProject).sort();
-
-  function toggleProject(p: string) {
-    setExpanded(prev => ({ ...prev, [p]: !prev[p] }));
-  }
-
-  const rowActions = (r: any) => (
-    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-      <button onClick={() => openEdit(r)} className="text-muted-foreground hover:text-foreground transition-colors p-0.5" title="Edit record">
-        <Pencil className="size-3.5" />
-      </button>
-      <button onClick={() => setDeletingId(r.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-0.5" title="Hapus record">
-        <Trash2 className="size-3.5" />
-      </button>
-    </div>
-  );
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Kredit & Investment</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Monitoring kredit, agunan, bunga, pengurangan akad, dan investment per proyek</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Fasilitas bank/investor yang terhubung ke unit dan Akad Cair.</p>
         </div>
-        <div className="flex items-center gap-2">
-          {!isEmpty && (
-            <button onClick={exportExcel}
-              className="flex items-center gap-2 border text-sm font-medium px-3 py-1.5 rounded-md hover:bg-muted transition-colors">
-              <Download className="size-3.5" />Export Excel
-            </button>
-          )}
-          <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90">
-            <Plus className="size-3.5" />Tambah Kredit/Investment
-          </button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-1.5" onClick={() => accrueInterest.mutate()} disabled={accrueInterest.isPending}>
+            <Percent className="size-4" /> Accrue Bunga
+          </Button>
+          <Button className="gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={() => setShowForm(true)}>
+            <Plus className="size-4" /> Tambah Kredit
+          </Button>
         </div>
       </div>
 
-      {isEmpty && !isLoading ? (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Metric label="Total Plafon" value={fmtRp(totals.plafon)} icon={Landmark} />
+        <Metric label="Outstanding Pokok" value={fmtRp(totals.outstanding)} tone={totals.outstanding > 0 ? "warn" : "ok"} icon={AlertTriangle} />
+        <Metric label="Akad Cair Terkait" value={fmtRp(totals.akadCair)} tone="ok" icon={Link2} />
+        <Metric label="Bunga Bulanan" value={fmtRp(totals.bunga)} icon={Percent} />
+      </div>
+
+      {isLoading ? (
+        <div className="py-10 text-sm text-muted-foreground text-center">Memuat kredit...</div>
+      ) : facilities.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed p-8 text-center">
-          <AlertTriangle className="size-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-sm font-medium">Data kredit/investment belum tersedia</p>
-          <p className="text-xs text-muted-foreground mt-1">Upload file atau tambah data manual</p>
+          <Landmark className="size-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm font-medium">Belum ada fasilitas kredit/investment</p>
+          <p className="text-xs text-muted-foreground mt-1">Tambahkan fasilitas, lalu link ke unit proyek agar Akad Cair bisa mengurangi pokok otomatis.</p>
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground mb-1.5">Total Nilai Awal</div>
-              <div className="text-xl font-bold tabular-nums">{fmtRp(totalAll)}</div>
-              <div className="text-[11px] text-muted-foreground mt-1">{projects.length} proyek · {records.length} record</div>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-                <span className="size-2 rounded-full bg-emerald-500 inline-block" />Sudah Terbayar
-              </div>
-              <div className="text-xl font-bold tabular-nums text-emerald-500">{fmtRp(totalPaid)}</div>
-              <div className="text-[11px] text-muted-foreground mt-1">{fmtPct(totalPaid, totalAll)}% dari total</div>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-                <AlertTriangle className="size-3 text-amber-500" />Sisa Kewajiban
-              </div>
-              <div className={cn("text-xl font-bold tabular-nums", totalRemaining > 0 ? "text-amber-500" : "text-emerald-500")}>
-                {fmtRp(totalRemaining)}
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-1">{fmtPct(totalRemaining, totalAll)}% belum terbayar</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Tampilkan:</span>
-            {(["proyek", "daftar"] as const).map(m => (
-              <button key={m} onClick={() => setViewMode(m)}
-                className={cn("text-xs px-2.5 py-1 rounded-md border transition-colors",
-                  viewMode === m ? "bg-foreground text-background" : "hover:bg-muted")}>
-                {m === "proyek" ? "Per Proyek" : "Daftar Lengkap"}
-              </button>
-            ))}
-          </div>
-
-          {viewMode === "proyek" && (
-            <div className="space-y-3">
-              {projects.map(proj => {
-                const pd = byProject[proj];
-                const pct = fmtPct(pd.paidAmount, pd.totalAmount);
-                const isOpen = expanded[proj];
-                return (
-                  <div key={proj} className="rounded-xl border bg-card overflow-hidden">
-                    <button onClick={() => toggleProject(proj)}
-                      className="w-full p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left">
-                      {isOpen ? <ChevronDown className="size-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="size-4 shrink-0 text-muted-foreground" />}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold text-sm">{proj}</span>
-                          <span className="text-xs text-muted-foreground">{pd.items.length} record</span>
-                        </div>
-                        <div className="mt-2 flex items-center gap-3">
-                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-xs text-muted-foreground shrink-0">{pct}% terbayar</span>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0 ml-4">
-                        <div className="text-xs text-muted-foreground">Nilai Awal</div>
-                        <div className="text-sm font-semibold tabular-nums">{fmtRp(pd.totalAmount)}</div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-[11px] text-emerald-500 tabular-nums">{fmtRp(pd.paidAmount)} terbayar</span>
-                          <span className={cn("text-[11px] tabular-nums", pd.remainingAmount > 0 ? "text-amber-500" : "text-emerald-500")}>{fmtRp(pd.remainingAmount)} sisa</span>
-                        </div>
-                      </div>
-                    </button>
-                    {isOpen && (
-                      <div className="border-t overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b bg-muted/30">
-                              {["Tahap", "Kreditur/Investor", "Kategori", "Agunan", "Bunga", "Nilai Awal", "Terbayar", "Sisa", "Status", ""].map(h => (
-                                <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pd.items.map((r: any) => {
-                              const remaining = Number(r.remainingAmount ?? 0);
-                              return (
-                                <tr key={r.id} className={cn("border-b last:border-0 group", remaining <= 0 && "bg-emerald-50/30 dark:bg-emerald-950/10")}>
-                                  <td className="px-3 py-2 text-muted-foreground">{r.stageInfo || "-"}</td>
-                                  <td className="px-3 py-2 font-medium max-w-[180px] truncate">{r.creditorName}</td>
-                                  <td className="px-3 py-2 text-muted-foreground">{r.category}</td>
-                                  <td className="px-3 py-2 text-muted-foreground max-w-[140px] truncate">{r.metadata?.collateral || "-"}</td>
-                                  <td className="px-3 py-2 text-muted-foreground">{r.metadata?.interestRate ? `${r.metadata.interestRate}%/bln` : "-"}</td>
-                                  <td className="px-3 py-2 tabular-nums">{fmtRp(Number(r.totalAmount))}</td>
-                                  <td className="px-3 py-2 tabular-nums text-emerald-600 font-medium">{fmtRp(Number(r.paidAmount ?? 0))}</td>
-                                  <td className={cn("px-3 py-2 tabular-nums font-medium", remaining > 0 ? "text-amber-500" : "text-emerald-500")}>{fmtRp(remaining)}</td>
-                                  <td className="px-3 py-2">
-                                    <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium",
-                                      r.status === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
-                                      {r.status === "paid" ? "Lunas" : "Belum Lunas"}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2">{rowActions(r)}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr className="bg-muted/30 font-semibold">
-                              <td colSpan={5} className="px-3 py-2 text-xs">Subtotal {proj}</td>
-                              <td className="px-3 py-2 tabular-nums text-xs">{fmtRp(pd.totalAmount)}</td>
-                              <td className="px-3 py-2 tabular-nums text-xs text-emerald-600">{fmtRp(pd.paidAmount)}</td>
-                              <td className={cn("px-3 py-2 tabular-nums text-xs", pd.remainingAmount > 0 ? "text-amber-500" : "text-emerald-500")}>{fmtRp(pd.remainingAmount)}</td>
-                              <td colSpan={2} className="px-3 py-2 text-xs text-muted-foreground">{pd.items.filter((i: any) => i.status === "paid").length}/{pd.items.length} lunas</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    )}
+        <div className="space-y-3">
+          {facilities.map(f => {
+            const paidPct = f.plafon ? Math.round(((f.plafon - f.outstandingPrincipal) / f.plafon) * 100) : 0;
+            return (
+              <div key={f.id} className="rounded-xl border bg-card p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-semibold">{f.facilityName}</h2>
+                      <Badge variant={f.status === "closed" ? "secondary" : "outline"}>{f.status}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{f.lenderName} · {f.projectName}{f.stageCode ? ` · ${f.stageCode}` : ""}</p>
                   </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => openAllocation(f)}>
+                      <Link2 className="size-3.5" /> Alokasi Unit
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => syncAkad.mutate(f.id)} disabled={syncAkad.isPending}>
+                      <RefreshCw className="size-3.5" /> Sync Akad
+                    </Button>
+                  </div>
+                </div>
+                {f.allocationWarning && <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">{f.allocationWarning}</p>}
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
+                  <Info label="Plafon" value={fmtRp(f.plafon)} />
+                  <Info label="Sisa Pokok" value={fmtRp(f.outstandingPrincipal)} strong tone={f.outstandingPrincipal > 0 ? "warn" : "ok"} />
+                  <Info label="Unit Dialokasikan" value={`${f.akadCairUnitCount}/${f.allocatedUnitCount}`} />
+                  <Info label="Akad Cair" value={fmtRp(f.totalAkadCair)} tone="ok" />
+                  <Info label="Bunga/Bulan" value={fmtRp(f.interestMonthly)} />
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.max(0, paidPct))}%` }} />
+                </div>
+                <div className="text-[11px] text-muted-foreground">{paidPct}% pokok tertutup dari akad cair / pembayaran pokok.</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Tambah Kredit / Investment</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Nama Fasilitas" value={form.facilityName} onChange={v => setForm(p => ({ ...p, facilityName: v }))} span />
+            <Field label="Bank / Investor" value={form.lenderName} onChange={v => setForm(p => ({ ...p, lenderName: v }))} span />
+            <div className="space-y-1">
+              <Label className="text-xs">Proyek</Label>
+              <Select value={form.projectId} onValueChange={v => setForm(p => ({ ...p, projectId: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih proyek" /></SelectTrigger>
+                <SelectContent>{projects.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Field label="Tahap" value={form.stageCode} onChange={v => setForm(p => ({ ...p, stageCode: v.toUpperCase() }))} placeholder="T1" />
+            <Field label="Plafon / Pokok" value={form.plafon} onChange={v => setForm(p => ({ ...p, plafon: v }))} type="number" />
+            <Field label="Bunga % / Tahun" value={form.interestRateAnnual} onChange={v => setForm(p => ({ ...p, interestRateAnnual: v }))} type="number" />
+            <Field label="Tenor Bulan" value={form.tenorMonths} onChange={v => setForm(p => ({ ...p, tenorMonths: v }))} type="number" />
+            <Field label="Tanggal Mulai" value={form.startDate} onChange={v => setForm(p => ({ ...p, startDate: v }))} type="date" />
+            <Field label="Catatan" value={form.notes} onChange={v => setForm(p => ({ ...p, notes: v }))} span />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button>
+            <Button onClick={() => createFacility.mutate()} disabled={!form.lenderName || !form.projectId || !form.plafon || createFacility.isPending}>
+              {createFacility.isPending ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!allocationTarget} onOpenChange={open => !open && setAllocationTarget(null)}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Alokasi Unit Kredit</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Pilih unit yang dibiayai oleh {allocationTarget?.facilityName}. Akad Cair dari unit ini akan mengurangi outstanding pokok otomatis.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Filter Tahap" value={allocationStage} onChange={v => setAllocationStage(v.toUpperCase())} placeholder="T1" />
+              <div className="rounded-lg border p-3">
+                <div className="text-xs text-muted-foreground">Unit dipilih</div>
+                <div className="text-xl font-semibold">{selectedUnitIds.length}</div>
+              </div>
+            </div>
+            <div className="rounded-lg border max-h-80 overflow-y-auto">
+              {targetUnits.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground text-center">Tidak ada unit untuk filter ini.</div>
+              ) : targetUnits.map(unit => {
+                const checked = selectedUnitIds.includes(unit.id);
+                return (
+                  <label key={unit.id} className="flex items-center justify-between gap-3 px-3 py-2 border-b last:border-0 text-sm hover:bg-muted/30">
+                    <span>
+                      <span className="font-medium">{unit.blok}-{unit.nomor}</span>
+                      <span className="text-muted-foreground"> · {unit.tipe} · {unit.stageCode ?? "-"}</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={e => setSelectedUnitIds(prev => e.target.checked ? [...prev, unit.id] : prev.filter(id => id !== unit.id))}
+                    />
+                  </label>
                 );
               })}
             </div>
-          )}
-
-          {viewMode === "daftar" && (
-            <div className="rounded-xl border bg-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/30">
-                      {["Proyek", "Tahap", "Kreditur/Investor", "Kategori", "Agunan", "Nilai Awal", "Terbayar", "Sisa", "Status", ""].map(h => (
-                        <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((r: any) => {
-                      const remaining = Number(r.remainingAmount ?? 0);
-                      return (
-                        <tr key={r.id} className="border-b last:border-0 text-xs group">
-                          <td className="px-4 py-2 font-medium">{r.projectName || "-"}</td>
-                          <td className="px-4 py-2 text-muted-foreground">{r.stageInfo || "-"}</td>
-                          <td className="px-4 py-2 max-w-[160px] truncate">{r.creditorName}</td>
-                          <td className="px-4 py-2 text-muted-foreground">{r.category}</td>
-                          <td className="px-4 py-2 text-muted-foreground max-w-[140px] truncate">{r.metadata?.collateral || "-"}</td>
-                          <td className="px-4 py-2 tabular-nums">{fmtRp(Number(r.totalAmount))}</td>
-                          <td className="px-4 py-2 tabular-nums text-emerald-600">{fmtRp(Number(r.paidAmount ?? 0))}</td>
-                          <td className={cn("px-4 py-2 tabular-nums font-medium", remaining > 0 ? "text-amber-500" : "text-emerald-500")}>{fmtRp(remaining)}</td>
-                          <td className="px-4 py-2">
-                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium",
-                              r.status === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
-                              {r.status === "paid" ? "Lunas" : "Belum Lunas"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2">{rowActions(r)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Add form modal ─────────────────────────────────────────────────────── */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-sm font-semibold">Tambah Kredit / Investment</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Proyek</label>
-                <ProjectNameSelect
-                  value={form.projectName}
-                  onChange={value => setForm(p => ({ ...p, projectName: value }))}
-                  className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background"
-                  required
-                />
-              </div>
-              {[
-                { key: "stageInfo", label: "Tahap", type: "text", span: false },
-                { key: "creditorName", label: "Nama Kreditur/Investor", type: "text", span: true },
-                { key: "category", label: "Kategori (kredit/investment)", type: "text", span: false },
-                { key: "totalAmount", label: "Plafon/Nilai Awal (Rp)", type: "number", span: false },
-                { key: "paidAmount", label: "Pengurangan/Paid (Rp)", type: "number", span: false },
-                { key: "collateral", label: "Agunan", type: "text", span: false },
-                { key: "interestRate", label: "Bunga Bulanan (%)", type: "number", span: false },
-                { key: "interestDueDay", label: "Tempo Bunga Tgl", type: "number", span: false },
-                { key: "manualReduction", label: "Pengurangan Manual Akad", type: "number", span: false },
-                { key: "akadDisbursementStatus", label: "Status Akad Cair", type: "text", span: false },
-                { key: "dueDate", label: "Jatuh Tempo", type: "date", span: false },
-              ].map(f => (
-                <div key={f.key} className={f.span ? "col-span-2" : ""}>
-                  <label className="text-xs text-muted-foreground">{f.label}</label>
-                  <input type={f.type} value={(form as any)[f.key]}
-                    onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background" />
-                </div>
-              ))}
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Keterangan</label>
-              <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-                rows={2} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background resize-none" />
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => addDebt.mutate({ ...form, paidAmount: Number(form.paidAmount || 0) + Number(form.manualReduction || 0), metadata: { collateral: form.collateral, interestRate: form.interestRate, interestDueDay: form.interestDueDay, manualReduction: form.manualReduction, akadDisbursementStatus: form.akadDisbursementStatus } })} disabled={addDebt.isPending}
-                className="flex-1 bg-foreground text-background text-sm py-2 rounded-md hover:opacity-90 disabled:opacity-50">
-                {addDebt.isPending ? "Menyimpan..." : "Simpan"}
-              </button>
-              <button onClick={() => setShowForm(false)} className="flex-1 border text-sm py-2 rounded-md hover:bg-muted">Batal</button>
-            </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAllocationTarget(null)}>Batal</Button>
+            <Button onClick={() => saveAllocation.mutate()} disabled={saveAllocation.isPending}>
+              {saveAllocation.isPending ? "Menyimpan..." : "Simpan Alokasi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
-      {/* ── Edit modal ─────────────────────────────────────────────────────────── */}
-      {editingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-2xl p-5 space-y-3 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center gap-2">
-              <Pencil className="size-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Edit Kredit / Investment</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Proyek</label>
-                <ProjectNameSelect
-                  value={editForm.projectName ?? ""}
-                  onChange={value => setEditForm(p => ({ ...p, projectName: value }))}
-                  className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background"
-                  required
-                />
-              </div>
-              {[
-                { key: "stageInfo", label: "Tahap", type: "text", span: false },
-                { key: "creditorName", label: "Nama Kreditur/Investor", type: "text", span: true },
-                { key: "category", label: "Kategori", type: "text", span: false },
-                { key: "totalAmount", label: "Plafon/Nilai Awal (Rp)", type: "number", span: false },
-                { key: "paidAmount", label: "Pengurangan/Paid (Rp)", type: "number", span: false },
-                { key: "collateral", label: "Agunan", type: "text", span: false },
-                { key: "interestRate", label: "Bunga Bulanan (%)", type: "number", span: false },
-                { key: "interestDueDay", label: "Tempo Bunga Tgl", type: "number", span: false },
-                { key: "manualReduction", label: "Pengurangan Manual Akad", type: "number", span: false },
-                { key: "akadDisbursementStatus", label: "Status Akad Cair", type: "text", span: false },
-                { key: "dueDate", label: "Jatuh Tempo", type: "date", span: false },
-              ].map(f => (
-                <div key={f.key} className={f.span ? "col-span-2" : ""}>
-                  <label className="text-xs text-muted-foreground">{f.label}</label>
-                  <input type={f.type} value={editForm[f.key] ?? ""}
-                    onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background" />
-                </div>
-              ))}
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Keterangan</label>
-              <textarea value={editForm.notes ?? ""} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))}
-                rows={2} className="w-full mt-1 text-sm border rounded-md px-3 py-2 bg-background resize-none" />
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => updateDebt.mutate({ id: editingRecord.id, ...editForm, metadata: { collateral: editForm.collateral, interestRate: editForm.interestRate, interestDueDay: editForm.interestDueDay, manualReduction: editForm.manualReduction, akadDisbursementStatus: editForm.akadDisbursementStatus } })} disabled={updateDebt.isPending}
-                className="flex-1 bg-foreground text-background text-sm py-2 rounded-md hover:opacity-90 disabled:opacity-50">
-                {updateDebt.isPending ? "Menyimpan..." : "Simpan Perubahan"}
-              </button>
-              <button onClick={() => setEditingRecord(null)} className="flex-1 border text-sm py-2 rounded-md hover:bg-muted">Batal</button>
-            </div>
-          </div>
-        </div>
-      )}
+function Metric({ label, value, icon: Icon, tone }: { label: string; value: string; icon: any; tone?: "ok" | "warn" }) {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1"><Icon className="size-3.5" />{label}</div>
+      <div className={cn("text-xl font-bold", tone === "ok" && "text-emerald-600", tone === "warn" && "text-amber-600")}>{value}</div>
+    </div>
+  );
+}
 
-      {/* ── Delete confirmation modal ──────────────────────────────────────────── */}
-      {deletingId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl border bg-background w-full max-w-sm p-5 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="size-9 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center shrink-0">
-                <Trash2 className="size-4 text-red-500" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold">Hapus Record Hutang</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Record ini akan dihapus permanen dari database.</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => deleteDebt.mutate(deletingId)} disabled={deleteDebt.isPending}
-                className="flex-1 bg-red-500 text-white text-sm py-2 rounded-md hover:bg-red-600 disabled:opacity-50">
-                {deleteDebt.isPending ? "Menghapus..." : "Ya, Hapus"}
-              </button>
-              <button onClick={() => setDeletingId(null)} className="flex-1 border text-sm py-2 rounded-md hover:bg-muted">Batal</button>
-            </div>
-          </div>
-        </div>
-      )}
+function Info({ label, value, strong, tone }: { label: string; value: string; strong?: boolean; tone?: "ok" | "warn" }) {
+  return (
+    <div className="rounded-lg bg-muted/30 p-2">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className={cn("text-sm", strong ? "font-bold" : "font-medium", tone === "ok" && "text-emerald-600", tone === "warn" && "text-amber-600")}>{value}</div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, type = "text", placeholder, span }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; span?: boolean }) {
+  return (
+    <div className={cn("space-y-1", span && "col-span-2")}>
+      <Label className="text-xs">{label}</Label>
+      <Input className="h-8 text-sm" type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} />
     </div>
   );
 }

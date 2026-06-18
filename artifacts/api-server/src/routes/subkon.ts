@@ -69,6 +69,67 @@ function normalizePaymentTerms(terms: PaymentTermInput[] | undefined, totalReten
   return rows;
 }
 
+async function buildPaymentPreview(contractId: number, paymentTermId?: number) {
+  const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, contractId));
+  if (!contract) return { ok: false, status: 404, error: "Contract not found" };
+  const [paymentTerm] = paymentTermId
+    ? await db.select().from(subkonPaymentTermsTable).where(eq(subkonPaymentTermsTable.id, paymentTermId))
+    : [];
+  if (!paymentTerm || paymentTerm.contractId !== contractId) {
+    return { ok: false, status: 400, error: "Pilih termin dari jadwal kontrak subkon." };
+  }
+
+  const allPayments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.contractId, contractId));
+  const duplicate = allPayments.find(p => p.paymentTermId === paymentTerm.id && p.status !== "rejected");
+  const paidPayments = allPayments.filter(p => p.status === "paid");
+  const lockedPayments = allPayments.filter(p => ["pending_approval", "approved", "paid"].includes(p.status));
+  const totalPaidBefore = paidPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
+  const lockedNetBefore = lockedPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
+  const progressPrevious = lockedPayments.length > 0 ? Math.max(...lockedPayments.map(p => p.progressCurrent)) : 0;
+  const progressCurrent = await getContractFieldProgress(contractId);
+  const velocity = Math.max(0, progressCurrent - progressPrevious);
+
+  let grossEligibleAmount = 0;
+  let retentionDeducted = 0;
+  let netPayment = 0;
+  if (paymentTerm.paymentType === "retensi") {
+    grossEligibleAmount = Math.max(0, paymentTerm.grossAmount || contract.totalRetention);
+    retentionDeducted = 0;
+    netPayment = Math.max(0, paymentTerm.netAmount || grossEligibleAmount);
+  } else {
+    grossEligibleAmount = Math.max(0, contract.contractValue * (velocity / 100));
+    retentionDeducted = Math.max(0, contract.totalRetention * (velocity / 100));
+    netPayment = Math.max(0, grossEligibleAmount - retentionDeducted);
+  }
+
+  const remainingPayable = Math.max(0, contract.contractValue - lockedNetBefore);
+  netPayment = Math.min(netPayment, remainingPayable);
+  grossEligibleAmount = Math.min(grossEligibleAmount, remainingPayable + retentionDeducted);
+
+  const reasons: string[] = [];
+  if (contract.status !== "aktif") reasons.push("Kontrak belum aktif");
+  if (duplicate) reasons.push("Termin ini sudah pernah diajukan");
+  if (paymentTerm.paymentType !== "retensi" && progressCurrent <= progressPrevious) reasons.push("Progress lapangan belum naik dari termin terakhir");
+  if (paymentTerm.paymentType !== "retensi" && netPayment <= 0) reasons.push("Nominal progress yang bisa dibayar masih 0");
+
+  return {
+    ok: true,
+    contract,
+    paymentTerm,
+    duplicate: duplicate ?? null,
+    canSubmit: reasons.length === 0,
+    reasons,
+    progressPrevious,
+    progressCurrent,
+    velocity,
+    grossEligibleAmount,
+    retentionDeducted,
+    netPayment,
+    totalPaidBefore,
+    lockedNetBefore,
+  };
+}
+
 // ─── SUBKON CONTRACTS ────────────────────────────────────────────────────────
 
 router.get("/produksi/subkon/master", async (req, res) => {
@@ -157,6 +218,19 @@ router.get("/produksi/subkon/contracts", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to list subkon contracts");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/produksi/subkon/contracts/:id/payment-preview", async (req, res) => {
+  try {
+    const contractId = Number(req.params.id);
+    const paymentTermId = req.query.paymentTermId ? Number(req.query.paymentTermId) : undefined;
+    const preview = await buildPaymentPreview(contractId, paymentTermId);
+    if (!preview.ok) return res.status((preview as { status: number }).status).json({ error: (preview as { error: string }).error });
+    res.json(preview);
+  } catch (err) {
+    req.log.error({ err }, "Failed to preview subkon payment");
+    res.status(400).json({ error: "Gagal menghitung preview pembayaran subkon" });
   }
 });
 
@@ -309,47 +383,26 @@ router.post("/produksi/subkon/payments", async (req, res) => {
       notes?: string;
     };
 
-    const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, contractId));
-    if (!contract) return res.status(404).json({ error: "Contract not found" });
-    const [paymentTerm] = paymentTermId
-      ? await db.select().from(subkonPaymentTermsTable).where(eq(subkonPaymentTermsTable.id, paymentTermId))
-      : [];
-    if (!paymentTerm || paymentTerm.contractId !== contractId) {
-      return res.status(400).json({ error: "Pilih termin dari jadwal kontrak subkon." });
-    }
-
-    const allPayments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.contractId, contractId));
-    const duplicate = allPayments.find(p => p.paymentTermId === paymentTerm.id && p.status !== "rejected");
-    if (duplicate) return res.status(409).json({ error: "Termin ini sudah pernah diajukan." });
-    const paidPayments = allPayments.filter(p => p.status === "paid");
-    const lockedPayments = allPayments.filter(p => ["pending_approval", "approved", "paid"].includes(p.status));
-    const totalPaidBefore = paidPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
-    const progressPrevious = lockedPayments.length > 0 ? Math.max(...lockedPayments.map(p => p.progressCurrent)) : 0;
-    const progressCurrent = await getContractFieldProgress(contractId);
-    if (paymentTerm.paymentType !== "retensi" && progressCurrent <= progressPrevious) {
-      return res.status(400).json({ error: "Progress lapangan belum naik dari termin terakhir" });
-    }
-
-    const velocity = Math.max(0, progressCurrent - progressPrevious);
-    const grossEligibleAmount = paymentTerm.grossAmount;
-    const retentionDeducted = paymentTerm.retentionAmount;
-    const netPayment = paymentTerm.netAmount;
+    const preview = await buildPaymentPreview(contractId, paymentTermId);
+    if (!preview.ok) return res.status((preview as { status: number }).status).json({ error: (preview as { error: string }).error });
+    const readyPreview = preview as Awaited<ReturnType<typeof buildPaymentPreview>> & { canSubmit: boolean; reasons: string[]; paymentTerm: typeof subkonPaymentTermsTable.$inferSelect };
+    if (!readyPreview.canSubmit) return res.status(400).json({ error: readyPreview.reasons.join(", ") || "Pengajuan belum memenuhi syarat" });
 
     const [row] = await db.insert(subkonPaymentsTable).values({
       contractId,
-      paymentTermId: paymentTerm.id,
-      paymentType: paymentTerm.paymentType,
-      terminNumber: paymentTerm.terminNumber,
-      period: period ?? paymentTerm.plannedDate ?? null,
-      progressPrevious,
-      progressCurrent,
-      velocity,
-      grossEligibleAmount,
-      retentionDeducted,
-      netPayment,
-      totalPaidBefore,
+      paymentTermId: readyPreview.paymentTerm.id,
+      paymentType: readyPreview.paymentTerm.paymentType,
+      terminNumber: readyPreview.paymentTerm.terminNumber,
+      period: period ?? readyPreview.paymentTerm.plannedDate ?? null,
+      progressPrevious: readyPreview.progressPrevious,
+      progressCurrent: readyPreview.progressCurrent,
+      velocity: readyPreview.velocity,
+      grossEligibleAmount: readyPreview.grossEligibleAmount,
+      retentionDeducted: readyPreview.retentionDeducted,
+      netPayment: readyPreview.netPayment,
+      totalPaidBefore: readyPreview.totalPaidBefore,
       status: "pending_approval",
-      notes: notes ?? paymentTerm.notes ?? null,
+      notes: notes ?? readyPreview.paymentTerm.notes ?? null,
     }).returning();
 
     await db.insert(paymentApprovalsTable).values([

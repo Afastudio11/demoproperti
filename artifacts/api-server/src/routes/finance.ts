@@ -6,6 +6,9 @@ import {
   rabItemsTable,
   kppFacilitiesTable,
   kppPaymentsTable,
+  creditFacilitiesTable,
+  creditAllocationsTable,
+  creditTransactionsTable,
   debtRecordsTable,
   akadDisbursementsTable,
   financeAkadDisbursementLedgerTable,
@@ -122,8 +125,69 @@ async function writeAudit(module: string, entityType: string, entityId: number |
   }
 }
 
-async function reduceProjectCredit(projectId: number | null | undefined, amount: number, sourceNote: string) {
+async function reduceCreditFacility(input: {
+  projectId: number | null | undefined;
+  unitId?: number | null;
+  stageCode?: string | null;
+  amount: number;
+  sourceNote: string;
+  source?: string;
+  sourceId?: number | null;
+  transactionDate?: string;
+}) {
+  const { projectId, unitId, stageCode, amount, sourceNote } = input;
+  if (!projectId || amount <= 0) return 0;
+  const facilities = (await db.select().from(creditFacilitiesTable))
+    .filter(f => f.projectId === projectId && f.status !== "closed" && Number(f.outstandingPrincipal ?? 0) > 0);
+  if (facilities.length === 0) return amount;
+  const allocations = await db.select().from(creditAllocationsTable);
+  const exactIds = new Set(allocations
+    .filter(a => unitId && a.unitId === unitId)
+    .map(a => a.facilityId));
+  const stageIds = new Set(allocations
+    .filter(a => !exactIds.size && !unitId && stageCode && a.projectId === projectId && String(a.stageCode ?? "") === stageCode)
+    .map(a => a.facilityId));
+  const fallbackIds = new Set(facilities
+    .filter(f => !exactIds.size && !stageIds.size && (!stageCode || String(f.stageCode ?? "") === stageCode || !f.stageCode))
+    .map(f => f.id));
+  const ordered = facilities.filter(f => exactIds.has(f.id) || stageIds.has(f.id) || fallbackIds.has(f.id));
+  let remainingReduction = amount;
+  for (const facility of ordered) {
+    if (remainingReduction <= 0) break;
+    const currentOutstanding = Number(facility.outstandingPrincipal ?? facility.plafon ?? 0);
+    const reduction = Math.min(currentOutstanding, remainingReduction);
+    const nextOutstanding = Math.max(0, currentOutstanding - reduction);
+    const [row] = await db.update(creditFacilitiesTable).set({
+      outstandingPrincipal: String(nextOutstanding),
+      status: nextOutstanding <= 0 ? "closed" : facility.status,
+    }).where(eq(creditFacilitiesTable.id, facility.id)).returning();
+    await db.insert(creditTransactionsTable).values({
+      facilityId: facility.id,
+      type: "principal_reduction",
+      amount: String(reduction),
+      source: input.source ?? "akad_cair",
+      sourceId: input.sourceId ?? null,
+      transactionDate: input.transactionDate ?? new Date().toISOString().split("T")[0],
+      notes: sourceNote,
+    });
+    await writeAudit("finance", "credit_facility", facility.id, "akad_auto_reduction", facility, row, "finance", sourceNote);
+    remainingReduction -= reduction;
+  }
+  return remainingReduction;
+}
+
+async function reduceProjectCredit(projectId: number | null | undefined, amount: number, sourceNote: string, context: { unitId?: number | null; stageCode?: string | null; sourceId?: number | null; transactionDate?: string } = {}) {
   if (!projectId || amount <= 0) return;
+  const leftoverAfterFacilities = await reduceCreditFacility({
+    projectId,
+    amount,
+    sourceNote,
+    sourceId: context.sourceId ?? null,
+    transactionDate: context.transactionDate,
+    unitId: context.unitId ?? null,
+    stageCode: context.stageCode ?? null,
+  });
+  if (leftoverAfterFacilities <= 0) return;
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
   if (!project) return;
   const debts = await db.select().from(debtRecordsTable);
@@ -131,7 +195,7 @@ async function reduceProjectCredit(projectId: number | null | undefined, amount:
     .filter(d => String(d.projectName ?? "").toLowerCase() === project.nama.toLowerCase())
     .filter(d => ["kredit", "credit", "hutang", "bank"].includes(String(d.category ?? "").toLowerCase()))
     .filter(d => Number(d.remainingAmount ?? d.totalAmount ?? 0) > 0);
-  let remainingReduction = amount;
+  let remainingReduction = leftoverAfterFacilities;
   for (const debt of candidates) {
     if (remainingReduction <= 0) break;
     const currentPaid = Number(debt.paidAmount ?? 0);
@@ -809,6 +873,215 @@ router.post("/finance/kpp/:id/payment", async (req, res) => {
   }
 });
 
+// ─── KREDIT & INVESTMENT FACILITIES ──────────────────────────────────────────
+async function enrichCreditFacilities() {
+  const [facilities, allocations, transactions, projects, units, customers, disbursements] = await Promise.all([
+    db.select().from(creditFacilitiesTable).orderBy(desc(creditFacilitiesTable.createdAt)),
+    db.select().from(creditAllocationsTable),
+    db.select().from(creditTransactionsTable).orderBy(desc(creditTransactionsTable.transactionDate)),
+    db.select().from(projectsTable),
+    db.select().from(unitsTable),
+    db.select().from(customersTable),
+    db.select().from(akadDisbursementsTable),
+  ]);
+
+  return facilities.map(f => {
+    const facilityAllocations = allocations.filter(a => a.facilityId === f.id);
+    const facilityUnitIds = new Set(facilityAllocations.map(a => a.unitId).filter(Boolean));
+    const allocatedUnits = units.filter(u => facilityUnitIds.has(u.id));
+    const unitCustomerIds = new Set(allocatedUnits.map(u => u.customerId).filter(Boolean));
+    const linkedCustomers = customers.filter(c => (c.unitId && facilityUnitIds.has(c.unitId)) || unitCustomerIds.has(c.id));
+    const linkedCustomerIds = new Set(linkedCustomers.map(c => c.id));
+    const linkedDisbursements = disbursements.filter(d => linkedCustomerIds.has(d.customerId));
+    const totalAkadCair = linkedDisbursements.reduce((sum, d) => sum + Number(d.nominalCair ?? 0), 0);
+    const interestMonthly = Number(f.outstandingPrincipal ?? 0) * (Number(f.interestRateAnnual ?? 0) / 100) / 12;
+    const unitCount = facilityAllocations.filter(a => a.unitId).length;
+    const unitCairCount = linkedDisbursements.filter(d => Number(d.nominalCair ?? 0) > 0).length;
+    const project = projects.find(p => p.id === f.projectId);
+    return {
+      ...f,
+      projectName: project?.nama ?? `Proyek #${f.projectId}`,
+      plafon: Number(f.plafon ?? 0),
+      outstandingPrincipal: Number(f.outstandingPrincipal ?? 0),
+      interestRateAnnual: Number(f.interestRateAnnual ?? 0),
+      interestMonthly,
+      allocatedUnitCount: unitCount,
+      akadCairUnitCount: unitCairCount,
+      totalAkadCair,
+      allocationWarning: unitCount === 0 ? "Belum ada alokasi unit spesifik. Sinkronisasi memakai proyek/tahap sebagai fallback." : null,
+      allocations: facilityAllocations.map(a => ({
+        ...a,
+        allocatedPrincipal: Number(a.allocatedPrincipal ?? 0),
+        unit: a.unitId ? units.find(u => u.id === a.unitId) ?? null : null,
+      })),
+      transactions: transactions.filter(t => t.facilityId === f.id).map(t => ({ ...t, amount: Number(t.amount ?? 0), createdAt: t.createdAt.toISOString() })),
+      createdAt: f.createdAt.toISOString(),
+      updatedAt: f.updatedAt.toISOString(),
+    };
+  });
+}
+
+router.get("/finance/credit-facilities", async (_req, res) => {
+  try {
+    res.json({ facilities: await enrichCreditFacilities() });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/finance/credit-facilities", async (req, res) => {
+  try {
+    const plafon = Number(req.body.plafon ?? 0);
+    const [row] = await db.insert(creditFacilitiesTable).values({
+      facilityName: req.body.facilityName || `${req.body.lenderName ?? "Kredit"} - ${req.body.projectId}`,
+      facilityType: req.body.facilityType ?? "kredit",
+      lenderName: req.body.lenderName,
+      projectId: Number(req.body.projectId),
+      stageCode: req.body.stageCode || null,
+      plafon: String(plafon),
+      outstandingPrincipal: String(Number(req.body.outstandingPrincipal ?? plafon)),
+      interestRateAnnual: String(Number(req.body.interestRateAnnual ?? 0)),
+      tenorMonths: req.body.tenorMonths ? Number(req.body.tenorMonths) : null,
+      startDate: req.body.startDate || null,
+      status: req.body.status ?? "active",
+      notes: req.body.notes ?? null,
+    }).returning();
+    await writeAudit("finance", "credit_facility", row.id, "create", null, row, "finance", row.notes ?? undefined);
+    res.status(201).json({ ...row, plafon: Number(row.plafon), outstandingPrincipal: Number(row.outstandingPrincipal), interestRateAnnual: Number(row.interestRateAnnual ?? 0), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.post("/finance/credit-facilities/:id/allocations", async (req, res) => {
+  try {
+    const facilityId = Number(req.params.id);
+    const [facility] = await db.select().from(creditFacilitiesTable).where(eq(creditFacilitiesTable.id, facilityId));
+    if (!facility) return res.status(404).json({ error: "Fasilitas kredit tidak ditemukan" });
+    const unitIds = Array.isArray(req.body.unitIds) ? req.body.unitIds.map(Number).filter(Number.isFinite) : [];
+    if (unitIds.length === 0 && !req.body.stageCode) return res.status(400).json({ error: "Pilih unit atau tahap untuk alokasi kredit" });
+
+    await db.delete(creditAllocationsTable).where(eq(creditAllocationsTable.facilityId, facilityId));
+    let rows: Array<typeof creditAllocationsTable.$inferInsert> = [];
+    if (unitIds.length > 0) {
+      const allUnits = await db.select().from(unitsTable);
+      const selectedUnits = allUnits.filter(u => unitIds.includes(u.id));
+      const perUnit = selectedUnits.length > 0 ? Number(facility.plafon ?? 0) / selectedUnits.length : 0;
+      rows = selectedUnits.map(unit => ({
+        facilityId,
+        unitId: unit.id,
+        projectId: unit.projectId,
+        stageCode: unit.stageCode ?? facility.stageCode ?? null,
+        allocatedPrincipal: String(req.body.allocatedPrincipal ? Number(req.body.allocatedPrincipal) : perUnit),
+      }));
+    } else {
+      rows = [{
+        facilityId,
+        unitId: null,
+        projectId: facility.projectId,
+        stageCode: req.body.stageCode ?? facility.stageCode ?? null,
+        allocatedPrincipal: String(Number(req.body.allocatedPrincipal ?? facility.plafon ?? 0)),
+      }];
+    }
+    const inserted = rows.length ? await db.insert(creditAllocationsTable).values(rows).returning() : [];
+    res.json({ ok: true, allocations: inserted });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.post("/finance/credit-facilities/:id/sync-akad", async (req, res) => {
+  try {
+    const facilityId = Number(req.params.id);
+    const [facility] = await db.select().from(creditFacilitiesTable).where(eq(creditFacilitiesTable.id, facilityId));
+    if (!facility) return res.status(404).json({ error: "Fasilitas kredit tidak ditemukan" });
+    const [allocations, units, customers, ledgers, existingTx] = await Promise.all([
+      db.select().from(creditAllocationsTable).where(eq(creditAllocationsTable.facilityId, facilityId)),
+      db.select().from(unitsTable),
+      db.select().from(customersTable),
+      db.select().from(financeAkadDisbursementLedgerTable),
+      db.select().from(creditTransactionsTable).where(eq(creditTransactionsTable.facilityId, facilityId)),
+    ]);
+    const allocatedUnitIds = new Set(allocations.map(a => a.unitId).filter((id): id is number => typeof id === "number"));
+    const allocatedUnits = units.filter(u => allocatedUnitIds.has(u.id));
+    const allocatedCustomerIds = allocatedUnits.map(u => u.customerId).filter((id): id is number => typeof id === "number");
+    const stageAllocations = allocations.filter(a => !a.unitId);
+    const customerIds = new Set([
+      ...allocatedCustomerIds,
+      ...customers
+        .filter(c => {
+          if (c.unitId && allocatedUnitIds.has(c.unitId)) return true;
+          if (allocatedUnitIds.size > 0) return false;
+          return stageAllocations.some(a => c.projectId === a.projectId && (!a.stageCode || c.stageCode === a.stageCode));
+        })
+        .map(c => c.id),
+    ]);
+    const syncedSources = new Set(existingTx.filter(t => t.source === "akad_cair").map(t => t.sourceId));
+    let syncedAmount = 0;
+    for (const ledger of ledgers) {
+      if (!customerIds.has(ledger.customerId) || syncedSources.has(ledger.id)) continue;
+      const amount = Number(ledger.nominalCair ?? 0);
+      const customer = customers.find(c => c.id === ledger.customerId);
+      const unit = customer?.unitId
+        ? units.find(u => u.id === customer.unitId)
+        : units.find(u => u.customerId === ledger.customerId);
+      const leftover = await reduceCreditFacility({
+        projectId: facility.projectId,
+        unitId: unit?.id ?? null,
+        stageCode: customer?.stageCode ?? unit?.stageCode ?? facility.stageCode ?? null,
+        amount,
+        sourceNote: `Sync akad cair ledger #${ledger.id}`,
+        source: "akad_cair",
+        sourceId: ledger.id,
+        transactionDate: ledger.tanggalCair,
+      });
+      syncedAmount += amount - Math.max(0, leftover);
+    }
+    res.json({ ok: true, syncedAmount, facilities: await enrichCreditFacilities() });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.post("/finance/credit-facilities/accrue-interest", async (req, res) => {
+  try {
+    const period = String(req.query.period ?? new Date().toISOString().slice(0, 7));
+    const transactionDate = `${period}-01`;
+    const facilities = (await db.select().from(creditFacilitiesTable)).filter(f => f.status !== "closed" && Number(f.outstandingPrincipal ?? 0) > 0);
+    const existing = await db.select().from(creditTransactionsTable);
+    let inserted = 0;
+    for (const facility of facilities) {
+      const duplicate = existing.find(t => t.facilityId === facility.id && t.type === "interest_accrual" && String(t.transactionDate).startsWith(period));
+      if (duplicate) continue;
+      const amount = Number(facility.outstandingPrincipal ?? 0) * (Number(facility.interestRateAnnual ?? 0) / 100) / 12;
+      if (amount <= 0) continue;
+      const [row] = await db.insert(creditTransactionsTable).values({
+        facilityId: facility.id,
+        type: "interest_accrual",
+        amount: String(amount),
+        source: "monthly_interest",
+        sourceId: null,
+        transactionDate,
+        notes: `Accrual bunga ${period}`,
+      }).returning();
+      await recordFinanceCashflow({
+        transactionDate,
+        type: "cash_out",
+        category: "bunga_kredit",
+        amount,
+        projectName: undefined,
+        projectId: facility.projectId,
+        description: `Bunga ${facility.facilityName} ${period}`,
+        referenceNumber: `CREDIT-INT-${facility.id}-${row.id}`,
+      });
+      inserted++;
+    }
+    res.json({ ok: true, period, inserted, facilities: await enrichCreditFacilities() });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // ─── HUTANG CENTER ────────────────────────────────────────────────────────────
 router.get("/finance/hutang", async (req, res) => {
   try {
@@ -1034,6 +1307,9 @@ router.patch("/finance/akad-cair/:akadId", async (req, res) => {
     const [akad] = await db.select().from(akadRecordsTable).where(eq(akadRecordsTable.id, akadId));
     if (!akad) return res.status(404).json({ error: "Akad tidak ditemukan" });
     const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, akad.customerId));
+    const [unit] = customer?.unitId
+      ? await db.select().from(unitsTable).where(eq(unitsTable.id, customer.unitId))
+      : [];
     const existing = await db.select().from(akadDisbursementsTable).where(eq(akadDisbursementsTable.akadId, akadId));
     const values = {
       akadId,
@@ -1069,7 +1345,12 @@ router.patch("/finance/akad-cair/:akadId", async (req, res) => {
         notes: values.notes,
         createdBy: values.updatedBy,
       }).returning();
-      await reduceProjectCredit(customer?.projectId, delta, `Akad cair #${akadId} ledger #${ledger.id}`);
+      await reduceProjectCredit(customer?.projectId, delta, `Akad cair #${akadId} ledger #${ledger.id}`, {
+        unitId: customer?.unitId ?? unit?.id ?? null,
+        stageCode: customer?.stageCode ?? unit?.stageCode ?? null,
+        sourceId: ledger.id,
+        transactionDate: values.tanggalCair,
+      });
     }
     await writeAudit("finance", "akad_disbursement", akadId, "update_akad_cair", before, row, values.updatedBy, values.notes ?? undefined);
     res.json({ ...row, nominalCair: Number(row.nominalCair ?? 0), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
@@ -1096,6 +1377,9 @@ router.post("/finance/akad-cair/:akadId/pencairan", async (req, res) => {
     const [akad] = await db.select().from(akadRecordsTable).where(eq(akadRecordsTable.id, akadId));
     if (!akad) return res.status(404).json({ error: "Akad tidak ditemukan" });
     const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, akad.customerId));
+    const [unit] = customer?.unitId
+      ? await db.select().from(unitsTable).where(eq(unitsTable.id, customer.unitId))
+      : [];
     const nominalBaru = Number(req.body.nominalCair ?? 0);
     if (nominalBaru <= 0) return res.status(400).json({ error: "Nominal harus lebih dari 0" });
     const existing = await db.select().from(akadDisbursementsTable).where(eq(akadDisbursementsTable.akadId, akadId));
@@ -1124,7 +1408,12 @@ router.post("/finance/akad-cair/:akadId/pencairan", async (req, res) => {
     if (totalBaru >= akadAmount && akadAmount > 0) {
       await db.update(akadDisbursementsTable).set({ statusCair: "cair_penuh" }).where(eq(akadDisbursementsTable.id, disbId));
     }
-    await reduceProjectCredit(customer?.projectId, nominalBaru, `Pencairan akad #${akadId} ledger #${ledger.id}`);
+    await reduceProjectCredit(customer?.projectId, nominalBaru, `Pencairan akad #${akadId} ledger #${ledger.id}`, {
+      unitId: customer?.unitId ?? unit?.id ?? null,
+      stageCode: customer?.stageCode ?? unit?.stageCode ?? null,
+      sourceId: ledger.id,
+      transactionDate: req.body.tanggalCair,
+    });
     await writeAudit("finance", "akad_disbursement_ledger", akadId, "tambah_pencairan", null, ledger, req.body.createdBy ?? "finance");
     res.status(201).json({ ...ledger, nominalCair: Number(ledger.nominalCair ?? 0), createdAt: ledger.createdAt.toISOString() });
   } catch (e: any) {
@@ -1990,6 +2279,9 @@ router.post("/finance/uploads/ai-preview", async (req, res) => {
     if (!records.length) warnings.push("AI tidak menemukan baris valid dari Excel. Cek header dan sheet yang diupload.");
     if (fileType === "hutang" && !colMap.creditorName) warnings.push("Kolom kreditur belum terdeteksi kuat. Periksa preview sebelum simpan.");
     if (fileType === "hutang" && !colMap.totalAmount) warnings.push("Kolom nilai hutang belum terdeteksi kuat. Pastikan total nominal sudah benar.");
+    if (fileType === "hutang" && records.some((r: any) => ["bank", "kredit", "credit", "investment", "investasi", "kpp"].includes(String(r.category ?? "").toLowerCase()))) {
+      warnings.push("Ada baris bank/kredit/investment. Pertimbangkan input ke menu Kredit & Investment agar bisa tersambung ke unit dan Akad Cair.");
+    }
     if (["cashflow", "general_ledger", "bank"].includes(fileType) && !colMap.amount) warnings.push("Kolom nominal belum terdeteksi kuat. Periksa cash in/cash out sebelum simpan.");
 
     res.json({

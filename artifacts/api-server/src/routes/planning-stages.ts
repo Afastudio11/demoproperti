@@ -61,13 +61,16 @@ function parseUnitRef(shape: typeof planningSiteplanShapesTable.$inferSelect) {
   const label = cleanText(shape.label);
   const match = label.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
   const fallbackBlock = cleanText(shape.blockCode);
+  const legacyStage = /^T\d+$/i.test(fallbackBlock) ? fallbackBlock : "";
+  const explicitStage = cleanText(shape.stageCode);
   return {
-    stageCode: cleanText(shape.blockCode).toUpperCase(),
-    blockCode: (match?.[1] ?? fallbackBlock ?? "").toUpperCase(),
+    stageCode: (explicitStage || legacyStage).toUpperCase(),
+    blockCode: (match?.[1] ?? (legacyStage ? "" : fallbackBlock) ?? "").toUpperCase(),
     nomor: match?.[2] ?? "",
     unitType: cleanText(shape.unitType, "Tipe 36"),
     subkonId: shape.subkonId ?? null,
     subkonName: normalizeSubkonName(shape.subkonName) || "",
+    terminGroup: cleanText(shape.terminGroup),
   };
 }
 
@@ -113,10 +116,10 @@ async function getSiteplanCounts(projectId: number) {
 async function assignUnallocatedShapesToStage(projectId: number, stageCode: string, blockCode: string) {
   const shapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId));
   for (const shape of shapes) {
-    if (shape.shapeType !== "unit" || cleanText(shape.blockCode)) continue;
+    if (shape.shapeType !== "unit" || cleanText(shape.stageCode)) continue;
     const ref = parseUnitRef(shape);
     if (ref.blockCode === blockCode) {
-      await db.update(planningSiteplanShapesTable).set({ blockCode: stageCode }).where(eq(planningSiteplanShapesTable.id, shape.id));
+      await db.update(planningSiteplanShapesTable).set({ stageCode }).where(eq(planningSiteplanShapesTable.id, shape.id));
     }
   }
 }
@@ -260,7 +263,8 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
       await db.update(planningSiteplanShapesTable)
         .set({
           unitId,
-          blockCode: block.stageCode,
+          stageCode: block.stageCode,
+          blockCode: block.blockCode,
           unitType: block.unitType,
           subkonId: block.subkonId ?? null,
           subkonName: block.subkonName ?? null,
@@ -284,6 +288,7 @@ router.get("/planning/stages/siteplan-summary", async (req, res) => {
       unitType: string;
       subkonId: number | null;
       subkonName: string;
+      terminGroups: string[];
       labels: string[];
     }>();
     for (const shape of baseline.unitShapes) {
@@ -299,6 +304,7 @@ router.get("/planning/stages/siteplan-summary", async (req, res) => {
         unitType: ref.unitType,
         subkonId: ref.subkonId,
         subkonName: ref.subkonName,
+        terminGroups: [],
         labels: [],
       };
       current.unitCount += 1;
@@ -306,6 +312,7 @@ router.get("/planning/stages/siteplan-summary", async (req, res) => {
       if (!current.subkonId && ref.subkonId) current.subkonId = ref.subkonId;
       if (!current.subkonName && ref.subkonName) current.subkonName = ref.subkonName;
       if ((!current.unitType || current.unitType === "Tipe 36") && ref.unitType) current.unitType = ref.unitType;
+      if (ref.terminGroup && !current.terminGroups.includes(ref.terminGroup)) current.terminGroups.push(ref.terminGroup);
       blocks.set(key, current);
     }
     const blockList = Array.from(blocks.values()).sort((a, b) =>
