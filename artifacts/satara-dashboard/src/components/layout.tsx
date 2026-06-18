@@ -50,6 +50,7 @@ const financeSubNav: SubNavItem[] = [
   { type: "link", name: "Keuangan Proyek", path: "/finance/proyek" },
   { type: "link", name: "Realisasi vs RAB", path: "/finance/rab" },
   { type: "group", label: "Kewajiban & Tagihan" },
+  { type: "link", name: "Hutang", path: "/finance/hutang-records" },
   { type: "link", name: "Kredit & Investment", path: "/finance/hutang" },
   { type: "link", name: "Piutang", path: "/finance/piutang" },
   { type: "link", name: "Approval Subkon", path: "/finance/approval" },

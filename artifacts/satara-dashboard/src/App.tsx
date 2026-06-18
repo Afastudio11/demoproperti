@@ -135,6 +135,7 @@ import FinanceCashflow from "@/pages/finance/cashflow";
 import FinanceProyek from "@/pages/finance/proyek";
 import FinanceKpp from "@/pages/finance/kpp";
 import FinanceHutang from "@/pages/finance/hutang";
+import FinanceHutangRecords from "@/pages/finance/hutang-records";
 import FinanceApproval from "@/pages/finance/approval";
 import FinanceAkadCair from "@/pages/finance/akad-cair";
 import FinancePiutang from "@/pages/finance/piutang";
@@ -382,6 +383,7 @@ function AppRoutes() {
         <Route path="/finance/proyek" component={FinanceProyek} />
         <Route path="/finance/kpp" component={FinanceKpp} />
         <Route path="/finance/hutang" component={FinanceHutang} />
+        <Route path="/finance/hutang-records" component={FinanceHutangRecords} />
         <Route path="/finance/approval" component={FinanceApproval} />
         <Route path="/finance/akad-cair" component={FinanceAkadCair} />
         <Route path="/finance/piutang" component={FinancePiutang} />
