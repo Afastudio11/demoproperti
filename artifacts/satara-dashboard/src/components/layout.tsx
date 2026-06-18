@@ -125,7 +125,6 @@ const perencanaanSubNav: SubNavItem[] = [
   { type: "link", name: "Analisis Pasar", path: "/perencanaan/pasar" },
   { type: "link", name: "Analisis Lahan & Siteplan", path: "/perencanaan/lahan" },
   { type: "link", name: "Rencana Tahapan", path: "/perencanaan/tahapan" },
-  { type: "link", name: "Perencanaan Produk", path: "/perencanaan/produk" },
   { type: "link", name: "Feasibility", path: "/perencanaan/feasibility" },
   { type: "link", name: "Rencana Cashflow & KPP", path: "/perencanaan/cashflow" },
   { type: "link", name: "Timeline SPTIS", path: "/perencanaan/timeline" },

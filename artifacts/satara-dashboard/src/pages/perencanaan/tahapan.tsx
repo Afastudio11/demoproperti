@@ -120,7 +120,7 @@ export default function TahapanPage() {
   function normalizeStage(stage: Record<string, any>): StageRow {
     return {
       id: stage.id,
-      stageCode: stage.stageCode ?? "",
+      stageCode: normalizeStageCode(stage.stageCode, ""),
       stageName: stage.stageName ?? "",
       targetStart: stage.targetStart ?? "",
       targetEnd: stage.targetEnd ?? "",
@@ -154,7 +154,7 @@ export default function TahapanPage() {
       : [{ stageCode: "T1", stageName: "Tahap 1", blocks: Array.isArray(summary.blocks) ? summary.blocks : [] }];
     if (!incomingStages.length) return [newStage(0)];
     return incomingStages.map((stage: Record<string, any>, stageIdx: number) => {
-      const stageCode = String(stage.stageCode ?? `T${stageIdx + 1}`).toUpperCase();
+      const stageCode = normalizeStageCode(stage.stageCode, `T${stageIdx + 1}`);
       const existingStage = existingStages.find(row => row.stageCode.toUpperCase() === stageCode) ?? newStage(stageIdx);
       const incomingBlocks = Array.isArray(stage.blocks) ? stage.blocks : [];
       return {
@@ -186,7 +186,14 @@ export default function TahapanPage() {
       .join("|");
   }
 
-  const isLocked = stages.some(stage => !!stage.lockedAt);
+  function normalizeStageCode(value: unknown, fallback: string) {
+    const code = String(value || fallback).trim().toUpperCase();
+    return /^\d+$/.test(code) ? `T${code}` : code;
+  }
+
+  const hasLockedStages = stages.some(stage => !!stage.lockedAt);
+  const hasDraftStages = stages.some(stage => !stage.lockedAt);
+  const allStagesLocked = stages.length > 0 && stages.every(stage => !!stage.lockedAt);
   const totalUnits = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount, 0), 0);
   const totalSales = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount * block.pricePerUnit, 0), 0);
   const totalSubkon = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount * block.subkonValuePerUnit, 0), 0);
@@ -253,7 +260,7 @@ export default function TahapanPage() {
     }
   }
 
-  async function publish() {
+  async function publish(stageCodes?: string[]) {
     if (!projectId) { toast({ title: "Pilih proyek dulu", variant: "destructive" }); return; }
     setIsPublishing(true);
     try {
@@ -262,7 +269,7 @@ export default function TahapanPage() {
       const resp = await fetch("/api/planning/stages/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, stageCodes }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error ?? "Gagal publish");
@@ -274,7 +281,7 @@ export default function TahapanPage() {
         qc.invalidateQueries({ queryKey: ["projects"] }),
         qc.invalidateQueries({ queryKey: ["subkon-contracts"] }),
       ]);
-      toast({ title: "Rencana dipublish ke Produksi", description: `${data.syncedUnits} unit tersinkron.` });
+      toast({ title: stageCodes?.length ? "Tahap dipublish ke Produksi" : "Rencana dipublish ke Produksi", description: `${data.syncedUnits} unit tersinkron.` });
     } catch (err) {
       toast({ title: "Gagal publish", description: err instanceof Error ? err.message : "Terjadi kesalahan", variant: "destructive" });
     } finally {
@@ -344,18 +351,17 @@ export default function TahapanPage() {
           <p className="text-sm text-muted-foreground mt-0.5">Baseline tahap, blok, unit, harga, dan subkon dari Analisis Lahan sebelum masuk Produksi.</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={importFromSiteplan} disabled={isLocked || !projectId || isImportingSiteplan} className="gap-1.5">
+          <Button size="sm" variant="outline" onClick={importFromSiteplan} disabled={allStagesLocked || !projectId || isImportingSiteplan} className="gap-1.5">
             <RefreshCw className="size-3.5" />{isImportingSiteplan ? "Sinkron..." : "Tarik dari Analisis Lahan"}
           </Button>
-          {isLocked ? (
+          {hasLockedStages && (
             <Button size="sm" variant="outline" onClick={createRevision} className="gap-1.5"><Unlock className="size-3.5" />Buat Revisi</Button>
-          ) : (
-            <Button size="sm" variant="outline" onClick={addStage} className="gap-1.5"><Plus className="size-3.5" />Tambah Tahap</Button>
           )}
-          <Button size="sm" variant="outline" onClick={saveDraft} disabled={isLocked || isSaving} className="gap-1.5">
+          <Button size="sm" variant="outline" onClick={addStage} disabled={allStagesLocked} className="gap-1.5"><Plus className="size-3.5" />Tambah Tahap</Button>
+          <Button size="sm" variant="outline" onClick={saveDraft} disabled={!hasDraftStages || isSaving} className="gap-1.5">
             <Save className="size-3.5" />{isSaving ? "Menyimpan..." : "Simpan Draft"}
           </Button>
-          <Button size="sm" onClick={publish} disabled={isLocked || isPublishing} className="gap-1.5">
+          <Button size="sm" onClick={() => publish()} disabled={!hasDraftStages || isPublishing} className="gap-1.5">
             <Send className="size-3.5" />{isPublishing ? "Publish..." : "Publish ke Produksi"}
           </Button>
         </div>
@@ -374,7 +380,7 @@ export default function TahapanPage() {
             <Button size="sm" variant="ghost" className="h-8 px-2 text-xs gap-1.5"><GitBranch className="size-3.5" />Buka Analisis Lahan</Button>
           </Link>
         )}
-        {isLocked && <span className="inline-flex items-center gap-1 text-xs border rounded-full px-2 py-1 text-emerald-700 bg-emerald-50"><Lock className="size-3" />Published & locked</span>}
+        {hasLockedStages && <span className="inline-flex items-center gap-1 text-xs border rounded-full px-2 py-1 text-emerald-700 bg-emerald-50"><Lock className="size-3" />Sebagian tahap locked</span>}
       </div>
 
       <div className="grid sm:grid-cols-4 gap-3">
@@ -414,6 +420,7 @@ export default function TahapanPage() {
           {stages.map((stage, stageIdx) => {
             const stageUnits = stage.blocks.reduce((sum, block) => sum + block.unitCount, 0);
             const stageValue = stage.blocks.reduce((sum, block) => sum + block.unitCount * block.pricePerUnit, 0);
+            const stageLocked = !!stage.lockedAt;
             return (
               <Card key={stageIdx}>
                 <CardHeader className="pb-3">
@@ -421,16 +428,21 @@ export default function TahapanPage() {
                     <CardTitle className="text-sm flex items-center gap-2"><GitBranch className="size-4" />{stage.stageCode || `T${stageIdx + 1}`} · {stage.stageName || "Tahap"}</CardTitle>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{stageUnits} unit · {fmtCurrency(stageValue)}</span>
-                      <Button size="icon" variant="ghost" className="size-7" disabled={isLocked || stages.length <= 1} onClick={() => removeStage(stageIdx)}><Trash2 className="size-3.5 text-destructive" /></Button>
+                      {!stageLocked && (
+                        <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={isPublishing} onClick={() => publish([stage.stageCode])}>
+                          <Send className="size-3" /> Publish Tahap
+                        </Button>
+                      )}
+                      <Button size="icon" variant="ghost" className="size-7" disabled={stageLocked || stages.length <= 1} onClick={() => removeStage(stageIdx)}><Trash2 className="size-3.5 text-destructive" /></Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid md:grid-cols-4 gap-2">
-                    <div><Label className="text-xs">Kode Tahap</Label><Input disabled={isLocked} className="h-8 text-sm" value={stage.stageCode} onChange={e => setStageField(stageIdx, "stageCode", e.target.value.toUpperCase())} /></div>
-                    <div><Label className="text-xs">Nama Tahap</Label><Input disabled={isLocked} className="h-8 text-sm" value={stage.stageName} onChange={e => setStageField(stageIdx, "stageName", e.target.value)} /></div>
-                    <div><Label className="text-xs">Target Mulai</Label><Input disabled={isLocked} type="date" className="h-8 text-sm" value={stage.targetStart} onChange={e => setStageField(stageIdx, "targetStart", e.target.value)} /></div>
-                    <div><Label className="text-xs">Target Selesai</Label><Input disabled={isLocked} type="date" className="h-8 text-sm" value={stage.targetEnd} onChange={e => setStageField(stageIdx, "targetEnd", e.target.value)} /></div>
+                    <div><Label className="text-xs">Kode Tahap</Label><Input disabled={stageLocked} className="h-8 text-sm" value={stage.stageCode} onChange={e => setStageField(stageIdx, "stageCode", normalizeStageCode(e.target.value, `T${stageIdx + 1}`))} /></div>
+                    <div><Label className="text-xs">Nama Tahap</Label><Input disabled={stageLocked} className="h-8 text-sm" value={stage.stageName} onChange={e => setStageField(stageIdx, "stageName", e.target.value)} /></div>
+                    <div><Label className="text-xs">Target Mulai</Label><Input disabled={stageLocked} type="date" className="h-8 text-sm" value={stage.targetStart} onChange={e => setStageField(stageIdx, "targetStart", e.target.value)} /></div>
+                    <div><Label className="text-xs">Target Selesai</Label><Input disabled={stageLocked} type="date" className="h-8 text-sm" value={stage.targetEnd} onChange={e => setStageField(stageIdx, "targetEnd", e.target.value)} /></div>
                   </div>
 
                   <div className="rounded-lg border overflow-x-auto">
@@ -449,14 +461,14 @@ export default function TahapanPage() {
                           const stat = statusLabel(block.validationStatus);
                           return (
                             <tr key={blockIdx} className="border-b last:border-0">
-                              <td className="px-2 py-1.5"><Input disabled={isLocked} className="h-7 w-16 text-xs" value={block.blockCode} onChange={e => setBlockField(stageIdx, blockIdx, "blockCode", e.target.value.toUpperCase())} /></td>
+                              <td className="px-2 py-1.5"><Input disabled={stageLocked} className="h-7 w-16 text-xs" value={block.blockCode} onChange={e => setBlockField(stageIdx, blockIdx, "blockCode", e.target.value.toUpperCase())} /></td>
                               <td className="px-2 py-1.5"><NumericInput disabled className="h-7 w-20 text-xs bg-muted/40" value={block.unitCount} onChange={() => {}} /></td>
-                              <td className="px-2 py-1.5"><Input disabled={isLocked} className="h-7 w-24 text-xs" value={block.unitType} onChange={e => setBlockField(stageIdx, blockIdx, "unitType", e.target.value)} /></td>
-                              <td className="px-2 py-1.5"><CurrencyInput disabled={isLocked} className="h-7 w-32 text-xs" value={block.pricePerUnit} onChange={raw => setBlockField(stageIdx, blockIdx, "pricePerUnit", raw ? Number(raw) : 0)} /></td>
+                              <td className="px-2 py-1.5"><Input disabled={stageLocked} className="h-7 w-24 text-xs" value={block.unitType} onChange={e => setBlockField(stageIdx, blockIdx, "unitType", e.target.value)} /></td>
+                              <td className="px-2 py-1.5"><CurrencyInput disabled={stageLocked} className="h-7 w-32 text-xs" value={block.pricePerUnit} onChange={raw => setBlockField(stageIdx, blockIdx, "pricePerUnit", raw ? Number(raw) : 0)} /></td>
                               <td className="px-2 py-1.5 font-medium tabular-nums">{fmtCurrency(salesValue)}</td>
                               <td className="px-2 py-1.5 min-w-48">
                                 <SubkonSelect
-                                  disabled={isLocked}
+                                  disabled={stageLocked}
                                   allowCreate
                                   valueMode="id"
                                   projectId={projectId}
@@ -471,7 +483,7 @@ export default function TahapanPage() {
                                   }}
                                 />
                               </td>
-                              <td className="px-2 py-1.5"><CurrencyInput disabled={isLocked} className="h-7 w-32 text-xs" value={block.subkonValuePerUnit} onChange={raw => setBlockField(stageIdx, blockIdx, "subkonValuePerUnit", raw ? Number(raw) : 0)} /></td>
+                              <td className="px-2 py-1.5"><CurrencyInput disabled={stageLocked} className="h-7 w-32 text-xs" value={block.subkonValuePerUnit} onChange={raw => setBlockField(stageIdx, blockIdx, "subkonValuePerUnit", raw ? Number(raw) : 0)} /></td>
                               <td className="px-2 py-1.5 font-medium tabular-nums">{fmtCurrency(subkonValue)}</td>
                               <td className="px-2 py-1.5">
                                 <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] whitespace-nowrap", stat.tone)}>
@@ -479,14 +491,14 @@ export default function TahapanPage() {
                                   {stat.label} · {block.siteplanUnitCount ?? 0}/{block.unitCount}
                                 </span>
                               </td>
-                              <td className="px-2 py-1.5"><Button disabled={isLocked || stage.blocks.length <= 1} variant="ghost" size="icon" className="size-7" onClick={() => removeBlock(stageIdx, blockIdx)}><Trash2 className="size-3.5 text-destructive" /></Button></td>
+                              <td className="px-2 py-1.5"><Button disabled={stageLocked || stage.blocks.length <= 1} variant="ghost" size="icon" className="size-7" onClick={() => removeBlock(stageIdx, blockIdx)}><Trash2 className="size-3.5 text-destructive" /></Button></td>
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
                   </div>
-                  <Button disabled={isLocked} size="sm" variant="outline" onClick={() => addBlock(stageIdx)} className="gap-1.5"><Plus className="size-3.5" />Tambah Blok</Button>
+                  <Button disabled={stageLocked} size="sm" variant="outline" onClick={() => addBlock(stageIdx)} className="gap-1.5"><Plus className="size-3.5" />Tambah Blok</Button>
                 </CardContent>
               </Card>
             );

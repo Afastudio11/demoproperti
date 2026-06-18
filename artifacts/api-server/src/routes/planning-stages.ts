@@ -42,6 +42,11 @@ function cleanCode(value: unknown, fallback: string) {
   return (text || fallback).toUpperCase();
 }
 
+function cleanStageCode(value: unknown, fallback: string) {
+  const code = cleanCode(value, fallback);
+  return /^\d+$/.test(code) ? `T${code}` : code;
+}
+
 function cleanText(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
 }
@@ -61,10 +66,10 @@ function parseUnitRef(shape: typeof planningSiteplanShapesTable.$inferSelect) {
   const label = cleanText(shape.label);
   const match = label.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
   const fallbackBlock = cleanText(shape.blockCode);
-  const legacyStage = /^T\d+$/i.test(fallbackBlock) ? fallbackBlock : "";
+  const legacyStage = /^T?\d+$/i.test(fallbackBlock) ? fallbackBlock : "";
   const explicitStage = cleanText(shape.stageCode);
   return {
-    stageCode: (explicitStage || legacyStage).toUpperCase(),
+    stageCode: cleanStageCode(explicitStage || legacyStage, ""),
     blockCode: (match?.[1] ?? (legacyStage ? "" : fallbackBlock) ?? "").toUpperCase(),
     nomor: match?.[2] ?? "",
     unitType: cleanText(shape.unitType, "Tipe 36"),
@@ -364,17 +369,22 @@ router.post("/planning/stages/bulk", async (req, res) => {
     if (!Number.isFinite(projectId) || projectId <= 0) return res.status(400).json({ error: "projectId wajib diisi" });
 
     const existing = await db.select().from(planningStagesTable).where(eq(planningStagesTable.projectId, projectId));
-    if (existing.some(stage => stage.lockedAt)) return res.status(409).json({ error: "Rencana sudah locked. Buat revisi sebelum mengubah baseline." });
+    const lockedStages = existing.filter(stage => stage.lockedAt);
+    const lockedKeys = new Set(lockedStages.map(stage => cleanStageCode(stage.stageCode, "").toUpperCase()));
     const baseline = await getSiteplanBaseline(projectId);
     if (baseline.totalUnitShapes <= 0) return res.status(400).json({ error: "Belum ada unit rumah di siteplan. Gambar unit di Analisis Lahan dulu." });
     if (baseline.duplicateLabels.length) return res.status(409).json({ error: `Label unit siteplan duplikat: ${baseline.duplicateLabels.join(", ")}` });
     if (baseline.invalidLabels.length) return res.status(409).json({ error: `Label unit belum valid: ${baseline.invalidLabels.join(", ")}. Gunakan format seperti A-01.` });
 
-    await db.delete(planningStageBlocksTable).where(eq(planningStageBlocksTable.projectId, projectId));
-    await db.delete(planningStagesTable).where(eq(planningStagesTable.projectId, projectId));
+    for (const stage of existing) {
+      if (stage.lockedAt) continue;
+      await db.delete(planningStageBlocksTable).where(eq(planningStageBlocksTable.stageId, stage.id));
+      await db.delete(planningStagesTable).where(eq(planningStagesTable.id, stage.id));
+    }
 
     for (const [stageIndex, stage] of inputStages.entries()) {
-      const stageCode = cleanCode(stage.stageCode, `T${stageIndex + 1}`);
+      const stageCode = cleanStageCode(stage.stageCode, `T${stageIndex + 1}`);
+      if (lockedKeys.has(stageCode)) continue;
       const blocks = (stage.blocks ?? []).filter(block => cleanText(block.blockCode));
       const blockUnitCount = (block: BlockInput) => {
         const blockCode = cleanCode(block.blockCode, "A");
@@ -463,8 +473,16 @@ router.post("/planning/stages/publish", async (req, res) => {
       }
     }
 
+    const requestedStageCodes = Array.isArray(req.body.stageCodes)
+      ? new Set(req.body.stageCodes.map((code: unknown) => cleanStageCode(code, "")))
+      : null;
+    const draftStages = stages.filter(stage => !stage.lockedAt && (!requestedStageCodes || requestedStageCodes.has(cleanStageCode(stage.stageCode, ""))));
+    if (!draftStages.length) return res.status(400).json({ error: "Tidak ada tahap draft yang perlu dipublish." });
+    const draftStageIds = new Set(draftStages.map(stage => stage.id));
+    const draftBlocks = blocks.filter(block => draftStageIds.has(block.stageId));
+
     let syncedUnits = 0;
-    for (const block of blocks) {
+    for (const block of draftBlocks) {
       const contractId = await publishBlock(block);
       if (contractId !== block.contractId) {
         await db.update(planningStageBlocksTable).set({ contractId }).where(eq(planningStageBlocksTable.id, block.id));
@@ -473,12 +491,12 @@ router.post("/planning/stages/publish", async (req, res) => {
     }
 
     const now = new Date();
-    for (const stage of stages) {
+    for (const stage of draftStages) {
       await db.update(planningStagesTable)
         .set({ status: "published", publishedAt: now.toISOString().split("T")[0], lockedAt: now })
         .where(eq(planningStagesTable.id, stage.id));
     }
-    await db.update(projectsTable).set({ totalUnit: syncedUnits }).where(eq(projectsTable.id, projectId));
+    await db.update(projectsTable).set({ totalUnit: totalPlanned }).where(eq(projectsTable.id, projectId));
 
     res.json({ ok: true, syncedUnits, stages: await enrichStages(projectId) });
   } catch (err) {

@@ -11,7 +11,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { createOrGetSubkonMaster, listSubkonMaster, normalizeSubkonName, normalizedSubkonKey, resolveSubkonMaster } from "../lib/subkon-master";
-import { getContractFieldProgress } from "../lib/production-relations";
+import { getContractFieldProgress, getUnitsForContract } from "../lib/production-relations";
 
 const router: IRouter = Router();
 
@@ -86,8 +86,29 @@ async function buildPaymentPreview(contractId: number, paymentTermId?: number) {
   const totalPaidBefore = paidPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
   const lockedNetBefore = lockedPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
   const progressPrevious = lockedPayments.length > 0 ? Math.max(...lockedPayments.map(p => p.progressCurrent)) : 0;
+  const units = await getUnitsForContract(contractId);
   const progressCurrent = await getContractFieldProgress(contractId);
   const velocity = Math.max(0, progressCurrent - progressPrevious);
+  const unitProgress = units
+    .map(unit => ({
+      id: unit.id,
+      label: `${unit.blok}-${unit.nomor}`,
+      blok: unit.blok,
+      nomor: unit.nomor,
+      tipe: unit.tipe,
+      stageCode: unit.stageCode,
+      progress: Number(unit.progress ?? 0),
+      status: unit.status,
+      readyAkad: !!unit.readyAkad,
+    }))
+    .sort((a, b) => a.blok.localeCompare(b.blok, undefined, { numeric: true }) || a.nomor.localeCompare(b.nomor, undefined, { numeric: true }));
+  const unitStats = {
+    total: unitProgress.length,
+    selesai: unitProgress.filter(unit => unit.progress >= 100).length,
+    berjalan: unitProgress.filter(unit => unit.progress > 0 && unit.progress < 100).length,
+    belumMulai: unitProgress.filter(unit => unit.progress <= 0).length,
+    rataRata: progressCurrent,
+  };
 
   let grossEligibleAmount = 0;
   let retentionDeducted = 0;
@@ -122,6 +143,8 @@ async function buildPaymentPreview(contractId: number, paymentTermId?: number) {
     progressPrevious,
     progressCurrent,
     velocity,
+    unitStats,
+    unitProgress,
     grossEligibleAmount,
     retentionDeducted,
     netPayment,

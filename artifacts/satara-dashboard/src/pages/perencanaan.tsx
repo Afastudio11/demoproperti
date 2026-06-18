@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Calculator, Map, Package, Calendar, DollarSign,
+  Calculator, Map, Calendar, DollarSign,
   Users, ChevronRight, Building2, TrendingUp, AlertTriangle, CheckCircle2,
   Brain, Zap, XCircle, FolderOpen,
 } from "lucide-react";
@@ -18,7 +18,6 @@ const modules = [
   { name: "Analisis Pasar", path: "/perencanaan/pasar", icon: TrendingUp, desc: "Demografi, FLPP, kompetitor & demand score" },
   { name: "Analisis Lahan & Siteplan", path: "/perencanaan/lahan", icon: Building2, desc: "Gambar siteplan, bidang, blok, dan unit visual" },
   { name: "Rencana Tahapan", path: "/perencanaan/tahapan", icon: FolderOpen, desc: "Tarik unit siteplan, susun tahap, blok, subkon" },
-  { name: "Perencanaan Produk", path: "/perencanaan/produk", icon: Package, desc: "Tipe unit, harga, segmen & simulasi revenue" },
   { name: "Feasibility Engine", path: "/perencanaan/feasibility", icon: Calculator, desc: "ROI, IRR, NPV, payback & CEO report" },
   { name: "Cashflow & KPP", path: "/perencanaan/cashflow", icon: DollarSign, desc: "Cashflow 3 skenario & kredit konstruksi" },
   { name: "Timeline SPTIS", path: "/perencanaan/timeline", icon: Calendar, desc: "Master schedule & milestone tracking" },

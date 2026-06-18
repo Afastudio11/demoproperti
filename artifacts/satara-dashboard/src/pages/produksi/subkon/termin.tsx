@@ -29,7 +29,17 @@ type PaymentTerm = {
   netAmount: number;
   notes: string | null;
 };
-type Unit = { id: number; projectId: number; contractId: number | null; stageCode: string | null; subkonName: string | null; progress: number };
+type Unit = {
+  id: number;
+  projectId: number;
+  contractId: number | null;
+  blok?: string;
+  nomor?: string;
+  tipe?: string;
+  stageCode: string | null;
+  subkonName: string | null;
+  progress: number;
+};
 type Payment = {
   id: number; contractId: number; paymentTermId: number | null; terminNumber: number | null;
   progressPrevious: number; progressCurrent: number;
@@ -47,6 +57,22 @@ type PaymentPreview = {
   grossEligibleAmount: number;
   retentionDeducted: number;
   netPayment: number;
+  unitStats?: {
+    total: number;
+    selesai: number;
+    berjalan: number;
+    belumMulai: number;
+    rataRata: number;
+  };
+  unitProgress?: Array<{
+    id: number;
+    label: string;
+    tipe: string;
+    stageCode: string | null;
+    progress: number;
+    status: string;
+    readyAkad: boolean;
+  }>;
 };
 
 const STATUS_INFO: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
@@ -139,6 +165,22 @@ export default function SubkonTermin() {
   const gross = preview?.grossEligibleAmount ?? selectedTerm?.grossAmount ?? 0;
   const retention = preview?.retentionDeducted ?? selectedTerm?.retentionAmount ?? 0;
   const net = preview?.netPayment ?? selectedTerm?.netAmount ?? Math.max(0, gross - retention);
+  const trackedUnits = preview?.unitProgress ?? contractUnits.map(u => ({
+    id: u.id,
+    label: u.blok && u.nomor ? `${u.blok}-${u.nomor}` : `Unit #${u.id}`,
+    tipe: u.tipe ?? "",
+    stageCode: u.stageCode,
+    progress: Number(u.progress ?? 0),
+    status: "",
+    readyAkad: false,
+  }));
+  const unitStats = preview?.unitStats ?? {
+    total: contractUnits.length,
+    selesai: contractUnits.filter(u => (u.progress ?? 0) >= 100).length,
+    berjalan: contractUnits.filter(u => (u.progress ?? 0) > 0 && (u.progress ?? 0) < 100).length,
+    belumMulai: contractUnits.filter(u => (u.progress ?? 0) <= 0).length,
+    rataRata: fieldProgress,
+  };
 
   return (
     <div className="space-y-5">
@@ -209,6 +251,61 @@ export default function SubkonTermin() {
                 <Input value={contract ? `${fmtPct(fieldProgress)} (${contractUnits.length} unit)` : "Pilih kontrak"} disabled className="h-8 text-sm bg-muted" />
               </div>
             </div>
+
+            {contract && (
+              <div className="border rounded-lg p-3 space-y-3 bg-background">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold">Tracking Progress Unit dari Produksi</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Dasar hitung termin: rata-rata progress {unitStats.total} unit pada kontrak {contract.subkonName}{contract.stageCode ? ` (${contract.stageCode})` : ""}.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold">{fmtPct(unitStats.rataRata)}</div>
+                    <div className="text-[10px] text-muted-foreground">rata-rata progress</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className="rounded-md border bg-muted/30 p-2"><span className="block text-muted-foreground">Total Unit</span><span className="font-semibold">{unitStats.total}</span></div>
+                  <div className="rounded-md border bg-muted/30 p-2"><span className="block text-muted-foreground">Selesai</span><span className="font-semibold text-emerald-600">{unitStats.selesai}</span></div>
+                  <div className="rounded-md border bg-muted/30 p-2"><span className="block text-muted-foreground">Berjalan</span><span className="font-semibold text-amber-600">{unitStats.berjalan}</span></div>
+                  <div className="rounded-md border bg-muted/30 p-2"><span className="block text-muted-foreground">Belum Mulai</span><span className="font-semibold">{unitStats.belumMulai}</span></div>
+                </div>
+                {trackedUnits.length === 0 ? (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-700">
+                    Belum ada unit produksi yang terhubung ke kontrak ini. Publish baseline dari Rencana Tahapan atau link kontrak ke unit dulu.
+                  </div>
+                ) : (
+                  <div className="max-h-44 overflow-y-auto rounded-md border">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-muted">
+                        <tr className="text-muted-foreground">
+                          <th className="text-left px-2 py-1.5">Unit</th>
+                          <th className="text-left px-2 py-1.5">Tipe</th>
+                          <th className="text-right px-2 py-1.5">Progress</th>
+                          <th className="text-left px-2 py-1.5">Bar</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trackedUnits.map(unit => (
+                          <tr key={unit.id} className="border-t">
+                            <td className="px-2 py-1.5 font-medium">{unit.label}</td>
+                            <td className="px-2 py-1.5 text-muted-foreground">{unit.tipe || "—"}</td>
+                            <td className="px-2 py-1.5 text-right">{fmtPct(unit.progress)}</td>
+                            <td className="px-2 py-1.5">
+                              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.max(0, Math.min(100, unit.progress))}%` }} />
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             {selectedTerm && contract && (
               <div className="border rounded-lg p-3 space-y-2 bg-background">
