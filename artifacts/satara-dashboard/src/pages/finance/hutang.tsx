@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Landmark, Link2, Percent, Plus, RefreshCw } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Landmark, Link2, Percent, Plus, RefreshCw, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const fmtRp = (n: number) => {
@@ -51,13 +52,18 @@ type Facility = {
   transactions: Array<{ id: number; type: string; amount: number; transactionDate: string; notes: string | null }>;
 };
 
+type BungaModal = { facility: Facility; amount: string; paymentDate: string; notes: string } | null;
+
 export default function CreditInvestmentCenter() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [allocationTarget, setAllocationTarget] = useState<Facility | null>(null);
   const [selectedUnitIds, setSelectedUnitIds] = useState<number[]>([]);
   const [allocationStage, setAllocationStage] = useState("");
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [bungaModal, setBungaModal] = useState<BungaModal>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["finance-credit-facilities"],
@@ -139,8 +145,41 @@ export default function CreditInvestmentCenter() {
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal accrue bunga");
       return res.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["finance-credit-facilities"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance-credit-facilities"] });
+      toast({ title: "Bunga bulanan berhasil diaccrue" });
+    },
   });
+
+  const payBunga = useMutation({
+    mutationFn: async ({ facilityId, amount, paymentDate, notes }: { facilityId: number; amount: number; paymentDate: string; notes: string }) => {
+      const res = await fetch(`/api/finance/credit-facilities/${facilityId}/pay-interest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, paymentDate, notes }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Gagal catat pembayaran bunga");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance-credit-facilities"] });
+      setBungaModal(null);
+      toast({ title: "Pembayaran bunga dicatat" });
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  function toggleExpand(id: number) {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function openBungaModal(f: Facility) {
+    setBungaModal({ facility: f, amount: String(Math.round(f.interestMonthly)), paymentDate: new Date().toISOString().split("T")[0], notes: "" });
+  }
 
   const targetUnits = useMemo(() => {
     if (!allocationTarget) return [];
@@ -219,7 +258,48 @@ export default function CreditInvestmentCenter() {
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.max(0, paidPct))}%` }} />
                 </div>
-                <div className="text-[11px] text-muted-foreground">{paidPct}% pokok tertutup dari akad cair / pembayaran pokok.</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] text-muted-foreground">{paidPct}% pokok tertutup dari akad cair / pembayaran pokok.</div>
+                  <button
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => toggleExpand(f.id)}
+                  >
+                    {expandedIds.has(f.id) ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+                    Riwayat Transaksi ({f.transactions.length})
+                  </button>
+                </div>
+
+                {expandedIds.has(f.id) && (
+                  <div className="rounded-lg border bg-muted/20 divide-y text-xs">
+                    <div className="px-3 py-2 flex items-center justify-between">
+                      <span className="font-medium text-muted-foreground uppercase tracking-wide text-[10px]">Riwayat Transaksi</span>
+                      <Button size="sm" variant="outline" className="h-6 text-xs gap-1 px-2" onClick={() => openBungaModal(f)}>
+                        <WalletCards className="size-3" /> Catat Bayar Bunga
+                      </Button>
+                    </div>
+                    {f.transactions.length === 0 ? (
+                      <div className="px-3 py-3 text-muted-foreground">Belum ada transaksi tercatat.</div>
+                    ) : f.transactions.slice(0, 20).map(t => (
+                      <div key={t.id} className="px-3 py-2 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium",
+                            t.type === "interest_accrual" ? "bg-amber-100 text-amber-700" :
+                            t.type === "interest_paid" ? "bg-emerald-100 text-emerald-700" :
+                            "bg-blue-100 text-blue-700"
+                          )}>
+                            {t.type === "interest_accrual" ? "Bunga Accrual" : t.type === "interest_paid" ? "Bunga Dibayar" : "Pokok Turun"}
+                          </span>
+                          <span className="text-muted-foreground">{t.transactionDate}</span>
+                          {t.notes && <span className="text-muted-foreground truncate max-w-40">{t.notes}</span>}
+                        </div>
+                        <span className={cn("font-medium tabular-nums", t.type === "interest_paid" ? "text-emerald-600" : t.type === "interest_accrual" ? "text-amber-600" : "text-red-500")}>
+                          {t.type === "interest_paid" ? "+" : "-"}{fmtRp(t.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -292,6 +372,43 @@ export default function CreditInvestmentCenter() {
             <Button variant="outline" onClick={() => setAllocationTarget(null)}>Batal</Button>
             <Button onClick={() => saveAllocation.mutate()} disabled={saveAllocation.isPending}>
               {saveAllocation.isPending ? "Menyimpan..." : "Simpan Alokasi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── MODAL: CATAT BAYAR BUNGA ─────────────────────────────────── */}
+      <Dialog open={!!bungaModal} onOpenChange={open => !open && setBungaModal(null)}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+          <DialogHeader><DialogTitle>Catat Pembayaran Bunga</DialogTitle></DialogHeader>
+          {bungaModal && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Fasilitas: <strong>{bungaModal.facility.facilityName}</strong><br />
+                Estimasi bunga bulan ini: <strong>{fmtRp(bungaModal.facility.interestMonthly)}</strong>
+              </p>
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2">
+                Bunga dicatat sebagai biaya (cash out), bukan pengurang pokok. Pokok hanya berkurang dari Akad Cair atau pembayaran pokok manual via Sync Akad.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Jumlah Bunga (Rp)" value={bungaModal.amount} onChange={v => setBungaModal(m => m ? { ...m, amount: v } : null)} type="number" span />
+                <Field label="Tanggal Bayar" value={bungaModal.paymentDate} onChange={v => setBungaModal(m => m ? { ...m, paymentDate: v } : null)} type="date" />
+                <Field label="Catatan" value={bungaModal.notes} onChange={v => setBungaModal(m => m ? { ...m, notes: v } : null)} span />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBungaModal(null)}>Batal</Button>
+            <Button
+              disabled={!bungaModal?.amount || payBunga.isPending}
+              onClick={() => bungaModal && payBunga.mutate({
+                facilityId: bungaModal.facility.id,
+                amount: Number(bungaModal.amount),
+                paymentDate: bungaModal.paymentDate,
+                notes: bungaModal.notes,
+              })}
+            >
+              {payBunga.isPending ? "Menyimpan..." : "Catat Pembayaran"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -469,6 +469,20 @@ function WorkbookPreview({ sheet }: { sheet?: ParsedSheet }) {
   );
 }
 
+// ─── Kredit detection helper ─────────────────────────────────────────────────
+const KREDIT_BANK_KEYWORDS = /\b(bank|btn|bni|bri|mandiri|cimb|bca|danamon|panin|kpr|kpp|kredit\s*konstruksi|kredit\s*investasi|konstruksi|developer\s*loan|fasilitas\s*bank)\b/i;
+
+function detectKreditRows(rows: Record<string, any>[]): { idx: number; creditorName: string }[] {
+  return rows.flatMap((r, idx) => {
+    const name = String(r.creditorName ?? r.stageInfo ?? "");
+    const notes = String(r.notes ?? "");
+    if (KREDIT_BANK_KEYWORDS.test(name) || KREDIT_BANK_KEYWORDS.test(notes)) {
+      return [{ idx, creditorName: name || `Baris ${idx + 1}` }];
+    }
+    return [];
+  });
+}
+
 // ─── Main component ──────────────────────────────────────────────────────────
 export default function UploadCenter() {
   const qc = useQueryClient();
@@ -719,6 +733,7 @@ export default function UploadCenter() {
   const fields = TYPE_FIELDS[selected] ?? [];
   const manualTotals = computeManualTotals(selected, manualRows);
   const typeName = FILE_TYPES.find(f => f.key === selected)?.label ?? selected;
+  const kreditWarnings = selected === "hutang" ? detectKreditRows(manualRows) : [];
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
@@ -984,6 +999,20 @@ export default function UploadCenter() {
           </div>
 
           {errorMsg && <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg p-3">{errorMsg}</div>}
+
+          {kreditWarnings.length > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-3 text-sm space-y-1.5">
+              <div className="font-semibold text-amber-800 dark:text-amber-400">
+                Terdeteksi {kreditWarnings.length} entri yang mungkin adalah fasilitas bank/kredit
+              </div>
+              <div className="text-xs text-amber-700 dark:text-amber-500">
+                {kreditWarnings.map(w => w.creditorName).join(", ")}
+              </div>
+              <p className="text-xs text-amber-700 dark:text-amber-500">
+                Entri bank/kredit sebaiknya tidak disimpan sebagai Hutang umum. Pertimbangkan membuat fasilitas di halaman <a href="/finance/hutang" className="underline font-medium hover:text-amber-900">Kredit &amp; Investment</a> agar outstanding pokok bisa terhubung ke Akad Cair secara otomatis.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <button onClick={() => setStep("docUpload")}

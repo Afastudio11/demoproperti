@@ -11,7 +11,6 @@ type Proof = {
   projectName: string;
   subkonName: string;
   stageCode: string | null;
-  terminNumber: number | null;
   paymentType: string;
   amount: number;
   paymentDate: string | null;
@@ -41,6 +40,14 @@ export default function PublicPaymentProof() {
       ? <XCircle className="size-8 text-red-600" />
       : <Clock className="size-8 text-amber-600" />;
 
+  const statusLabel = data?.verified
+    ? "Terverifikasi — Sudah Dibayar"
+    : data?.status === "approved"
+      ? "Disetujui — Belum Dibayar"
+      : data?.status === "rejected"
+        ? "Ditolak"
+        : "Menunggu Approval";
+
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-xl rounded-xl border bg-white shadow-lg overflow-hidden">
@@ -62,15 +69,21 @@ export default function PublicPaymentProof() {
             <div className="flex items-center gap-3">
               {statusIcon}
               <div>
-                <div className="text-lg font-bold">{data.verified ? "Terverifikasi Dibayar" : "Belum Dibayar"}</div>
-                <div className="text-xs text-slate-500">Status: {data.status}</div>
+                <div className="text-lg font-bold">{statusLabel}</div>
+                <div className="text-xs text-slate-500">Status sistem: {data.status}</div>
               </div>
             </div>
+
+            {!data.verified && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                QR ini belum dapat diverifikasi sebagai bukti bayar sah. Dokumen hanya terverifikasi setelah Finance menandai pembayaran sebagai <strong>Paid</strong>.
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-lg bg-slate-50 p-3 col-span-2">
                 <div className="text-xs text-slate-500">Nomor Dokumen</div>
-                <div className="font-semibold">{data.docId}</div>
+                <div className="font-semibold font-mono">{data.docId}</div>
               </div>
               <div className="rounded-lg bg-slate-50 p-3">
                 <div className="text-xs text-slate-500">Proyek</div>
@@ -80,25 +93,31 @@ export default function PublicPaymentProof() {
                 <div className="text-xs text-slate-500">Subkon</div>
                 <div className="font-semibold">{data.subkonName}</div>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <div className="text-xs text-slate-500">Termin</div>
-                <div className="font-semibold">T{data.terminNumber ?? "-"} {data.paymentType === "retensi" ? "(Retensi)" : ""}</div>
-              </div>
+              {data.stageCode && (
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <div className="text-xs text-slate-500">Tahap</div>
+                  <div className="font-semibold">{data.stageCode}</div>
+                </div>
+              )}
               <div className="rounded-lg bg-slate-50 p-3">
                 <div className="text-xs text-slate-500">Tanggal Bayar</div>
                 <div className="font-semibold">{data.paymentDate ?? "-"}</div>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 col-span-2">
-                <div className="text-xs text-slate-500">Jumlah Dibayar</div>
-                <div className="text-2xl font-bold">{fmtRp(data.amount)}</div>
+                <div className="text-xs text-slate-500">Progress Pekerjaan saat Pengajuan</div>
+                <div className="font-semibold">{data.progressPrevious}% {"\u2192"} {data.progressCurrent}%</div>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 col-span-2">
-                <div className="text-xs text-slate-500">Progress Pekerjaan Saat Pengajuan</div>
-                <div className="font-semibold">{data.progressPrevious}% {"->"} {data.progressCurrent}%</div>
+                <div className="text-xs text-slate-500">Jumlah {data.verified ? "Dibayar" : "Diajukan"}</div>
+                <div className="text-2xl font-bold">{fmtRp(data.amount)}</div>
               </div>
             </div>
 
             {data.notes && <div className="text-xs text-slate-500 border-t pt-4">{data.notes}</div>}
+
+            <div className="text-[10px] text-slate-400 border-t pt-3">
+              Dokumen ini diterbitkan oleh sistem internal Satara Development. Keaslian dokumen dapat diverifikasi melalui QR Code yang tercetak pada PDF resmi.
+            </div>
           </div>
         ) : null}
       </div>

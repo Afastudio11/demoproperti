@@ -34,17 +34,17 @@ router.get("/public/payment-proof/:token", async (req, res) => {
       ? await db.select().from(projectsTable).where(eq(projectsTable.id, contract.projectId))
       : [];
 
-    const docId = `SPK-${String(contract?.id ?? 0).padStart(4, "0")}-T${payment.terminNumber ?? "?"}-${String(payment.id).padStart(5, "0")}`;
+    const docId = `SPK-${String(contract?.id ?? 0).padStart(4, "0")}-P${String(payment.id).padStart(5, "0")}`;
+    const isPaid = payment.status === "paid";
 
     res.json({
-      verified: payment.status === "paid",
+      verified: isPaid,
       status: payment.status,
       docId,
       paymentId: payment.id,
       projectName: project?.nama ?? `Proyek ${contract?.projectId ?? "-"}`,
       subkonName: contract?.subkonName ?? "-",
       stageCode: contract?.stageCode ?? null,
-      terminNumber: payment.terminNumber,
       paymentType: payment.paymentType,
       amount: payment.netPayment ?? 0,
       paymentDate: payment.paymentDate,

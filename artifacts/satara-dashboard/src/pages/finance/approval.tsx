@@ -81,9 +81,9 @@ async function downloadReceipt(items: Approval[]) {
   const docId = `SPK-${String(c?.id ?? 0).padStart(4, "0")}-P${String(first.paymentId).padStart(5, "0")}`;
   const tanggal = p?.paymentDate ?? new Date().toISOString().split("T")[0];
   const generatedAt = new Date().toLocaleString("id-ID");
-  const isPaid = true;
-  const docTitle = "BUKTI PEMBAYARAN SUBKONTRAKTOR";
-  const statusText = "LUNAS / PAID";
+  const isPaid = p?.status === "paid";
+  const docTitle = isPaid ? "BUKTI PEMBAYARAN SUBKONTRAKTOR" : "SURAT PERSETUJUAN PEMBAYARAN SUBKONTRAKTOR";
+  const statusText = isPaid ? "LUNAS / PAID" : "DISETUJUI / APPROVED";
 
   // QR membuka halaman bukti bayar public tanpa login.
   const qrText = paymentProofUrl(first.paymentId);
@@ -159,8 +159,8 @@ async function downloadReceipt(items: Approval[]) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(...darkGrey);
-  doc.text("Scan QR untuk verifikasi", qrX + qrSize / 2, qrY + qrSize + 7, { align: "center" });
-  doc.text("pembayaran ini", qrX + qrSize / 2, qrY + qrSize + 11, { align: "center" });
+  doc.text(isPaid ? "Scan QR untuk verifikasi" : "Scan QR cek status", qrX + qrSize / 2, qrY + qrSize + 7, { align: "center" });
+  doc.text(isPaid ? "pembayaran ini" : "approval ini", qrX + qrSize / 2, qrY + qrSize + 11, { align: "center" });
 
   // Left info block
   const infoColW = qrX - M - 10;
@@ -256,7 +256,7 @@ async function downloadReceipt(items: Approval[]) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
   doc.setTextColor(...white);
-  doc.text("JUMLAH DIBAYAR", M + 5, y + 8.5);
+  doc.text(isPaid ? "JUMLAH DIBAYAR" : "JUMLAH DIAJUKAN", M + 5, y + 8.5);
   doc.setFontSize(13);
   doc.text(fmtRp(p?.netPayment ?? 0), W - M - 5, y + 8.5, { align: "right" });
   y += 18;

@@ -1082,6 +1082,40 @@ router.post("/finance/credit-facilities/accrue-interest", async (req, res) => {
   }
 });
 
+// ─── PAY INTEREST MANUALLY ────────────────────────────────────────────────────
+router.post("/finance/credit-facilities/:id/pay-interest", async (req, res) => {
+  try {
+    const facilityId = Number(req.params.id);
+    const [facility] = await db.select().from(creditFacilitiesTable).where(eq(creditFacilitiesTable.id, facilityId));
+    if (!facility) return res.status(404).json({ error: "Fasilitas tidak ditemukan" });
+    const amount = Number(req.body.amount ?? 0);
+    if (amount <= 0) return res.status(400).json({ error: "Jumlah bunga harus lebih dari 0" });
+    const paymentDate = String(req.body.paymentDate ?? new Date().toISOString().split("T")[0]);
+    const notes = String(req.body.notes ?? "");
+    const [row] = await db.insert(creditTransactionsTable).values({
+      facilityId,
+      type: "interest_paid",
+      amount: String(amount),
+      source: "manual_payment",
+      sourceId: null,
+      transactionDate: paymentDate,
+      notes: notes || `Pembayaran bunga manual ${paymentDate}`,
+    }).returning();
+    await recordFinanceCashflow({
+      transactionDate: paymentDate,
+      type: "cash_out",
+      category: "bunga_kredit",
+      amount,
+      projectId: facility.projectId,
+      description: `Bayar bunga ${facility.facilityName}${notes ? " — " + notes : ""}`,
+      referenceNumber: `CREDIT-PAY-${facilityId}-${row.id}`,
+    });
+    res.json({ ok: true, transaction: row, facilities: await enrichCreditFacilities() });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // ─── HUTANG CENTER ────────────────────────────────────────────────────────────
 router.get("/finance/hutang", async (req, res) => {
   try {
