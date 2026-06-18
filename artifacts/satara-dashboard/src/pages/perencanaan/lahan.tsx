@@ -1290,10 +1290,27 @@ export default function LahanPage() {
       toast({ title: "Kode blok wajib diisi", variant: "destructive" });
       return;
     }
+    const startNum = batchUnitForm.startNumber;
+    const newLabels = selectedUnits.map((_, i) => `${prefix}-${String(startNum + i).padStart(2, "0")}`);
+    const existingLabels = new Set(
+      shapeList
+        .filter(s => !selectedShapeIds.includes(s.id))
+        .map(s => String(s.label ?? "").toUpperCase()),
+    );
+    const duplicates = newLabels.filter(l => existingLabels.has(l.toUpperCase()));
+    if (duplicates.length > 0) {
+      toast({
+        title: `Peringatan: ${duplicates.length} nomor sudah ada`,
+        description: `Label duplikat: ${duplicates.slice(0, 4).join(", ")}${duplicates.length > 4 ? ` +${duplicates.length - 4} lagi` : ""}. Ubah "Nomor Mulai" ke nomor yang belum terpakai.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const results = await Promise.all(selectedUnits.map((shape, index) => {
-        const nomor = String(autoBatchStartNumber + index).padStart(2, "0");
+        const nomor = String(startNum + index).padStart(2, "0");
         return fetch(`/api/planning/siteplan/shapes/${shape.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -1314,7 +1331,7 @@ export default function LahanPage() {
       if (failed) {
         toast({ title: "Sebagian shape gagal diblok", description: `${selectedUnits.length - failed}/${selectedUnits.length} unit berhasil.`, variant: "destructive" });
       } else {
-        toast({ title: `${selectedUnits.length} unit masuk ${batchUnitForm.stageCode} / ${batchUnitForm.terminGroup}`, description: `Label ${prefix}-${String(autoBatchStartNumber).padStart(2, "0")} sampai ${prefix}-${String(autoBatchStartNumber + selectedUnits.length - 1).padStart(2, "0")}` });
+        toast({ title: `${selectedUnits.length} unit masuk ${batchUnitForm.stageCode} / ${batchUnitForm.terminGroup}`, description: `Label ${prefix}-${String(startNum).padStart(2, "0")} sampai ${prefix}-${String(startNum + selectedUnits.length - 1).padStart(2, "0")}` });
       }
     } finally {
       setIsSaving(false);
@@ -2117,11 +2134,16 @@ export default function LahanPage() {
                             <Input className="h-7 text-xs" value={batchUnitForm.blockPrefix} onChange={e => setBatchUnitForm(p => ({ ...p, blockPrefix: e.target.value.toUpperCase() }))} placeholder="A" />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px]">Nomor Berikutnya</Label>
-                            <NumericInput className="h-7 text-xs bg-muted/60" decimals={0} value={autoBatchStartNumber} disabled onChange={() => {}} />
+                            <Label className="text-[10px]">Nomor Mulai</Label>
+                            <NumericInput
+                              className="h-7 text-xs"
+                              decimals={0}
+                              value={batchUnitForm.startNumber}
+                              onChange={v => setBatchUnitForm(p => ({ ...p, startNumber: Math.max(1, Math.round(v || 1)) }))}
+                            />
                           </div>
                           <p className="col-span-2 text-[10px] leading-snug text-muted-foreground">
-                            Otomatis dari nomor terakhir di Blok {batchUnitForm.blockPrefix || "A"}: unit terpilih akan jadi {batchUnitForm.blockPrefix || "A"}-{String(autoBatchStartNumber).padStart(2, "0")} sampai {batchUnitForm.blockPrefix || "A"}-{String(autoBatchStartNumber + Math.max(0, selectedBatchUnitCount - 1)).padStart(2, "0")}.
+                            Otomatis dari nomor terakhir di Blok {batchUnitForm.blockPrefix || "A"} (auto: {autoBatchStartNumber}). Bisa diubah manual — sistem akan memperingatkan jika ada nomor yang sama.
                           </p>
                           <div className="space-y-1">
                             <Label className="text-[10px]">Tahap</Label>

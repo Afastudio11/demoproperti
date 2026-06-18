@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -90,10 +90,16 @@ export default function TahapanPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [isImportingSiteplan, setIsImportingSiteplan] = useState(false);
   const [baselineSummary, setBaselineSummary] = useState<BaselineSummary | null>(null);
+  const masterFillDoneRef = useRef(false);
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
     queryFn: () => fetch("/api/projects").then(r => r.json()),
+  });
+
+  const { data: subkonMasterRows = [] } = useQuery<Array<{ id: number; defaultValuePerUnit: number }>>({
+    queryKey: ["subkon-master", "all"],
+    queryFn: () => fetch("/api/produksi/subkon/master").then(r => r.json()),
   });
 
   async function selectProject(id: number) {
@@ -197,6 +203,31 @@ export default function TahapanPage() {
   const totalUnits = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount, 0), 0);
   const totalSales = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount * block.pricePerUnit, 0), 0);
   const totalSubkon = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount * block.subkonValuePerUnit, 0), 0);
+
+  useEffect(() => {
+    masterFillDoneRef.current = false;
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!subkonMasterRows.length) return;
+    setStages(prev => {
+      let changed = false;
+      const next = prev.map(stage => ({
+        ...stage,
+        blocks: stage.blocks.map(block => {
+          if (block.subkonId && block.subkonValuePerUnit === 0) {
+            const master = subkonMasterRows.find(m => m.id === block.subkonId);
+            if (master && master.defaultValuePerUnit > 0) {
+              changed = true;
+              return { ...block, subkonValuePerUnit: master.defaultValuePerUnit };
+            }
+          }
+          return block;
+        }),
+      }));
+      return changed ? next : prev;
+    });
+  }, [subkonMasterRows]);
 
   useEffect(() => {
     const id = Number(new URLSearchParams(search).get("projectId"));

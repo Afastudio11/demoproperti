@@ -404,6 +404,25 @@ router.delete("/planning/siteplan/shapes/:shapeId", async (req, res) => {
   try {
     const shapeId = Number(req.params.shapeId);
     const [shape] = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
+
+    if (shape?.shapeType === "unit" && shape.unitId) {
+      const [unit] = await db.select().from(unitsTable).where(eq(unitsTable.id, shape.unitId));
+      if (unit) {
+        if (unit.customerId) {
+          return res.status(409).json({
+            error: `Unit ${unit.blok}-${unit.nomor} tidak dapat dihapus karena sudah terikat dengan customer.`,
+          });
+        }
+        const protectedStatuses = ["selesai", "terjual_akad", "serah_terima", "akad"];
+        if (protectedStatuses.includes(unit.status ?? "")) {
+          return res.status(409).json({
+            error: `Unit ${unit.blok}-${unit.nomor} berstatus "${unit.status}" dan tidak dapat dihapus dari siteplan. Arsipkan unit melalui modul Produksi jika tidak diperlukan lagi.`,
+            canArchive: true,
+          });
+        }
+      }
+    }
+
     await db.delete(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
     if (shape?.shapeType === "bidang") {
       await db.delete(planningLandBankTable).where(like(planningLandBankTable.notes, `%siteplan #${shapeId}%`));

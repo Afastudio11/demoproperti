@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Save } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 
 type SubkonMaster = {
   id: number;
@@ -61,6 +62,27 @@ export default function SubkonMasterPage() {
       toast({ title: "Master subkon tersimpan" });
     },
     onError: err => toast({ title: "Gagal menyimpan", description: err instanceof Error ? err.message : "Terjadi kesalahan", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/produksi/subkon/master/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.status === 409) {
+        return { archived: true, message: data.error };
+      }
+      if (!res.ok) throw new Error(data.error ?? "Gagal menghapus subkon");
+      return { archived: false };
+    },
+    onSuccess: async (result) => {
+      await qc.invalidateQueries({ queryKey: ["subkon-master"] });
+      if (result.archived) {
+        toast({ title: "Subkon diarsipkan", description: "Subkon sudah dipakai, status diubah menjadi Inactive agar histori tetap aman." });
+      } else {
+        toast({ title: "Subkon dihapus" });
+      }
+    },
+    onError: err => toast({ title: "Gagal menghapus", description: err instanceof Error ? err.message : "Terjadi kesalahan", variant: "destructive" }),
   });
 
   async function updateRow(id: number, patch: Partial<SubkonMaster>) {
@@ -152,9 +174,37 @@ export default function SubkonMasterPage() {
                   </Select>
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <Button size="sm" variant="outline" className="h-7 gap-1" onClick={() => updateRow(row.id, { name: row.name })}>
-                    <Save className="size-3" /> Sync
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button size="sm" variant="outline" className="h-7 gap-1" onClick={() => updateRow(row.id, { name: row.name })}>
+                      <Save className="size-3" /> Sync
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={deleteMutation.isPending}>
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Hapus {row.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {row.contractCount > 0
+                              ? `Subkon ini punya ${row.contractCount} kontrak. Tidak bisa dihapus permanen — status akan diubah menjadi Inactive agar histori tetap aman.`
+                              : "Subkon belum dipakai dan akan dihapus permanen. Tindakan ini tidak bisa dibatalkan."}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Batal</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive hover:bg-destructive/90"
+                            onClick={() => deleteMutation.mutate(row.id)}
+                          >
+                            {row.contractCount > 0 ? "Arsipkan" : "Hapus"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </td>
               </tr>
             ))}

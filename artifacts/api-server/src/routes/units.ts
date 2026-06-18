@@ -109,4 +109,43 @@ router.patch("/units/:id", async (req, res) => {
   }
 });
 
+router.delete("/units/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [unit] = await db.select().from(unitsTable).where(eq(unitsTable.id, id));
+    if (!unit) return res.status(404).json({ error: "Unit tidak ditemukan" });
+
+    if (unit.customerId) {
+      return res.status(409).json({
+        error: `Unit ${unit.blok}-${unit.nomor} tidak dapat dihapus karena sudah terikat dengan customer. Arsipkan unit jika tidak diperlukan lagi.`,
+        canArchive: false,
+      });
+    }
+
+    const { akadRecordsTable } = await import("@workspace/db");
+    const akads = await db.select().from(akadRecordsTable).where(eq(akadRecordsTable.unitId, id));
+    if (akads.length > 0) {
+      return res.status(409).json({
+        error: `Unit ${unit.blok}-${unit.nomor} tidak dapat dihapus karena sudah ada data akad terkait.`,
+        canArchive: false,
+      });
+    }
+
+    const protectedStatuses = ["selesai", "terjual_akad", "serah_terima", "akad"];
+    if (protectedStatuses.includes(unit.status ?? "")) {
+      return res.status(409).json({
+        error: `Unit ${unit.blok}-${unit.nomor} berstatus "${unit.status}" dan tidak dapat dihapus. Gunakan arsip untuk menyimpan history unit ini.`,
+        canArchive: true,
+      });
+    }
+
+    await db.delete(unitsTable).where(eq(unitsTable.id, id));
+    await db.update(planningSiteplanShapesTable).set({ unitId: null }).where(eq(planningSiteplanShapesTable.unitId, id));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete unit");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
