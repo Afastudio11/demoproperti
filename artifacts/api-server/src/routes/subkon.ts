@@ -69,75 +69,71 @@ function normalizePaymentTerms(terms: PaymentTermInput[] | undefined, totalReten
   return rows;
 }
 
-async function buildPaymentPreview(contractId: number, paymentTermId?: number) {
+async function buildPaymentPreview(contractId: number) {
   const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, contractId));
   if (!contract) return { ok: false, status: 404, error: "Contract not found" };
-  const [paymentTerm] = paymentTermId
-    ? await db.select().from(subkonPaymentTermsTable).where(eq(subkonPaymentTermsTable.id, paymentTermId))
-    : [];
-  if (!paymentTerm || paymentTerm.contractId !== contractId) {
-    return { ok: false, status: 400, error: "Pilih termin dari jadwal kontrak subkon." };
-  }
 
   const allPayments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.contractId, contractId));
-  const duplicate = allPayments.find(p => p.paymentTermId === paymentTerm.id && p.status !== "rejected");
-  const paidPayments = allPayments.filter(p => p.status === "paid");
-  const lockedPayments = allPayments.filter(p => ["pending_approval", "approved", "paid"].includes(p.status));
-  const totalPaidBefore = paidPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
-  const lockedNetBefore = lockedPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
-  const progressPrevious = lockedPayments.length > 0 ? Math.max(...lockedPayments.map(p => p.progressCurrent)) : 0;
+  const activePayments = allPayments.filter(p => p.status !== "rejected");
+  const grossAlreadyPaid = activePayments.reduce((sum, p) => sum + (p.grossEligibleAmount ?? 0), 0);
+  const retentionAlreadyDeducted = activePayments.reduce((sum, p) => sum + (p.retentionDeducted ?? 0), 0);
+  const netAlreadyPaid = activePayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
+  const progressPrevious = activePayments.length > 0 ? Math.max(...activePayments.map(p => p.progressCurrent ?? 0)) : 0;
+
   const units = await getUnitsForContract(contractId);
   const progressCurrent = await getContractFieldProgress(contractId);
   const velocity = Math.max(0, progressCurrent - progressPrevious);
+
+  const valuePerUnit = contract.valuePerUnit;
+  const retentionPerUnit = contract.retentionPerUnit;
+
   const unitProgress = units
-    .map(unit => ({
-      id: unit.id,
-      label: `${unit.blok}-${unit.nomor}`,
-      blok: unit.blok,
-      nomor: unit.nomor,
-      tipe: unit.tipe,
-      stageCode: unit.stageCode,
-      progress: Number(unit.progress ?? 0),
-      status: unit.status,
-      readyAkad: !!unit.readyAkad,
-    }))
+    .map(unit => {
+      const progress = Number(unit.progress ?? 0);
+      const earnedGross = Math.round((progress / 100) * valuePerUnit);
+      const earnedRetention = Math.round((progress / 100) * retentionPerUnit);
+      const earnedNet = earnedGross - earnedRetention;
+      return {
+        id: unit.id,
+        label: `${unit.blok}-${unit.nomor}`,
+        blok: unit.blok,
+        nomor: unit.nomor,
+        tipe: unit.tipe,
+        stageCode: unit.stageCode,
+        progress,
+        status: unit.status,
+        readyAkad: !!unit.readyAkad,
+        earnedGross,
+        earnedRetention,
+        earnedNet,
+      };
+    })
     .sort((a, b) => a.blok.localeCompare(b.blok, undefined, { numeric: true }) || a.nomor.localeCompare(b.nomor, undefined, { numeric: true }));
+
   const unitStats = {
     total: unitProgress.length,
-    selesai: unitProgress.filter(unit => unit.progress >= 100).length,
-    berjalan: unitProgress.filter(unit => unit.progress > 0 && unit.progress < 100).length,
-    belumMulai: unitProgress.filter(unit => unit.progress <= 0).length,
+    selesai: unitProgress.filter(u => u.progress >= 100).length,
+    berjalan: unitProgress.filter(u => u.progress > 0 && u.progress < 100).length,
+    belumMulai: unitProgress.filter(u => u.progress <= 0).length,
     rataRata: progressCurrent,
   };
 
-  let grossEligibleAmount = 0;
-  let retentionDeducted = 0;
-  let netPayment = 0;
-  if (paymentTerm.paymentType === "retensi") {
-    grossEligibleAmount = Math.max(0, paymentTerm.grossAmount || contract.totalRetention);
-    retentionDeducted = 0;
-    netPayment = Math.max(0, paymentTerm.netAmount || grossEligibleAmount);
-  } else {
-    grossEligibleAmount = Math.max(0, contract.contractValue * (velocity / 100));
-    retentionDeducted = Math.max(0, contract.totalRetention * (velocity / 100));
-    netPayment = Math.max(0, grossEligibleAmount - retentionDeducted);
-  }
+  const totalCurrentlyEarned = unitProgress.reduce((sum, u) => sum + u.earnedGross, 0);
+  const totalCurrentRetention = unitProgress.reduce((sum, u) => sum + u.earnedRetention, 0);
+  const totalCurrentNet = unitProgress.reduce((sum, u) => sum + u.earnedNet, 0);
 
-  const remainingPayable = Math.max(0, contract.contractValue - lockedNetBefore);
-  netPayment = Math.min(netPayment, remainingPayable);
-  grossEligibleAmount = Math.min(grossEligibleAmount, remainingPayable + retentionDeducted);
+  const grossEligibleAmount = Math.max(0, totalCurrentlyEarned - grossAlreadyPaid);
+  const retentionDeducted = Math.max(0, totalCurrentRetention - retentionAlreadyDeducted);
+  const netPayment = Math.max(0, totalCurrentNet - netAlreadyPaid);
 
   const reasons: string[] = [];
   if (contract.status !== "aktif") reasons.push("Kontrak belum aktif");
-  if (duplicate) reasons.push("Termin ini sudah pernah diajukan");
-  if (paymentTerm.paymentType !== "retensi" && progressCurrent <= progressPrevious) reasons.push("Progress lapangan belum naik dari termin terakhir");
-  if (paymentTerm.paymentType !== "retensi" && netPayment <= 0) reasons.push("Nominal progress yang bisa dibayar masih 0");
+  if (progressCurrent <= progressPrevious && activePayments.length > 0) reasons.push("Progress lapangan belum naik dari klaim terakhir");
+  if (netPayment <= 0) reasons.push("Tidak ada nominal baru yang bisa diklaim");
 
   return {
     ok: true,
     contract,
-    paymentTerm,
-    duplicate: duplicate ?? null,
     canSubmit: reasons.length === 0,
     reasons,
     progressPrevious,
@@ -148,8 +144,9 @@ async function buildPaymentPreview(contractId: number, paymentTermId?: number) {
     grossEligibleAmount,
     retentionDeducted,
     netPayment,
-    totalPaidBefore,
-    lockedNetBefore,
+    totalCurrentlyEarned,
+    grossAlreadyPaid,
+    netAlreadyPaid,
   };
 }
 
@@ -247,8 +244,7 @@ router.get("/produksi/subkon/contracts", async (req, res) => {
 router.get("/produksi/subkon/contracts/:id/payment-preview", async (req, res) => {
   try {
     const contractId = Number(req.params.id);
-    const paymentTermId = req.query.paymentTermId ? Number(req.query.paymentTermId) : undefined;
-    const preview = await buildPaymentPreview(contractId, paymentTermId);
+    const preview = await buildPaymentPreview(contractId);
     if (!preview.ok) return res.status((preview as { status: number }).status).json({ error: (preview as { error: string }).error });
     res.json(preview);
   } catch (err) {
@@ -399,33 +395,31 @@ router.get("/produksi/subkon/payments", async (req, res) => {
 
 router.post("/produksi/subkon/payments", async (req, res) => {
   try {
-    const { contractId, paymentTermId, period, notes } = req.body as {
+    const { contractId, notes } = req.body as {
       contractId: number;
-      paymentTermId?: number;
-      period: string;
       notes?: string;
     };
 
-    const preview = await buildPaymentPreview(contractId, paymentTermId);
+    const preview = await buildPaymentPreview(contractId);
     if (!preview.ok) return res.status((preview as { status: number }).status).json({ error: (preview as { error: string }).error });
-    const readyPreview = preview as Awaited<ReturnType<typeof buildPaymentPreview>> & { canSubmit: boolean; reasons: string[]; paymentTerm: typeof subkonPaymentTermsTable.$inferSelect };
+    const readyPreview = preview as Awaited<ReturnType<typeof buildPaymentPreview>> & { canSubmit: boolean; reasons: string[] };
     if (!readyPreview.canSubmit) return res.status(400).json({ error: readyPreview.reasons.join(", ") || "Pengajuan belum memenuhi syarat" });
 
     const [row] = await db.insert(subkonPaymentsTable).values({
       contractId,
-      paymentTermId: readyPreview.paymentTerm.id,
-      paymentType: readyPreview.paymentTerm.paymentType,
-      terminNumber: readyPreview.paymentTerm.terminNumber,
-      period: period ?? readyPreview.paymentTerm.plannedDate ?? null,
+      paymentTermId: null,
+      paymentType: "progress",
+      terminNumber: null,
+      period: null,
       progressPrevious: readyPreview.progressPrevious,
       progressCurrent: readyPreview.progressCurrent,
       velocity: readyPreview.velocity,
       grossEligibleAmount: readyPreview.grossEligibleAmount,
       retentionDeducted: readyPreview.retentionDeducted,
       netPayment: readyPreview.netPayment,
-      totalPaidBefore: readyPreview.totalPaidBefore,
+      totalPaidBefore: readyPreview.netAlreadyPaid,
       status: "pending_approval",
-      notes: notes ?? readyPreview.paymentTerm.notes ?? null,
+      notes: notes ?? null,
     }).returning();
 
     await db.insert(paymentApprovalsTable).values([
