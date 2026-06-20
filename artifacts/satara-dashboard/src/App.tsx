@@ -97,6 +97,7 @@ import ProduksiSiteplan from "@/pages/produksi/siteplan";
 import HRDashboard from "@/pages/hr/index";
 import HROrganisasi from "@/pages/hr/organisasi";
 import HRRekrutmen from "@/pages/hr/rekrutmen";
+import HRSop from "@/pages/hr/sop";
 import HRKpiDefinisi from "@/pages/hr/kpi/definisi";
 import HRKpiInput from "@/pages/hr/kpi/input";
 import HRPerformance from "@/pages/hr/performance";
@@ -346,6 +347,7 @@ function AppRoutes() {
         <Route path="/hr" component={HRDashboard} />
         <Route path="/hr/organisasi" component={HROrganisasi} />
         <Route path="/hr/rekrutmen" component={HRRekrutmen} />
+        <Route path="/hr/sop" component={HRSop} />
         <Route path="/hr/kpi/definisi" component={HRKpiDefinisi} />
         <Route path="/hr/kpi/input" component={HRKpiInput} />
         <Route path="/hr/performance" component={HRPerformance} />

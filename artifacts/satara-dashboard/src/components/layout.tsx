@@ -79,6 +79,7 @@ const hrSubNav: SubNavItem[] = [
   { type: "group", label: "Organisasi" },
   { type: "link", name: "Data Karyawan", path: "/hr/organisasi" },
   { type: "link", name: "Rekrutmen", path: "/hr/rekrutmen" },
+  { type: "link", name: "SOP", path: "/hr/sop" },
   { type: "link", name: "Payroll & Kompensasi", path: "/hr/kompensasi" },
   { type: "group", label: "Pengembangan" },
   { type: "link", name: "Kompetensi", path: "/hr/kompetensi" },

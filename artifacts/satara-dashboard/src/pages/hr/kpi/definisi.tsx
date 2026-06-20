@@ -22,7 +22,8 @@ const SEED_KPI = [
   { position: "Site Manager", division: "Produksi", kpiName: "Velocity (unit/bulan)", unit: "unit", monthlyTarget: 2, weight: 30, dataSource: "otomatis", sourceModule: "Produksi" },
 ];
 
-const EMPTY = { position: "", division: DIVISIONS[0], kpiName: "", description: "", unit: "", monthlyTarget: 0, weight: 0, dataSource: "manual", sourceModule: "" };
+const UNIT_OPTIONS = ["%", "unit", "Rp", "lead", "berkas", "skor", "kasus", "hari", "menit", "jam", "orang", "poin", "transaksi", "dokumen"];
+const EMPTY = { position: "", division: DIVISIONS[0], kpiName: "", description: "", unit: "%", monthlyTarget: 0, weight: 0, dataSource: "manual", sourceModule: "" };
 
 type FilterMode = "divisi" | "jabatan";
 
@@ -41,10 +42,22 @@ export default function KpiDefinisi() {
   const { data: defs = [], isLoading } = useQuery<any[]>({ queryKey: ["hr-kpi-defs"], queryFn: () => fetch("/api/hr/kpi/definitions").then(apiJson) });
 
   const save = useMutation({
-    mutationFn: (body: any) => editId
-      ? fetch(`/api/hr/kpi/definitions/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
-      : fetch("/api/hr/kpi/definitions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
+    mutationFn: (body: any) => {
+      const { id: _id, createdAt: _ca, ...cleanBody } = body;
+      return editId
+        ? fetch(`/api/hr/kpi/definitions/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleanBody) }).then(apiJson)
+        : fetch("/api/hr/kpi/definitions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleanBody) }).then(apiJson);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-kpi-defs"] }); resetForm(); },
+  });
+
+  const delByDivision = useMutation({
+    mutationFn: async (ids: number[]) => {
+      for (const id of ids) {
+        await fetch(`/api/hr/kpi/definitions/${id}`, { method: "DELETE" }).then(apiJson);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-kpi-defs"] }),
   });
 
   const del = useMutation({
@@ -173,9 +186,18 @@ export default function KpiDefinisi() {
               <div key={key} className="bg-card border rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
                   <span className="font-medium text-sm">{key}</span>
-                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", Math.abs(totalWeight - 100) < 0.5 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
-                    Bobot: {totalWeight}% {Math.abs(totalWeight - 100) >= 0.5 && "(harus 100%)"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", Math.abs(totalWeight - 100) < 0.5 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
+                      Bobot: {totalWeight}% {Math.abs(totalWeight - 100) >= 0.5 && "(harus 100%)"}
+                    </span>
+                    <button
+                      onClick={() => { if (confirm(`Hapus semua ${items.length} KPI untuk ${key}?`)) delByDivision.mutate(items.map((i: any) => i.id)); }}
+                      disabled={delByDivision.isPending}
+                      className="text-xs text-red-500 hover:text-red-700 px-2 py-0.5 rounded border border-red-200 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Hapus Semua
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -229,9 +251,19 @@ export default function KpiDefinisi() {
               <button onClick={resetForm}><X className="size-4" /></button>
             </div>
             <div className="p-4 space-y-3">
-              {[{ label: "Jabatan *", field: "position" }, { label: "Nama KPI *", field: "kpiName" }, { label: "Deskripsi", field: "description" }, { label: "Satuan (unit, %, Rp, hari)", field: "unit" }].map(({ label, field }) => (
+              {[{ label: "Jabatan *", field: "position" }, { label: "Nama KPI *", field: "kpiName" }, { label: "Deskripsi", field: "description" }].map(({ label, field }) => (
                 <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><input value={form[field] ?? ""} onChange={e => setForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               ))}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Satuan / Unit</label>
+                <div className="flex gap-2">
+                  <select value={UNIT_OPTIONS.includes(form.unit) ? form.unit : "__custom__"} onChange={e => { if (e.target.value !== "__custom__") setForm((f: any) => ({ ...f, unit: e.target.value })); }} className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring flex-1">
+                    {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                    {!UNIT_OPTIONS.includes(form.unit) && <option value="__custom__">{form.unit || "custom..."}</option>}
+                  </select>
+                  <input value={form.unit} onChange={e => setForm((f: any) => ({ ...f, unit: e.target.value }))} className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring w-28" placeholder="atau ketik..." />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Divisi</label><select value={form.division} onChange={e => setForm((f: any) => ({ ...f, division: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Sumber Data</label><select value={form.dataSource} onChange={e => setForm((f: any) => ({ ...f, dataSource: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="manual">Manual</option><option value="otomatis">Otomatis dari Sistem</option></select></div>

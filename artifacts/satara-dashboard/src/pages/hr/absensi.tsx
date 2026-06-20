@@ -150,11 +150,18 @@ export default function HRAbsensi() {
     statusCounts[s] = (statusCounts[s] ?? 0) + 1;
   }
 
-  // Bulk grid handlers
+  // Bulk grid handlers — pre-fill dari data existing
   function openBulk() {
     const grid: Record<number, Record<number, string>> = {};
     for (const emp of employees) {
       grid[emp.id] = {};
+      const empData = matrix[emp.name];
+      if (empData) {
+        for (let d = 1; d <= daysInMonth; d++) {
+          const cell = empData[d];
+          if (cell?.status) grid[emp.id][d] = cell.status;
+        }
+      }
     }
     setBulkGrid(grid);
     setBulkProject(project !== "Semua" ? project : (projects[0]?.nama ?? ""));
@@ -442,8 +449,8 @@ export default function HRAbsensi() {
         </div>
       )}
 
-      {/* Grid view */}
-      {isLoading ? (
+      {/* Grid view — hanya tampil saat tidak dalam mode input */}
+      {bulkMode ? null : isLoading ? (
         <div className="h-48 rounded-xl border bg-muted/30 animate-pulse" />
       ) : employees_in_matrix.length === 0 ? (
         <div className="border rounded-xl p-12 text-center">

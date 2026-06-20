@@ -183,7 +183,19 @@ export default function HRLembur() {
 
   function openBulk() {
     const grid: Record<number, Record<number, { lembur: string; terlambat: string }>> = {};
-    for (const emp of employees) { grid[emp.id] = {}; }
+    for (const emp of employees) {
+      grid[emp.id] = {};
+      const empData = matrix[emp.name];
+      if (empData) {
+        for (let d = 1; d <= daysInMonth; d++) {
+          const t = empData.terlambat[d];
+          const l = empData.lembur[d];
+          if (t || l) {
+            grid[emp.id][d] = { terlambat: t ? String(t) : "", lembur: l ? String(l) : "" };
+          }
+        }
+      }
+    }
     setBulkGrid(grid);
     setBulkProject(project !== "Semua" ? project : (projects[0]?.nama ?? ""));
     setBulkMode(true); setBulkSaved(false); setBulkError(null);

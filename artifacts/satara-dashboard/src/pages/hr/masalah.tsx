@@ -134,7 +134,12 @@ export default function HRMasalah() {
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Divisi</label>
-              <input value={form.divisi} onChange={e => setForm(f => ({ ...f, divisi: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background" placeholder="cth: Marketing, Produksi" />
+              <select value={form.divisi} onChange={e => setForm(f => ({ ...f, divisi: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background">
+                <option value="">Pilih divisi...</option>
+                {Array.from(new Set((employees as any[]).map((e: any) => e.division).filter(Boolean))).sort().map(d => (
+                  <option key={d as string} value={d as string}>{d as string}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Nama Karyawan</label>
@@ -160,7 +165,12 @@ export default function HRMasalah() {
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Keterangan / Status</label>
-              <input value={form.keterangan} onChange={e => setForm(f => ({ ...f, keterangan: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background" placeholder="cth: Open, Selesai, On-Progress" />
+              <select value={form.keterangan} onChange={e => setForm(f => ({ ...f, keterangan: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background">
+                <option value="Open">Open</option>
+                <option value="On-Progress">On-Progress</option>
+                <option value="Selesai">Selesai</option>
+                <option value="Ditunda">Ditunda</option>
+              </select>
             </div>
           </div>
           {formError && (

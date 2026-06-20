@@ -11,7 +11,7 @@ const STAGES = ["screening_cv", "interview_hrd", "interview_user", "offering", "
 const STAGE_LABELS: Record<string, string> = { screening_cv: "Screening CV", interview_hrd: "Interview HRD", interview_user: "Interview User", offering: "Offering", hired: "Hired", ditolak: "Ditolak" };
 const DEFAULT_SOURCES = ["Referral Internal", "Job Portal", "LinkedIn", "Walk In", "Headhunter"];
 
-const EMPTY_NEED = { positionName: "", division: DEFAULT_DIVISIONS[0], location: DEFAULT_LOCATIONS[0], headcountNeeded: 1, headcountFilled: 0, targetHireDate: "", jobDescription: "", minimumQualification: "", picRecruiter: "", status: "dibuka" };
+const EMPTY_NEED = { positionName: "", division: DEFAULT_DIVISIONS[0], location: DEFAULT_LOCATIONS[0], headcountNeeded: 1, headcountFilled: 0, targetHireDate: "", jobDescription: "", minimumQualification: "", picRecruiter: "", status: "dibuka", expectedSalaryMin: "", expectedSalaryMax: "" };
 const EMPTY_CAND = { needId: 0, name: "", phone: "", source: DEFAULT_SOURCES[0], stage: "screening_cv", stageDate: "", recruiterNotes: "" };
 
 function StageBadge({ stage }: { stage: string }) {
@@ -177,6 +177,16 @@ export default function Rekrutmen() {
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Jumlah Kebutuhan</label><input type="number" value={needForm.headcountNeeded ?? 1} onChange={e => setNeedForm((f: any) => ({ ...f, headcountNeeded: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={1} /></div>
               </div>
               <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Target Hire</label><input type="date" value={needForm.targetHireDate ?? ""} onChange={e => setNeedForm((f: any) => ({ ...f, targetHireDate: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Estimasi Gaji Min (Rp)</label>
+                  <input type="number" value={needForm.expectedSalaryMin ?? ""} onChange={e => setNeedForm((f: any) => ({ ...f, expectedSalaryMin: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="cth: 5000000" min={0} step={500000} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Estimasi Gaji Max (Rp)</label>
+                  <input type="number" value={needForm.expectedSalaryMax ?? ""} onChange={e => setNeedForm((f: any) => ({ ...f, expectedSalaryMax: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="cth: 8000000" min={0} step={500000} />
+                </div>
+              </div>
               {[{ label: "Deskripsi Pekerjaan", field: "jobDescription" }, { label: "Kualifikasi Minimum", field: "minimumQualification" }].map(({ label, field }) => (
                 <div key={field}><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><textarea value={needForm[field] ?? ""} onChange={e => setNeedForm((f: any) => ({ ...f, [field]: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" rows={2} /></div>
               ))}

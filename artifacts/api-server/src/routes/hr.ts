@@ -1070,4 +1070,83 @@ async function seedSekalaEmployees() {
 
 seedSekalaEmployees();
 
+// ─── SOP ────────────────────────────────────────────────────────────────────
+router.get("/hr/sop", async (_req, res) => {
+  try {
+    const rows = await db.select().from(hrSopTable).orderBy(hrSopTable.divisi, hrSopTable.category, hrSopTable.title);
+    res.json(rows);
+  } catch (e: any) { err500(res, e); }
+});
+
+router.post("/hr/sop", async (req, res) => {
+  try {
+    const { id: _id, createdAt: _ca, updatedAt: _ua, ...body } = req.body;
+    const [row] = await db.insert(hrSopTable).values(body).returning();
+    res.json(row);
+  } catch (e: any) { err500(res, e); }
+});
+
+router.put("/hr/sop/:id", async (req, res) => {
+  try {
+    const { id: _id, createdAt: _ca, updatedAt: _ua, filePath: _fp, originalFileName: _ofn, fileSizeBytes: _fsb, ...body } = req.body;
+    const [row] = await db.update(hrSopTable).set({ ...body, updatedAt: new Date() }).where(eq(hrSopTable.id, Number(req.params.id))).returning();
+    res.json(row);
+  } catch (e: any) { err500(res, e); }
+});
+
+router.delete("/hr/sop/:id", async (req, res) => {
+  try {
+    const [existing] = await db.select().from(hrSopTable).where(eq(hrSopTable.id, Number(req.params.id)));
+    if (existing?.filePath) {
+      const fullPath = path.join(SOP_UPLOAD_DIR, existing.filePath);
+      if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    }
+    await db.delete(hrSopTable).where(eq(hrSopTable.id, Number(req.params.id)));
+    res.json({ ok: true });
+  } catch (e: any) { err500(res, e); }
+});
+
+router.post("/hr/sop/:id/upload", sopUpload.single("file"), async (req: any, res) => {
+  try {
+    if (!req.file) { res.status(400).json({ error: "File PDF wajib diupload" }); return; }
+    const sopId = Number(req.params.id);
+    const [existing] = await db.select().from(hrSopTable).where(eq(hrSopTable.id, sopId));
+    if (!existing) { res.status(404).json({ error: "SOP tidak ditemukan" }); return; }
+
+    // Delete old file
+    if (existing.filePath) {
+      const oldPath = path.join(SOP_UPLOAD_DIR, existing.filePath);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    // Compress PDF with gzip
+    const compressed = await gzip(req.file.buffer);
+    const filename = `sop_${sopId}_${Date.now()}.pdf.gz`;
+    const destPath = path.join(SOP_UPLOAD_DIR, filename);
+    fs.writeFileSync(destPath, compressed);
+
+    const compressionRatio = Math.round((1 - compressed.length / req.file.buffer.length) * 100);
+    const [row] = await db.update(hrSopTable)
+      .set({ filePath: filename, originalFileName: req.file.originalname, fileSizeBytes: compressed.length, updatedAt: new Date() })
+      .where(eq(hrSopTable.id, sopId)).returning();
+
+    res.json({ ...row, originalSizeBytes: req.file.buffer.length, compressionRatio });
+  } catch (e: any) { err500(res, e); }
+});
+
+router.get("/hr/sop/files/:filename", async (req, res) => {
+  try {
+    const filename = req.params.filename;
+    if (!filename.match(/^[\w\-\.]+\.pdf\.gz$/)) { res.status(400).json({ error: "Nama file tidak valid" }); return; }
+    const fullPath = path.join(SOP_UPLOAD_DIR, filename);
+    if (!fs.existsSync(fullPath)) { res.status(404).json({ error: "File tidak ditemukan" }); return; }
+    const compressed = fs.readFileSync(fullPath);
+    const decompressed = await gunzip(compressed);
+    const originalName = filename.replace(/^sop_\d+_\d+\./, "").replace(/\.gz$/, "");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${originalName}"`);
+    res.send(decompressed);
+  } catch (e: any) { err500(res, e); }
+});
+
 export default router;
