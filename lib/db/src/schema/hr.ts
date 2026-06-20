@@ -31,6 +31,8 @@ export const recruitmentNeedsTable = pgTable("hr_recruitment_needs", {
   minimumQualification: text("minimum_qualification"),
   picRecruiter: text("pic_recruiter"),
   status: text("status").notNull().default("dibuka"),
+  expectedSalaryMin: numeric("expected_salary_min").default("0"),
+  expectedSalaryMax: numeric("expected_salary_max").default("0"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -284,6 +286,18 @@ export const individualIssuesTable = pgTable("hr_individual_issues", {
   deadline: text("deadline"),
   keterangan: text("keterangan"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const hrSopTable = pgTable("hr_sop", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  divisi: text("divisi").notNull(),
+  category: text("category").notNull().default("Operasional"),
+  content: text("content"),
+  version: text("version").notNull().default("1.0"),
+  status: text("status").notNull().default("aktif"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecordsTable).omit({ id: true, createdAt: true });

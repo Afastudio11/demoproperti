@@ -133,6 +133,9 @@ export function CategorySelect({
         )}
       >
         {placeholder && !value && <option value="">{placeholder}</option>}
+        {value && !all.includes(value) && (
+          <option key={`__current__${value}`} value={value}>{value}</option>
+        )}
         {all.map((opt) => (
           <option key={opt} value={opt}>
             {opt}
