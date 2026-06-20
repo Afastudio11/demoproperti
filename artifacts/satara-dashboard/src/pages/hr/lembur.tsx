@@ -28,11 +28,28 @@ function buildOvertimeMatrix(rows: OvertimeRow[]) {
   return byEmployee;
 }
 
+type ViewMode = "bulanan" | "3-bulan" | "1-tahun";
+
+// Compute last N months going back from a given month+year
+function getPeriods(fromMonth: string, fromYear: number, count: number) {
+  const periods: { month: string; year: number; label: string }[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(fromYear, MONTHS.indexOf(fromMonth) - i, 1);
+    periods.push({
+      month: MONTHS[d.getMonth()],
+      year: d.getFullYear(),
+      label: `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`,
+    });
+  }
+  return periods;
+}
+
 export default function HRLembur() {
   const qc = useQueryClient();
   const [month, setMonth] = useState(MONTHS[new Date().getMonth()]);
   const [year, setYear] = useState(new Date().getFullYear());
   const [project, setProject] = useState("Semua");
+  const [viewMode, setViewMode] = useState<ViewMode>("bulanan");
 
   // Bulk input state
   const [bulkMode, setBulkMode] = useState(false);
@@ -62,7 +79,51 @@ export default function HRLembur() {
   const { data = [], isLoading } = useQuery<OvertimeRow[]>({
     queryKey: ["hr-overtime", month, year, selectedProject?.id ?? "all"],
     queryFn: () => fetch(`/api/hr/overtime?${params}`).then(apiJson),
+    enabled: viewMode === "bulanan",
   });
+
+  // Multi-month: compute periods + fetch data per unique year
+  const multiPeriods = viewMode !== "bulanan" ? getPeriods(month, year, viewMode === "3-bulan" ? 3 : 12) : [];
+  const multiYears = Array.from(new Set(multiPeriods.map(p => p.year)));
+
+  const { data: multiDataY0 = [], isLoading: multiLoading0 } = useQuery<OvertimeRow[]>({
+    queryKey: ["hr-overtime-multi", multiYears[0], selectedProject?.id ?? "all"],
+    queryFn: () => {
+      const p = new URLSearchParams({ year: String(multiYears[0]), ...(selectedProject ? { projectId: String(selectedProject.id) } : {}) });
+      return fetch(`/api/hr/overtime?${p}`).then(apiJson);
+    },
+    enabled: viewMode !== "bulanan" && multiYears.length >= 1,
+  });
+  const { data: multiDataY1 = [], isLoading: multiLoading1 } = useQuery<OvertimeRow[]>({
+    queryKey: ["hr-overtime-multi", multiYears[1], selectedProject?.id ?? "all"],
+    queryFn: () => {
+      const p = new URLSearchParams({ year: String(multiYears[1]), ...(selectedProject ? { projectId: String(selectedProject.id) } : {}) });
+      return fetch(`/api/hr/overtime?${p}`).then(apiJson);
+    },
+    enabled: viewMode !== "bulanan" && multiYears.length >= 2,
+  });
+  const multiLoading = multiLoading0 || multiLoading1;
+
+  // Combine multi-year data, filter to exact periods
+  const periodKeys = new Set(multiPeriods.map(p => `${p.month}|${p.year}`));
+  const multiAllRows: OvertimeRow[] = [...multiDataY0, ...multiDataY1].filter(
+    r => r.month && r.year && periodKeys.has(`${r.month}|${r.year}`)
+  );
+
+  // Build multi-month summary: {empName: {periodLabel: {terlambat, lembur}}}
+  const multiSummary: Record<string, Record<string, { terlambat: number; lembur: number }>> = {};
+  for (const r of multiAllRows) {
+    const label = multiPeriods.find(p => p.month === r.month && p.year === r.year)?.label ?? "";
+    if (!label) continue;
+    if (!multiSummary[r.employeeName]) multiSummary[r.employeeName] = {};
+    if (!multiSummary[r.employeeName][label]) multiSummary[r.employeeName][label] = { terlambat: 0, lembur: 0 };
+    multiSummary[r.employeeName][label].terlambat += r.terlambatMenit;
+    multiSummary[r.employeeName][label].lembur += Number(r.lemburJam);
+  }
+  const multiEmpNames = Array.from(new Set([
+    ...Object.keys(multiSummary),
+    ...employees.map((e: any) => e.name),
+  ])).sort();
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/hr/overtime/${id}`, { method: "DELETE" }).then(apiJson),
@@ -172,6 +233,81 @@ export default function HRLembur() {
       location: newDiv,
       employmentStatus: "aktif",
     });
+  }
+
+  function downloadMultiExcel() {
+    const wb = XLSX.utils.book_new();
+    const rangeLabel = viewMode === "3-bulan" ? "3 Bulan Terakhir" : "1 Tahun Terakhir";
+    const title = `Ringkasan Lembur & Keterlambatan — ${rangeLabel}`;
+    const periodRange = multiPeriods.length ? `${multiPeriods[0].label} s/d ${multiPeriods[multiPeriods.length - 1].label}` : "";
+
+    const headerRow1: (string | number)[] = ["Nama Karyawan"];
+    const headerRow2: (string | number)[] = [""];
+    for (const p of multiPeriods) {
+      headerRow1.push(p.label, "");
+      headerRow2.push("Terlambat (mnt)", "Lembur (mnt)");
+    }
+    headerRow1.push("Total Terlambat", "Total Lembur");
+    headerRow2.push("(menit)", "(menit)");
+
+    const dataRows = multiEmpNames.map(emp => {
+      const empPeriods = multiSummary[emp] ?? {};
+      const row: (string | number)[] = [emp];
+      let grandT = 0, grandL = 0;
+      for (const p of multiPeriods) {
+        const cell = empPeriods[p.label] ?? { terlambat: 0, lembur: 0 };
+        row.push(cell.terlambat, cell.lembur);
+        grandT += cell.terlambat;
+        grandL += cell.lembur;
+      }
+      row.push(grandT, grandL);
+      return row;
+    });
+
+    // Total row
+    const totalRow: (string | number)[] = ["TOTAL"];
+    let grandTAll = 0, grandLAll = 0;
+    for (const p of multiPeriods) {
+      const t = multiEmpNames.reduce((s, emp) => s + (multiSummary[emp]?.[p.label]?.terlambat ?? 0), 0);
+      const l = multiEmpNames.reduce((s, emp) => s + (multiSummary[emp]?.[p.label]?.lembur ?? 0), 0);
+      totalRow.push(t, l);
+      grandTAll += t;
+      grandLAll += l;
+    }
+    totalRow.push(grandTAll, grandLAll);
+
+    const sheetData: (string | number)[][] = [
+      [title],
+      [periodRange],
+      [`Project: ${project}`],
+      [],
+      headerRow1,
+      headerRow2,
+      ...dataRows,
+      [],
+      totalRow,
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws["!cols"] = [
+      { wch: 28 },
+      ...multiPeriods.flatMap(() => [{ wch: 14 }, { wch: 12 }]),
+      { wch: 14 },
+      { wch: 14 },
+    ];
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+      { s: { r: 4, c: 0 }, e: { r: 5, c: 0 } },
+      ...multiPeriods.map((_, i) => ({
+        s: { r: 4, c: 1 + i * 2 },
+        e: { r: 4, c: 2 + i * 2 },
+      })),
+      { s: { r: 4, c: 1 + multiPeriods.length * 2 }, e: { r: 5, c: 1 + multiPeriods.length * 2 } },
+      { s: { r: 4, c: 2 + multiPeriods.length * 2 }, e: { r: 5, c: 2 + multiPeriods.length * 2 } },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, rangeLabel);
+    XLSX.writeFile(wb, `Ringkasan_Lembur_${viewMode === "3-bulan" ? "3Bulan" : "1Tahun"}_${project.replace(/\s+/g, "_")}.xlsx`);
   }
 
   function downloadExcel() {
@@ -355,16 +491,39 @@ export default function HRLembur() {
         </div>
       )}
 
+      {/* View Mode Tabs */}
+      <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-1 w-fit">
+        {([
+          { key: "bulanan", label: "Bulanan" },
+          { key: "3-bulan", label: "3 Bulan Terakhir" },
+          { key: "1-tahun", label: "1 Tahun Terakhir" },
+        ] as { key: ViewMode; label: string }[]).map(({ key, label }) => (
+          <button key={key} onClick={() => setViewMode(key)}
+            className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+              viewMode === key ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <Filter className="size-4 text-muted-foreground" />
-        <select value={month} onChange={e => setMonth(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
-          {MONTHS.map(m => <option key={m}>{m}</option>)}
-        </select>
+        {viewMode === "bulanan" && (
+          <select value={month} onChange={e => setMonth(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
+            {MONTHS.map(m => <option key={m}>{m}</option>)}
+          </select>
+        )}
         <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} className="text-sm border rounded-md px-2 py-1.5 bg-background w-20" />
         <select value={project} onChange={e => setProject(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
           {projectOptions.map(p => <option key={p}>{p}</option>)}
         </select>
+        {viewMode !== "bulanan" && multiPeriods.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {multiPeriods[0].label} — {multiPeriods[multiPeriods.length - 1].label}
+          </span>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -506,90 +665,200 @@ export default function HRLembur() {
         </div>
       )}
 
-      {/* Matrix view — LEMBUR + TERLAMBAT berdampingan */}
-      {isLoading ? (
-        <div className="h-48 rounded-xl border bg-muted/30 animate-pulse" />
-      ) : employees_in_matrix.length === 0 ? (
-        <div className="border rounded-xl p-12 text-center">
-          <Clock className="size-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Belum ada data lembur/keterlambatan untuk periode ini</p>
-          <p className="text-xs text-muted-foreground mt-1">Klik "Input Data" untuk mengisi</p>
-        </div>
-      ) : (
-        <div className="border rounded-xl overflow-auto">
-          {/* Legend */}
-          <div className="flex items-center gap-4 px-4 py-2 border-b bg-muted/10 text-[11px]">
-            <span className="font-semibold text-muted-foreground">Keterangan:</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3.5 rounded bg-amber-100 border border-amber-300"></span><span className="text-amber-700 font-medium">T = Terlambat (menit)</span></span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3.5 rounded bg-blue-100 border border-blue-300"></span><span className="text-blue-700 font-medium">L = Lembur (menit)</span></span>
+      {/* Matrix view — BULANAN */}
+      {viewMode === "bulanan" && (
+        isLoading ? (
+          <div className="h-48 rounded-xl border bg-muted/30 animate-pulse" />
+        ) : employees_in_matrix.length === 0 ? (
+          <div className="border rounded-xl p-12 text-center">
+            <Clock className="size-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Belum ada data lembur/keterlambatan untuk periode ini</p>
+            <p className="text-xs text-muted-foreground mt-1">Klik "Input Data" untuk mengisi</p>
           </div>
-          <table className="w-full text-xs min-w-max">
-            <thead>
-              <tr className="border-b bg-muted/30">
-                <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
-                <th className="text-left px-2 py-2 font-medium min-w-[90px]" rowSpan={2}>Project</th>
-                {Array.from({ length: daysInMonth }, (_, i) => (
-                  <th key={i + 1} className="px-0.5 py-1 font-medium text-center w-10" colSpan={2}>{i + 1}</th>
-                ))}
-                <th className="px-2 py-1 font-medium text-center" colSpan={2}>Total</th>
-                <th className="px-1 py-1" rowSpan={2}></th>
-              </tr>
-              <tr className="border-b bg-muted/20">
-                {Array.from({ length: daysInMonth }, (_, i) => (
-                  <>
-                    <th key={`ht${i}`} className="px-0.5 py-0.5 text-center text-[9px] text-amber-600 font-bold">T</th>
-                    <th key={`hl${i}`} className="px-0.5 py-0.5 text-center text-[9px] text-blue-600 font-bold">L</th>
-                  </>
-                ))}
-                <th className="px-1 py-0.5 text-center text-[9px] text-amber-600 font-bold">T</th>
-                <th className="px-1 py-0.5 text-center text-[9px] text-blue-600 font-bold">L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees_in_matrix.map(emp => {
-                const empData = matrix[emp] ?? { terlambat: {}, lembur: {}, project: "" };
-                const totalT = Object.values(empData.terlambat).reduce((s, v) => s + v, 0);
-                const totalL = Object.values(empData.lembur).reduce((s, v) => s + v, 0);
-                const empRows = data.filter(r => r.employeeName === emp);
-                return (
-                  <tr key={emp} className="border-b hover:bg-muted/20">
-                    <td className="px-3 py-1.5 font-medium sticky left-0 bg-background border-r">{emp}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground text-[11px]">{empData.project}</td>
-                    {Array.from({ length: daysInMonth }, (_, i) => {
-                      const d = i + 1;
-                      const t = empData.terlambat[d] ?? 0;
-                      const l = empData.lembur[d] ?? 0;
+        ) : (
+          <div className="border rounded-xl overflow-auto">
+            <div className="flex items-center gap-4 px-4 py-2 border-b bg-muted/10 text-[11px]">
+              <span className="font-semibold text-muted-foreground">Keterangan:</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3.5 rounded bg-amber-100 border border-amber-300"></span><span className="text-amber-700 font-medium">T = Terlambat (menit)</span></span>
+              <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3.5 rounded bg-blue-100 border border-blue-300"></span><span className="text-blue-700 font-medium">L = Lembur (menit)</span></span>
+            </div>
+            <table className="w-full text-xs min-w-max">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
+                  <th className="text-left px-2 py-2 font-medium min-w-[90px]" rowSpan={2}>Project</th>
+                  {Array.from({ length: daysInMonth }, (_, i) => (
+                    <th key={i + 1} className="px-0.5 py-1 font-medium text-center w-10" colSpan={2}>{i + 1}</th>
+                  ))}
+                  <th className="px-2 py-1 font-medium text-center" colSpan={2}>Total</th>
+                  <th className="px-1 py-1" rowSpan={2}></th>
+                </tr>
+                <tr className="border-b bg-muted/20">
+                  {Array.from({ length: daysInMonth }, (_, i) => (
+                    <>
+                      <th key={`ht${i}`} className="px-0.5 py-0.5 text-center text-[9px] text-amber-600 font-bold">T</th>
+                      <th key={`hl${i}`} className="px-0.5 py-0.5 text-center text-[9px] text-blue-600 font-bold">L</th>
+                    </>
+                  ))}
+                  <th className="px-1 py-0.5 text-center text-[9px] text-amber-600 font-bold">T</th>
+                  <th className="px-1 py-0.5 text-center text-[9px] text-blue-600 font-bold">L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employees_in_matrix.map(emp => {
+                  const empData = matrix[emp] ?? { terlambat: {}, lembur: {}, project: "" };
+                  const totalT = Object.values(empData.terlambat).reduce((s, v) => s + v, 0);
+                  const totalL = Object.values(empData.lembur).reduce((s, v) => s + v, 0);
+                  const empRows = data.filter(r => r.employeeName === emp);
+                  return (
+                    <tr key={emp} className="border-b hover:bg-muted/20">
+                      <td className="px-3 py-1.5 font-medium sticky left-0 bg-background border-r">{emp}</td>
+                      <td className="px-2 py-1.5 text-muted-foreground text-[11px]">{empData.project}</td>
+                      {Array.from({ length: daysInMonth }, (_, i) => {
+                        const d = i + 1;
+                        const t = empData.terlambat[d] ?? 0;
+                        const l = empData.lembur[d] ?? 0;
+                        return (
+                          <>
+                            <td key={`t${d}`} className="px-0.5 py-1 text-center">
+                              {t > 0 ? <span className="inline-flex items-center justify-center min-w-[24px] h-5 rounded px-0.5 font-bold bg-amber-100 text-amber-700 text-[10px]">{t}</span>
+                                : <span className="text-muted-foreground/20">·</span>}
+                            </td>
+                            <td key={`l${d}`} className="px-0.5 py-1 text-center">
+                              {l > 0 ? <span className="inline-flex items-center justify-center min-w-[24px] h-5 rounded px-0.5 font-bold bg-blue-100 text-blue-700 text-[10px]">{l}</span>
+                                : <span className="text-muted-foreground/20">·</span>}
+                            </td>
+                          </>
+                        );
+                      })}
+                      <td className="px-2 py-1.5 text-center font-semibold text-amber-600 text-[11px]">{totalT > 0 ? totalT : "-"}</td>
+                      <td className="px-2 py-1.5 text-center font-semibold text-blue-600 text-[11px]">{totalL > 0 ? totalL : "-"}</td>
+                      <td className="px-1 py-1.5">
+                        <button onClick={() => {
+                          if (confirm(`Hapus semua data lembur/keterlambatan ${emp} bulan ini?`)) {
+                            empRows.forEach(r => deleteMut.mutate(r.id));
+                          }
+                        }} className="text-muted-foreground hover:text-destructive p-1">
+                          <Trash2 className="size-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {/* Multi-month summary view */}
+      {viewMode !== "bulanan" && (
+        <div className="space-y-3">
+          {/* Header + download */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <span className="text-sm font-semibold">
+                Ringkasan {viewMode === "3-bulan" ? "3 Bulan" : "1 Tahun"} Terakhir
+              </span>
+              {multiPeriods.length > 0 && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {multiPeriods[0].label} — {multiPeriods[multiPeriods.length - 1].label}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={downloadMultiExcel}
+              disabled={multiLoading || multiEmpNames.length === 0}
+              className="flex items-center gap-1.5 text-sm border border-emerald-600 text-emerald-700 rounded-md px-3 py-1.5 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed dark:text-emerald-400 dark:hover:bg-emerald-950/30">
+              <Download className="size-3.5" /> Download Excel
+            </button>
+          </div>
+
+          {multiLoading ? (
+            <div className="h-48 rounded-xl border bg-muted/30 animate-pulse" />
+          ) : (
+            <div className="border rounded-xl overflow-auto">
+              {/* Legend */}
+              <div className="flex items-center gap-4 px-4 py-2 border-b bg-muted/10 text-[11px]">
+                <span className="font-semibold text-muted-foreground">Keterangan:</span>
+                <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3.5 rounded bg-amber-100 border border-amber-300"></span><span className="text-amber-700 font-medium">T = Terlambat (menit)</span></span>
+                <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3.5 rounded bg-blue-100 border border-blue-300"></span><span className="text-blue-700 font-medium">L = Lembur (menit)</span></span>
+              </div>
+              <table className="w-full text-xs min-w-max">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
+                    {multiPeriods.map(p => (
+                      <th key={p.label} className="px-1 py-1 font-medium text-center text-[11px]" colSpan={2}>{p.label}</th>
+                    ))}
+                    <th className="px-1 py-1 font-medium text-center" colSpan={2}>Total</th>
+                  </tr>
+                  <tr className="border-b bg-muted/20">
+                    {multiPeriods.map(p => (
+                      <>
+                        <th key={`${p.label}-t`} className="px-2 py-0.5 text-center text-[9px] text-amber-600 font-bold w-14">T</th>
+                        <th key={`${p.label}-l`} className="px-2 py-0.5 text-center text-[9px] text-blue-600 font-bold w-14">L</th>
+                      </>
+                    ))}
+                    <th className="px-2 py-0.5 text-center text-[9px] text-amber-600 font-bold">T</th>
+                    <th className="px-2 py-0.5 text-center text-[9px] text-blue-600 font-bold">L</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {multiEmpNames.map(emp => {
+                    const empPeriods = multiSummary[emp] ?? {};
+                    let grandT = 0, grandL = 0;
+                    return (
+                      <tr key={emp} className="border-b hover:bg-muted/20">
+                        <td className="px-3 py-1.5 font-medium sticky left-0 bg-background border-r">{emp}</td>
+                        {multiPeriods.map(p => {
+                          const cell = empPeriods[p.label] ?? { terlambat: 0, lembur: 0 };
+                          grandT += cell.terlambat;
+                          grandL += cell.lembur;
+                          return (
+                            <>
+                              <td key={`${emp}-${p.label}-t`} className="px-2 py-1.5 text-center">
+                                {cell.terlambat > 0
+                                  ? <span className="inline-flex items-center justify-center min-w-[28px] h-5 rounded px-1 font-bold bg-amber-100 text-amber-700 text-[10px]">{cell.terlambat}</span>
+                                  : <span className="text-muted-foreground/20">·</span>}
+                              </td>
+                              <td key={`${emp}-${p.label}-l`} className="px-2 py-1.5 text-center">
+                                {cell.lembur > 0
+                                  ? <span className="inline-flex items-center justify-center min-w-[28px] h-5 rounded px-1 font-bold bg-blue-100 text-blue-700 text-[10px]">{cell.lembur}</span>
+                                  : <span className="text-muted-foreground/20">·</span>}
+                              </td>
+                            </>
+                          );
+                        })}
+                        <td className="px-2 py-1.5 text-center font-bold text-amber-600 text-[11px]">{grandT > 0 ? grandT : "-"}</td>
+                        <td className="px-2 py-1.5 text-center font-bold text-blue-600 text-[11px]">{grandL > 0 ? grandL : "-"}</td>
+                      </tr>
+                    );
+                  })}
+                  {/* Total row */}
+                  <tr className="border-t-2 bg-muted/30 font-semibold">
+                    <td className="px-3 py-2 sticky left-0 bg-muted/30 text-xs font-bold border-r">TOTAL</td>
+                    {multiPeriods.map(p => {
+                      const t = multiEmpNames.reduce((s, emp) => s + (multiSummary[emp]?.[p.label]?.terlambat ?? 0), 0);
+                      const l = multiEmpNames.reduce((s, emp) => s + (multiSummary[emp]?.[p.label]?.lembur ?? 0), 0);
                       return (
                         <>
-                          <td key={`t${d}`} className="px-0.5 py-1 text-center">
-                            {t > 0 ? (
-                              <span className="inline-flex items-center justify-center min-w-[24px] h-5 rounded px-0.5 font-bold bg-amber-100 text-amber-700 text-[10px]">{t}</span>
-                            ) : <span className="text-muted-foreground/20">·</span>}
-                          </td>
-                          <td key={`l${d}`} className="px-0.5 py-1 text-center">
-                            {l > 0 ? (
-                              <span className="inline-flex items-center justify-center min-w-[24px] h-5 rounded px-0.5 font-bold bg-blue-100 text-blue-700 text-[10px]">{l}</span>
-                            ) : <span className="text-muted-foreground/20">·</span>}
-                          </td>
+                          <td key={`tot-${p.label}-t`} className="px-2 py-2 text-center text-amber-700 text-xs font-bold">{t > 0 ? t : "-"}</td>
+                          <td key={`tot-${p.label}-l`} className="px-2 py-2 text-center text-blue-700 text-xs font-bold">{l > 0 ? l : "-"}</td>
                         </>
                       );
                     })}
-                    <td className="px-2 py-1.5 text-center font-semibold text-amber-600 text-[11px]">{totalT > 0 ? totalT : "-"}</td>
-                    <td className="px-2 py-1.5 text-center font-semibold text-blue-600 text-[11px]">{totalL > 0 ? totalL : "-"}</td>
-                    <td className="px-1 py-1.5">
-                      <button onClick={() => {
-                        if (confirm(`Hapus semua data lembur/keterlambatan ${emp} bulan ini?`)) {
-                          empRows.forEach(r => deleteMut.mutate(r.id));
-                        }
-                      }} className="text-muted-foreground hover:text-destructive p-1">
-                        <Trash2 className="size-3" />
-                      </button>
+                    <td className="px-2 py-2 text-center text-amber-700 text-xs font-bold">
+                      {multiAllRows.reduce((s, r) => s + r.terlambatMenit, 0) || "-"}
+                    </td>
+                    <td className="px-2 py-2 text-center text-blue-700 text-xs font-bold">
+                      {multiAllRows.reduce((s, r) => s + Number(r.lemburJam), 0) || "-"}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
