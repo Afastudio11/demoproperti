@@ -1107,6 +1107,21 @@ router.delete("/hr/sop/:id", async (req, res) => {
   } catch (e: any) { err500(res, e); }
 });
 
+router.delete("/hr/sop/divisions/:division", async (req, res) => {
+  try {
+    const division = req.params.division;
+    const sops = await db.select().from(hrSopTable).where(eq(hrSopTable.divisi, division));
+    for (const sop of sops) {
+      if (sop.filePath) {
+        const fullPath = path.join(SOP_UPLOAD_DIR, sop.filePath);
+        if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+      }
+    }
+    await db.delete(hrSopTable).where(eq(hrSopTable.divisi, division));
+    res.json({ ok: true });
+  } catch (e: any) { err500(res, e); }
+});
+
 router.post("/hr/sop/:id/upload", sopUpload.single("file"), async (req: any, res) => {
   try {
     if (!req.file) { res.status(400).json({ error: "File PDF wajib diupload" }); return; }

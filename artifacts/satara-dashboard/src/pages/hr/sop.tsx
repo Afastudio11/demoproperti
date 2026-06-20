@@ -34,6 +34,34 @@ export default function HRSop() {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [deletedDivs, setDeletedDivs] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem("hr_sop_deleted_divisions");
+      return stored ? new Set(JSON.parse(stored)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  const hideDivision = (div: string) => {
+    setDeletedDivs(prev => {
+      const next = new Set(prev);
+      next.add(div);
+      localStorage.setItem("hr_sop_deleted_divisions", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
+
+  const showDivision = (div: string) => {
+    setDeletedDivs(prev => {
+      if (!prev.has(div)) return prev;
+      const next = new Set(prev);
+      next.delete(div);
+      localStorage.setItem("hr_sop_deleted_divisions", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
+
   const { data: sops = [], isLoading } = useQuery<any[]>({
     queryKey: ["hr-sop"],
     queryFn: () => fetch("/api/hr/sop").then(apiJson),
@@ -43,13 +71,30 @@ export default function HRSop() {
     mutationFn: (body: any) => editId
       ? fetch(`/api/hr/sop/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson)
       : fetch("/api/hr/sop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(apiJson),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-sop"] }); resetForm(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hr-sop"] });
+      if (form?.divisi) {
+        showDivision(form.divisi);
+      }
+      resetForm();
+    },
     onError: (e: any) => setFormError(e.message),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(`/api/hr/sop/${id}`, { method: "DELETE" }).then(apiJson),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-sop"] }),
+  });
+
+  const deleteDivision = useMutation({
+    mutationFn: (division: string) => fetch(`/api/hr/sop/divisions/${encodeURIComponent(division)}`, { method: "DELETE" }).then(apiJson),
+    onSuccess: (_, division) => {
+      qc.invalidateQueries({ queryKey: ["hr-sop"] });
+      hideDivision(division);
+    },
+    onError: (e: any) => {
+      alert(`Gagal menghapus folder divisi: ${e.message}`);
+    }
   });
 
   function resetForm() { setForm(EMPTY); setEditId(null); setShowForm(false); setFormError(null); }
@@ -90,7 +135,8 @@ export default function HRSop() {
     byDiv[s.divisi].push(s);
   }
 
-  const allDivisions = Array.from(new Set([...DIVISIONS, ...Object.keys(byDiv)]));
+  const allDivisions = Array.from(new Set([...DIVISIONS, ...Object.keys(byDiv)]))
+    .filter(div => !deletedDivs.has(div) || (byDiv[div] && byDiv[div].length > 0));
   const totalSops = sops.length;
   const totalWithFile = sops.filter(s => s.filePath).length;
   const totalAktif = sops.filter(s => s.status === "aktif").length;
@@ -152,12 +198,27 @@ export default function HRSop() {
               <div key={div} className="bg-card border rounded-xl overflow-hidden">
                 <button
                   onClick={() => toggleDiv(div)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/20 text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/20 text-left group"
                 >
                   {isOpen ? <ChevronDown className="size-4 text-muted-foreground shrink-0" /> : <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
                   {isOpen ? <FolderOpen className="size-4 text-amber-500 shrink-0" /> : <Folder className="size-4 text-amber-500 shrink-0" />}
                   <span className="font-medium text-sm">{div}</span>
-                  <span className="text-xs text-muted-foreground ml-auto">{items.length} SOP</span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{items.length} SOP</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Apakah Anda yakin ingin menghapus seluruh folder SOP divisi "${div}" beserta semua dokumen di dalamnya?`)) {
+                          deleteDivision.mutate(div);
+                        }
+                      }}
+                      disabled={deleteDivision.isPending}
+                      className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title={`Hapus folder divisi ${div}`}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 </button>
 
                 {isOpen && (
