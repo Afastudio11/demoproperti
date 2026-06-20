@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
-import { Map, Download, ExternalLink, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { Map, Download, ExternalLink, ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -31,14 +31,17 @@ type UnitRow = {
 };
 
 const BASELINE: Record<number, number> = { 1: 10, 2: 25, 3: 40, 4: 55, 5: 70, 6: 85, 7: 95, 8: 100 };
+const MAP_H = 540;
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 8;
 
 function unitFill(progress: number, unitStatus?: string | null): { rgb: [number, number, number]; label: string; css: string } {
   const raw = String(unitStatus ?? "").toLowerCase();
-  if (raw.includes("akad") || raw.includes("terjual")) return { rgb: [59, 130, 246], label: "Terjual/Akad", css: "rgba(59,130,246,.42)" };
-  if (progress >= 100 || raw.includes("selesai")) return { rgb: [34, 197, 94], label: "Selesai", css: "rgba(34,197,94,.42)" };
-  if (progress > 0 || raw.includes("sedang")) return { rgb: [245, 158, 11], label: "Sedang Dibangun", css: "rgba(245,158,11,.42)" };
-  if (raw.includes("akan")) return { rgb: [244, 114, 182], label: "Akan Dibangun", css: "rgba(244,114,182,.42)" };
-  return { rgb: [168, 85, 247], label: "Belum Dibuka", css: "rgba(168,85,247,.42)" };
+  if (raw.includes("akad") || raw.includes("terjual")) return { rgb: [59, 130, 246], label: "Terjual/Akad", css: "rgba(59,130,246,.46)" };
+  if (progress >= 100 || raw.includes("selesai")) return { rgb: [34, 197, 94], label: "Selesai", css: "rgba(34,197,94,.46)" };
+  if (progress > 0 || raw.includes("sedang")) return { rgb: [245, 158, 11], label: "Sedang Dibangun", css: "rgba(245,158,11,.46)" };
+  if (raw.includes("akan")) return { rgb: [244, 114, 182], label: "Akan Dibangun", css: "rgba(244,114,182,.46)" };
+  return { rgb: [168, 85, 247], label: "Belum Dibuka", css: "rgba(168,85,247,.46)" };
 }
 
 const LEGEND = [
@@ -51,9 +54,22 @@ const LEGEND = [
 
 export default function ProduksiSiteplan() {
   const [projectId, setProjectId] = useState<string>("");
-  const [zoom, setZoom] = useState(1);
   const [hoveredShape, setHoveredShape] = useState<UnitShape | null>(null);
 
+  // ── Pan + zoom state ─────────────────────────────────────────────────────────
+  const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ active: boolean; lastX: number; lastY: number }>({ active: false, lastX: 0, lastY: 0 });
+  const zoomRef = useRef(zoom);
+  const panRef = useRef({ x: panX, y: panY });
+
+  // keep refs in sync so event handlers don't capture stale values
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panRef.current = { x: panX, y: panY }; }, [panX, panY]);
+
+  // ── Data queries ─────────────────────────────────────────────────────────────
   const { data: projects = [] } = useQuery<any[]>({
     queryKey: ["projects"],
     queryFn: () => fetch("/api/projects").then(r => r.json()),
@@ -86,11 +102,11 @@ export default function ProduksiSiteplan() {
     enabled: !!projectId,
   });
 
-  const transform = (activeSiteplan?.imageTransform ?? {}) as { opacity?: number; scale?: number; x?: number; y?: number };
-  const opacity = transform.opacity ?? 0.86;
-  const scale = transform.scale ?? 1;
-  const tx = transform.x ?? 0;
-  const ty = transform.y ?? 0;
+  const imgTransform = (activeSiteplan?.imageTransform ?? {}) as { opacity?: number; scale?: number; x?: number; y?: number };
+  const imgOpacity = imgTransform.opacity ?? 0.86;
+  const imgScale = imgTransform.scale ?? 1;
+  const imgTx = imgTransform.x ?? 0;
+  const imgTy = imgTransform.y ?? 0;
   const imageData = fullSiteplan?.imageDataUrl ?? activeSiteplan?.imageDataUrl ?? null;
 
   const unitShapes = shapes.filter(s => s.shapeType === "unit");
@@ -106,7 +122,7 @@ export default function ProduksiSiteplan() {
     );
   }
 
-  const projectName = projects.find((p: any) => String(p.id) === projectId)?.nama ?? "Proyek";
+  const projectName = (projects as any[]).find(p => String(p.id) === projectId)?.nama ?? "Proyek";
 
   const unitStats = {
     total: unitShapes.length,
@@ -120,19 +136,69 @@ export default function ProduksiSiteplan() {
     }).length,
   };
   const avgProgress = unitShapes.length > 0
-    ? Math.round(unitShapes.reduce((s, sh) => {
-        const u = findUnit(sh);
-        return s + (u?.progress ?? sh.progress ?? 0);
-      }, 0) / unitShapes.length)
+    ? Math.round(unitShapes.reduce((s, sh) => { const u = findUnit(sh); return s + (u?.progress ?? sh.progress ?? 0); }, 0) / unitShapes.length)
     : 0;
 
+  // ── Pan + zoom handlers ──────────────────────────────────────────────────────
+  const resetView = useCallback(() => {
+    setZoom(1);
+    setPanX(0);
+    setPanY(0);
+  }, []);
+
+  const changeZoomAt = useCallback((factor: number, cx?: number, cy?: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const pivotX = cx ?? rect.width / 2;
+    const pivotY = cy ?? rect.height / 2;
+    setZoom(prev => {
+      const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * factor));
+      const wx = (pivotX - panRef.current.x) / prev;
+      const wy = (pivotY - panRef.current.y) / prev;
+      setPanX(pivotX - wx * next);
+      setPanY(pivotY - wy * next);
+      return next;
+    });
+  }, []);
+
+  const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    changeZoomAt(factor, e.clientX - rect.left, e.clientY - rect.top);
+  }, [changeZoomAt]);
+
+  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragRef.current = { active: true, lastX: e.clientX, lastY: e.clientY };
+  }, []);
+
+  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragRef.current.active) return;
+    const dx = e.clientX - dragRef.current.lastX;
+    const dy = e.clientY - dragRef.current.lastY;
+    dragRef.current.lastX = e.clientX;
+    dragRef.current.lastY = e.clientY;
+    setPanX(x => x + dx);
+    setPanY(y => y + dy);
+  }, []);
+
+  const onMouseUp = useCallback(() => {
+    dragRef.current.active = false;
+  }, []);
+
+  // reset when project changes
+  useEffect(() => { resetView(); }, [projectId, resetView]);
+
+  // ── PDF export ───────────────────────────────────────────────────────────────
   async function exportPdf() {
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const W = 297, H = 210;
     const date = new Date().toLocaleDateString("id-ID");
     const docNo = `SMON-${String(projectName).replace(/[^A-Z0-9]/gi, "").slice(0, 12).toUpperCase()}-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
 
-    // ── Halaman 1: Siteplan Map ─────────────────────────────────────────────────
     doc.setFillColor(17, 24, 39);
     doc.rect(0, 0, W, 18, "F");
     doc.setTextColor(255, 255, 255);
@@ -142,7 +208,6 @@ export default function ProduksiSiteplan() {
     doc.text(`${projectName}  ·  Tgl: ${date}  ·  No: ${docNo}`, 14, 16);
     doc.setTextColor(0, 0, 0);
 
-    // KPI strip
     const kpis: [string, string][] = [
       ["Total Unit", String(unitStats.total)],
       ["Avg Progress", `${avgProgress}%`],
@@ -154,82 +219,42 @@ export default function ProduksiSiteplan() {
       const bx = 14 + i * 55, by = 20;
       doc.setFillColor(243, 244, 246);
       doc.roundedRect(bx, by, 50, 14, 2, 2, "F");
-      doc.setFontSize(7);
-      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(7); doc.setTextColor(100, 100, 100);
       doc.text(label, bx + 3, by + 5);
-      doc.setFontSize(11);
-      doc.setTextColor(17, 24, 39);
+      doc.setFontSize(11); doc.setTextColor(17, 24, 39);
       doc.text(value, bx + 3, by + 11);
     });
     doc.setTextColor(0, 0, 0);
 
-    // Siteplan map area
     const mapX = 14, mapY = 38, mapW = 185, mapH = 135;
     doc.setFillColor(240, 240, 240);
     doc.roundedRect(mapX, mapY, mapW, mapH, 2, 2, "F");
 
     let imgData = imageData;
     if (!imgData && siteplanId) {
-      try {
-        const r = await fetch(`/api/planning/siteplan/${siteplanId}`);
-        const json = await r.json();
-        imgData = json.imageDataUrl ?? null;
-      } catch { /* no image */ }
+      try { const r = await fetch(`/api/planning/siteplan/${siteplanId}`); imgData = (await r.json()).imageDataUrl ?? null; } catch { /* skip */ }
     }
-
     if (imgData) {
       const fmt = String(imgData).startsWith("data:image/png") ? "PNG" : "JPEG";
-      try {
-        doc.addImage(imgData, fmt,
-          mapX + (mapW * tx) / 100, mapY + (mapH * ty) / 100,
-          mapW * scale, mapH * scale, undefined, "FAST");
-      } catch { /* skip */ }
-    } else {
-      doc.setFontSize(9);
-      doc.setTextColor(150);
-      doc.text("Siteplan tidak tersedia", mapX + mapW / 2, mapY + mapH / 2, { align: "center" });
-      doc.setTextColor(0);
+      try { doc.addImage(imgData, fmt, mapX + (mapW * imgTx) / 100, mapY + (mapH * imgTy) / 100, mapW * imgScale, mapH * imgScale, undefined, "FAST"); } catch { /* skip */ }
     }
 
-    // Draw bidang outlines
-    bidangShapes.forEach(shape => {
-      const pts = shape.polygon ?? [];
-      if (pts.length < 3) return;
-      doc.setDrawColor(100, 100, 100);
-      doc.setLineWidth(0.2);
-      doc.lines(pts.slice(1).map((p, i) => [
-        ((p.x - pts[i].x) / 100) * mapW,
-        ((p.y - pts[i].y) / 100) * mapH,
-      ]), mapX + (pts[0].x / 100) * mapW, mapY + (pts[0].y / 100) * mapH, [1, 1], "D", true);
-    });
+    const drawShapes = (shapesArr: UnitShape[], fillColor: [number, number, number] | null, strokeColor: [number, number, number], lw = 0.15, filled = false) => {
+      shapesArr.forEach(shape => {
+        const pts = shape.polygon ?? [];
+        if (pts.length < 3) return;
+        if (fillColor) doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
+        doc.setDrawColor(strokeColor[0], strokeColor[1], strokeColor[2]);
+        doc.setLineWidth(lw);
+        doc.lines(pts.slice(1).map((p, i) => [((p.x - pts[i].x) / 100) * mapW, ((p.y - pts[i].y) / 100) * mapH]),
+          mapX + (pts[0].x / 100) * mapW, mapY + (pts[0].y / 100) * mapH, [1, 1], filled ? "FD" : "D", true);
+      });
+    };
 
-    // Draw blok fills
-    blokShapes.forEach(shape => {
-      const pts = shape.polygon ?? [];
-      if (pts.length < 3) return;
-      doc.setFillColor(200, 220, 200);
-      doc.setDrawColor(80, 120, 80);
-      doc.setLineWidth(0.15);
-      doc.lines(pts.slice(1).map((p, i) => [
-        ((p.x - pts[i].x) / 100) * mapW,
-        ((p.y - pts[i].y) / 100) * mapH,
-      ]), mapX + (pts[0].x / 100) * mapW, mapY + (pts[0].y / 100) * mapH, [1, 1], "FD", true);
-    });
+    drawShapes(bidangShapes, null, [100, 100, 100], 0.2, false);
+    drawShapes(blokShapes, [200, 230, 200], [80, 130, 80], 0.15, true);
+    drawShapes(fasumShapes, [190, 220, 240], [60, 100, 180], 0.15, true);
 
-    // Draw fasum fills
-    fasumShapes.forEach(shape => {
-      const pts = shape.polygon ?? [];
-      if (pts.length < 3) return;
-      doc.setFillColor(190, 220, 240);
-      doc.setDrawColor(60, 100, 160);
-      doc.setLineWidth(0.15);
-      doc.lines(pts.slice(1).map((p, i) => [
-        ((p.x - pts[i].x) / 100) * mapW,
-        ((p.y - pts[i].y) / 100) * mapH,
-      ]), mapX + (pts[0].x / 100) * mapW, mapY + (pts[0].y / 100) * mapH, [1, 1], "FD", true);
-    });
-
-    // Draw unit polygons with color by progress/status
     unitShapes.forEach(shape => {
       const unit = findUnit(shape);
       const progress = unit?.progress ?? shape.progress ?? 0;
@@ -237,28 +262,16 @@ export default function ProduksiSiteplan() {
       const pts = shape.polygon ?? [];
       if (pts.length < 3) return;
       doc.setFillColor(fill.rgb[0], fill.rgb[1], fill.rgb[2]);
-      doc.setDrawColor(17, 24, 39);
-      doc.setLineWidth(0.15);
-      doc.lines(pts.slice(1).map((p, i) => [
-        ((p.x - pts[i].x) / 100) * mapW,
-        ((p.y - pts[i].y) / 100) * mapH,
-      ]), mapX + (pts[0].x / 100) * mapW, mapY + (pts[0].y / 100) * mapH, [1, 1], "FD", true);
-      // Label
-      doc.setFontSize(4.5);
-      doc.setTextColor(17, 24, 39);
+      doc.setDrawColor(17, 24, 39); doc.setLineWidth(0.15);
+      doc.lines(pts.slice(1).map((p, i) => [((p.x - pts[i].x) / 100) * mapW, ((p.y - pts[i].y) / 100) * mapH]),
+        mapX + (pts[0].x / 100) * mapW, mapY + (pts[0].y / 100) * mapH, [1, 1], "FD", true);
+      doc.setFontSize(4.5); doc.setTextColor(17, 24, 39);
       const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
       const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-      doc.text(
-        `${shape.label}\n${Math.round(progress)}%`,
-        mapX + (cx / 100) * mapW,
-        mapY + (cy / 100) * mapH,
-        { align: "center" }
-      );
+      doc.text(`${shape.label}\n${Math.round(progress)}%`, mapX + (cx / 100) * mapW, mapY + (cy / 100) * mapH, { align: "center" });
     });
-    doc.setTextColor(0, 0, 0);
-    doc.setLineWidth(0.2);
+    doc.setTextColor(0, 0, 0); doc.setLineWidth(0.2);
 
-    // Legenda (kanan peta)
     const legendItems = [
       { label: "Selesai", rgb: [34, 197, 94] as [number, number, number] },
       { label: "Sedang Dibangun", rgb: [245, 158, 11] as [number, number, number] },
@@ -268,111 +281,70 @@ export default function ProduksiSiteplan() {
       { label: "Fasum", rgb: [190, 220, 240] as [number, number, number] },
     ];
     let lx = mapX + mapW + 6, ly = mapY;
-    doc.setFontSize(7.5);
-    doc.setFont("helvetica", "bold");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
     doc.text("Legenda", lx, ly + 4);
     doc.setFont("helvetica", "normal");
     legendItems.forEach((item, i) => {
       const iy = ly + 10 + i * 8;
       doc.setFillColor(item.rgb[0], item.rgb[1], item.rgb[2]);
       doc.roundedRect(lx, iy, 5, 4, 1, 1, "F");
-      doc.setFontSize(7);
-      doc.text(item.label, lx + 7, iy + 3.2);
+      doc.setFontSize(7); doc.text(item.label, lx + 7, iy + 3.2);
     });
-
-    // Statistik unit (di bawah legenda)
     const statsY = ly + 10 + legendItems.length * 8 + 6;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.text("Statistik Unit", lx, statsY);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.text("Statistik Unit", lx, statsY);
     doc.setFont("helvetica", "normal");
-    const statsRows = [
-      ["Total Unit", String(unitStats.total)],
-      ["Selesai", String(unitStats.selesai)],
-      ["Sedang Dibangun", String(unitStats.sedang)],
-      ["Belum Mulai", String(unitStats.belum)],
-      ["Terjual/Akad", String(unitStats.terjual)],
-      ["Avg Progress", `${avgProgress}%`],
-    ];
-    statsRows.forEach(([label, value], i) => {
+    [["Total Unit", String(unitStats.total)], ["Selesai", String(unitStats.selesai)], ["Sedang Dibangun", String(unitStats.sedang)],
+     ["Belum Mulai", String(unitStats.belum)], ["Terjual/Akad", String(unitStats.terjual)], ["Avg Progress", `${avgProgress}%`]
+    ].forEach(([label, value], i) => {
       const ry = statsY + 6 + i * 6;
-      doc.setFontSize(6.5);
-      doc.setTextColor(100, 100, 100);
-      doc.text(label, lx, ry);
-      doc.setTextColor(17, 24, 39);
-      doc.setFont("helvetica", "bold");
-      doc.text(value, lx + 60, ry, { align: "right" });
+      doc.setFontSize(6.5); doc.setTextColor(100, 100, 100); doc.text(label, lx, ry);
+      doc.setTextColor(17, 24, 39); doc.setFont("helvetica", "bold"); doc.text(value, lx + 60, ry, { align: "right" });
       doc.setFont("helvetica", "normal");
     });
 
-    // ── Halaman 2: Tabel unit detail ──────────────────────────────────────────
     doc.addPage("a4", "landscape");
-    doc.setFillColor(17, 24, 39);
-    doc.rect(0, 0, W, 14, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(11);
-    doc.text("DETAIL PROGRESS PER UNIT", 14, 9);
-    doc.setFontSize(8);
-    doc.text(`${projectName}  ·  ${date}  ·  ${docNo}`, 14, 13);
+    doc.setFillColor(17, 24, 39); doc.rect(0, 0, W, 14, "F");
+    doc.setTextColor(255, 255, 255); doc.setFontSize(11); doc.text("DETAIL PROGRESS PER UNIT", 14, 9);
+    doc.setFontSize(8); doc.text(`${projectName}  ·  ${date}  ·  ${docNo}`, 14, 13);
     doc.setTextColor(0, 0, 0);
-
-    const tableRows = unitShapes.map(shape => {
-      const unit = findUnit(shape);
-      const progress = unit?.progress ?? shape.progress ?? 0;
-      const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
-      const target = unit?.weekStarted ? (BASELINE[Math.min(8, unit.weekStarted)] ?? 100) : null;
-      const dev = target !== null ? progress - target : null;
-      const statusLabel = fill.label;
-      return [
-        shape.label,
-        unit?.tipe ?? "-",
-        shape.stageCode ?? unit?.stageCode ?? "-",
-        unit?.subkonName ?? "-",
-        unit?.weekStarted ? `M${unit.weekStarted}` : "-",
-        target !== null ? `${target}%` : "-",
-        `${Math.round(progress)}%`,
-        dev !== null ? `${dev >= 0 ? "+" : ""}${Math.round(dev)}%` : "-",
-        statusLabel,
-      ];
-    });
 
     autoTable(doc, {
       startY: 18,
       head: [["Unit", "Tipe", "Tahap", "Subkon", "Minggu", "Target", "Aktual", "Deviasi", "Status"]],
-      body: tableRows,
+      body: unitShapes.map(shape => {
+        const unit = findUnit(shape);
+        const progress = unit?.progress ?? shape.progress ?? 0;
+        const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
+        const target = unit?.weekStarted ? (BASELINE[Math.min(8, unit.weekStarted)] ?? 100) : null;
+        const dev = target !== null ? progress - target : null;
+        return [shape.label, unit?.tipe ?? "-", shape.stageCode ?? unit?.stageCode ?? "-", unit?.subkonName ?? "-",
+          unit?.weekStarted ? `M${unit.weekStarted}` : "-", target !== null ? `${target}%` : "-",
+          `${Math.round(progress)}%`, dev !== null ? `${dev >= 0 ? "+" : ""}${Math.round(dev)}%` : "-", fill.label];
+      }),
       styles: { fontSize: 7.5, cellPadding: 1.6 },
       headStyles: { fillColor: [17, 24, 39] },
       margin: { left: 14, right: 14 },
       didParseCell: (data: any) => {
         if (data.section === "body" && data.column.index === 7) {
-          const v = String(data.cell.text[0] ?? "");
-          const n = parseFloat(v);
+          const v = String(data.cell.text[0] ?? ""), n = parseFloat(v);
           if (v.startsWith("+")) data.cell.styles.textColor = [22, 163, 74];
           else if (!isNaN(n) && n < -10) data.cell.styles.textColor = [220, 38, 38];
           else if (!isNaN(n)) data.cell.styles.textColor = [217, 119, 6];
         }
-        if (data.section === "body" && data.column.index === 8) {
-          const v = String(data.cell.text[0] ?? "");
-          if (v === "Selesai") data.cell.styles.textColor = [22, 163, 74];
-          else if (v === "Sedang Dibangun") data.cell.styles.textColor = [217, 119, 6];
-          else if (v === "Terjual/Akad") data.cell.styles.textColor = [37, 99, 235];
-        }
       },
     });
 
-    // Tanda tangan
     const ySign = 192;
     doc.setFontSize(8);
     doc.text("Dibuat oleh Supervisor", 14, ySign);
     doc.text("Diperiksa Kepala Produksi", 100, ySign);
     doc.text("Disetujui Project Manager", 185, ySign);
-    [14, 100, 185].forEach(x => {
-      doc.line(x, ySign + 8, x + 70, ySign + 8);
-    });
+    [14, 100, 185].forEach(x => doc.line(x, ySign + 8, x + 70, ySign + 8));
 
     doc.save(`${docNo}.pdf`);
   }
 
+  // ── JSX ─────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -383,41 +355,18 @@ export default function ProduksiSiteplan() {
             Tampilan siteplan dari perencanaan dengan overlay progress konstruksi real-time
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {siteplanId && (
-            <>
-              <button
-                onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}
-                className="p-1.5 rounded border hover:bg-muted transition-colors"
-                title="Zoom out">
-                <ZoomOut className="size-4" />
-              </button>
-              <span className="text-xs text-muted-foreground w-10 text-center">{Math.round(zoom * 100)}%</span>
-              <button
-                onClick={() => setZoom(z => Math.min(3, z + 0.25))}
-                className="p-1.5 rounded border hover:bg-muted transition-colors"
-                title="Zoom in">
-                <ZoomIn className="size-4" />
-              </button>
-              <button
-                onClick={() => setZoom(1)}
-                className="p-1.5 rounded border hover:bg-muted transition-colors"
-                title="Reset zoom">
-                <RotateCcw className="size-3.5" />
-              </button>
-              <button
-                onClick={exportPdf}
-                className="flex items-center gap-1.5 text-sm border border-blue-600 text-blue-700 rounded-md px-3 py-1.5 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30 transition-colors">
-                <Download className="size-3.5" /> Download PDF
-              </button>
-            </>
-          )}
-        </div>
+        {siteplanId && (
+          <button
+            onClick={exportPdf}
+            className="flex items-center gap-1.5 text-sm border border-blue-600 text-blue-700 rounded-md px-3 py-1.5 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30 transition-colors">
+            <Download className="size-3.5" /> Download PDF
+          </button>
+        )}
       </div>
 
       {/* Filter proyek */}
       <div className="flex items-center gap-3">
-        <Select value={projectId} onValueChange={v => { setProjectId(v); setZoom(1); }}>
+        <Select value={projectId} onValueChange={v => setProjectId(v)}>
           <SelectTrigger className="h-9 w-72 text-sm">
             <SelectValue placeholder="Pilih proyek..." />
           </SelectTrigger>
@@ -485,9 +434,7 @@ export default function ProduksiSiteplan() {
                 <span className="text-muted-foreground text-xs">{unit?.tipe ?? "-"}</span>
                 <span className="text-muted-foreground text-xs">Tahap: {hoveredShape.stageCode ?? unit?.stageCode ?? "-"}</span>
                 <span className="text-muted-foreground text-xs">Subkon: {unit?.subkonName ?? "-"}</span>
-                <span className="text-xs font-medium" style={{ color: `rgb(${unitFill(progress, hoveredShape.unitStatus ?? unit?.status).rgb.join(",")})` }}>
-                  {fill.label}
-                </span>
+                <span className="text-xs font-medium" style={{ color: `rgb(${fill.rgb.join(",")})` }}>{fill.label}</span>
                 <span className="font-bold">{Math.round(progress)}%</span>
                 {hoveredShape.customerName && (
                   <span className="text-xs text-muted-foreground">Pembeli: {hoveredShape.customerName}</span>
@@ -496,129 +443,164 @@ export default function ProduksiSiteplan() {
             );
           })()}
 
-          {/* Map canvas */}
-          <div
-            className="relative overflow-hidden rounded-xl border bg-muted"
-            style={{ minHeight: 480, maxHeight: 700 }}>
+          {/* ── Interactive map canvas ── */}
+          <div className="rounded-xl border overflow-hidden bg-muted/20 select-none">
+            {/* Canvas viewport */}
             <div
-              style={{
-                width: "100%",
-                height: "100%",
-                minHeight: 480,
-                transform: `scale(${zoom})`,
-                transformOrigin: "top left",
-                transition: "transform 0.15s ease",
-              }}>
-              {/* Background image */}
-              {imageData ? (
-                <img
-                  src={imageData}
-                  alt="Siteplan"
-                  draggable={false}
-                  className="absolute inset-0 w-full h-full object-contain select-none"
-                  style={{ opacity, transform: `translate(${tx}%, ${ty}%) scale(${scale})`, transformOrigin: "center" }}
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-                  Memuat gambar siteplan...
-                </div>
-              )}
+              ref={containerRef}
+              className="relative overflow-hidden bg-neutral-900"
+              style={{ height: MAP_H, cursor: dragRef.current.active ? "grabbing" : "grab" }}
+              onWheel={onWheel}
+              onMouseDown={onMouseDown}
+              onMouseMove={onMouseMove}
+              onMouseUp={onMouseUp}
+              onMouseLeave={onMouseUp}>
 
-              {/* SVG overlay untuk semua shapes */}
-              <svg
-                className="absolute inset-0 h-full w-full"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                style={{ minHeight: 480 }}>
+              {/* World container — pan+zoom applied here */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+                  transformOrigin: "0 0",
+                  willChange: "transform",
+                }}>
 
-                {/* Bidang (plot) outline saja */}
-                {bidangShapes.map(shape => (
-                  <polygon
-                    key={`bidang-${shape.id}`}
-                    points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
-                    fill="none"
-                    stroke="rgba(100,100,100,0.4)"
-                    strokeWidth="0.25"
+                {/* Siteplan background image */}
+                {imageData ? (
+                  <img
+                    src={imageData}
+                    alt="Siteplan"
+                    draggable={false}
+                    className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                    style={{
+                      opacity: imgOpacity,
+                      transform: `translate(${imgTx}%, ${imgTy}%) scale(${imgScale})`,
+                      transformOrigin: "center",
+                    }}
                   />
-                ))}
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                    Memuat gambar siteplan...
+                  </div>
+                )}
 
-                {/* Blok fill */}
-                {blokShapes.map(shape => (
-                  <polygon
-                    key={`blok-${shape.id}`}
-                    points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
-                    fill="rgba(200,230,200,0.25)"
-                    stroke="rgba(80,150,80,0.5)"
-                    strokeWidth="0.2"
-                  />
-                ))}
+                {/* SVG overlay — all shapes */}
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none">
 
-                {/* Fasum fill */}
-                {fasumShapes.map(shape => (
-                  <polygon
-                    key={`fasum-${shape.id}`}
-                    points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
-                    fill="rgba(190,220,240,0.35)"
-                    stroke="rgba(60,100,200,0.5)"
-                    strokeWidth="0.2"
-                  />
-                ))}
+                  {bidangShapes.map(shape => (
+                    <polygon key={`bidang-${shape.id}`}
+                      points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
+                      fill="none" stroke="rgba(160,160,160,0.5)" strokeWidth="0.25" />
+                  ))}
+                  {blokShapes.map(shape => (
+                    <polygon key={`blok-${shape.id}`}
+                      points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
+                      fill="rgba(200,230,200,0.2)" stroke="rgba(80,160,80,0.5)" strokeWidth="0.2" />
+                  ))}
+                  {fasumShapes.map(shape => (
+                    <polygon key={`fasum-${shape.id}`}
+                      points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
+                      fill="rgba(190,220,240,0.3)" stroke="rgba(60,120,210,0.5)" strokeWidth="0.2" />
+                  ))}
+                  {unitShapes.map(shape => {
+                    const unit = findUnit(shape);
+                    const progress = unit?.progress ?? shape.progress ?? 0;
+                    const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
+                    return (
+                      <polygon key={`unit-${shape.id}`}
+                        points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
+                        fill={fill.css}
+                        stroke="rgba(17,24,39,0.6)"
+                        strokeWidth="0.2"
+                        style={{ pointerEvents: "all", cursor: "pointer" }}
+                        onMouseEnter={() => setHoveredShape(shape)}
+                        onMouseLeave={() => setHoveredShape(null)}
+                      />
+                    );
+                  })}
+                </svg>
 
-                {/* Unit shapes dengan warna progress */}
+                {/* Unit labels (HTML overlay, scales with zoom) */}
                 {unitShapes.map(shape => {
+                  const pts = shape.polygon ?? [];
+                  if (pts.length < 3) return null;
+                  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+                  const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
                   const unit = findUnit(shape);
                   const progress = unit?.progress ?? shape.progress ?? 0;
-                  const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
                   return (
-                    <polygon
-                      key={`unit-${shape.id}`}
-                      points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
-                      fill={fill.css}
-                      stroke="#111827"
-                      strokeWidth="0.2"
-                      style={{ cursor: "pointer" }}
-                      onMouseEnter={() => setHoveredShape(shape)}
-                      onMouseLeave={() => setHoveredShape(null)}
-                    />
+                    <div key={`label-${shape.id}`}
+                      className="absolute pointer-events-none"
+                      style={{ left: `${cx}%`, top: `${cy}%`, transform: "translate(-50%,-50%)" }}>
+                      <div className="rounded bg-black/60 px-0.5 text-[8px] font-semibold text-white whitespace-nowrap leading-tight text-center backdrop-blur-sm">
+                        <div>{shape.label}</div>
+                        <div className="text-[7px] font-normal opacity-90">{Math.round(progress)}%</div>
+                      </div>
+                    </div>
                   );
                 })}
-              </svg>
+              </div>
 
-              {/* Unit label overlays */}
-              {unitShapes.map(shape => {
-                const pts = shape.polygon ?? [];
-                if (pts.length < 3) return null;
-                const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-                const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-                const unit = findUnit(shape);
-                const progress = unit?.progress ?? shape.progress ?? 0;
-                return (
-                  <div
-                    key={`label-${shape.id}`}
-                    className="absolute pointer-events-none select-none"
-                    style={{ left: `${cx}%`, top: `${cy}%`, transform: "translate(-50%, -50%)" }}>
-                    <div className="rounded bg-background/90 px-0.5 text-[8px] font-semibold shadow-sm whitespace-nowrap leading-tight text-center">
-                      <div>{shape.label}</div>
-                      <div className="text-[7px] font-normal">{Math.round(progress)}%</div>
-                    </div>
-                  </div>
-                );
-              })}
+              {/* Zoom level badge (top-right, inside canvas) */}
+              <div className="absolute top-2 right-2 bg-black/50 text-white text-[11px] font-mono rounded px-2 py-0.5 pointer-events-none">
+                {Math.round(zoom * 100)}%
+              </div>
+
+              {/* Hint */}
+              {panX === 0 && panY === 0 && zoom === 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/40 text-white text-[11px] rounded-full px-3 py-1 pointer-events-none flex items-center gap-1.5">
+                  <Move className="size-3" />
+                  Drag untuk geser · Scroll untuk zoom
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Legenda */}
-          <div className="flex flex-wrap gap-2">
-            {LEGEND.map(item => (
-              <span key={item.label} className={`inline-flex items-center gap-1.5 text-[11px] rounded px-2 py-1 border ${item.css}`}>
-                {item.label}
-              </span>
-            ))}
+            {/* ── Controls toolbar BAWAH map ── */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-t bg-muted/40">
+              {/* Left: legend */}
+              <div className="flex flex-wrap gap-1.5">
+                {LEGEND.map(item => (
+                  <span key={item.label} className={`inline-flex items-center gap-1 text-[10px] rounded px-1.5 py-0.5 border ${item.css}`}>
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+
+              {/* Right: zoom controls */}
+              <div className="flex items-center gap-1 shrink-0 ml-4">
+                <button
+                  onClick={() => changeZoomAt(1 / 1.25)}
+                  className="w-8 h-8 flex items-center justify-center rounded border bg-background hover:bg-muted transition-colors"
+                  title="Zoom out (-)">
+                  <ZoomOut className="size-3.5" />
+                </button>
+                <span className="text-xs font-mono text-muted-foreground w-12 text-center">
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  onClick={() => changeZoomAt(1.25)}
+                  className="w-8 h-8 flex items-center justify-center rounded border bg-background hover:bg-muted transition-colors"
+                  title="Zoom in (+)">
+                  <ZoomIn className="size-3.5" />
+                </button>
+                <div className="w-px h-5 bg-border mx-1" />
+                <button
+                  onClick={resetView}
+                  className="h-8 flex items-center gap-1.5 text-xs rounded border bg-background hover:bg-muted transition-colors px-2.5"
+                  title="Reset tampilan">
+                  <Maximize2 className="size-3" /> Reset
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Tabel unit ringkas */}
           {unitsRaw.length > 0 && (
-            <div className="border rounded-xl overflow-hidden mt-2">
+            <div className="border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30">
                 <span className="text-sm font-medium">Progress Per Unit</span>
                 <span className="text-xs text-muted-foreground">{unitsRaw.length} unit</span>
@@ -651,10 +633,8 @@ export default function ProduksiSiteplan() {
                           <td className="px-3 py-1.5 text-center">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden min-w-[48px]">
-                                <div
-                                  className="h-full rounded-full"
-                                  style={{ width: `${u.progress}%`, backgroundColor: `rgb(${fill.rgb.join(",")})` }}
-                                />
+                                <div className="h-full rounded-full"
+                                  style={{ width: `${u.progress}%`, backgroundColor: `rgb(${fill.rgb.join(",")})` }} />
                               </div>
                               <span className="font-semibold w-8 text-right">{Math.round(u.progress)}%</span>
                               {dev !== null && (
