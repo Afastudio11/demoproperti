@@ -21,8 +21,30 @@ import {
   attendanceRecordsTable,
   overtimeRecordsTable,
   individualIssuesTable,
+  hrSopTable,
   projectsTable,
 } from "@workspace/db";
+import multer from "multer";
+import * as path from "path";
+import * as fs from "fs";
+import * as zlib from "zlib";
+import { promisify } from "util";
+
+const gzip = promisify(zlib.gzip);
+const gunzip = promisify(zlib.gunzip);
+
+const SOP_UPLOAD_DIR = path.join(process.cwd(), "uploads", "sop");
+if (!fs.existsSync(SOP_UPLOAD_DIR)) fs.mkdirSync(SOP_UPLOAD_DIR, { recursive: true });
+
+const sopStorage = multer.memoryStorage();
+const sopUpload = multer({
+  storage: sopStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/pdf") cb(null, true);
+    else cb(new Error("Hanya file PDF yang diizinkan"));
+  },
+});
 import { eq, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -252,7 +274,8 @@ router.post("/hr/kpi/definitions", async (req, res) => {
 
 router.put("/hr/kpi/definitions/:id", async (req, res) => {
   try {
-    const [row] = await db.update(kpiDefinitionsTable).set(req.body).where(eq(kpiDefinitionsTable.id, Number(req.params.id))).returning();
+    const { id: _id, createdAt: _ca, updatedAt: _ua, ...body } = req.body;
+    const [row] = await db.update(kpiDefinitionsTable).set(body).where(eq(kpiDefinitionsTable.id, Number(req.params.id))).returning();
     res.json(row);
   } catch (e: any) { err500(res, e); }
 });

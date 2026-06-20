@@ -293,9 +293,12 @@ export const hrSopTable = pgTable("hr_sop", {
   title: text("title").notNull(),
   divisi: text("divisi").notNull(),
   category: text("category").notNull().default("Operasional"),
-  content: text("content"),
+  description: text("description"),
   version: text("version").notNull().default("1.0"),
   status: text("status").notNull().default("aktif"),
+  filePath: text("file_path"),
+  originalFileName: text("original_file_name"),
+  fileSizeBytes: integer("file_size_bytes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
