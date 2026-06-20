@@ -451,7 +451,7 @@ export default function HRLembur() {
             </thead>
             <tbody>
               {employees_in_matrix.map(emp => {
-                const empData = matrix[emp];
+                const empData = matrix[emp] ?? { terlambat: {}, lembur: {}, project: "" };
                 const totalT = Object.values(empData.terlambat).reduce((s, v) => s + v, 0);
                 const totalL = Object.values(empData.lembur).reduce((s, v) => s + v, 0);
                 const empRows = data.filter(r => r.employeeName === emp);
