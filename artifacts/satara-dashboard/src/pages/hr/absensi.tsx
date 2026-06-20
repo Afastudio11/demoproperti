@@ -127,7 +127,21 @@ export default function HRAbsensi() {
   );
 
   const matrix = buildAttendanceMatrix(data);
-  const employees_in_matrix = Object.keys(matrix).sort();
+  // Tampilkan SEMUA karyawan dari DB (bukan hanya yang sudah punya record)
+  // Kalau ada project filter, cocokkan dengan division/location karyawan
+  const allEmpNamesSet = new Set<string>([
+    ...Object.keys(matrix),
+    ...employees
+      .filter((e: any) => {
+        if (project === "Semua") return true;
+        const div = (e.division ?? "").toUpperCase();
+        const loc = (e.location ?? "").toUpperCase();
+        const proj = project.toUpperCase();
+        return div === proj || loc === proj || proj.startsWith(div) || div.startsWith(proj.split(" ")[0]);
+      })
+      .map((e: any) => e.name),
+  ]);
+  const employees_in_matrix = Array.from(allEmpNamesSet).sort();
   const daysInMonth = new Date(year, MONTHS.indexOf(month) + 1, 0).getDate();
 
   const statusCounts: Record<string, number> = {};
@@ -458,7 +472,8 @@ export default function HRAbsensi() {
                 const hadir = Object.values(days).filter(d => d.status === "H" || d.status === "T").length;
                 const terlambat = Object.values(days).filter(d => d.status === "T").length;
                 const empRows = data.filter(r => r.employeeName === emp);
-                const proj = empRows[0]?.project ?? "";
+                const empDb = employees.find((e: any) => e.name === emp);
+                const proj = empRows[0]?.project ?? empDb?.division ?? empDb?.location ?? "";
                 return (
                   <tr key={emp} className="border-b hover:bg-muted/20">
                     <td className="px-3 py-1.5 font-medium sticky left-0 bg-background border-r">{emp}</td>

@@ -98,7 +98,20 @@ export default function HRLembur() {
   });
 
   const matrix = buildOvertimeMatrix(data);
-  const employees_in_matrix = Object.keys(matrix).sort();
+  // Tampilkan SEMUA karyawan dari DB (bukan hanya yang punya record)
+  const allLemburNamesSet = new Set<string>([
+    ...Object.keys(matrix),
+    ...employees
+      .filter((e: any) => {
+        if (project === "Semua") return true;
+        const div = (e.division ?? "").toUpperCase();
+        const loc = (e.location ?? "").toUpperCase();
+        const proj = project.toUpperCase();
+        return div === proj || loc === proj || proj.startsWith(div) || div.startsWith(proj.split(" ")[0]);
+      })
+      .map((e: any) => e.name),
+  ]);
+  const employees_in_matrix = Array.from(allLemburNamesSet).sort();
   const daysInMonth = new Date(year, MONTHS.indexOf(month) + 1, 0).getDate();
 
   const totalLembur = data.reduce((s, r) => s + Number(r.lemburJam), 0);
