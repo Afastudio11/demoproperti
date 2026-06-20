@@ -485,7 +485,7 @@ export default function ProduksiSiteplan() {
                   </div>
                 )}
 
-                {/* SVG overlay — all shapes */}
+                {/* SVG overlay — all shapes + labels */}
                 <svg
                   className="absolute inset-0 w-full h-full pointer-events-none"
                   viewBox="0 0 100 100"
@@ -494,55 +494,76 @@ export default function ProduksiSiteplan() {
                   {bidangShapes.map(shape => (
                     <polygon key={`bidang-${shape.id}`}
                       points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
-                      fill="none" stroke="rgba(160,160,160,0.5)" strokeWidth="0.25" />
+                      fill="rgba(16,185,129,.12)" stroke="#059669" strokeWidth={0.28 / zoom} />
                   ))}
                   {blokShapes.map(shape => (
                     <polygon key={`blok-${shape.id}`}
                       points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
-                      fill="rgba(200,230,200,0.2)" stroke="rgba(80,160,80,0.5)" strokeWidth="0.2" />
+                      fill="rgba(99,102,241,.14)" stroke="#4f46e5" strokeWidth={0.25 / zoom} />
                   ))}
                   {fasumShapes.map(shape => (
                     <polygon key={`fasum-${shape.id}`}
                       points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
-                      fill="rgba(190,220,240,0.3)" stroke="rgba(60,120,210,0.5)" strokeWidth="0.2" />
+                      fill="rgba(148,163,184,.22)" stroke="#64748b" strokeWidth={0.25 / zoom} />
                   ))}
                   {unitShapes.map(shape => {
                     const unit = findUnit(shape);
                     const progress = unit?.progress ?? shape.progress ?? 0;
                     const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
+                    const pts = shape.polygon ?? [];
+                    const cx = pts.length >= 3 ? pts.reduce((s, p) => s + p.x, 0) / pts.length : null;
+                    const cy = pts.length >= 3 ? pts.reduce((s, p) => s + p.y, 0) / pts.length : null;
+                    const sw = 1 / zoom;
+                    const hs = 1 / zoom;
                     return (
-                      <polygon key={`unit-${shape.id}`}
-                        points={(shape.polygon ?? []).map(p => `${p.x},${p.y}`).join(" ")}
-                        fill={fill.css}
-                        stroke="rgba(17,24,39,0.6)"
-                        strokeWidth="0.2"
-                        style={{ pointerEvents: "all", cursor: "pointer" }}
-                        onMouseEnter={() => setHoveredShape(shape)}
-                        onMouseLeave={() => setHoveredShape(null)}
-                      />
+                      <g key={`unit-${shape.id}`}>
+                        <polygon
+                          points={pts.map(p => `${p.x},${p.y}`).join(" ")}
+                          fill={fill.css}
+                          stroke={`rgb(${fill.rgb.join(",")})`}
+                          strokeWidth={0.3 * sw}
+                          style={{ pointerEvents: "all", cursor: "pointer" }}
+                          onMouseEnter={() => setHoveredShape(shape)}
+                          onMouseLeave={() => setHoveredShape(null)}
+                        />
+                        {cx !== null && cy !== null && (
+                          <>
+                            <text
+                              x={cx} y={cy - 0.6 * hs}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fontSize={1.35 * hs}
+                              fontWeight={700}
+                              fill="#ffffff"
+                              stroke="rgba(0,0,0,0.72)"
+                              strokeWidth={0.34 * sw}
+                              paintOrder="stroke"
+                              vectorEffect="non-scaling-stroke"
+                              style={{ pointerEvents: "none", userSelect: "none" }}
+                            >
+                              {shape.label}
+                            </text>
+                            <text
+                              x={cx} y={cy + 1.1 * hs}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fontSize={1.1 * hs}
+                              fontWeight={400}
+                              fill="rgba(255,255,255,0.88)"
+                              stroke="rgba(0,0,0,0.65)"
+                              strokeWidth={0.28 * sw}
+                              paintOrder="stroke"
+                              vectorEffect="non-scaling-stroke"
+                              style={{ pointerEvents: "none", userSelect: "none" }}
+                            >
+                              {Math.round(progress)}%
+                            </text>
+                          </>
+                        )}
+                      </g>
                     );
                   })}
                 </svg>
-
-                {/* Unit labels (HTML overlay, scales with zoom) */}
-                {unitShapes.map(shape => {
-                  const pts = shape.polygon ?? [];
-                  if (pts.length < 3) return null;
-                  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-                  const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-                  const unit = findUnit(shape);
-                  const progress = unit?.progress ?? shape.progress ?? 0;
-                  return (
-                    <div key={`label-${shape.id}`}
-                      className="absolute pointer-events-none"
-                      style={{ left: `${cx}%`, top: `${cy}%`, transform: "translate(-50%,-50%)" }}>
-                      <div className="rounded bg-black/60 px-0.5 text-[8px] font-semibold text-white whitespace-nowrap leading-tight text-center backdrop-blur-sm">
-                        <div>{shape.label}</div>
-                        <div className="text-[7px] font-normal opacity-90">{Math.round(progress)}%</div>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
 
               {/* Zoom level badge (top-right, inside canvas) */}
