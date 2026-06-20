@@ -2,6 +2,7 @@ import { apiJson } from "@/lib/api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Save, Edit2, Trash2, Search } from "lucide-react";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { cn } from "@/lib/utils";
 
 const DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
@@ -267,8 +268,8 @@ export default function KpiDefinisi() {
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Divisi</label><select value={form.division} onChange={e => setForm((f: any) => ({ ...f, division: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Sumber Data</label><select value={form.dataSource} onChange={e => setForm((f: any) => ({ ...f, dataSource: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="manual">Manual</option><option value="otomatis">Otomatis dari Sistem</option></select></div>
-                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Target per Bulan</label><input type="number" value={form.monthlyTarget ?? 0} onChange={e => setForm((f: any) => ({ ...f, monthlyTarget: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Bobot (%)</label><input type="number" value={form.weight ?? 0} onChange={e => setForm((f: any) => ({ ...f, weight: Number(e.target.value) }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" min={0} max={100} /></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Target per Bulan</label><NumericInput value={form.monthlyTarget ?? 0} onChange={v => setForm((f: any) => ({ ...f, monthlyTarget: v }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Bobot (%)</label><NumericInput value={form.weight ?? 0} onChange={v => setForm((f: any) => ({ ...f, weight: v }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               </div>
               {form.dataSource === "otomatis" && (
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Modul Sumber</label>

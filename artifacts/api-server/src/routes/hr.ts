@@ -181,7 +181,8 @@ router.post("/hr/employees", async (req, res) => {
 
 router.put("/hr/employees/:id", async (req, res) => {
   try {
-    const body = req.body.name ? { ...req.body, name: toTitleCase(req.body.name) } : req.body;
+    const { id: _id, employeeCode: _ec, createdAt: _ca, updatedAt: _ua, ...rest } = req.body;
+    const body = rest.name ? { ...rest, name: toTitleCase(rest.name) } : rest;
     const [row] = await db.update(employeesTable).set(body).where(eq(employeesTable.id, Number(req.params.id))).returning();
     res.json({ ...row, name: toTitleCase(row.name) });
   } catch (e: any) { err500(res, e); }
