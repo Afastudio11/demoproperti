@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, Users, Filter, AlertCircle, CheckCircle2, Trash2, Plus, Settings, X } from "lucide-react";
+import { Clock, Users, Filter, AlertCircle, CheckCircle2, Trash2, Plus, Settings, X, Download } from "lucide-react";
 import { apiJson } from "@/lib/api";
+import * as XLSX from "xlsx";
 
 const MONTHS = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
 type Project = { id: number; nama: string };
@@ -173,6 +174,95 @@ export default function HRLembur() {
     });
   }
 
+  function downloadExcel() {
+    const wb = XLSX.utils.book_new();
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    // ── Header baris judul ──────────────────────────────────────────────────
+    const title = `Rekap Lembur & Keterlambatan — ${month} ${year}`;
+    const filterInfo = `Project: ${project}`;
+
+    // ── Header kolom ────────────────────────────────────────────────────────
+    // Baris 1: "Nama Karyawan" | "Project" | tanggal (masing2 gabung 2 col) | "Total T" | "Total L"
+    // Baris 2: "" | "" | T/L per tanggal | "" | ""
+    const headerRow1: (string | number)[] = ["Nama Karyawan", "Project"];
+    const headerRow2: (string | number)[] = ["", ""];
+    for (const d of days) {
+      headerRow1.push(d, "");
+      headerRow2.push("Terlambat (mnt)", "Lembur (mnt)");
+    }
+    headerRow1.push("Total Terlambat", "Total Lembur");
+    headerRow2.push("(menit)", "(menit)");
+
+    // ── Data rows ────────────────────────────────────────────────────────────
+    const dataRows: (string | number)[][] = employees_in_matrix.map(emp => {
+      const empData = matrix[emp] ?? { terlambat: {}, lembur: {}, project: "" };
+      const totalT = Object.values(empData.terlambat).reduce((s, v) => s + v, 0);
+      const totalL = Object.values(empData.lembur).reduce((s, v) => s + v, 0);
+      const row: (string | number)[] = [emp, empData.project];
+      for (const d of days) {
+        row.push(empData.terlambat[d] ?? 0);
+        row.push(empData.lembur[d] ?? 0);
+      }
+      row.push(totalT, totalL);
+      return row;
+    });
+
+    // ── Summary row ──────────────────────────────────────────────────────────
+    const summaryRow: (string | number)[] = ["TOTAL", ""];
+    for (const d of days) {
+      const dayT = employees_in_matrix.reduce((s, emp) => {
+        const em = matrix[emp] ?? { terlambat: {}, lembur: {}, project: "" };
+        return s + (em.terlambat[d] ?? 0);
+      }, 0);
+      const dayL = employees_in_matrix.reduce((s, emp) => {
+        const em = matrix[emp] ?? { terlambat: {}, lembur: {}, project: "" };
+        return s + (em.lembur[d] ?? 0);
+      }, 0);
+      summaryRow.push(dayT, dayL);
+    }
+    summaryRow.push(totalTerlambat, totalLembur);
+
+    // ── Susun sheet ──────────────────────────────────────────────────────────
+    const sheetData: (string | number)[][] = [
+      [title],
+      [filterInfo],
+      [],
+      headerRow1,
+      headerRow2,
+      ...dataRows,
+      [],
+      summaryRow,
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // ── Lebar kolom ──────────────────────────────────────────────────────────
+    ws["!cols"] = [
+      { wch: 28 }, // Nama Karyawan
+      { wch: 16 }, // Project
+      ...days.flatMap(() => [{ wch: 9 }, { wch: 9 }]),
+      { wch: 14 }, // Total T
+      { wch: 14 }, // Total L
+    ];
+
+    // ── Merge cells untuk tanggal di header ──────────────────────────────────
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, // title
+      { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } }, // Nama Karyawan
+      { s: { r: 3, c: 1 }, e: { r: 4, c: 1 } }, // Project
+      ...days.map((_, i) => ({
+        s: { r: 3, c: 2 + i * 2 },
+        e: { r: 3, c: 3 + i * 2 },
+      })),
+      { s: { r: 3, c: 2 + days.length * 2 }, e: { r: 4, c: 2 + days.length * 2 } },
+      { s: { r: 3, c: 3 + days.length * 2 }, e: { r: 4, c: 3 + days.length * 2 } },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, `${month} ${year}`);
+    XLSX.writeFile(wb, `Lembur_${month}_${year}_${project.replace(/\s+/g, "_")}.xlsx`);
+  }
+
   // Group employees by project/division for manage panel
   const empBySN = employees.filter((e: any) => e.division === "SN RESIDENCE" || e.location === "SN RESIDENCE");
   const empBySekala = employees.filter((e: any) => e.division === "SEKALA INDUSTRY" || e.location === "SEKALA INDUSTRY");
@@ -192,6 +282,12 @@ export default function HRLembur() {
           <button onClick={() => setShowManage(v => !v)}
             className={`flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50 ${showManage ? "bg-muted" : ""}`}>
             <Settings className="size-3.5" /> Kelola Karyawan
+          </button>
+          <button
+            onClick={downloadExcel}
+            disabled={employees_in_matrix.length === 0}
+            className="flex items-center gap-1.5 text-sm border border-emerald-600 text-emerald-700 rounded-md px-3 py-1.5 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed dark:text-emerald-400 dark:hover:bg-emerald-950/30">
+            <Download className="size-3.5" /> Download Excel
           </button>
           <button onClick={openBulk}
             className="flex items-center gap-1.5 text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90">
