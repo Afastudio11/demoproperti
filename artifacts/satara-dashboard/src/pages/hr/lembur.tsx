@@ -677,8 +677,8 @@ export default function HRLembur() {
         </div>
       )}
 
-      {/* Matrix view — BULANAN */}
-      {viewMode === "bulanan" && (
+      {/* Matrix view — BULANAN (hanya tampil saat tidak input) */}
+      {!bulkMode && viewMode === "bulanan" && (
         isLoading ? (
           <div className="h-48 rounded-xl border bg-muted/30 animate-pulse" />
         ) : employees_in_matrix.length === 0 ? (
@@ -764,7 +764,7 @@ export default function HRLembur() {
       )}
 
       {/* Multi-month summary view */}
-      {viewMode !== "bulanan" && (
+      {!bulkMode && viewMode !== "bulanan" && (
         <div className="space-y-3">
           {/* Header + download */}
           <div className="flex items-center justify-between flex-wrap gap-3">
