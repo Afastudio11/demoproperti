@@ -202,6 +202,7 @@ const produksiSubNav: SubNavItem[] = [
   { type: "group", label: "Serah Terima" },
   { type: "link", name: "Ready Akad", path: "/produksi/ready-akad" },
   { type: "group", label: "Monitoring" },
+  { type: "link", name: "Monitoring Siteplan", path: "/produksi/siteplan" },
   { type: "link", name: "Skor Kesehatan", path: "/produksi/health" },
   { type: "link", name: "Analitik Produksi", path: "/produksi/analitik" },
 ];

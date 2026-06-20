@@ -93,6 +93,7 @@ import AnalitikEligibilitas from "@/pages/produksi/analitik/eligibilitas";
 import AnalitikForecast from "@/pages/produksi/analitik/forecast";
 import AnalitikProduksi from "@/pages/produksi/analitik";
 import ProduksiHealth from "@/pages/produksi/health";
+import ProduksiSiteplan from "@/pages/produksi/siteplan";
 import HRDashboard from "@/pages/hr/index";
 import HROrganisasi from "@/pages/hr/organisasi";
 import HRRekrutmen from "@/pages/hr/rekrutmen";
@@ -338,6 +339,7 @@ function AppRoutes() {
         <Route path="/produksi/analitik/produktivitas" component={AnalitikProduksi} />
         <Route path="/produksi/analitik/eligibilitas" component={AnalitikProduksi} />
         <Route path="/produksi/analitik/forecast" component={AnalitikProduksi} />
+        <Route path="/produksi/siteplan" component={ProduksiSiteplan} />
         <Route path="/produksi/health" component={ProduksiHealth} />
         <Route path="/settings" component={Settings} />
         <Route path="/slis" component={SLIS} />

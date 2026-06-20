@@ -11,7 +11,7 @@ import {
   AlertCircle, TrendingUp, TrendingDown, Users, Building2, Activity,
   FilePlus, UserPlus, MapPin, Search, Target, BarChart3,
   HardHat, Package, ShieldCheck, Handshake, ChevronRight,
-  CheckCircle2, UserX, Landmark, FileCheck2, Calculator, Megaphone,
+  CheckCircle2, UserX, Landmark, FileCheck2, Calculator, Megaphone, Map,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -159,6 +159,10 @@ export default function Dashboard() {
   const { data: projects } = useQuery({
     queryKey: ["projects"],
     queryFn: () => fetch("/api/projects").then(r => r.json()),
+  });
+  const { data: siteplanList = [] } = useQuery<any[]>({
+    queryKey: ["planning-siteplan-all"],
+    queryFn: () => fetch("/api/planning/siteplan").then(r => r.json()),
   });
 
   /* ── Derived data ── */
@@ -744,6 +748,65 @@ export default function Dashboard() {
 
         </div>
       </div>
+
+      {/* ── Monitoring Siteplan Proyek ── */}
+      {siteplanList.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Map className="size-5" />
+              <h2 className="text-base font-semibold">Monitoring Siteplan Proyek</h2>
+            </div>
+            <Link href="/produksi/siteplan">
+              <button className="flex items-center gap-1 text-[11px] text-foreground hover:text-foreground/70 font-medium transition-colors">
+                Buka Monitoring Lengkap <span className="ml-0.5">→</span>
+              </button>
+            </Link>
+          </div>
+          <div className={`grid gap-4 ${siteplanList.length === 1 ? "grid-cols-1 max-w-md" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+            {siteplanList.slice(0, 3).map((sp: any) => {
+              const proj = (projArr as any[]).find((p: any) => p.id === sp.projectId);
+              return (
+                <Link key={sp.id} href={`/produksi/siteplan`}>
+                  <div className="bg-card border rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors group">
+                    <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                      <span className="text-xs font-semibold truncate">{proj?.nama ?? `Proyek #${sp.projectId}`}</span>
+                      <span className="text-[10px] text-muted-foreground group-hover:text-primary transition-colors">Lihat →</span>
+                    </div>
+                    <div className="relative bg-muted/20 overflow-hidden" style={{ aspectRatio: "16/9", maxHeight: 160 }}>
+                      {sp.imageDataUrl ? (
+                        <img
+                          src={sp.imageDataUrl}
+                          alt="Siteplan"
+                          className="w-full h-full object-contain select-none"
+                          style={{
+                            opacity: (sp.imageTransform?.opacity ?? 0.86),
+                            transform: `translate(${sp.imageTransform?.x ?? 0}%, ${sp.imageTransform?.y ?? 0}%) scale(${sp.imageTransform?.scale ?? 1})`,
+                            transformOrigin: "center",
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Map className="size-8 text-muted-foreground/30" />
+                        </div>
+                      )}
+                      {sp.shapeCount > 0 && (
+                        <div className="absolute bottom-1.5 right-1.5 bg-background/80 rounded px-1.5 py-0.5 text-[9px] font-medium">
+                          {sp.shapeCount} shape
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-3 py-2 flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>Sumber: <span className="font-medium text-foreground">{sp.source === "upload" ? "Upload" : "Akuisisi"}</span></span>
+                      <span className="ml-auto text-[10px]">Produksi &gt; Monitoring Siteplan</span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── CEO Land Intelligence — Modul 7 ── */}
       <div>
