@@ -945,6 +945,18 @@ router.get("/hr/dashboard", async (_req, res) => {
 // ─── SEED SEKALA EMPLOYEES ON STARTUP ──────────────────────────────────────────
 async function seedSekalaEmployees() {
   try {
+    // Ensure SEKALA INDUSTRY exists in projectsTable
+    const existingProjects = await db.select().from(projectsTable).where(eq(projectsTable.nama, "SEKALA INDUSTRY"));
+    if (existingProjects.length === 0) {
+      await db.insert(projectsTable).values({
+        nama: "SEKALA INDUSTRY",
+        lokasi: "Kantor Pusat",
+        fase: "KANTOR",
+        status: "active",
+      });
+      console.log("[Seed] Seeded project/office: SEKALA INDUSTRY");
+    }
+
     const list = [
       "Ibhe",
       "Erwin",

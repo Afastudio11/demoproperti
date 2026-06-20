@@ -300,7 +300,7 @@ export default function HRAbsensi() {
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Project:</span>
+                <span className="text-xs text-muted-foreground">Kantor/Proyek:</span>
                 <select value={bulkProject} onChange={e => setBulkProject(e.target.value)}
                   className="text-xs border rounded px-2 py-1 bg-background">
                   {projects.map(p => <option key={p.id}>{p.nama}</option>)}
@@ -395,7 +395,7 @@ export default function HRAbsensi() {
         <div className="border rounded-xl p-4 space-y-3 bg-muted/30">
           <h3 className="font-medium text-sm">Edit Record Absensi</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {[["Nama Karyawan","employeeName","text"],["Project","project","text"],["Bulan","month","text"],["Tahun","year","number"],["Hari","day","number"]].map(([label, key, type]) => (
+            {[["Nama Karyawan","employeeName","text"],["Kantor/Proyek","project","text"],["Bulan","month","text"],["Tahun","year","number"],["Hari","day","number"]].map(([label, key, type]) => (
               <div key={key}>
                 <label className="text-xs text-muted-foreground block mb-1">{label}</label>
                 {key === "employeeName" ? (
@@ -405,7 +405,7 @@ export default function HRAbsensi() {
                   </select>
                 ) : key === "project" ? (
                   <select value={form.project} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} className="w-full text-sm border rounded-md px-2 py-1.5 bg-background">
-                    <option value="">Pilih proyek...</option>
+                    <option value="">Pilih kantor/proyek...</option>
                     {projects.map(p => <option key={p.id}>{p.nama}</option>)}
                   </select>
                 ) : key === "month" ? (
@@ -457,7 +457,7 @@ export default function HRAbsensi() {
             <thead>
               <tr className="border-b bg-muted/30">
                 <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]">Nama Karyawan</th>
-                <th className="text-left px-2 py-2 font-medium min-w-[100px]">Project</th>
+                <th className="text-left px-2 py-2 font-medium min-w-[100px]">Kantor/Proyek</th>
                 {Array.from({ length: daysInMonth }, (_, i) => (
                   <th key={i + 1} className="px-1 py-2 font-medium text-center w-7">{i + 1}</th>
                 ))}

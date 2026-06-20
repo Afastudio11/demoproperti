@@ -279,7 +279,7 @@ export default function HRLembur() {
     const sheetData: (string | number)[][] = [
       [title],
       [periodRange],
-      [`Project: ${project}`],
+      [`Kantor/Proyek: ${project}`],
       [],
       headerRow1,
       headerRow2,
@@ -316,12 +316,12 @@ export default function HRLembur() {
 
     // ── Header baris judul ──────────────────────────────────────────────────
     const title = `Rekap Lembur & Keterlambatan — ${month} ${year}`;
-    const filterInfo = `Project: ${project}`;
+    const filterInfo = `Kantor/Proyek: ${project}`;
 
     // ── Header kolom ────────────────────────────────────────────────────────
-    // Baris 1: "Nama Karyawan" | "Project" | tanggal (masing2 gabung 2 col) | "Total T" | "Total L"
+    // Baris 1: "Nama Karyawan" | "Kantor/Proyek" | tanggal (masing2 gabung 2 col) | "Total T" | "Total L"
     // Baris 2: "" | "" | T/L per tanggal | "" | ""
-    const headerRow1: (string | number)[] = ["Nama Karyawan", "Project"];
+    const headerRow1: (string | number)[] = ["Nama Karyawan", "Kantor/Proyek"];
     const headerRow2: (string | number)[] = ["", ""];
     for (const d of days) {
       headerRow1.push(d, "");
@@ -551,7 +551,7 @@ export default function HRLembur() {
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Project:</span>
+                <span className="text-xs text-muted-foreground">Kantor/Proyek:</span>
                 <select value={bulkProject} onChange={e => setBulkProject(e.target.value)}
                   className="text-xs border rounded px-2 py-1 bg-background">
                   {projects.map(p => <option key={p.id}>{p.nama}</option>)}
@@ -686,7 +686,7 @@ export default function HRLembur() {
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
-                  <th className="text-left px-2 py-2 font-medium min-w-[90px]" rowSpan={2}>Project</th>
+                  <th className="text-left px-2 py-2 font-medium min-w-[90px]" rowSpan={2}>Kantor/Proyek</th>
                   {Array.from({ length: daysInMonth }, (_, i) => (
                     <th key={i + 1} className="px-0.5 py-1 font-medium text-center w-10" colSpan={2}>{i + 1}</th>
                   ))}
