@@ -1,22 +1,23 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Pencil, Trash2, Users, Filter, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Calendar, Trash2, Users, Filter, AlertCircle, CheckCircle2, Settings, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiJson } from "@/lib/api";
 
 const MONTHS = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
+// Status sesuai Excel: H=Hadir, C=Cuti, I=Izin, T=Terlambat, L=Libur, S=Sakit
 const STATUS_COLORS: Record<string, string> = {
   H: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
-  L: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
   C: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
-  A: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400",
-  S: "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400",
   I: "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400",
+  T: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+  L: "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400",
+  S: "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400",
 };
 const STATUS_LABELS: Record<string, string> = {
-  H: "Hadir", L: "Lembur", C: "Cuti", A: "Alpha", S: "Sakit", I: "Izin",
+  H: "Hadir", C: "Cuti", I: "Izin", T: "Terlambat", L: "Libur", S: "Sakit",
 };
-const STATUS_CYCLE = ["H", "A", "C", "S", "I", "L", ""];
+const STATUS_CYCLE = ["H", "C", "I", "T", "L", "S", ""];
 
 type Project = { id: number; nama: string };
 
@@ -48,6 +49,12 @@ export default function HRAbsensi() {
   const [editId, setEditId] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
+
+  // Kelola karyawan state
+  const [showManage, setShowManage] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDiv, setNewDiv] = useState("SN RESIDENCE");
+  const [addError, setAddError] = useState<string | null>(null);
 
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["hr-employees"],
@@ -93,6 +100,31 @@ export default function HRAbsensi() {
     },
     onError: (e: any) => setBulkError(e.message),
   });
+
+  const addEmpMut = useMutation({
+    mutationFn: (body: any) => fetch("/api/hr/employees", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    }).then(apiJson),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-employees"] }); setNewName(""); setAddError(null); },
+    onError: (e: any) => setAddError(e.message),
+  });
+
+  const delEmpMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/hr/employees/${id}`, { method: "DELETE" }).then(apiJson),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-employees"] }),
+  });
+
+  function addEmployee() {
+    if (!newName.trim()) { setAddError("Nama tidak boleh kosong."); return; }
+    addEmpMut.mutate({ name: newName.trim().toUpperCase(), division: newDiv, position: "Staf", location: newDiv, employmentStatus: "aktif" });
+  }
+
+  const empBySN = employees.filter((e: any) => e.division === "SN RESIDENCE" || e.location === "SN RESIDENCE");
+  const empBySekala = employees.filter((e: any) => e.division === "SEKALA INDUSTRY" || e.location === "SEKALA INDUSTRY");
+  const empOther = employees.filter((e: any) =>
+    e.division !== "SN RESIDENCE" && e.location !== "SN RESIDENCE" &&
+    e.division !== "SEKALA INDUSTRY" && e.location !== "SEKALA INDUSTRY"
+  );
 
   const matrix = buildAttendanceMatrix(data);
   const employees_in_matrix = Object.keys(matrix).sort();
@@ -159,12 +191,67 @@ export default function HRAbsensi() {
           <p className="text-sm text-muted-foreground mt-0.5">Rekap kehadiran karyawan per bulan</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setShowManage(v => !v)}
+            className={`flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-muted/50 ${showManage ? "bg-muted" : ""}`}>
+            <Settings className="size-3.5" /> Kelola Karyawan
+          </button>
           <button onClick={openBulk}
             className="flex items-center gap-1.5 text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90">
-            <Users className="size-3.5" /> Input Semua Karyawan
+            <Users className="size-3.5" /> Input Absensi
           </button>
         </div>
       </div>
+
+      {/* Kelola Karyawan Panel */}
+      {showManage && (
+        <div className="border rounded-xl bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+            <span className="text-sm font-semibold">Kelola Daftar Karyawan</span>
+            <button onClick={() => setShowManage(false)}><X className="size-4 text-muted-foreground" /></button>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addEmployee()}
+                placeholder="Nama karyawan baru..."
+                className="text-sm border rounded-md px-3 py-1.5 bg-background flex-1 min-w-[180px]" />
+              <select value={newDiv} onChange={e => setNewDiv(e.target.value)}
+                className="text-sm border rounded-md px-2 py-1.5 bg-background">
+                <option>SN RESIDENCE</option>
+                <option>SEKALA INDUSTRY</option>
+              </select>
+              <button onClick={addEmployee} disabled={addEmpMut.isPending}
+                className="flex items-center gap-1.5 text-sm bg-foreground text-background rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
+                <Plus className="size-3.5" /> Tambah
+              </button>
+            </div>
+            {addError && <p className="text-xs text-destructive">{addError}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { label: "SN RESIDENCE", list: empBySN },
+                { label: "SEKALA INDUSTRY", list: empBySekala },
+                ...(empOther.length ? [{ label: "Lainnya", list: empOther }] : []),
+              ].map(({ label, list }) => (
+                <div key={label}>
+                  <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{label} ({list.length})</div>
+                  <div className="space-y-1">
+                    {list.map((emp: any) => (
+                      <div key={emp.id} className="flex items-center justify-between px-3 py-1.5 border rounded-lg hover:bg-muted/20">
+                        <span className="text-sm font-medium">{emp.name}</span>
+                        <button onClick={() => { if (confirm(`Hapus ${emp.name}?`)) delEmpMut.mutate(emp.id); }}
+                          className="text-muted-foreground hover:text-destructive p-1 ml-2">
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {list.length === 0 && <p className="text-xs text-muted-foreground px-1">Belum ada karyawan.</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -360,16 +447,16 @@ export default function HRAbsensi() {
                 {Array.from({ length: daysInMonth }, (_, i) => (
                   <th key={i + 1} className="px-1 py-2 font-medium text-center w-7">{i + 1}</th>
                 ))}
-                <th className="px-2 py-2 font-medium text-center">H</th>
-                <th className="px-2 py-2 font-medium text-center">A</th>
+                <th className="px-2 py-2 font-medium text-center text-emerald-700">H</th>
+                <th className="px-2 py-2 font-medium text-center text-amber-600">T</th>
                 <th className="px-1 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {employees_in_matrix.map(emp => {
                 const days = matrix[emp] ?? {};
-                const hadir = Object.values(days).filter(d => d.status === "H" || d.status === "L").length;
-                const alpha = Object.values(days).filter(d => d.status === "A").length;
+                const hadir = Object.values(days).filter(d => d.status === "H" || d.status === "T").length;
+                const terlambat = Object.values(days).filter(d => d.status === "T").length;
                 const empRows = data.filter(r => r.employeeName === emp);
                 const proj = empRows[0]?.project ?? "";
                 return (
@@ -404,7 +491,7 @@ export default function HRAbsensi() {
                       );
                     })}
                     <td className="px-2 py-1.5 text-center font-semibold text-emerald-700">{hadir}</td>
-                    <td className="px-2 py-1.5 text-center font-semibold text-red-600">{alpha}</td>
+                    <td className="px-2 py-1.5 text-center font-semibold text-amber-600">{terlambat > 0 ? terlambat : "—"}</td>
                     <td className="px-1 py-1.5">
                       <div className="flex gap-0.5">
                         <button
