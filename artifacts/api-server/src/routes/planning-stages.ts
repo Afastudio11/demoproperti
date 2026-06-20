@@ -188,7 +188,7 @@ async function findOrCreateContract(input: {
     && (contract.subkonId === master.id || normalizeSubkonName(contract.subkonName).toLowerCase() === subkonName.toLowerCase())
   );
   const contractValue = input.unitCount * input.valuePerUnit;
-  const retentionPerUnit = existing?.retentionPerUnit ?? 500000;
+  const retentionPerUnit = existing?.retentionPerUnit ?? master.defaultRetentionPerUnit ?? 500000;
   const totalRetention = input.unitCount * retentionPerUnit;
   const values = {
     projectId: input.projectId,
@@ -201,7 +201,7 @@ async function findOrCreateContract(input: {
     retentionPerUnit,
     totalRetention,
     netPayableValue: Math.max(0, contractValue - totalRetention),
-    maintenanceMonths: existing?.maintenanceMonths ?? 3,
+    maintenanceMonths: existing?.maintenanceMonths ?? master.defaultMaintenanceMonths ?? 3,
     startDate: input.targetStart ?? existing?.startDate ?? null,
     targetEndDate: input.targetEnd ?? existing?.targetEndDate ?? null,
     retentionStatus: existing?.retentionStatus ?? "ditahan",
