@@ -946,14 +946,14 @@ router.get("/hr/dashboard", async (_req, res) => {
 async function seedSekalaEmployees() {
   try {
     const list = [
-      "IBHE",
-      "ERWIN",
-      "BU MARYAM",
-      "FIQIH",
-      "NISA",
-      "NANA",
-      "RIDHO",
-      "NURUL ISMA",
+      "Ibhe",
+      "Erwin",
+      "Bu Maryam",
+      "Fiqih",
+      "Nisa",
+      "Nana",
+      "Ridho",
+      "Nurul Isma",
     ];
     
     // Check existing
@@ -968,13 +968,13 @@ async function seedSekalaEmployees() {
         const code = `EMP-SEKALA-${String(index).padStart(3, "0")}`;
         await db.insert(employeesTable).values({
           employeeCode: code,
-          name: nameUpper,
+          name: name.trim(),
           division: "SEKALA INDUSTRY",
           position: "Staf",
           location: "SEKALA INDUSTRY",
           employmentStatus: "aktif",
         });
-        console.log(`[Seed] Seeded employee: ${nameUpper} (${code})`);
+        console.log(`[Seed] Seeded employee: ${name.trim()} (${code})`);
       }
     }
   } catch (e) {
