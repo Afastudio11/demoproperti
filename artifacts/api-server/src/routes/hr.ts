@@ -406,6 +406,37 @@ router.delete("/hr/training/programs/:id", async (req, res) => {
 });
 
 // ─── COMPENSATION ────────────────────────────────────────────────────────────
+const MONTHS_LIST_HR = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
+
+async function calcPayrollAdjustments(
+  employeeId: number,
+  periodYear: number,
+  periodMonth: number,
+  baseSalary: number,
+  hariKerja: number,
+  menitPerHari: number,
+): Promise<{ potonganTelat: number; tambahanLembur: number; totalTelatMenit: number; totalLemburMenit: number }> {
+  const monthName = MONTHS_LIST_HR[periodMonth - 1];
+  if (!monthName || !employeeId) return { potonganTelat: 0, tambahanLembur: 0, totalTelatMenit: 0, totalLemburMenit: 0 };
+  const overtimeRows = await db.select().from(overtimeRecordsTable).where(
+    and(
+      eq(overtimeRecordsTable.employeeId, employeeId),
+      eq(overtimeRecordsTable.year, periodYear),
+      eq(overtimeRecordsTable.month, monthName),
+    )
+  );
+  const totalTelatMenit = overtimeRows.reduce((s, r) => s + (r.terlambatMenit ?? 0), 0);
+  const totalLemburMenit = overtimeRows.reduce((s, r) => s + Number(r.lemburJam ?? 0), 0);
+  const divisor = (hariKerja || 26) * (menitPerHari || 480);
+  const gajiMenit = divisor > 0 ? baseSalary / divisor : 0;
+  return {
+    potonganTelat: Math.round(totalTelatMenit * gajiMenit),
+    tambahanLembur: Math.round(totalLemburMenit * gajiMenit),
+    totalTelatMenit,
+    totalLemburMenit,
+  };
+}
+
 router.get("/hr/compensation", async (_req, res) => {
   try {
     const rows = await db.select().from(compensationRecordsTable).orderBy(desc(compensationRecordsTable.periodYear), desc(compensationRecordsTable.periodMonth));
@@ -416,18 +447,30 @@ router.get("/hr/compensation", async (_req, res) => {
 router.post("/hr/compensation", async (req, res) => {
   try {
     const body = req.body;
-    const total = (Number(body.baseSalary) || 0) + (Number(body.fixedAllowance) || 0) + (Number(body.performanceBonus) || 0) + (Number(body.incentive) || 0) + (Number(body.thr) || 0) - (Number(body.deduction) || 0);
-    const [row] = await db.insert(compensationRecordsTable).values({ ...body, totalTakeHome: total.toString() }).returning();
-    res.json(row);
+    const baseSalary = Number(body.baseSalary) || 0;
+    const hariKerja = Number(body.hariKerjaPerBulan) || 26;
+    const menitPerHari = Number(body.menitKerjaPerHari) || 480;
+    const adj = await calcPayrollAdjustments(Number(body.employeeId), Number(body.periodYear), Number(body.periodMonth), baseSalary, hariKerja, menitPerHari);
+    const potonganTelat = body.potonganTelatOverride !== undefined ? Number(body.potonganTelatOverride) : adj.potonganTelat;
+    const tambahanLembur = body.tambahanLemburOverride !== undefined ? Number(body.tambahanLemburOverride) : adj.tambahanLembur;
+    const total = baseSalary + (Number(body.fixedAllowance) || 0) + (Number(body.performanceBonus) || 0) + (Number(body.incentive) || 0) + (Number(body.thr) || 0) + tambahanLembur - (Number(body.deduction) || 0) - potonganTelat;
+    const [row] = await db.insert(compensationRecordsTable).values({ ...body, hariKerjaPerBulan: hariKerja, menitKerjaPerHari: menitPerHari, potonganTelat: potonganTelat.toString(), tambahanLembur: tambahanLembur.toString(), totalTakeHome: total.toString() }).returning();
+    res.json({ ...row, totalTelatMenit: adj.totalTelatMenit, totalLemburMenit: adj.totalLemburMenit });
   } catch (e: any) { err500(res, e); }
 });
 
 router.put("/hr/compensation/:id", async (req, res) => {
   try {
     const body = req.body;
-    const total = (Number(body.baseSalary) || 0) + (Number(body.fixedAllowance) || 0) + (Number(body.performanceBonus) || 0) + (Number(body.incentive) || 0) + (Number(body.thr) || 0) - (Number(body.deduction) || 0);
-    const [row] = await db.update(compensationRecordsTable).set({ ...body, totalTakeHome: total.toString() }).where(eq(compensationRecordsTable.id, Number(req.params.id))).returning();
-    res.json(row);
+    const baseSalary = Number(body.baseSalary) || 0;
+    const hariKerja = Number(body.hariKerjaPerBulan) || 26;
+    const menitPerHari = Number(body.menitKerjaPerHari) || 480;
+    const adj = await calcPayrollAdjustments(Number(body.employeeId), Number(body.periodYear), Number(body.periodMonth), baseSalary, hariKerja, menitPerHari);
+    const potonganTelat = body.potonganTelatOverride !== undefined ? Number(body.potonganTelatOverride) : adj.potonganTelat;
+    const tambahanLembur = body.tambahanLemburOverride !== undefined ? Number(body.tambahanLemburOverride) : adj.tambahanLembur;
+    const total = baseSalary + (Number(body.fixedAllowance) || 0) + (Number(body.performanceBonus) || 0) + (Number(body.incentive) || 0) + (Number(body.thr) || 0) + tambahanLembur - (Number(body.deduction) || 0) - potonganTelat;
+    const [row] = await db.update(compensationRecordsTable).set({ ...body, hariKerjaPerBulan: hariKerja, menitKerjaPerHari: menitPerHari, potonganTelat: potonganTelat.toString(), tambahanLembur: tambahanLembur.toString(), totalTakeHome: total.toString() }).where(eq(compensationRecordsTable.id, Number(req.params.id))).returning();
+    res.json({ ...row, totalTelatMenit: adj.totalTelatMenit, totalLemburMenit: adj.totalLemburMenit });
   } catch (e: any) { err500(res, e); }
 });
 
@@ -435,6 +478,14 @@ router.delete("/hr/compensation/:id", async (req, res) => {
   try {
     await db.delete(compensationRecordsTable).where(eq(compensationRecordsTable.id, Number(req.params.id)));
     res.json({ ok: true });
+  } catch (e: any) { err500(res, e); }
+});
+
+router.post("/hr/compensation/preview-adjustments", async (req, res) => {
+  try {
+    const { employeeId, periodYear, periodMonth, baseSalary, hariKerjaPerBulan, menitKerjaPerHari } = req.body;
+    const adj = await calcPayrollAdjustments(Number(employeeId), Number(periodYear), Number(periodMonth), Number(baseSalary) || 0, Number(hariKerjaPerBulan) || 26, Number(menitKerjaPerHari) || 480);
+    res.json(adj);
   } catch (e: any) { err500(res, e); }
 });
 

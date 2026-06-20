@@ -205,7 +205,7 @@ export default function HRDashboard() {
             { label: "Kompetensi", path: "/hr/kompetensi" },
             { label: "Training", path: "/hr/training" },
             { label: "Karir", path: "/hr/karir" },
-            { label: "Kompensasi", path: "/hr/kompensasi" },
+            { label: "Payroll & Kompensasi", path: "/hr/kompensasi" },
             { label: "Produktivitas", path: "/hr/produktivitas" },
             { label: "Suksesi", path: "/hr/suksesi" },
             { label: "Kultur", path: "/hr/kultur" },
