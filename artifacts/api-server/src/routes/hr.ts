@@ -60,6 +60,13 @@ const MONTH_NAME_TO_NUMBER: Record<string, number> = {
   DESEMBER: 12,
 };
 
+function toTitleCase(str: string | null | undefined): string {
+  if (!str) return str ?? "";
+  return str
+    .toLowerCase()
+    .replace(/(?:^|\s|[-.])[a-zàáâãäåæçèéêëìíîïðñòóôõöøùúûüý]/g, c => c.toUpperCase());
+}
+
 function parseHrMonth(month: string | null) {
   if (!month) return null;
   const numeric = Number(month);
@@ -79,7 +86,7 @@ async function normalizeHrOperationalRows<T extends Record<string, any>>(records
     return {
       ...record,
       employeeId,
-      employeeName: employee?.name ?? record.employeeName,
+      employeeName: toTitleCase(employee?.name ?? record.employeeName),
       projectId,
       project: project?.nama ?? record.project,
     };
@@ -137,23 +144,24 @@ async function syncCultureFromAttendance(records: (typeof attendanceRecordsTable
 router.get("/hr/employees", async (_req, res) => {
   try {
     const rows = await db.select().from(employeesTable).orderBy(employeesTable.name);
-    res.json(rows);
+    res.json(rows.map(r => ({ ...r, name: toTitleCase(r.name) })));
   } catch (e: any) { err500(res, e); }
 });
 
 router.post("/hr/employees", async (req, res) => {
   try {
-    const body = req.body;
+    const body = { ...req.body, name: toTitleCase(req.body.name) };
     const code = body.employeeCode || `EMP-${Date.now().toString().slice(-5)}`;
     const [row] = await db.insert(employeesTable).values({ ...body, employeeCode: code }).returning();
-    res.json(row);
+    res.json({ ...row, name: toTitleCase(row.name) });
   } catch (e: any) { err500(res, e); }
 });
 
 router.put("/hr/employees/:id", async (req, res) => {
   try {
-    const [row] = await db.update(employeesTable).set(req.body).where(eq(employeesTable.id, Number(req.params.id))).returning();
-    res.json(row);
+    const body = req.body.name ? { ...req.body, name: toTitleCase(req.body.name) } : req.body;
+    const [row] = await db.update(employeesTable).set(body).where(eq(employeesTable.id, Number(req.params.id))).returning();
+    res.json({ ...row, name: toTitleCase(row.name) });
   } catch (e: any) { err500(res, e); }
 });
 
@@ -651,7 +659,7 @@ router.get("/hr/attendance", async (req, res) => {
     let q = db.select().from(attendanceRecordsTable).$dynamic();
     if (conditions.length) q = q.where(and(...conditions));
     const rows = await q.orderBy(attendanceRecordsTable.employeeName, attendanceRecordsTable.day);
-    res.json(rows);
+    res.json(rows.map(r => ({ ...r, employeeName: toTitleCase(r.employeeName) })));
   } catch (e: any) { err500(res, e); }
 });
 
@@ -717,7 +725,7 @@ router.get("/hr/overtime", async (req, res) => {
     let q = db.select().from(overtimeRecordsTable).$dynamic();
     if (conditions.length) q = q.where(and(...conditions));
     const rows = await q.orderBy(overtimeRecordsTable.employeeName, overtimeRecordsTable.day);
-    res.json(rows);
+    res.json(rows.map(r => ({ ...r, employeeName: toTitleCase(r.employeeName) })));
   } catch (e: any) { err500(res, e); }
 });
 
