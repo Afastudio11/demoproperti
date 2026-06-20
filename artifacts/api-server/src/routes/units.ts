@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { planningSiteplanShapesTable, unitsTable } from "@workspace/db";
+import { planningSiteplanShapesTable, unitsTable, akadRecordsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateUnitBody, UpdateUnitBody } from "@workspace/api-zod";
 import { resolveSubkonMaster } from "../lib/subkon-master";
@@ -116,17 +116,15 @@ router.delete("/units/:id", async (req, res) => {
     if (!unit) return res.status(404).json({ error: "Unit tidak ditemukan" });
 
     if (unit.customerId) {
+      const akads = await db.select().from(akadRecordsTable).where(eq(akadRecordsTable.customerId, unit.customerId));
+      if (akads.length > 0) {
+        return res.status(409).json({
+          error: `Unit ${unit.blok}-${unit.nomor} tidak dapat dihapus karena sudah ada data akad terkait.`,
+          canArchive: false,
+        });
+      }
       return res.status(409).json({
         error: `Unit ${unit.blok}-${unit.nomor} tidak dapat dihapus karena sudah terikat dengan customer. Arsipkan unit jika tidak diperlukan lagi.`,
-        canArchive: false,
-      });
-    }
-
-    const { akadRecordsTable } = await import("@workspace/db");
-    const akads = await db.select().from(akadRecordsTable).where(eq(akadRecordsTable.unitId, id));
-    if (akads.length > 0) {
-      return res.status(409).json({
-        error: `Unit ${unit.blok}-${unit.nomor} tidak dapat dihapus karena sudah ada data akad terkait.`,
         canArchive: false,
       });
     }

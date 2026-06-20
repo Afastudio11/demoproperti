@@ -942,4 +942,46 @@ router.get("/hr/dashboard", async (_req, res) => {
   } catch (e: any) { err500(res, e); }
 });
 
+// ─── SEED SEKALA EMPLOYEES ON STARTUP ──────────────────────────────────────────
+async function seedSekalaEmployees() {
+  try {
+    const list = [
+      "IBHE",
+      "ERWIN",
+      "BU MARYAM",
+      "FIQIH",
+      "NISA",
+      "NANA",
+      "RIDHO",
+      "NURUL ISMA",
+    ];
+    
+    // Check existing
+    const existing = await db.select().from(employeesTable);
+    const existingNames = new Set(existing.map(e => e.name.trim().toUpperCase()));
+    
+    let index = existing.length;
+    for (const name of list) {
+      const nameUpper = name.trim().toUpperCase();
+      if (!existingNames.has(nameUpper)) {
+        index++;
+        const code = `EMP-SEKALA-${String(index).padStart(3, "0")}`;
+        await db.insert(employeesTable).values({
+          employeeCode: code,
+          name: nameUpper,
+          division: "SEKALA INDUSTRY",
+          position: "Staf",
+          location: "SEKALA INDUSTRY",
+          employmentStatus: "aktif",
+        });
+        console.log(`[Seed] Seeded employee: ${nameUpper} (${code})`);
+      }
+    }
+  } catch (e) {
+    console.error("Error seeding Sekala employees:", e);
+  }
+}
+
+seedSekalaEmployees();
+
 export default router;
