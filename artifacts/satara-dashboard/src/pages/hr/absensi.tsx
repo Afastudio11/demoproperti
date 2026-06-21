@@ -50,6 +50,10 @@ export default function HRAbsensi() {
   const [formError, setFormError] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
+  // Bulk delete state
+  const [selectedEmps, setSelectedEmps] = useState<Set<string>>(new Set());
+  const [deleteConfirmEmp, setDeleteConfirmEmp] = useState<string | null>(null);
+
   // Kelola karyawan state
   const [showManage, setShowManage] = useState(false);
   const [newName, setNewName] = useState("");
@@ -87,7 +91,15 @@ export default function HRAbsensi() {
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/hr/attendance/${id}`, { method: "DELETE" }).then(apiJson),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-attendance"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-attendance"] }); setDeleteConfirmEmp(null); },
+  });
+
+  const bulkDelMut = useMutation({
+    mutationFn: async (empNames: string[]) => {
+      const ids = data.filter(r => empNames.includes(r.employeeName)).map(r => r.id);
+      for (const id of ids) await fetch(`/api/hr/attendance/${id}`, { method: "DELETE" }).then(apiJson);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-attendance"] }); setSelectedEmps(new Set()); },
   });
 
   const bulkMut = useMutation({
@@ -459,10 +471,40 @@ export default function HRAbsensi() {
           <p className="text-xs text-muted-foreground mt-1">Klik "Input Semua Karyawan" untuk mengisi absensi</p>
         </div>
       ) : (
+        <>
+        {/* Bulk delete bar */}
+        {selectedEmps.size > 0 && (
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">{selectedEmps.size} karyawan dipilih</span>
+            <button
+              onClick={() => bulkDelMut.mutate(Array.from(selectedEmps))}
+              disabled={bulkDelMut.isPending}
+              className="flex items-center gap-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-md"
+            >
+              <Trash2 className="size-3.5" />
+              {bulkDelMut.isPending ? "Menghapus..." : `Hapus Data ${selectedEmps.size} Karyawan`}
+            </button>
+            <button onClick={() => setSelectedEmps(new Set())} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-md border hover:bg-muted">
+              Batal Pilih
+            </button>
+          </div>
+        )}
         <div className="border rounded-xl overflow-auto">
           <table className="w-full text-xs min-w-max">
             <thead>
               <tr className="border-b bg-muted/30">
+                <th className="px-2 py-2 w-6">
+                  <input
+                    type="checkbox"
+                    checked={employees_in_matrix.length > 0 && selectedEmps.size === employees_in_matrix.length}
+                    ref={el => { if (el) el.indeterminate = selectedEmps.size > 0 && selectedEmps.size < employees_in_matrix.length; }}
+                    onChange={() => {
+                      if (selectedEmps.size === employees_in_matrix.length) setSelectedEmps(new Set());
+                      else setSelectedEmps(new Set(employees_in_matrix));
+                    }}
+                    className="rounded cursor-pointer"
+                  />
+                </th>
                 <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]">Nama Karyawan</th>
                 <th className="text-left px-2 py-2 font-medium min-w-[100px]">Kantor/Proyek</th>
                 {Array.from({ length: daysInMonth }, (_, i) => (
@@ -481,8 +523,14 @@ export default function HRAbsensi() {
                 const empRows = data.filter(r => r.employeeName === emp);
                 const empDb = employees.find((e: any) => e.name === emp);
                 const proj = empRows[0]?.project ?? empDb?.division ?? empDb?.location ?? "";
+                const isSelected = selectedEmps.has(emp);
                 return (
-                  <tr key={emp} className="border-b hover:bg-muted/20">
+                  <tr key={emp} className={cn("border-b hover:bg-muted/20", isSelected && "bg-red-50/50")}>
+                    <td className="px-2 py-1.5">
+                      <input type="checkbox" checked={isSelected} onChange={() => {
+                        setSelectedEmps(prev => { const s = new Set(prev); s.has(emp) ? s.delete(emp) : s.add(emp); return s; });
+                      }} className="rounded cursor-pointer" />
+                    </td>
                     <td className="px-3 py-1.5 font-medium sticky left-0 bg-background border-r">{emp}</td>
                     <td className="px-2 py-1.5 text-muted-foreground">{proj}</td>
                     {Array.from({ length: daysInMonth }, (_, i) => {
@@ -515,15 +563,19 @@ export default function HRAbsensi() {
                     <td className="px-2 py-1.5 text-center font-semibold text-emerald-700">{hadir}</td>
                     <td className="px-2 py-1.5 text-center font-semibold text-amber-600">{terlambat > 0 ? terlambat : "—"}</td>
                     <td className="px-1 py-1.5">
-                      <div className="flex gap-0.5">
-                        <button
-                          onClick={() => { if (confirm(`Hapus semua data ${emp} bulan ini?`)) { empRows.forEach(r => deleteMut.mutate(r.id)); } }}
-                          className="text-muted-foreground hover:text-destructive p-1"
-                          title="Hapus semua"
-                        >
+                      {deleteConfirmEmp === emp ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-red-500 font-medium whitespace-nowrap">Yakin?</span>
+                          <button onClick={() => empRows.forEach(r => deleteMut.mutate(r.id))} disabled={deleteMut.isPending}
+                            className="text-[10px] font-semibold text-white bg-red-500 px-1.5 py-0.5 rounded disabled:opacity-50">Ya</button>
+                          <button onClick={() => setDeleteConfirmEmp(null)}
+                            className="text-[10px] text-muted-foreground border px-1.5 py-0.5 rounded hover:bg-muted">Tidak</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setDeleteConfirmEmp(emp)} className="text-muted-foreground hover:text-destructive p-1" title="Hapus semua">
                           <Trash2 className="size-3" />
                         </button>
-                      </div>
+                      )}
                     </td>
                   </tr>
                 );
@@ -531,6 +583,7 @@ export default function HRAbsensi() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

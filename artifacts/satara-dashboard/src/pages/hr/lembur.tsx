@@ -125,9 +125,20 @@ export default function HRLembur() {
     ...employees.map((e: any) => e.name),
   ])).sort();
 
+  const [selectedEmps, setSelectedEmps] = useState<Set<string>>(new Set());
+  const [deleteConfirmEmp, setDeleteConfirmEmp] = useState<string | null>(null);
+
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/hr/overtime/${id}`, { method: "DELETE" }).then(apiJson),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-overtime"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-overtime"] }); setDeleteConfirmEmp(null); },
+  });
+
+  const bulkDelMut = useMutation({
+    mutationFn: async (empNames: string[]) => {
+      const ids = data.filter((r: any) => empNames.includes(r.employeeName)).map((r: any) => r.id);
+      for (const id of ids) await fetch(`/api/hr/overtime/${id}`, { method: "DELETE" }).then(apiJson);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-overtime"] }); setSelectedEmps(new Set()); },
   });
 
   const bulkMut = useMutation({
@@ -688,6 +699,24 @@ export default function HRLembur() {
             <p className="text-xs text-muted-foreground mt-1">Klik "Input Data" untuk mengisi</p>
           </div>
         ) : (
+          <>
+          {/* Bulk delete bar */}
+          {selectedEmps.size > 0 && (
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">{selectedEmps.size} karyawan dipilih</span>
+              <button
+                onClick={() => bulkDelMut.mutate(Array.from(selectedEmps))}
+                disabled={bulkDelMut.isPending}
+                className="flex items-center gap-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-md"
+              >
+                <Trash2 className="size-3.5" />
+                {bulkDelMut.isPending ? "Menghapus..." : `Hapus Data ${selectedEmps.size} Karyawan`}
+              </button>
+              <button onClick={() => setSelectedEmps(new Set())} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-md border hover:bg-muted">
+                Batal Pilih
+              </button>
+            </div>
+          )}
           <div className="border rounded-xl overflow-auto">
             <div className="flex items-center gap-4 px-4 py-2 border-b bg-muted/10 text-[11px]">
               <span className="font-semibold text-muted-foreground">Keterangan:</span>
@@ -697,6 +726,18 @@ export default function HRLembur() {
             <table className="w-full text-xs min-w-max">
               <thead>
                 <tr className="border-b bg-muted/30">
+                  <th className="px-2 py-2 w-6" rowSpan={2}>
+                    <input
+                      type="checkbox"
+                      checked={employees_in_matrix.length > 0 && selectedEmps.size === employees_in_matrix.length}
+                      ref={el => { if (el) el.indeterminate = selectedEmps.size > 0 && selectedEmps.size < employees_in_matrix.length; }}
+                      onChange={() => {
+                        if (selectedEmps.size === employees_in_matrix.length) setSelectedEmps(new Set());
+                        else setSelectedEmps(new Set(employees_in_matrix));
+                      }}
+                      className="rounded cursor-pointer"
+                    />
+                  </th>
                   <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
                   <th className="text-left px-2 py-2 font-medium min-w-[90px]" rowSpan={2}>Kantor/Proyek</th>
                   {Array.from({ length: daysInMonth }, (_, i) => (
@@ -721,9 +762,15 @@ export default function HRLembur() {
                   const empData = matrix[emp] ?? { terlambat: {}, lembur: {}, project: "" };
                   const totalT = Object.values(empData.terlambat).reduce((s, v) => s + v, 0);
                   const totalL = Object.values(empData.lembur).reduce((s, v) => s + v, 0);
-                  const empRows = data.filter(r => r.employeeName === emp);
+                  const empRows = data.filter((r: any) => r.employeeName === emp);
+                  const isSelected = selectedEmps.has(emp);
                   return (
-                    <tr key={emp} className="border-b hover:bg-muted/20">
+                    <tr key={emp} className={`border-b hover:bg-muted/20${isSelected ? " bg-red-50/50" : ""}`}>
+                      <td className="px-2 py-1.5">
+                        <input type="checkbox" checked={isSelected} onChange={() => {
+                          setSelectedEmps(prev => { const s = new Set(prev); s.has(emp) ? s.delete(emp) : s.add(emp); return s; });
+                        }} className="rounded cursor-pointer" />
+                      </td>
                       <td className="px-3 py-1.5 font-medium sticky left-0 bg-background border-r">{emp}</td>
                       <td className="px-2 py-1.5 text-muted-foreground text-[11px]">{empData.project}</td>
                       {Array.from({ length: daysInMonth }, (_, i) => {
@@ -746,13 +793,19 @@ export default function HRLembur() {
                       <td className="px-2 py-1.5 text-center font-semibold text-amber-600 text-[11px]">{totalT > 0 ? totalT : "-"}</td>
                       <td className="px-2 py-1.5 text-center font-semibold text-blue-600 text-[11px]">{totalL > 0 ? totalL : "-"}</td>
                       <td className="px-1 py-1.5">
-                        <button onClick={() => {
-                          if (confirm(`Hapus semua data lembur/keterlambatan ${emp} bulan ini?`)) {
-                            empRows.forEach(r => deleteMut.mutate(r.id));
-                          }
-                        }} className="text-muted-foreground hover:text-destructive p-1">
-                          <Trash2 className="size-3" />
-                        </button>
+                        {deleteConfirmEmp === emp ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-red-500 font-medium whitespace-nowrap">Yakin?</span>
+                            <button onClick={() => empRows.forEach((r: any) => deleteMut.mutate(r.id))} disabled={deleteMut.isPending}
+                              className="text-[10px] font-semibold text-white bg-red-500 px-1.5 py-0.5 rounded disabled:opacity-50">Ya</button>
+                            <button onClick={() => setDeleteConfirmEmp(null)}
+                              className="text-[10px] text-muted-foreground border px-1.5 py-0.5 rounded hover:bg-muted">Tidak</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setDeleteConfirmEmp(emp)} className="text-muted-foreground hover:text-destructive p-1">
+                            <Trash2 className="size-3" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -760,6 +813,7 @@ export default function HRLembur() {
               </tbody>
             </table>
           </div>
+          </>
         )
       )}
 
