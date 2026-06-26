@@ -12,6 +12,7 @@ export const employeesTable = pgTable("hr_employees", {
   employmentStatus: text("employment_status").notNull().default("aktif"),
   joinDate: text("join_date"),
   location: text("location"),
+  project: text("project"),
   phone: text("phone"),
   email: text("email"),
   notes: text("notes"),
