@@ -190,7 +190,27 @@ router.put("/hr/employees/:id", async (req, res) => {
 
 router.delete("/hr/employees/:id", async (req, res) => {
   try {
-    await db.delete(employeesTable).where(eq(employeesTable.id, Number(req.params.id)));
+    const id = Number(req.params.id);
+    const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
+    if (emp) {
+      // 1. Delete associated records from child tables
+      await db.delete(attendanceRecordsTable).where(eq(attendanceRecordsTable.employeeId, id));
+      await db.delete(overtimeRecordsTable).where(eq(overtimeRecordsTable.employeeId, id));
+      await db.delete(kpiRecordsTable).where(eq(kpiRecordsTable.employeeId, id));
+      await db.delete(competencyScoresTable).where(eq(competencyScoresTable.employeeId, id));
+      await db.delete(trainingParticipantsTable).where(eq(trainingParticipantsTable.employeeId, id));
+      await db.delete(compensationRecordsTable).where(eq(compensationRecordsTable.employeeId, id));
+      await db.delete(cultureRecordsTable).where(eq(cultureRecordsTable.employeeId, id));
+      await db.delete(flightRiskRecordsTable).where(eq(flightRiskRecordsTable.employeeId, id));
+      
+      // Clean up tables using employee name strings
+      if (emp.name) {
+        await db.delete(individualIssuesTable).where(eq(individualIssuesTable.nama, emp.name));
+        await db.delete(attendanceRecordsTable).where(eq(attendanceRecordsTable.employeeName, emp.name));
+        await db.delete(overtimeRecordsTable).where(eq(overtimeRecordsTable.employeeName, emp.name));
+      }
+    }
+    await db.delete(employeesTable).where(eq(employeesTable.id, id));
     res.json({ ok: true });
   } catch (e: any) { err500(res, e); }
 });
