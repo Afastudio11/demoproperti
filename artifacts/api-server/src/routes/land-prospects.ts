@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { landProspectsTable, projectsTable } from "@workspace/db";
+import { landProspectsTable, projectsTable, planningSiteplansTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateLandProspectBody, UpdateLandProspectBody } from "@workspace/api-zod";
 
@@ -161,6 +161,24 @@ router.patch("/land-prospects/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update land prospect");
     res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+router.delete("/land-prospects/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID tidak valid" });
+    
+    // Dissociate from planning siteplans
+    await db.update(planningSiteplansTable).set({ landProspectId: null }).where(eq(planningSiteplansTable.landProspectId, id));
+    
+    const result = await db.delete(landProspectsTable).where(eq(landProspectsTable.id, id)).returning();
+    if (result.length === 0) return res.status(404).json({ error: "Prospek lahan tidak ditemukan" });
+    
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete land prospect");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

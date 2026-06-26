@@ -1,6 +1,21 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
-import { customersTable } from "@workspace/db";
+import {
+  db,
+  customersTable,
+  customerDocumentsTable,
+  customerStatusHistoryTable,
+  customerComplaintsTable,
+  handoversTable,
+  sp3kRecordsTable,
+  bankSubmissionsTable,
+  akadRecordsTable,
+  htRecordsTable,
+  otsRecordsTable,
+  akadDisbursementsTable,
+  financeAkadDisbursementLedgerTable,
+  unitsTable,
+  planningSiteplanShapesTable
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateCustomerBody, UpdateCustomerBody } from "@workspace/api-zod";
 
@@ -85,6 +100,38 @@ router.patch("/customers/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update customer");
     res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+router.delete("/customers/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID tidak valid" });
+
+    // 1. Delete associated records from child tables
+    await db.delete(customerDocumentsTable).where(eq(customerDocumentsTable.customerId, id));
+    await db.delete(customerStatusHistoryTable).where(eq(customerStatusHistoryTable.customerId, id));
+    await db.delete(customerComplaintsTable).where(eq(customerComplaintsTable.customerId, id));
+    await db.delete(handoversTable).where(eq(handoversTable.customerId, id));
+    await db.delete(sp3kRecordsTable).where(eq(sp3kRecordsTable.customerId, id));
+    await db.delete(bankSubmissionsTable).where(eq(bankSubmissionsTable.customerId, id));
+    await db.delete(akadRecordsTable).where(eq(akadRecordsTable.customerId, id));
+    await db.delete(htRecordsTable).where(eq(htRecordsTable.customerId, id));
+    await db.delete(otsRecordsTable).where(eq(otsRecordsTable.customerId, id));
+    await db.delete(akadDisbursementsTable).where(eq(akadDisbursementsTable.customerId, id));
+    await db.delete(financeAkadDisbursementLedgerTable).where(eq(financeAkadDisbursementLedgerTable.customerId, id));
+
+    // 2. Dissociate customer references from other tables by setting customerId to null
+    await db.update(unitsTable).set({ customerId: null }).where(eq(unitsTable.customerId, id));
+    await db.update(planningSiteplanShapesTable).set({ customerId: null }).where(eq(planningSiteplanShapesTable.customerId, id));
+
+    // 3. Delete the customer record itself
+    const result = await db.delete(customersTable).where(eq(customersTable.id, id)).returning();
+    if (result.length === 0) return res.status(404).json({ error: "Customer tidak ditemukan" });
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete customer");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

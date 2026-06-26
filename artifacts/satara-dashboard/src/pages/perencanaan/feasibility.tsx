@@ -161,6 +161,18 @@ export default function FeasibilityPage() {
     toast({ title: "Feasibility tersimpan — lanjut ke Daftar Proyek untuk konfirmasi." });
   };
 
+  const handleDelete = async () => {
+    if (!savedId) return;
+    if (confirm("Apakah Anda yakin ingin menghapus analisis feasibility untuk proyek ini?")) {
+      const resp = await fetch(`/api/planning/feasibility/${savedId}`, { method: "DELETE" });
+      if (!resp.ok) { toast({ title: "Gagal menghapus", variant: "destructive" }); return; }
+      setSavedId(null);
+      setInputs(defaultInputs);
+      await qc.invalidateQueries({ queryKey: ["planning-feasibility"] });
+      toast({ title: "Analisis feasibility dihapus" });
+    }
+  };
+
   const fetchAiAnalysis = async () => {
     if (!result) return;
     setAiLoading(true);
@@ -249,7 +261,19 @@ export default function FeasibilityPage() {
           <h1 className="text-xl font-semibold">Feasibility Engine</h1>
           <p className="text-sm text-muted-foreground mt-0.5">ROI, IRR, NPV, payback & CEO report otomatis</p>
         </div>
-        <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
+        <div className="flex items-center gap-2">
+          {savedId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              className="border-red-200 hover:bg-red-50/50 text-red-600 cursor-pointer animate-fade-in"
+            >
+              Hapus Analisis
+            </Button>
+          )}
+          <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

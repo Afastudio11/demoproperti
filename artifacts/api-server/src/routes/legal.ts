@@ -342,6 +342,24 @@ router.patch("/legal/permits/:id", async (req, res) => {
   }
 });
 
+router.delete("/legal/permits/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID tidak valid" });
+    
+    // Cascade delete status history
+    await db.delete(permitStatusHistoryTable).where(eq(permitStatusHistoryTable.permitId, id));
+    
+    const result = await db.delete(permitDocumentsTable).where(eq(permitDocumentsTable.id, id)).returning();
+    if (result.length === 0) return res.status(404).json({ error: "Izin tidak ditemukan" });
+    
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete permit");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/legal/permits", async (req, res) => {
   try {
     const { projectId, permitGroup, permitName, institution, status, submissionDate, targetDate, actualDate, documentNumber, pic, notes } = req.body;
@@ -565,6 +583,24 @@ router.patch("/legal/issues/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update issue");
     res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+router.delete("/legal/issues/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID tidak valid" });
+    
+    // Cascade delete issue history
+    await db.delete(legalIssueHistoryTable).where(eq(legalIssueHistoryTable.issueId, id));
+    
+    const result = await db.delete(legalIssuesTable).where(eq(legalIssuesTable.id, id)).returning();
+    if (result.length === 0) return res.status(404).json({ error: "Isu legal tidak ditemukan" });
+    
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete issue");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

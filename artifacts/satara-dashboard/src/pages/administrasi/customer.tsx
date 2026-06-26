@@ -118,6 +118,25 @@ export default function CustomerList() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["administrasi-customers"] }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/administrasi/customers/${id}`, {
+        method: "DELETE",
+      }).then(r => {
+        if (!r.ok) throw new Error("Gagal menghapus customer");
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["administrasi-customers"] });
+    },
+  });
+
+  const handleDelete = (id: number, name: string) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus customer "${name}"? Semua data terkait (dokumen, komplain, akad, dll.) juga akan ikut terhapus.`)) {
+      deleteMutation.mutate(id);
+    }
+  };
+
   const QUICK_FILTERS = ["", "MINAT", "PROSES_BERKAS", "SETOR_BANK", "OTS", "REVISI", "SP3K", "AKAD", "HT_CAIR", "DTBO", "BATAL"];
 
   return (
@@ -243,6 +262,12 @@ export default function CustomerList() {
                       <Link href={`/administrasi/customer/${c.id}/edit`}>
                         <button className="text-xs text-blue-600 hover:text-blue-700 underline">Edit</button>
                       </Link>
+                      <button
+                        onClick={() => handleDelete(c.id, c.nama)}
+                        className="text-xs text-red-600 hover:text-red-700 underline cursor-pointer"
+                      >
+                        Hapus
+                      </button>
                     </div>
                   </td>
                 </tr>

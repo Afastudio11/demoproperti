@@ -84,6 +84,25 @@ export default function PermitTracker() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/legal/permits/${id}`, { method: "DELETE" }).then(r => {
+        if (!r.ok) throw new Error("Gagal menghapus permit");
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["permits", selectedProject] });
+      qc.invalidateQueries({ queryKey: ["legal-dashboard"] });
+      setEditId(null);
+    },
+  });
+
+  const handleDelete = (id: number, name: string) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus izin "${name}"?`)) {
+      deleteMutation.mutate(id);
+    }
+  };
+
   const seedDefaults = useMutation({
     mutationFn: () =>
       fetch("/api/legal/permits/seed-defaults", {
@@ -189,9 +208,16 @@ export default function PermitTracker() {
                         </div>
                         <div className="sm:col-span-1"><label className="text-xs font-medium text-muted-foreground">Catatan</label><input className={inputCls} value={editForm.notes} onChange={e => setEditForm((f: any) => ({ ...f, notes: e.target.value }))} /></div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-center">
                         <button onClick={() => update.mutate({ id: p.id, body: editForm })} disabled={update.isPending} className="text-xs bg-foreground text-background px-3 py-1.5 rounded-md hover:opacity-90 disabled:opacity-50">{update.isPending ? "Menyimpan..." : "Simpan"}</button>
                         <button onClick={() => setEditId(null)} className="text-xs border rounded-md px-3 py-1.5 hover:bg-muted">Batal</button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(p.id, p.permitName)}
+                          className="text-xs border border-red-200 text-red-600 rounded-md px-3 py-1.5 hover:bg-red-50/50 cursor-pointer ml-auto"
+                        >
+                          Hapus
+                        </button>
                       </div>
                     </div>
                   ) : (

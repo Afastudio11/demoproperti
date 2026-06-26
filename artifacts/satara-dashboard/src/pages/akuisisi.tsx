@@ -753,7 +753,7 @@ function ProspectDetailPanel({
           </div>
 
           {/* LANJUTKAN KE PERENCANAAN */}
-          <div className="pt-2 border-t border-border/50">
+          <div className="pt-2 border-t border-border/50 space-y-2">
             <button
               onClick={async () => {
                 setPromoting(true);
@@ -771,6 +771,24 @@ function ProspectDetailPanel({
                 ? <Loader2 className="size-3 animate-spin" />
                 : <ArrowRight className="size-3" />}
               {promoting ? "Menyiapkan proyek..." : "Lanjut ke Perencanaan"}
+            </button>
+
+            <button
+              onClick={async () => {
+                if (confirm(`Apakah Anda yakin ingin menghapus prospek lahan "${prospect.lokasi}"? Semua data terkait prospek ini juga akan ikut terhapus.`)) {
+                  try {
+                    const resp = await fetch(`/api/land-prospects/${prospect.id}`, { method: "DELETE" });
+                    if (!resp.ok) throw new Error("Gagal menghapus");
+                    onClose();
+                    onRefetch();
+                  } catch (err) {
+                    alert("Gagal menghapus prospek: " + err);
+                  }
+                }
+              }}
+              className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold px-2 py-2 rounded-md border border-red-200 hover:bg-red-50/50 text-red-600 transition-colors cursor-pointer"
+            >
+              Hapus Prospek
             </button>
           </div>
         </div>

@@ -64,6 +64,25 @@ export default function KomplainPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["complaints"] }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/administrasi/complaints/${id}`, {
+        method: "DELETE",
+      }).then(r => {
+        if (!r.ok) throw new Error("Gagal menghapus komplain");
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["complaints"] });
+    },
+  });
+
+  const handleDelete = (id: number) => {
+    if (confirm("Apakah Anda yakin ingin menghapus komplain ini?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
   const set = (f: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [f]: e.target.value }));
   const complaints: any[] = data?.complaints ?? [];
 
@@ -108,16 +127,16 @@ export default function KomplainPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                {["Blok", "Keluhan", "Kategori", "Urgensi", "PIC", "Deadline", "Status", "Aksi"].map(h => (
+                {["Blok", "Keluhan", "Kategori", "Urgensi", "PIC", "Deadline", "Status", "Selesai", "Aksi"].map(h => (
                   <th key={h} className="px-3 py-2.5 text-left text-[11px] font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground text-sm">Memuat...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">Memuat...</td></tr>
               ) : complaints.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground text-sm">Tidak ada komplain.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">Tidak ada komplain.</td></tr>
               ) : complaints.map((c: any) => {
                 const overdue = c.deadline && c.status !== "selesai" && new Date(c.deadline) < new Date();
                 return (
@@ -148,6 +167,14 @@ export default function KomplainPage() {
                       </select>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">{c.completedDate ? new Date(c.completedDate).toLocaleDateString("id-ID") : "-"}</td>
+                    <td className="px-3 py-2.5">
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="text-xs text-red-600 hover:text-red-700 underline cursor-pointer"
+                      >
+                        Hapus
+                      </button>
+                    </td>
                   </tr>
                 );
               })}

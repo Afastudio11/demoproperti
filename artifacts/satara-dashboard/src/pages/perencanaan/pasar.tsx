@@ -129,6 +129,19 @@ export default function PasarPage() {
     toast({ title: "Analisis pasar tersimpan" });
   };
 
+  const handleDelete = async () => {
+    if (!savedId) return;
+    if (confirm("Apakah Anda yakin ingin menghapus analisis pasar untuk proyek ini?")) {
+      const resp = await fetch(`/api/planning/market/${savedId}`, { method: "DELETE" });
+      if (!resp.ok) { toast({ title: "Gagal menghapus", variant: "destructive" }); return; }
+      setSavedId(null);
+      setForm({ ...defaultForm, projectId: form.projectId });
+      setCompetitors([]);
+      await qc.invalidateQueries({ queryKey: ["planning-market"] });
+      toast({ title: "Analisis pasar dihapus" });
+    }
+  };
+
   const scoreColor = demandScore >= 70 ? "text-emerald-500" : demandScore >= 50 ? "text-amber-500" : "text-red-500";
   const projectList = Array.isArray(projects) ? projects : [];
 
@@ -139,7 +152,19 @@ export default function PasarPage() {
           <h1 className="text-xl font-semibold">Analisis Pasar & Permintaan</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Demografi, ekonomi, lokasi, kompetitor & demand score</p>
         </div>
-        <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
+        <div className="flex items-center gap-2">
+          {savedId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              className="border-red-200 hover:bg-red-50/50 text-red-600 cursor-pointer animate-fade-in"
+            >
+              Hapus Analisis
+            </Button>
+          )}
+          <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

@@ -45,6 +45,30 @@ export default function TargetPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["target-realisasi"] }); setShowForm(false); },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (targetIds: number[]) => {
+      await Promise.all(
+        targetIds.map(id =>
+          fetch(`/api/administrasi/targets/${id}`, {
+            method: "DELETE",
+          }).then(r => {
+            if (!r.ok) throw new Error("Gagal menghapus target");
+            return r.json();
+          })
+        )
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["target-realisasi"] });
+    },
+  });
+
+  const handleDelete = (targetIds: number[]) => {
+    if (confirm("Apakah Anda yakin ingin menghapus target ini?")) {
+      deleteMutation.mutate(targetIds);
+    }
+  };
+
   const set = (f: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [f]: e.target.value }));
   const targetBreakdown = data?.targetBreakdown ?? [];
 
@@ -130,7 +154,7 @@ export default function TargetPage() {
             <table className="w-full text-sm min-w-[760px]">
               <thead>
                 <tr className="border-b">
-                  {["Proyek", "Target Akad", "Target Berkas", "Realisasi Akad", "SP3K", "Pipeline", "Progress Akad"].map(h => (
+                  {["Proyek", "Target Akad", "Target Berkas", "Realisasi Akad", "SP3K", "Pipeline", "Progress Akad", "Aksi"].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-[11px] font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -157,6 +181,18 @@ export default function TargetPage() {
                         </div>
                         <span className="text-xs font-medium">{row.akadRate}%</span>
                       </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {Array.isArray(row.targetIds) && row.targetIds.length > 0 ? (
+                        <button
+                          onClick={() => handleDelete(row.targetIds)}
+                          className="text-xs text-red-600 hover:text-red-700 underline cursor-pointer"
+                        >
+                          Hapus
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}

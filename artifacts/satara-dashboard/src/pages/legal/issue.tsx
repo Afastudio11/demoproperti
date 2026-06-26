@@ -92,6 +92,24 @@ export default function LegalIssueTracker() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["legal-issues"] }); qc.invalidateQueries({ queryKey: ["legal-dashboard"] }); },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/legal/issues/${id}`, { method: "DELETE" }).then(r => {
+        if (!r.ok) throw new Error("Gagal menghapus isu legal");
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["legal-issues"] });
+      qc.invalidateQueries({ queryKey: ["legal-dashboard"] });
+    },
+  });
+
+  const handleDelete = (id: number) => {
+    if (confirm("Apakah Anda yakin ingin menghapus isu legal ini?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
   const set = (f: string) => (e: React.ChangeEvent<any>) => setForm(p => ({ ...p, [f]: e.target.value }));
 
   const filtered = issues.filter((i: any) => {
@@ -153,16 +171,16 @@ export default function LegalIssueTracker() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                {["Judul Isu", "Proyek", "Objek", "Kategori", "Risiko", "Status", "PIC", "Hari Berjalan", "Aksi"].map(h => (
+                {["Judul Isu", "Proyek", "Objek", "Kategori", "Risiko", "Status", "PIC", "Hari Berjalan", "Tgl Mulai", "Aksi"].map(h => (
                   <th key={h} className="px-3 py-2.5 text-left text-[11px] font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">Memuat...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground text-sm">Memuat...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">Tidak ada isu hukum.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground text-sm">Tidak ada isu hukum.</td></tr>
               ) : filtered.map((i: any) => (
                 <tr key={i.id} className={cn("border-b last:border-0 hover:bg-muted/20", ROW_CLS[i.riskLevel] ?? "")}>
                   <td className="px-3 py-2.5 font-semibold text-sm max-w-48">
@@ -192,6 +210,14 @@ export default function LegalIssueTracker() {
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground">{i.startDate ? new Date(i.startDate).toLocaleDateString("id-ID") : "-"}</td>
+                  <td className="px-3 py-2.5">
+                    <button
+                      onClick={() => handleDelete(i.id)}
+                      className="text-xs text-red-600 hover:text-red-700 underline cursor-pointer"
+                    >
+                      Hapus
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { ArrowLeft, Clock, CheckCircle2, Circle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,7 @@ function fmtDate(d: string | null | undefined) {
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
+  const [_, setLocation] = useLocation();
   const [tab, setTab] = useState<"info" | "dokumen" | "riwayat" | "catatan" | "komplain">("info");
   const qc = useQueryClient();
 
@@ -61,6 +62,27 @@ export default function CustomerDetail() {
       }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["customer-documents", id] }),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      fetch(`/api/administrasi/customers/${id}`, {
+        method: "DELETE",
+      }).then(r => {
+        if (!r.ok) throw new Error("Gagal menghapus customer");
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["administrasi-customers"] });
+      setLocation("/administrasi/customer");
+    },
+  });
+
+  const handleDelete = () => {
+    if (!customer) return;
+    if (confirm(`Apakah Anda yakin ingin menghapus customer "${customer.nama}"? Semua data terkait (dokumen, komplain, akad, dll.) juga akan ikut terhapus.`)) {
+      deleteMutation.mutate();
+    }
+  };
 
   if (isLoading) return <div className="text-sm text-muted-foreground p-8 text-center">Memuat...</div>;
   if (!customer || customer.error) return <div className="text-sm text-muted-foreground p-8 text-center">Customer tidak ditemukan.</div>;
@@ -93,11 +115,19 @@ export default function CustomerDetail() {
             <ArrowLeft className="size-4" /> Kembali
           </button>
         </Link>
-        <Link href={`/administrasi/customer/${id}/edit`}>
-          <button className="flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-muted">
-            Edit Customer
+        <div className="flex items-center gap-2">
+          <Link href={`/administrasi/customer/${id}/edit`}>
+            <button className="flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-muted">
+              Edit Customer
+            </button>
+          </Link>
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-1.5 text-sm border border-red-200 text-red-600 rounded-md px-3 py-1.5 hover:bg-red-50/50 cursor-pointer animate-fade-in"
+          >
+            Hapus Customer
           </button>
-        </Link>
+        </div>
       </div>
 
       {/* Header */}
