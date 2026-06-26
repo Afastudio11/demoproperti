@@ -294,7 +294,21 @@ export default function Organisasi() {
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Lokasi Penugasan</label>
-                <CategorySelect type="hr_lokasi" defaults={DEFAULT_LOCATIONS} value={form.location ?? ""} onChange={v => setForm((f: any) => ({ ...f, location: v }))} />
+                <div className="flex items-center gap-1.5">
+                  <div className="flex-1">
+                    <CategorySelect type="hr_lokasi" defaults={DEFAULT_LOCATIONS} value={form.location ?? ""} onChange={v => setForm((f: any) => ({ ...f, location: v }))} />
+                  </div>
+                  {form.location && (
+                    <button
+                      type="button"
+                      onClick={() => setForm((f: any) => ({ ...f, location: "" }))}
+                      title="Hapus lokasi penugasan"
+                      className="shrink-0 p-1.5 rounded-md border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Atasan Langsung</label>
