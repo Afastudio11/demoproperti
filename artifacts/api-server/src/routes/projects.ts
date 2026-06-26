@@ -12,8 +12,12 @@ const router: IRouter = Router();
 router.get("/projects", async (req, res) => {
   try {
     const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    const all = req.query.all === "1" || req.query.all === "true" || req.query.includeHr === "1" || req.query.includeHr === "true";
     const allProjects = await db.select().from(projectsTable);
-    const projects = includeArchived ? allProjects : allProjects.filter(p => p.status !== "archived");
+    let projects = includeArchived ? allProjects : allProjects.filter(p => p.status !== "archived");
+    if (!all) {
+      projects = projects.filter(p => p.fase !== "SCALE" && p.fase !== "KANTOR");
+    }
     res.json(projects.map(p => ({
       ...p,
       targetStart: p.targetStart ?? null,

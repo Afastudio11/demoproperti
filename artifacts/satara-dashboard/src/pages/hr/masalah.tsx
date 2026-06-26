@@ -32,7 +32,7 @@ export default function HRMasalah() {
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["projects"],
-    queryFn: () => fetch("/api/projects").then(apiJson),
+    queryFn: () => fetch("/api/projects?all=true").then(apiJson),
   });
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["hr-employees"],

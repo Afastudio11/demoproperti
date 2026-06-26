@@ -82,7 +82,7 @@ export default function Organisasi() {
   // Ambil daftar proyek dari sumber yang sama dengan absensi
   const { data: projectList = [] } = useQuery<Project[]>({
     queryKey: ["projects"],
-    queryFn: () => fetch("/api/projects").then(apiJson),
+    queryFn: () => fetch("/api/projects?all=true").then(apiJson),
   });
 
   const save = useMutation({

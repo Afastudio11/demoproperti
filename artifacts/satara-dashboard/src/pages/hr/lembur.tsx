@@ -70,7 +70,7 @@ export default function HRLembur() {
   });
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["projects"],
-    queryFn: () => fetch("/api/projects").then(apiJson),
+    queryFn: () => fetch("/api/projects?all=true").then(apiJson),
   });
   const projectOptions = ["Semua", ...projects.map(p => p.nama)];
   const findProject = (name: string) => projects.find(p => p.nama === name);
