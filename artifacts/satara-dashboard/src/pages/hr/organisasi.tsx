@@ -123,7 +123,7 @@ export default function Organisasi() {
   }
 
   const { all: divisions } = useCategoryOptions("hr_divisi", DEFAULT_DIVISIONS);
-  const { all: locations } = useCategoryOptions("hr_lokasi", DEFAULT_LOCATIONS);
+  const { all: locations, custom: customLocations } = useCategoryOptions("hr_lokasi", DEFAULT_LOCATIONS);
 
   const active = employees.filter(e => ["aktif", "tetap", "kontrak", "probasi"].includes(e.employmentStatus));
 
@@ -473,23 +473,71 @@ export default function Organisasi() {
                   <select
                     value={form.project ?? ""}
                     onChange={e => setForm((f: any) => ({ ...f, project: e.target.value }))}
-                    className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                    className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
                   >
                     <option value="">— Tidak ada —</option>
                     {projectList.map(p => (
                       <option key={p.id} value={p.nama}>{p.nama}</option>
                     ))}
                   </select>
-                  {form.project && (
-                    <button
-                      type="button"
-                      onClick={() => setForm((f: any) => ({ ...f, project: "" }))}
-                      title="Hapus penugasan"
-                      className="shrink-0 p-1.5 rounded-md border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  )}
+                  {form.project && (() => {
+                    const selectedProj = projectList.find(p => p.nama === form.project);
+                    return (
+                      <div className="flex items-center gap-1">
+                        {selectedProj && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newName = window.prompt("Ubah nama Kantor/Proyek:", selectedProj.nama);
+                                if (newName && newName.trim()) {
+                                  fetch(`/api/projects/${selectedProj.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ nama: newName.trim() }),
+                                  })
+                                    .then(apiJson)
+                                    .then(() => {
+                                      qc.invalidateQueries({ queryKey: ["projects"] });
+                                      setForm((f: any) => ({ ...f, project: newName.trim() }));
+                                    });
+                                }
+                              }}
+                              title="Edit Kantor/Proyek"
+                              className="p-1.5 rounded-md border hover:bg-muted text-muted-foreground bg-background animate-fade-in"
+                            >
+                              <Edit2 className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Hapus/arsipkan Kantor/Proyek "${selectedProj.nama}"?`)) {
+                                  fetch(`/api/projects/${selectedProj.id}`, { method: "DELETE" })
+                                    .then(apiJson)
+                                    .then(() => {
+                                      qc.invalidateQueries({ queryKey: ["projects"] });
+                                      setForm((f: any) => ({ ...f, project: "" }));
+                                    });
+                                }
+                              }}
+                              title="Hapus Kantor/Proyek"
+                              className="p-1.5 rounded-md border hover:bg-red-50 hover:text-red-600 text-muted-foreground bg-background"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setForm((f: any) => ({ ...f, project: "" }))}
+                          title="Hapus penugasan"
+                          className="p-1.5 rounded-md border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors bg-background"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -506,11 +554,64 @@ export default function Organisasi() {
                   <div className="flex-1">
                     <CategorySelect type="hr_lokasi" defaults={DEFAULT_LOCATIONS} value={form.location ?? ""} onChange={v => setForm((f: any) => ({ ...f, location: v }))} />
                   </div>
-                  {form.location && (
-                    <button type="button" onClick={() => setForm((f: any) => ({ ...f, location: "" }))} title="Hapus lokasi" className="shrink-0 p-1.5 rounded-md border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors">
-                      <X className="size-3.5" />
-                    </button>
-                  )}
+                  {form.location && (() => {
+                    const selectedCat = customLocations.find(c => c.label === form.location);
+                    return (
+                      <div className="flex items-center gap-1">
+                        {selectedCat && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newLabel = window.prompt("Ubah nama Lokasi Penugasan:", selectedCat.label);
+                                if (newLabel && newLabel.trim()) {
+                                  fetch(`/api/categories/${selectedCat.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ label: newLabel.trim() }),
+                                  })
+                                    .then(apiJson)
+                                    .then(() => {
+                                      qc.invalidateQueries({ queryKey: ["categories", "hr_lokasi"] });
+                                      setForm((f: any) => ({ ...f, location: newLabel.trim() }));
+                                    });
+                                }
+                              }}
+                              title="Edit Lokasi"
+                              className="p-1.5 rounded-md border hover:bg-muted text-muted-foreground bg-background"
+                            >
+                              <Edit2 className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Hapus Lokasi "${selectedCat.label}"?`)) {
+                                  fetch(`/api/categories/${selectedCat.id}`, { method: "DELETE" })
+                                    .then(apiJson)
+                                    .then(() => {
+                                      qc.invalidateQueries({ queryKey: ["categories", "hr_lokasi"] });
+                                      setForm((f: any) => ({ ...f, location: "" }));
+                                    });
+                                }
+                              }}
+                              title="Hapus Lokasi"
+                              className="p-1.5 rounded-md border hover:bg-red-50 hover:text-red-600 text-muted-foreground bg-background"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setForm((f: any) => ({ ...f, location: "" }))}
+                          title="Hapus lokasi"
+                          className="p-1.5 rounded-md border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors bg-background"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

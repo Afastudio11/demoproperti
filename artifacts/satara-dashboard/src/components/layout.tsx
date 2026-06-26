@@ -217,7 +217,8 @@ function renderSubNav(items: SubNavItem[], location: string) {
             </div>
           );
         }
-        const isSubActive = location === sub.path || (sub.path !== "/administrasi" && sub.path !== "/perencanaan" && sub.path !== "/produksi" && sub.path !== "/legal" && location.startsWith(sub.path + "/"));
+        const isRootPath = ["/hr", "/finance", "/marketing", "/produksi", "/branding", "/legal", "/akuisisi", "/administrasi", "/perencanaan"].includes(sub.path);
+        const isSubActive = location === sub.path || (!isRootPath && location.startsWith(sub.path + "/"));
         return (
           <SidebarMenuItem key={sub.path}>
             <SidebarMenuButton asChild isActive={isSubActive} className="h-6 pl-5">

@@ -51,4 +51,22 @@ router.delete("/categories/:id", async (req, res) => {
   }
 });
 
+router.patch("/categories/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { label } = req.body;
+    if (isNaN(id)) return res.status(400).json({ error: "ID tidak valid" });
+    if (!label) return res.status(400).json({ error: "Label diperlukan" });
+    const [row] = await db
+      .update(appCategoriesTable)
+      .set({ label: String(label) })
+      .where(eq(appCategoriesTable.id, id))
+      .returning();
+    res.json(row);
+  } catch (err) {
+    req.log.error({ err }, "Failed to update category");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
