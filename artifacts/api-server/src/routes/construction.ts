@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { constructionTasksTable, qcDefectsTable, unitsTable } from "@workspace/db";
+import { constructionTasksTable, qcDefectsTable, unitsTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateConstructionTaskBody, UpdateConstructionTaskBody } from "@workspace/api-zod";
 import { recalculateUnitProductionState } from "../lib/production-relations";
@@ -9,7 +9,17 @@ const router: IRouter = Router();
 
 router.get("/construction/tasks", async (req, res) => {
   try {
+    const rawProjects = await db.select({ id: projectsTable.id, status: projectsTable.status, fase: projectsTable.fase }).from(projectsTable);
+    const activeProjectIds = new Set(
+      rawProjects.filter(p => p.status !== "archived" && p.fase !== "SCALE" && p.fase !== "KANTOR").map(p => p.id)
+    );
+
+    const rawUnits = await db.select({ id: unitsTable.id, projectId: unitsTable.projectId }).from(unitsTable);
+    const activeUnitIds = new Set(rawUnits.filter(u => activeProjectIds.has(u.projectId)).map(u => u.id));
+
     let tasks = await db.select().from(constructionTasksTable);
+    tasks = tasks.filter(t => activeUnitIds.has(t.unitId));
+
     if (req.query.unitId) {
       const uid = parseInt(req.query.unitId as string);
       tasks = tasks.filter(t => t.unitId === uid);
@@ -61,7 +71,14 @@ router.patch("/construction/tasks/:id", async (req, res) => {
 
 router.get("/construction/progress-summary", async (req, res) => {
   try {
+    const rawProjects = await db.select({ id: projectsTable.id, status: projectsTable.status, fase: projectsTable.fase }).from(projectsTable);
+    const activeProjectIds = new Set(
+      rawProjects.filter(p => p.status !== "archived" && p.fase !== "SCALE" && p.fase !== "KANTOR").map(p => p.id)
+    );
+
     let units = await db.select().from(unitsTable);
+    units = units.filter(u => activeProjectIds.has(u.projectId));
+
     if (req.query.projectId) {
       const pid = parseInt(req.query.projectId as string);
       units = units.filter(u => u.projectId === pid);

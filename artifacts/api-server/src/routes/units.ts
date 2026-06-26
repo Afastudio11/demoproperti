@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { planningSiteplanShapesTable, unitsTable, akadRecordsTable } from "@workspace/db";
+import { planningSiteplanShapesTable, unitsTable, akadRecordsTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateUnitBody, UpdateUnitBody } from "@workspace/api-zod";
 import { resolveSubkonMaster } from "../lib/subkon-master";
@@ -10,7 +10,14 @@ const router: IRouter = Router();
 
 router.get("/units", async (req, res) => {
   try {
+    const rawProjects = await db.select({ id: projectsTable.id, status: projectsTable.status, fase: projectsTable.fase }).from(projectsTable);
+    const activeProjectIds = new Set(
+      rawProjects.filter(p => p.status !== "archived" && p.fase !== "SCALE" && p.fase !== "KANTOR").map(p => p.id)
+    );
+
     let units = await db.select().from(unitsTable);
+    units = units.filter(u => activeProjectIds.has(u.projectId));
+
     if (req.query.projectId) {
       const pid = parseInt(req.query.projectId as string);
       units = units.filter(u => u.projectId === pid);

@@ -11,16 +11,36 @@ const router: IRouter = Router();
 
 router.get("/produksi/dashboard", async (req, res) => {
   try {
-    const projects = await db.select().from(projectsTable);
-    const units = await db.select().from(unitsTable);
-    const tasks = await db.select().from(constructionTasksTable);
-    const contracts = await db.select().from(subkonContractsTable);
-    const payments = await db.select().from(subkonPaymentsTable);
-    const fasums = await db.select().from(fasumProgressTable);
+    const rawProjects = await db.select().from(projectsTable);
+    const projects = rawProjects.filter(p => p.status !== "archived" && p.fase !== "SCALE" && p.fase !== "KANTOR");
+    const activeProjectIds = new Set(projects.map(p => p.id));
+
+    const rawUnits = await db.select().from(unitsTable);
+    const units = rawUnits.filter(u => activeProjectIds.has(u.projectId));
+    const activeUnitIds = new Set(units.map(u => u.id));
+
+    const rawTasks = await db.select().from(constructionTasksTable);
+    const tasks = rawTasks.filter(t => activeUnitIds.has(t.unitId));
+
+    const rawContracts = await db.select().from(subkonContractsTable);
+    const contracts = rawContracts.filter(c => activeProjectIds.has(c.projectId));
+
+    const rawPayments = await db.select().from(subkonPaymentsTable);
+    const payments = rawPayments.filter(p => activeProjectIds.has(p.projectId));
+
+    const rawFasums = await db.select().from(fasumProgressTable);
+    const fasums = rawFasums.filter(f => activeProjectIds.has(f.projectId));
+
     const masters = await db.select().from(prodMaterialMasterTable);
-    const matIn = await db.select().from(prodMaterialInTable);
-    const matOut = await db.select().from(prodMaterialOutTable);
-    const qcItems = await db.select().from(unitQcTable);
+
+    const rawMatIn = await db.select().from(prodMaterialInTable);
+    const matIn = rawMatIn.filter(m => activeProjectIds.has(m.projectId));
+
+    const rawMatOut = await db.select().from(prodMaterialOutTable);
+    const matOut = rawMatOut.filter(m => activeProjectIds.has(m.projectId));
+
+    const rawQcItems = await db.select().from(unitQcTable);
+    const qcItems = rawQcItems.filter(q => activeUnitIds.has(q.unitId));
 
     const activeUnits = units.filter(u => u.progress > 0 && u.progress < 100);
     const avgProgress = units.length > 0 ? Math.round(units.reduce((s, u) => s + u.progress, 0) / units.length) : 0;
@@ -121,9 +141,15 @@ router.get("/produksi/dashboard", async (req, res) => {
 
 router.get("/produksi/progress/summary", async (req, res) => {
   try {
-    const units = await db.select().from(unitsTable);
-    const tasks = await db.select().from(constructionTasksTable);
-    const projects = await db.select().from(projectsTable);
+    const rawUnits = await db.select().from(unitsTable);
+    const rawTasks = await db.select().from(constructionTasksTable);
+    const rawProjects = await db.select().from(projectsTable);
+
+    const projects = rawProjects.filter(p => p.status !== "archived" && p.fase !== "SCALE" && p.fase !== "KANTOR");
+    const activeProjectIds = new Set(projects.map(p => p.id));
+    const units = rawUnits.filter(u => activeProjectIds.has(u.projectId));
+    const activeUnitIds = new Set(units.map(u => u.id));
+    const tasks = rawTasks.filter(t => activeUnitIds.has(t.unitId));
 
     const byProject = projects.map(proj => {
       const projUnits = units.filter(u => u.projectId === proj.id);
