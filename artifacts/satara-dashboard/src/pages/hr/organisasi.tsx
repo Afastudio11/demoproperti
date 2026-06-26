@@ -1,5 +1,5 @@
 import { apiJson } from "@/lib/api";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Plus, Edit2, Trash2, X, Save, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,7 +8,6 @@ import { CategorySelect, useCategoryOptions } from "@/components/category-select
 const DEFAULT_DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
 const STATUSES = ["aktif", "probasi", "kontrak", "tetap", "resign", "nonaktif"];
 const DEFAULT_LOCATIONS = ["Makassar (HQ)", "Barru", "Villa Sinoa", "Lapangan", "Remote"];
-const SEED_PROJECTS = ["SN Residence", "SN Hills", "Villa Sinoa"];
 
 const DIVISION_TARGETS: Record<string, number> = {
   "CEO Office": 2, Planning: 3, Legal: 3, Marketing: 6, Administrasi: 4, Produksi: 6, Finance: 3, HR: 2,
@@ -24,6 +23,8 @@ type Employee = {
   directManagerId?: number; employmentStatus: string; joinDate?: string;
   location?: string; project?: string; phone?: string; email?: string; notes?: string;
 };
+
+type Project = { id: number; nama: string };
 
 const EMPTY: Omit<Employee, "id" | "employeeCode"> = {
   name: "", division: DEFAULT_DIVISIONS[0], position: "", directManagerId: undefined,
@@ -46,6 +47,12 @@ export default function Organisasi() {
   const { data: employees = [], isLoading } = useQuery<Employee[]>({
     queryKey: ["hr-employees"],
     queryFn: () => fetch("/api/hr/employees").then(apiJson),
+  });
+
+  // Ambil daftar proyek dari sumber yang sama dengan absensi
+  const { data: projectList = [] } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then(apiJson),
   });
 
   const save = useMutation({
@@ -90,24 +97,6 @@ export default function Organisasi() {
 
   const { all: divisions } = useCategoryOptions("hr_divisi", DEFAULT_DIVISIONS);
   const { all: locations } = useCategoryOptions("hr_lokasi", DEFAULT_LOCATIONS);
-  const { all: projects, addMut: addProject, removeMut: removeProject, custom: customProjects } = useCategoryOptions("hr_proyek", []);
-
-  // Seed proyek awal ke DB jika belum ada
-  useEffect(() => {
-    if (customProjects.length === 0) {
-      const existingLabels = customProjects.map(c => c.label);
-      SEED_PROJECTS.forEach(name => {
-        if (!existingLabels.includes(name)) {
-          fetch("/api/categories", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ type: "hr_proyek", label: name }),
-          });
-        }
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customProjects.length === 0]);
 
   const active = employees.filter(e => ["aktif", "tetap", "kontrak", "probasi"].includes(e.employmentStatus));
 
@@ -117,15 +106,15 @@ export default function Organisasi() {
     target: DIVISION_TARGETS[div] ?? 0,
   }));
 
-  const byProject = customProjects.map(c => ({
-    proj: c.label,
-    id: c.id,
-    count: active.filter(e => e.project === c.label).length,
+  const projectNames = projectList.map(p => p.nama);
+  const byProject = projectList.map(p => ({
+    nama: p.nama,
+    count: active.filter(e => e.project === p.nama).length,
   }));
-  const unassigned = active.filter(e => !e.project || !projects.includes(e.project)).length;
+  const unassigned = active.filter(e => !e.project || !projectNames.includes(e.project)).length;
 
-  // Filter employees for table
   const filteredEmployees = employees.filter(e => {
+    if (filterProject === "__unassigned__") return !e.project || !projectNames.includes(e.project);
     if (filterProject && e.project !== filterProject) return false;
     if (filterDivision && e.division !== filterDivision) return false;
     return true;
@@ -133,10 +122,6 @@ export default function Organisasi() {
 
   const allSelected = filteredEmployees.length > 0 && selectedIds.size === filteredEmployees.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
-
-  // Project management state
-  const [addingProject, setAddingProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
 
   return (
     <div className="space-y-5">
@@ -164,7 +149,7 @@ export default function Organisasi() {
           className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
             viewMode === "proyek" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
         >
-          <Building2 className="size-3.5" /> Per Proyek
+          <Building2 className="size-3.5" /> Per Kantor/Proyek
         </button>
       </div>
 
@@ -237,126 +222,47 @@ export default function Organisasi() {
         </>
       ) : (
         <>
-          {/* Project Cards + Management */}
+          {/* Headcount per Kantor/Proyek */}
           <div className="bg-card border rounded-xl p-4 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-medium text-sm flex items-center gap-2">
-                <Building2 className="size-4 text-muted-foreground" /> Manajemen Proyek
+                <Building2 className="size-4 text-muted-foreground" /> Headcount per Kantor/Proyek
               </h3>
-              {!addingProject && (
-                <button
-                  onClick={() => setAddingProject(true)}
-                  className="flex items-center gap-1.5 text-xs text-primary hover:underline"
-                >
-                  <Plus className="size-3.5" /> Tambah Proyek
-                </button>
-              )}
+              <p className="text-xs text-muted-foreground">Proyek dikelola di menu Daftar Proyek</p>
             </div>
 
-            {addingProject && (
-              <div className="flex items-center gap-2 p-3 bg-muted/40 rounded-lg border">
-                <input
-                  autoFocus
-                  value={newProjectName}
-                  onChange={e => setNewProjectName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && newProjectName.trim()) {
-                      addProject.mutate(newProjectName.trim(), {
-                        onSuccess: () => { setNewProjectName(""); setAddingProject(false); },
-                      });
-                    }
-                    if (e.key === "Escape") { setNewProjectName(""); setAddingProject(false); }
-                  }}
-                  placeholder="Nama proyek baru, mis: SN Hills 2..."
-                  className="flex-1 border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-                />
-                <button
-                  onClick={() => {
-                    if (!newProjectName.trim()) return;
-                    addProject.mutate(newProjectName.trim(), {
-                      onSuccess: () => { setNewProjectName(""); setAddingProject(false); },
-                    });
-                  }}
-                  disabled={!newProjectName.trim() || addProject.isPending}
-                  className="flex items-center gap-1.5 bg-foreground text-background text-xs px-3 py-1.5 rounded-md disabled:opacity-50 hover:opacity-90"
-                >
-                  <Save className="size-3.5" /> Simpan
-                </button>
-                <button onClick={() => { setNewProjectName(""); setAddingProject(false); }} className="p-1.5 rounded-md border hover:bg-muted">
-                  <X className="size-3.5" />
-                </button>
+            {projectList.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Belum ada data proyek.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {byProject.map(({ nama, count }) => (
+                  <button
+                    key={nama}
+                    onClick={() => setFilterProject(filterProject === nama ? "" : nama)}
+                    className={cn(
+                      "border rounded-xl p-3 text-left transition-all hover:border-primary/50",
+                      filterProject === nama ? "ring-2 ring-primary border-primary bg-primary/5" : "bg-card"
+                    )}
+                  >
+                    <div className="text-xs text-muted-foreground truncate">{nama}</div>
+                    <div className="text-3xl font-bold mt-1">{count}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1">karyawan aktif</div>
+                  </button>
+                ))}
+                {unassigned > 0 && (
+                  <button
+                    onClick={() => setFilterProject(filterProject === "__unassigned__" ? "" : "__unassigned__")}
+                    className={cn(
+                      "border rounded-xl p-3 text-left",
+                      filterProject === "__unassigned__" ? "ring-2 ring-amber-400 border-amber-400 bg-amber-50/50" : "bg-card border-dashed hover:border-muted-foreground/50"
+                    )}
+                  >
+                    <div className="text-xs text-muted-foreground">Belum ditugaskan</div>
+                    <div className="text-3xl font-bold mt-1 text-amber-600">{unassigned}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1">karyawan aktif</div>
+                  </button>
+                )}
               </div>
-            )}
-
-            {/* Daftar proyek yang bisa dikelola */}
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/40 border-b text-xs text-muted-foreground">
-                    <th className="text-left px-3 py-2 font-medium">Nama Proyek</th>
-                    <th className="text-center px-3 py-2 font-medium">Karyawan Aktif</th>
-                    <th className="px-3 py-2 w-10" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {byProject.length === 0 && (
-                    <tr><td colSpan={3} className="px-3 py-4 text-center text-muted-foreground text-xs">Belum ada proyek. Klik "Tambah Proyek" untuk menambahkan.</td></tr>
-                  )}
-                  {byProject.map(({ proj, id, count }) => (
-                    <tr key={proj} className="border-b last:border-0 hover:bg-muted/20">
-                      <td className="px-3 py-2.5 font-medium">{proj}</td>
-                      <td className="px-3 py-2.5 text-center">{count}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        <button
-                          onClick={() => {
-                            if (!window.confirm(`Hapus proyek "${proj}"? Karyawan yang sudah ditugaskan tidak akan terhapus, hanya kategorinya.`)) return;
-                            removeProject.mutate(id);
-                            if (filterProject === proj) setFilterProject("");
-                          }}
-                          className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
-                          title="Hapus proyek"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Kartu headcount per proyek */}
-            {byProject.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {byProject.map(({ proj, count }) => (
-                <button
-                  key={proj}
-                  onClick={() => setFilterProject(filterProject === proj ? "" : proj)}
-                  className={cn(
-                    "border rounded-xl p-3 text-left transition-all hover:border-primary/50",
-                    filterProject === proj ? "ring-2 ring-primary border-primary bg-primary/5" : "bg-card"
-                  )}
-                >
-                  <div className="text-xs text-muted-foreground truncate">{proj}</div>
-                  <div className="text-3xl font-bold mt-1">{count}</div>
-                  <div className="text-[10px] text-muted-foreground mt-1">karyawan aktif</div>
-                </button>
-              ))}
-
-              {unassigned > 0 && (
-                <button
-                  onClick={() => setFilterProject(filterProject === "__unassigned__" ? "" : "__unassigned__")}
-                  className={cn(
-                    "border rounded-xl p-3 text-left",
-                    filterProject === "__unassigned__" ? "ring-2 ring-amber-400 border-amber-400 bg-amber-50/50" : "bg-card border-dashed hover:border-muted-foreground/50"
-                  )}
-                >
-                  <div className="text-xs text-muted-foreground">Belum ditugaskan</div>
-                  <div className="text-3xl font-bold mt-1 text-amber-600">{unassigned}</div>
-                  <div className="text-[10px] text-muted-foreground mt-1">karyawan aktif</div>
-                </button>
-              )}
-            </div>
             )}
           </div>
         </>
@@ -364,7 +270,7 @@ export default function Organisasi() {
 
       {/* Filter Info */}
       {(filterProject || filterDivision) && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
           <span>Filter aktif:</span>
           {filterDivision && (
             <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
@@ -374,7 +280,7 @@ export default function Organisasi() {
           )}
           {filterProject && filterProject !== "__unassigned__" && (
             <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-              Proyek: {filterProject}
+              Kantor/Proyek: {filterProject}
               <button onClick={() => setFilterProject("")}><X className="size-3" /></button>
             </span>
           )}
@@ -432,7 +338,7 @@ export default function Organisasi() {
                   <th className="text-left pb-2 font-medium">Nama</th>
                   <th className="text-left pb-2 font-medium">Jabatan</th>
                   <th className="text-left pb-2 font-medium">Divisi</th>
-                  <th className="text-left pb-2 font-medium">Proyek</th>
+                  <th className="text-left pb-2 font-medium">Kantor/Proyek</th>
                   <th className="text-left pb-2 font-medium">Lokasi</th>
                   <th className="text-left pb-2 font-medium">Status</th>
                   <th className="text-left pb-2 font-medium">Bergabung</th>
@@ -515,22 +421,23 @@ export default function Organisasi() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Penugasan Proyek</label>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Kantor/Proyek</label>
                 <div className="flex items-center gap-1.5">
-                  <div className="flex-1">
-                    <CategorySelect
-                      type="hr_proyek"
-                      defaults={DEFAULT_PROJECTS}
-                      value={form.project ?? ""}
-                      onChange={v => setForm((f: any) => ({ ...f, project: v }))}
-                      placeholder="— Tidak ada proyek —"
-                    />
-                  </div>
+                  <select
+                    value={form.project ?? ""}
+                    onChange={e => setForm((f: any) => ({ ...f, project: e.target.value }))}
+                    className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                  >
+                    <option value="">— Tidak ada —</option>
+                    {projectList.map(p => (
+                      <option key={p.id} value={p.nama}>{p.nama}</option>
+                    ))}
+                  </select>
                   {form.project && (
                     <button
                       type="button"
                       onClick={() => setForm((f: any) => ({ ...f, project: "" }))}
-                      title="Hapus penugasan proyek"
+                      title="Hapus penugasan"
                       className="shrink-0 p-1.5 rounded-md border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
                     >
                       <X className="size-3.5" />
@@ -553,7 +460,7 @@ export default function Organisasi() {
                     <CategorySelect type="hr_lokasi" defaults={DEFAULT_LOCATIONS} value={form.location ?? ""} onChange={v => setForm((f: any) => ({ ...f, location: v }))} />
                   </div>
                   {form.location && (
-                    <button type="button" onClick={() => setForm((f: any) => ({ ...f, location: "" }))} title="Hapus lokasi penugasan" className="shrink-0 p-1.5 rounded-md border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors">
+                    <button type="button" onClick={() => setForm((f: any) => ({ ...f, location: "" }))} title="Hapus lokasi" className="shrink-0 p-1.5 rounded-md border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors">
                       <X className="size-3.5" />
                     </button>
                   )}
