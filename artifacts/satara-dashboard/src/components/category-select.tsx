@@ -22,7 +22,7 @@ export function useCategoryOptions(type: string, defaults: string[]) {
       ),
   });
 
-  const all = [...defaults, ...custom.map((c) => c.label)];
+  const all = custom.length > 0 ? custom.map((c) => c.label) : defaults;
 
   const addMut = useMutation({
     mutationFn: (label: string) =>
