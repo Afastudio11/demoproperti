@@ -43,6 +43,9 @@ export default function Organisasi() {
   const [viewMode, setViewMode] = useState<ViewMode>("divisi");
   const [filterProject, setFilterProject] = useState<string>("");
   const [filterDivision, setFilterDivision] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [filterLocation, setFilterLocation] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<string>("");
   const [showOfficeForm, setShowOfficeForm] = useState(false);
   const [officeForm, setOfficeForm] = useState({ nama: "", lokasi: "" });
 
@@ -142,9 +145,21 @@ export default function Organisasi() {
   const unassigned = active.filter(e => !e.project || !projectNames.includes(e.project)).length;
 
   const filteredEmployees = employees.filter(e => {
-    if (filterProject === "__unassigned__") return !e.project || !projectNames.includes(e.project);
-    if (filterProject && e.project !== filterProject) return false;
+    if (filterProject === "__unassigned__") {
+      if (e.project && projectNames.includes(e.project)) return false;
+    } else if (filterProject && e.project !== filterProject) {
+      return false;
+    }
     if (filterDivision && e.division !== filterDivision) return false;
+    if (filterLocation && e.location !== filterLocation) return false;
+    if (filterStatus && e.employmentStatus !== filterStatus) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const name = (e.name ?? "").toLowerCase();
+      const code = (e.employeeCode ?? "").toLowerCase();
+      const pos = (e.position ?? "").toLowerCase();
+      if (!name.includes(q) && !code.includes(q) && !pos.includes(q)) return false;
+    }
     return true;
   });
 
@@ -316,9 +331,15 @@ export default function Organisasi() {
       )}
 
       {/* Filter Info */}
-      {(filterProject || filterDivision) && (
+      {(filterProject || filterDivision || filterLocation || filterStatus || searchQuery) && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
           <span>Filter aktif:</span>
+          {searchQuery && (
+            <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+              Cari: "{searchQuery}"
+              <button onClick={() => setSearchQuery("")}><X className="size-3" /></button>
+            </span>
+          )}
           {filterDivision && (
             <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
               Divisi: {filterDivision}
@@ -337,7 +358,19 @@ export default function Organisasi() {
               <button onClick={() => setFilterProject("")}><X className="size-3" /></button>
             </span>
           )}
-          <button onClick={() => { setFilterDivision(""); setFilterProject(""); }} className="text-muted-foreground hover:text-foreground underline ml-1">
+          {filterLocation && (
+            <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+              Lokasi: {filterLocation}
+              <button onClick={() => setFilterLocation("")}><X className="size-3" /></button>
+            </span>
+          )}
+          {filterStatus && (
+            <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+              Status: {filterStatus}
+              <button onClick={() => setFilterStatus("")}><X className="size-3" /></button>
+            </span>
+          )}
+          <button onClick={() => { setFilterDivision(""); setFilterProject(""); setFilterLocation(""); setFilterStatus(""); setSearchQuery(""); }} className="text-muted-foreground hover:text-foreground underline ml-1">
             Reset semua filter
           </button>
         </div>
@@ -365,6 +398,58 @@ export default function Organisasi() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* Table Filters */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+          <input
+            type="text"
+            placeholder="Cari nama, kode, jabatan..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="text-xs border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
+          />
+          <select
+            value={filterProject}
+            onChange={e => setFilterProject(e.target.value)}
+            className="text-xs border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
+          >
+            <option value="">— Semua Kantor/Proyek —</option>
+            <option value="__unassigned__">Belum ditugaskan</option>
+            {projectList.map(p => (
+              <option key={p.id} value={p.nama}>{p.nama}</option>
+            ))}
+          </select>
+          <select
+            value={filterDivision}
+            onChange={e => setFilterDivision(e.target.value)}
+            className="text-xs border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
+          >
+            <option value="">— Semua Divisi —</option>
+            {divisions.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+          <select
+            value={filterLocation}
+            onChange={e => setFilterLocation(e.target.value)}
+            className="text-xs border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
+          >
+            <option value="">— Semua Lokasi —</option>
+            {locations.map(l => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="text-xs border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
+          >
+            <option value="">— Semua Status —</option>
+            {STATUSES.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
         </div>
 
         {isLoading ? <div className="h-32 flex items-center justify-center text-muted-foreground text-sm">Memuat...</div> : (
