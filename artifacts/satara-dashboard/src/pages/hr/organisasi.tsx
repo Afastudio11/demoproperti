@@ -1,14 +1,14 @@
 import { apiJson } from "@/lib/api";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Edit2, Trash2, X, Save, Building2, MapPin } from "lucide-react";
+import { Users, Plus, Edit2, Trash2, X, Save, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CategorySelect, useCategoryOptions } from "@/components/category-select";
 
 const DEFAULT_DIVISIONS = ["CEO Office", "Planning", "Legal", "Marketing", "Administrasi", "Produksi", "Finance", "HR"];
 const STATUSES = ["aktif", "probasi", "kontrak", "tetap", "resign", "nonaktif"];
 const DEFAULT_LOCATIONS = ["Makassar (HQ)", "Barru", "Villa Sinoa", "Lapangan", "Remote"];
-const DEFAULT_PROJECTS = ["SN Residence", "SN Hills", "Villa Sinoa"];
+const SEED_PROJECTS = ["SN Residence", "SN Hills", "Villa Sinoa"];
 
 const DIVISION_TARGETS: Record<string, number> = {
   "CEO Office": 2, Planning: 3, Legal: 3, Marketing: 6, Administrasi: 4, Produksi: 6, Finance: 3, HR: 2,
@@ -90,7 +90,24 @@ export default function Organisasi() {
 
   const { all: divisions } = useCategoryOptions("hr_divisi", DEFAULT_DIVISIONS);
   const { all: locations } = useCategoryOptions("hr_lokasi", DEFAULT_LOCATIONS);
-  const { all: projects, addMut: addProject, removeMut: removeProject, custom: customProjects } = useCategoryOptions("hr_proyek", DEFAULT_PROJECTS);
+  const { all: projects, addMut: addProject, removeMut: removeProject, custom: customProjects } = useCategoryOptions("hr_proyek", []);
+
+  // Seed proyek awal ke DB jika belum ada
+  useEffect(() => {
+    if (customProjects.length === 0) {
+      const existingLabels = customProjects.map(c => c.label);
+      SEED_PROJECTS.forEach(name => {
+        if (!existingLabels.includes(name)) {
+          fetch("/api/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "hr_proyek", label: name }),
+          });
+        }
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customProjects.length === 0]);
 
   const active = employees.filter(e => ["aktif", "tetap", "kontrak", "probasi"].includes(e.employmentStatus));
 
@@ -100,11 +117,10 @@ export default function Organisasi() {
     target: DIVISION_TARGETS[div] ?? 0,
   }));
 
-  const byProject = projects.map(proj => ({
-    proj,
-    count: active.filter(e => e.project === proj).length,
-    isCustom: customProjects.some(c => c.label === proj),
-    customId: customProjects.find(c => c.label === proj)?.id,
+  const byProject = customProjects.map(c => ({
+    proj: c.label,
+    id: c.id,
+    count: active.filter(e => e.project === c.label).length,
   }));
   const unassigned = active.filter(e => !e.project || !projects.includes(e.project)).length;
 
@@ -272,37 +288,59 @@ export default function Organisasi() {
               </div>
             )}
 
+            {/* Daftar proyek yang bisa dikelola */}
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 border-b text-xs text-muted-foreground">
+                    <th className="text-left px-3 py-2 font-medium">Nama Proyek</th>
+                    <th className="text-center px-3 py-2 font-medium">Karyawan Aktif</th>
+                    <th className="px-3 py-2 w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {byProject.length === 0 && (
+                    <tr><td colSpan={3} className="px-3 py-4 text-center text-muted-foreground text-xs">Belum ada proyek. Klik "Tambah Proyek" untuk menambahkan.</td></tr>
+                  )}
+                  {byProject.map(({ proj, id, count }) => (
+                    <tr key={proj} className="border-b last:border-0 hover:bg-muted/20">
+                      <td className="px-3 py-2.5 font-medium">{proj}</td>
+                      <td className="px-3 py-2.5 text-center">{count}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        <button
+                          onClick={() => {
+                            if (!window.confirm(`Hapus proyek "${proj}"? Karyawan yang sudah ditugaskan tidak akan terhapus, hanya kategorinya.`)) return;
+                            removeProject.mutate(id);
+                            if (filterProject === proj) setFilterProject("");
+                          }}
+                          className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                          title="Hapus proyek"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Kartu headcount per proyek */}
+            {byProject.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {byProject.map(({ proj, count, isCustom, customId }) => (
-                <div
+              {byProject.map(({ proj, count }) => (
+                <button
                   key={proj}
+                  onClick={() => setFilterProject(filterProject === proj ? "" : proj)}
                   className={cn(
-                    "border rounded-xl p-3 group relative",
-                    filterProject === proj ? "ring-2 ring-primary border-primary bg-primary/5" : "bg-card hover:border-primary/50"
+                    "border rounded-xl p-3 text-left transition-all hover:border-primary/50",
+                    filterProject === proj ? "ring-2 ring-primary border-primary bg-primary/5" : "bg-card"
                   )}
                 >
-                  <button
-                    onClick={() => setFilterProject(filterProject === proj ? "" : proj)}
-                    className="w-full text-left"
-                  >
-                    <div className="text-xs text-muted-foreground truncate pr-6">{proj}</div>
-                    <div className="text-3xl font-bold mt-1">{count}</div>
-                    <div className="text-[10px] text-muted-foreground mt-1">karyawan aktif</div>
-                  </button>
-                  {isCustom && customId && (
-                    <button
-                      onClick={() => {
-                        if (!window.confirm(`Hapus kategori proyek "${proj}"? Karyawan yang ada tidak akan terhapus, hanya kategorinya yang dihapus.`)) return;
-                        removeProject.mutate(customId);
-                        if (filterProject === proj) setFilterProject("");
-                      }}
-                      className="absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 text-red-400 hover:text-red-600 transition-all"
-                      title="Hapus kategori proyek"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  )}
-                </div>
+                  <div className="text-xs text-muted-foreground truncate">{proj}</div>
+                  <div className="text-3xl font-bold mt-1">{count}</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">karyawan aktif</div>
+                </button>
               ))}
 
               {unassigned > 0 && (
@@ -319,6 +357,7 @@ export default function Organisasi() {
                 </button>
               )}
             </div>
+            )}
           </div>
         </>
       )}
