@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
 import { ArrowLeft, Clock, CheckCircle2, Circle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/confirmation-context";
 
 const PIPELINE_STAGES = [
   "MINAT", "PROSES_BERKAS", "BERKAS_LENGKAP", "SETOR_BANK", "OTS", "SP3K", "AKAD", "HT_CAIR"
@@ -31,6 +32,7 @@ function fmtDate(d: string | null | undefined) {
 }
 
 export default function CustomerDetail() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const [_, setLocation] = useLocation();
   const [tab, setTab] = useState<"info" | "dokumen" | "riwayat" | "catatan" | "komplain">("info");
@@ -77,9 +79,16 @@ export default function CustomerDetail() {
     },
   });
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!customer) return;
-    if (confirm(`Apakah Anda yakin ingin menghapus customer "${customer.nama}"? Semua data terkait (dokumen, komplain, akad, dll.) juga akan ikut terhapus.`)) {
+    const ok = await confirm({
+      title: "Hapus Customer",
+      description: `Apakah Anda yakin ingin menghapus customer "${customer.nama}"? Semua data terkait (dokumen, komplain, akad, dll.) juga akan ikut terhapus.`,
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
       deleteMutation.mutate();
     }
   };

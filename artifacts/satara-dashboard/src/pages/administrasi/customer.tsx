@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Search, Plus, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/confirmation-context";
 
 const PIPELINE_STATUSES = [
   { key: "", label: "Semua" },
@@ -95,6 +96,7 @@ function exportCsv(customers: any[]) {
 }
 
 export default function CustomerList() {
+  const confirm = useConfirm();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const qc = useQueryClient();
@@ -131,8 +133,15 @@ export default function CustomerList() {
     },
   });
 
-  const handleDelete = (id: number, name: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus customer "${name}"? Semua data terkait (dokumen, komplain, akad, dll.) juga akan ikut terhapus.`)) {
+  const handleDelete = async (id: number, name: string) => {
+    const ok = await confirm({
+      title: "Hapus Customer",
+      description: `Apakah Anda yakin ingin menghapus customer "${name}"? Semua data terkait (dokumen, komplain, akad, dll.) juga akan ikut terhapus.`,
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
       deleteMutation.mutate(id);
     }
   };

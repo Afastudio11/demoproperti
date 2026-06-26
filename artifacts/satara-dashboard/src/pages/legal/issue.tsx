@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/confirmation-context";
 
 const CATEGORY_OPTIONS = [
   { value: "sengketa_batas", label: "Sengketa Batas" },
@@ -65,6 +66,7 @@ function Modal({ open, onClose, children, title }: { open: boolean; onClose: () 
 }
 
 export default function LegalIssueTracker() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [filterRisk, setFilterRisk] = useState("");
@@ -104,8 +106,15 @@ export default function LegalIssueTracker() {
     },
   });
 
-  const handleDelete = (id: number) => {
-    if (confirm("Apakah Anda yakin ingin menghapus isu legal ini?")) {
+  const handleDelete = async (id: number) => {
+    const ok = await confirm({
+      title: "Hapus Isu Legal",
+      description: "Apakah Anda yakin ingin menghapus isu legal ini?",
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
       deleteMutation.mutate(id);
     }
   };

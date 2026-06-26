@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { calcDemandScore } from "@/lib/planning-calc";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { useConfirm } from "@/contexts/confirmation-context";
 
 const SATARA_STANDARDS = { minDemand: 60 };
 
@@ -40,6 +41,7 @@ type Competitor = { name: string; type: string; price: number; units: number; ab
 const defaultComp: Competitor = { name: "", type: "tapak", price: 0, units: 0, absorption: 0, distance: 0 };
 
 export default function PasarPage() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState(defaultForm);
@@ -131,7 +133,14 @@ export default function PasarPage() {
 
   const handleDelete = async () => {
     if (!savedId) return;
-    if (confirm("Apakah Anda yakin ingin menghapus analisis pasar untuk proyek ini?")) {
+    const ok = await confirm({
+      title: "Hapus Analisis Pasar",
+      description: "Apakah Anda yakin ingin menghapus analisis pasar untuk proyek ini?",
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
       const resp = await fetch(`/api/planning/market/${savedId}`, { method: "DELETE" });
       if (!resp.ok) { toast({ title: "Gagal menghapus", variant: "destructive" }); return; }
       setSavedId(null);

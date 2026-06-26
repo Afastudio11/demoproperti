@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth, type AuthUser } from "@/contexts/auth-context";
+import { ConfirmationProvider } from "@/contexts/confirmation-context";
 import Login from "@/pages/login";
 import LandingPage from "@/pages/landing";
 import NotFound from "@/pages/not-found";
@@ -410,10 +411,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <AppRoutes />
-          </WouterRouter>
-          <Toaster />
+          <ConfirmationProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <AppRoutes />
+            </WouterRouter>
+            <Toaster />
+          </ConfirmationProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

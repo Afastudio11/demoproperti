@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/confirmation-context";
 
 const CATEGORIES = ["Struktur", "Finishing", "Instalasi Listrik", "Instalasi Air", "Kusen & Pintu", "Lain-lain"];
 const SEVERITIES = [{ key: "kritis", label: "Kritis" }, { key: "sedang", label: "Sedang" }, { key: "ringan", label: "Ringan" }];
@@ -25,6 +26,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 }
 
 export default function KomplainPage() {
+  const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSeverity, setFilterSeverity] = useState("");
@@ -77,8 +79,15 @@ export default function KomplainPage() {
     },
   });
 
-  const handleDelete = (id: number) => {
-    if (confirm("Apakah Anda yakin ingin menghapus komplain ini?")) {
+  const handleDelete = async (id: number) => {
+    const ok = await confirm({
+      title: "Hapus Komplain",
+      description: "Apakah Anda yakin ingin menghapus komplain ini?",
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
       deleteMutation.mutate(id);
     }
   };

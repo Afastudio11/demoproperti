@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/confirmation-context";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const inputCls = "w-full text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring";
@@ -19,6 +20,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 }
 
 export default function TargetPage() {
+  const confirm = useConfirm();
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -63,8 +65,15 @@ export default function TargetPage() {
     },
   });
 
-  const handleDelete = (targetIds: number[]) => {
-    if (confirm("Apakah Anda yakin ingin menghapus target ini?")) {
+  const handleDelete = async (targetIds: number[]) => {
+    const ok = await confirm({
+      title: "Hapus Target",
+      description: "Apakah Anda yakin ingin menghapus target ini?",
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
       deleteMutation.mutate(targetIds);
     }
   };

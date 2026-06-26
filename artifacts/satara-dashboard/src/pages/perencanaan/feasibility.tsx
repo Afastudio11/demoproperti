@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useConfirm } from "@/contexts/confirmation-context";
 import { calcFeasibility, fmtCurrency, fmtPct, type FeasibilityInputs } from "@/lib/planning-calc";
 import { Save, CheckCircle2, XCircle, AlertTriangle, Brain, Zap, FileDown, ArrowRight } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -52,6 +53,7 @@ function NumField({ label, value, onChange, unit, prefix, hint, decimals, curren
 }
 
 export default function FeasibilityPage() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [projectId, setProjectId] = useState(0);
@@ -163,7 +165,14 @@ export default function FeasibilityPage() {
 
   const handleDelete = async () => {
     if (!savedId) return;
-    if (confirm("Apakah Anda yakin ingin menghapus analisis feasibility untuk proyek ini?")) {
+    const ok = await confirm({
+      title: "Hapus Analisis Feasibility",
+      description: "Apakah Anda yakin ingin menghapus analisis feasibility untuk proyek ini?",
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
       const resp = await fetch(`/api/planning/feasibility/${savedId}`, { method: "DELETE" });
       if (!resp.ok) { toast({ title: "Gagal menghapus", variant: "destructive" }); return; }
       setSavedId(null);

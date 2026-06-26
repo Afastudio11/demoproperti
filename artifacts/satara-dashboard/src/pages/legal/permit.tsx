@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Download, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/confirmation-context";
 
 const GROUPS: Record<string, string> = {
   perizinan_dasar: "Perizinan Dasar",
@@ -56,6 +57,7 @@ function exportCsv(permits: any[], projectName: string) {
 }
 
 export default function PermitTracker() {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
@@ -97,8 +99,15 @@ export default function PermitTracker() {
     },
   });
 
-  const handleDelete = (id: number, name: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus izin "${name}"?`)) {
+  const handleDelete = async (id: number, name: string) => {
+    const ok = await confirm({
+      title: "Hapus Izin",
+      description: `Apakah Anda yakin ingin menghapus izin "${name}"?`,
+      confirmText: "Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+    });
+    if (ok) {
       deleteMutation.mutate(id);
     }
   };

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   Users, Plus, Trash2, Pencil, Check, X, KeyRound, Shield, ShieldCheck, Eye, EyeOff, Loader2,
 } from "lucide-react";
+import { useConfirm } from "@/contexts/confirmation-context";
 
 const ALL_MODULES = [
   { key: "executive_overview", label: "Executive Overview" },
@@ -36,6 +37,7 @@ type AppUser = {
 const EMPTY_FORM = { username: "", name: "", password: "", role: "admin", allowedModules: [] as string[], isActive: true };
 
 export default function Settings() {
+  const confirm = useConfirm();
   const { user: currentUser } = useAuth();
   const qc = useQueryClient();
   const isSuperAdmin = currentUser?.role === "super_admin";
@@ -346,7 +348,18 @@ export default function Settings() {
                                 className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
                                 <Pencil className="size-3.5" />
                               </button>
-                              <button onClick={() => { if (confirm(`Hapus pengguna ${u.name}?`)) deleteMut.mutate(u.id); }}
+                              <button onClick={async () => {
+                                const ok = await confirm({
+                                  title: "Hapus Pengguna",
+                                  description: `Apakah Anda yakin ingin menghapus pengguna "${u.name}"?`,
+                                  confirmText: "Hapus",
+                                  cancelText: "Batal",
+                                  variant: "destructive",
+                                });
+                                if (ok) {
+                                  deleteMut.mutate(u.id);
+                                }
+                              }}
                                 disabled={u.id === currentUser?.id || deleteMut.isPending}
                                 className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-red-500 disabled:opacity-30" title="Hapus">
                                 <Trash2 className="size-3.5" />

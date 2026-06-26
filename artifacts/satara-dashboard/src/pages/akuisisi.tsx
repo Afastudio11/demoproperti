@@ -17,6 +17,7 @@ import SLIS from "@/pages/slis";
 import { KABUPATEN_DATA, getGradeLabel, type KabupatenScore } from "@/data/slis-scoring";
 import { cn } from "@/lib/utils";
 import { isOwnCompany } from "@/lib/own-company";
+import { useConfirm } from "@/contexts/confirmation-context";
 import {
   generateProposalAkuisisi,
   generateSiteAnalysis,
@@ -282,6 +283,7 @@ function ProspectDetailPanel({
   const [fullAiResult, setFullAiResult] = useState<Record<string, unknown> | null>(() => loadFullAiResult(prospect.id));
   const [aiLoading, setAiLoading] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const confirm = useConfirm();
   const [, navigate] = useLocation();
   const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "kompetitor" | "rekomendasi" | "simulasi">("ringkasan");
 
@@ -775,14 +777,21 @@ function ProspectDetailPanel({
 
             <button
               onClick={async () => {
-                if (confirm(`Apakah Anda yakin ingin menghapus prospek lahan "${prospect.lokasi}"? Semua data terkait prospek ini juga akan ikut terhapus.`)) {
+                const ok = await confirm({
+                  title: "Hapus Prospek",
+                  description: `Apakah Anda yakin ingin menghapus prospek lahan "${prospect.lokasi}"? Semua data terkait prospek ini juga akan ikut terhapus.`,
+                  confirmText: "Hapus",
+                  cancelText: "Batal",
+                  variant: "destructive",
+                });
+                if (ok) {
                   try {
                     const resp = await fetch(`/api/land-prospects/${prospect.id}`, { method: "DELETE" });
                     if (!resp.ok) throw new Error("Gagal menghapus");
                     onClose();
                     onRefetch();
                   } catch (err) {
-                    alert("Gagal menghapus prospek: " + err);
+                    console.error("Gagal menghapus prospek:", err);
                   }
                 }
               }}
