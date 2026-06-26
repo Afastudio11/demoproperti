@@ -2,9 +2,11 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import {
   projectsTable, unitsTable, landProspectsTable, legalDocumentsTable,
-  leadsTable, customersTable, constructionTasksTable
+  leadsTable, customersTable, constructionTasksTable,
+  unitQcTable, handoversTable, qcDefectsTable, reworksTable,
+  planningSiteplanShapesTable
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -124,6 +126,26 @@ router.delete("/projects/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     const [existing] = await db.select().from(projectsTable).where(eq(projectsTable.id, id));
     if (!existing) return res.status(404).json({ error: "Not found" });
+
+    // 1. Find all units associated with this project
+    const projectUnits = await db.select({ id: unitsTable.id }).from(unitsTable).where(eq(unitsTable.projectId, id));
+    const unitIds = projectUnits.map(u => u.id);
+
+    if (unitIds.length > 0) {
+      // 2. Delete all records referencing these units from child tables
+      await db.delete(constructionTasksTable).where(inArray(constructionTasksTable.unitId, unitIds));
+      await db.delete(unitQcTable).where(inArray(unitQcTable.unitId, unitIds));
+      await db.delete(handoversTable).where(inArray(handoversTable.unitId, unitIds));
+      await db.delete(qcDefectsTable).where(inArray(qcDefectsTable.unitId, unitIds));
+      await db.delete(reworksTable).where(inArray(reworksTable.unitId, unitIds));
+
+      // 3. Nullify references in planning siteplan shapes
+      await db.update(planningSiteplanShapesTable).set({ unitId: null }).where(inArray(planningSiteplanShapesTable.unitId, unitIds));
+
+      // 4. Delete units themselves
+      await db.delete(unitsTable).where(inArray(unitsTable.id, unitIds));
+    }
+
     const [project] = await db.update(projectsTable).set({ status: "archived" }).where(eq(projectsTable.id, id)).returning();
     res.json({
       ok: true,
