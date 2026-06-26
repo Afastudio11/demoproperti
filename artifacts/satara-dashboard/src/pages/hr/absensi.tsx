@@ -131,11 +131,11 @@ export default function HRAbsensi() {
     addEmpMut.mutate({ name: newName.trim().toUpperCase(), division: newDiv, position: "Staf", location: newDiv, employmentStatus: "aktif" });
   }
 
-  const empBySN = employees.filter((e: any) => e.division === "SN RESIDENCE" || e.location === "SN RESIDENCE");
-  const empBySekala = employees.filter((e: any) => e.division === "SEKALA INDUSTRY" || e.location === "SEKALA INDUSTRY");
+  const empBySN = employees.filter((e: any) => e.project === "SN RESIDENCE 1" || e.project === "SN RESIDENCE" || e.division === "SN RESIDENCE" || e.location === "SN RESIDENCE" || e.location === "PT. BERKAH BINTANG PRATAMA");
+  const empBySekala = employees.filter((e: any) => e.project === "SEKALA INDUSTRY" || e.division === "SEKALA INDUSTRY" || e.location === "SEKALA INDUSTRY");
   const empOther = employees.filter((e: any) =>
-    e.division !== "SN RESIDENCE" && e.location !== "SN RESIDENCE" &&
-    e.division !== "SEKALA INDUSTRY" && e.location !== "SEKALA INDUSTRY"
+    e.project !== "SN RESIDENCE 1" && e.project !== "SN RESIDENCE" && e.division !== "SN RESIDENCE" && e.location !== "SN RESIDENCE" && e.location !== "PT. BERKAH BINTANG PRATAMA" &&
+    e.project !== "SEKALA INDUSTRY" && e.division !== "SEKALA INDUSTRY" && e.location !== "SEKALA INDUSTRY"
   );
 
   const matrix = buildAttendanceMatrix(data);
@@ -146,10 +146,11 @@ export default function HRAbsensi() {
     ...employees
       .filter((e: any) => {
         if (project === "Semua") return true;
+        const empProj = (e.project ?? "").toUpperCase();
         const div = (e.division ?? "").toUpperCase();
         const loc = (e.location ?? "").toUpperCase();
         const proj = project.toUpperCase();
-        return div === proj || loc === proj || proj.startsWith(div) || div.startsWith(proj.split(" ")[0]);
+        return empProj === proj || div === proj || loc === proj || proj.startsWith(div) || div.startsWith(proj.split(" ")[0]);
       })
       .map((e: any) => e.name),
   ]);
@@ -522,7 +523,7 @@ export default function HRAbsensi() {
                 const terlambat = Object.values(days).filter(d => d.status === "T").length;
                 const empRows = data.filter(r => r.employeeName === emp);
                 const empDb = employees.find((e: any) => e.name === emp);
-                const proj = empRows[0]?.project ?? empDb?.division ?? empDb?.location ?? "";
+                const proj = empRows[0]?.project ?? empDb?.project ?? empDb?.division ?? empDb?.location ?? "";
                 const isSelected = selectedEmps.has(emp);
                 return (
                   <tr key={emp} className={cn("border-b hover:bg-muted/20", isSelected && "bg-red-50/50")}>

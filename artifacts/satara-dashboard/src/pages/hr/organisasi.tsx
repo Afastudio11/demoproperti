@@ -43,6 +43,33 @@ export default function Organisasi() {
   const [viewMode, setViewMode] = useState<ViewMode>("divisi");
   const [filterProject, setFilterProject] = useState<string>("");
   const [filterDivision, setFilterDivision] = useState<string>("");
+  const [showOfficeForm, setShowOfficeForm] = useState(false);
+  const [officeForm, setOfficeForm] = useState({ nama: "", lokasi: "" });
+
+  const saveOffice = useMutation({
+    mutationFn: (body: any) => fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, totalUnit: 0, fase: "SCALE", status: "active" }),
+    }).then(apiJson),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      resetOfficeForm();
+    },
+  });
+
+  function resetOfficeForm() {
+    setOfficeForm({ nama: "", lokasi: "" });
+    setShowOfficeForm(false);
+  }
+
+  const deleteOffice = useMutation({
+    mutationFn: (id: number) => fetch(`/api/projects/${id}`, { method: "DELETE" }).then(apiJson),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["hr-employees"] });
+    },
+  });
 
   const { data: employees = [], isLoading } = useQuery<Employee[]>({
     queryKey: ["hr-employees"],
@@ -108,6 +135,7 @@ export default function Organisasi() {
 
   const projectNames = projectList.map(p => p.nama);
   const byProject = projectList.map(p => ({
+    id: p.id,
     nama: p.nama,
     count: active.filter(e => e.project === p.nama).length,
   }));
@@ -130,9 +158,14 @@ export default function Organisasi() {
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Organisasi & Headcount</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Struktur dan komposisi SDM Satara Development</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">
-          <Plus className="size-3.5" /> Tambah Karyawan
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowOfficeForm(true)} className="flex items-center gap-2 border text-foreground text-sm font-medium px-3 py-1.5 rounded-md hover:bg-muted transition-colors">
+            <Plus className="size-3.5" /> Tambah Kantor/Proyek
+          </button>
+          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">
+            <Plus className="size-3.5" /> Tambah Karyawan
+          </button>
+        </div>
       </div>
 
       {/* View Mode Toggle */}
@@ -235,19 +268,33 @@ export default function Organisasi() {
               <p className="text-sm text-muted-foreground text-center py-4">Belum ada data proyek.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {byProject.map(({ nama, count }) => (
-                  <button
+                {byProject.map(({ id, nama, count }) => (
+                  <div
                     key={nama}
                     onClick={() => setFilterProject(filterProject === nama ? "" : nama)}
                     className={cn(
-                      "border rounded-xl p-3 text-left transition-all hover:border-primary/50",
+                      "group relative border rounded-xl p-3 text-left transition-all hover:border-primary/50 cursor-pointer",
                       filterProject === nama ? "ring-2 ring-primary border-primary bg-primary/5" : "bg-card"
                     )}
                   >
-                    <div className="text-xs text-muted-foreground truncate">{nama}</div>
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="text-xs text-muted-foreground truncate flex-1">{nama}</div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Hapus kantor/proyek "${nama}"? Tindakan ini akan mengarsipkan/menghapus proyek ini.`)) {
+                            deleteOffice.mutate(id);
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-0.5 rounded transition-opacity shrink-0"
+                        title="Hapus Kantor/Proyek"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
                     <div className="text-3xl font-bold mt-1">{count}</div>
                     <div className="text-[10px] text-muted-foreground mt-1">karyawan aktif</div>
-                  </button>
+                  </div>
                 ))}
                 {unassigned > 0 && (
                   <button
@@ -485,6 +532,47 @@ export default function Organisasi() {
                 <Save className="size-3.5" /> {save.isPending ? "Menyimpan..." : "Simpan"}
               </button>
               <button onClick={resetForm} className="px-4 py-2 rounded-lg text-sm border hover:bg-muted">Batal</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Office Form Modal */}
+      {showOfficeForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl border shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold">Tambah Kantor/Proyek Baru</h3>
+              <button onClick={resetOfficeForm}><X className="size-4" /></button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nama Kantor/Proyek *</label>
+                <input
+                  value={officeForm.nama}
+                  onChange={e => setOfficeForm(f => ({ ...f, nama: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
+                  placeholder="Contoh: Kantor Cabang Baru, SN RESIDENCE 2"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Lokasi / Alamat *</label>
+                <input
+                  value={officeForm.lokasi}
+                  onChange={e => setOfficeForm(f => ({ ...f, lokasi: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
+                  placeholder="Contoh: Makassar, Gowa"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 p-4 border-t bg-muted/10">
+              <button
+                onClick={() => saveOffice.mutate(officeForm)}
+                disabled={!officeForm.nama || !officeForm.lokasi || saveOffice.isPending}
+                className="flex items-center gap-2 bg-foreground text-background px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                <Save className="size-3.5" /> {saveOffice.isPending ? "Menyimpan..." : "Simpan"}
+              </button>
+              <button onClick={resetOfficeForm} className="px-4 py-2 rounded-lg text-sm border hover:bg-muted">Batal</button>
             </div>
           </div>
         </div>
