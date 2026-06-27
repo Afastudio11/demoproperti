@@ -138,7 +138,7 @@ export default function CustomerEdit() {
           <h3 className="text-sm font-semibold">Data Identitas</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Nama Customer" required><input className={inputCls} value={form.nama} onChange={set("nama")} required /></Field>
-            <Field label="NIK"><input className={inputCls} value={form.nik} onChange={set("nik")} /></Field>
+            <Field label="NIK" required><input className={inputCls} value={form.nik} onChange={set("nik")} required /></Field>
             <Field label="Nomor Telepon"><input className={inputCls} type="tel" value={form.phone} onChange={set("phone")} /></Field>
             <Field label="Kontak / WhatsApp"><input className={inputCls} value={form.kontak} onChange={set("kontak")} /></Field>
             <Field label="Pekerjaan">
@@ -147,13 +147,13 @@ export default function CustomerEdit() {
                 {PEKERJAAN_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </Field>
-            <Field label="Proyek">
-              <select className={selectCls} value={form.projectId} onChange={e => setForm(f => ({ ...f, projectId: e.target.value, unitId: "", unitBlock: "", stageCode: "" }))}>
+            <Field label="Proyek" required>
+              <select className={selectCls} value={form.projectId} onChange={e => setForm(f => ({ ...f, projectId: e.target.value, unitId: "", unitBlock: "", stageCode: "" }))} required>
                 <option value="">-- Pilih Proyek --</option>
                 {projects.map((p: any) => <option key={p.id} value={p.id}>{p.nama ?? p.name}</option>)}
               </select>
             </Field>
-            <Field label="Unit">
+            <Field label="Unit" required>
               <select className={selectCls} value={form.unitId} onChange={e => {
                 const unit = units.find((u: any) => String(u.id) === e.target.value);
                 setForm(f => ({
@@ -164,7 +164,7 @@ export default function CustomerEdit() {
                   unitBlock: unit ? `${unit.blok}-${unit.nomor}` : "",
                   unitPrice: unit?.harga ? String(unit.harga) : f.unitPrice,
                 }));
-              }}>
+              }} required>
                 <option value="">-- Pilih Unit --</option>
                 {visibleUnits.map((u: any) => <option key={u.id} value={u.id}>{u.blok}-{u.nomor}{u.stageCode ? ` (${u.stageCode})` : ""}</option>)}
               </select>
