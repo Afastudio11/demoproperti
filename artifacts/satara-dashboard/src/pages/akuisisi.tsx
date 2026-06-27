@@ -6,7 +6,7 @@ import {
   CheckCircle2, Map, X,
   FileText, ClipboardList, BrainCircuit,
   Loader2, Search,
-  Building2, Radio, Download, Database, BarChart3, ArrowRight,
+  Building2, Radio, Download, Database, BarChart3, ArrowRight, Pencil,
 } from "lucide-react";
 import KompetitorPage from "./kompetitor";
 import { DAFTAR_PERUMAHAN_SULSEL } from "@/data/perumahan-sulsel";
@@ -300,6 +300,14 @@ function ProspectDetailPanel({
     prospect.kecamatan ? "kecamatan" : "kabupaten"
   );
   const [dbCompetitors, setDbCompetitors] = useState<CompetitorEntry[]>([]);
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(prospect.lokasi);
+
+  useEffect(() => {
+    setNameInput(prospect.lokasi);
+    setIsEditingName(false);
+  }, [prospect.id, prospect.lokasi]);
 
   useEffect(() => {
     fetch("/api/marketing/competitors")
@@ -656,7 +664,51 @@ function ProspectDetailPanel({
       {/* ── Header ── */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm leading-snug">{prospect.lokasi}</div>
+          {isEditingName ? (
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={async () => {
+                setIsEditingName(false);
+                if (nameInput.trim() && nameInput !== prospect.lokasi) {
+                  try {
+                    const resp = await fetch(`/api/land-prospects/${prospect.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ lokasi: nameInput.trim() }),
+                    });
+                    if (resp.ok) {
+                      onRefetch();
+                    }
+                  } catch (err) {
+                    console.error("Gagal mengubah nama prospek:", err);
+                  }
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  (e.target as HTMLInputElement).blur();
+                } else if (e.key === "Escape") {
+                  setNameInput(prospect.lokasi);
+                  setIsEditingName(false);
+                }
+              }}
+              className="font-semibold text-sm bg-transparent border-b border-foreground focus:outline-none w-full py-0.5"
+              autoFocus
+            />
+          ) : (
+            <div className="flex items-center gap-1.5 group">
+              <div className="font-semibold text-sm leading-snug">{prospect.lokasi}</div>
+              <button
+                onClick={() => setIsEditingName(true)}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity p-0.5 rounded cursor-pointer"
+                title="Ubah nama"
+              >
+                <Pencil className="size-3" />
+              </button>
+            </div>
+          )}
           {(prospect.kelurahan || prospect.kecamatan) && (
             <div className="text-[11px] text-muted-foreground mt-0.5">
               {[prospect.kelurahan, prospect.kecamatan, prospect.kabupaten].filter(Boolean).join(", ")}

@@ -367,6 +367,9 @@ export const UpdateLandProspectParams = zod.object({
 })
 
 export const UpdateLandProspectBody = zod.object({
+  "lokasi": zod.string().optional(),
+  "luas": zod.number().optional(),
+  "hargaM2": zod.number().optional(),
   "status": zod.enum(['prospek_baru', 'survey', 'analisis_kompetitor', 'negosiasi', 'legal_checking', 'pks_mou', 'ditolak']).optional(),
   "kelurahan": zod.string().optional(),
   "kecamatan": zod.string().optional(),

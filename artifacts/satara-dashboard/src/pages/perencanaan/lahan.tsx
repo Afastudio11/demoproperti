@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
-import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload, ZoomIn, ZoomOut, Lock, Unlock, RefreshCw } from "lucide-react";
+import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload, ZoomIn, ZoomOut, Lock, Unlock, RefreshCw, Pencil } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import SubkonSelect from "@/components/subkon-select";
@@ -330,7 +330,7 @@ export default function LahanPage() {
   const urlProjectId = searchParams.get("projectId") ? parseInt(searchParams.get("projectId")!) : null;
   const urlProspectId = searchParams.get("prospectId") ? parseInt(searchParams.get("prospectId")!) : null;
 
-  const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
+  const { data: projects, refetch: refetchProjects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
   const { data: units = [] } = useQuery({
     queryKey: ["units", form.projectId],
     queryFn: () => fetch(`/api/units?projectId=${form.projectId}`).then(r => r.json()),
@@ -361,6 +361,21 @@ export default function LahanPage() {
     staleTime: 10 * 60 * 1000,
   });
   const siteplanImageUrl: string | null = selectedSiteplanDetail?.imageDataUrl ?? null;
+
+  const [isEditingProjName, setIsEditingProjName] = useState(false);
+  const [projNameInput, setProjNameInput] = useState("");
+
+  const activeProject = useMemo(() => {
+    if (!form.projectId || !projects) return null;
+    return (projects as any[]).find((p: any) => p.id === form.projectId) || null;
+  }, [form.projectId, projects]);
+
+  useEffect(() => {
+    if (activeProject) {
+      setProjNameInput(activeProject.nama);
+    }
+    setIsEditingProjName(false);
+  }, [activeProject]);
 
   useEffect(() => {
     const transform = selectedSiteplan?.imageTransform as Partial<SiteplanTransform> | undefined;
@@ -1638,16 +1653,73 @@ export default function LahanPage() {
 
       <div className="flex items-center gap-3">
         <Label className="text-sm shrink-0">Proyek</Label>
-        <Select value={form.projectId ? String(form.projectId) : ""} onValueChange={v => selectProject(parseInt(v))}>
-          <SelectTrigger className="h-8 w-64">
-            <SelectValue placeholder="Pilih proyek..." />
-          </SelectTrigger>
-          <SelectContent>
-            {projectList.map((p: Record<string, unknown>) => (
-              <SelectItem key={p.id as number} value={String(p.id)}>{p.nama as string}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isEditingProjName && activeProject ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={projNameInput}
+              onChange={(e) => setProjNameInput(e.target.value)}
+              onBlur={async () => {
+                setIsEditingProjName(false);
+                if (projNameInput.trim() && projNameInput !== activeProject.nama) {
+                  try {
+                    const resp = await fetch(`/api/projects/${activeProject.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ nama: projNameInput.trim() }),
+                    });
+                    if (resp.ok) {
+                      refetchProjects();
+                    }
+                  } catch (err) {
+                    console.error("Gagal mengubah nama proyek:", err);
+                  }
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  (e.target as HTMLInputElement).blur();
+                } else if (e.key === "Escape") {
+                  setProjNameInput(activeProject.nama);
+                  setIsEditingProjName(false);
+                }
+              }}
+              className="text-sm font-semibold text-foreground bg-transparent border-b border-foreground focus:outline-none w-64 py-0.5"
+              autoFocus
+            />
+            <button
+              onClick={() => {
+                setProjNameInput(activeProject.nama);
+                setIsEditingProjName(false);
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              Batal
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Select value={form.projectId ? String(form.projectId) : ""} onValueChange={v => selectProject(parseInt(v))}>
+              <SelectTrigger className="h-8 w-64">
+                <SelectValue placeholder="Pilih proyek..." />
+              </SelectTrigger>
+              <SelectContent>
+                {projectList.map((p: Record<string, unknown>) => (
+                  <SelectItem key={p.id as number} value={String(p.id)}>{p.nama as string}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.projectId && activeProject && (
+              <button
+                onClick={() => setIsEditingProjName(true)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors cursor-pointer"
+                title="Ubah nama proyek"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">

@@ -5,19 +5,20 @@
  * Satara Development Internal Dashboard API
  * OpenAPI spec version: 0.1.0
  */
-import type { LandProspectUpdateStatus } from './landProspectUpdateStatus';
+import type { LandProspectInputStatus } from './landProspectInputStatus';
 
-export interface LandProspectUpdate {
-  lokasi?: string;
-  luas?: number;
-  hargaM2?: number;
-  status?: LandProspectUpdateStatus;
+export interface LandProspectInput {
+  projectId?: number;
+  lokasi: string;
   kelurahan?: string;
   kecamatan?: string;
   kabupaten?: string;
   lat?: number;
   lng?: number;
   polygonCoords?: string;
+  luas: number;
+  hargaM2: number;
+  status: LandProspectInputStatus;
   roi?: number;
   margin?: number;
   aksesJalan?: number;

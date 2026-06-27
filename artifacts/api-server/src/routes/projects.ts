@@ -102,6 +102,12 @@ router.patch("/projects/:id", async (req, res) => {
     const body = UpdateProjectBody.parse(req.body);
     const [project] = await db.update(projectsTable).set(body).where(eq(projectsTable.id, id)).returning();
     if (!project) return res.status(404).json({ error: "Not found" });
+
+    // Keep land prospect lokasi in sync if project nama/lokasi changed
+    if (body.lokasi) {
+      await db.update(landProspectsTable).set({ lokasi: body.lokasi }).where(eq(landProspectsTable.projectId, id));
+    }
+
     res.json({
       ...project,
       targetStart: project.targetStart ?? null,

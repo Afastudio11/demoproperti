@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calculator, Map, Calendar, DollarSign,
   Users, ChevronRight, Building2, TrendingUp, AlertTriangle, CheckCircle2,
-  Brain, Zap, XCircle, FolderOpen,
+  Brain, Zap, XCircle, FolderOpen, Pencil,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +63,7 @@ export default function Perencanaan() {
     queryKey: ["planning-cashflow-all"],
     queryFn: () => fetch("/api/planning/cashflow").then(r => r.json()),
   });
-  const { data: projects } = useQuery({
+  const { data: projects, refetch: refetchProjects } = useQuery({
     queryKey: ["projects"],
     queryFn: () => fetch("/api/projects").then(r => r.json()),
   });
@@ -214,6 +214,16 @@ export default function Perencanaan() {
 
   const activeProject = activeProjectId ? projArr.find((p: Record<string, unknown>) => p.id === activeProjectId) as Record<string, string> | undefined : undefined;
 
+  const [isEditingProjName, setIsEditingProjName] = useState(false);
+  const [projNameInput, setProjNameInput] = useState("");
+
+  useEffect(() => {
+    if (activeProject) {
+      setProjNameInput(activeProject.nama);
+    }
+    setIsEditingProjName(false);
+  }, [activeProject?.id, activeProject?.nama]);
+
   function moduleHref(path: string) {
     return activeProjectId ? `${path}?projectId=${activeProjectId}` : path;
   }
@@ -229,8 +239,52 @@ export default function Perencanaan() {
         <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
           <FolderOpen className="size-4 text-primary shrink-0" />
           <div className="flex-1 min-w-0">
-            <span className="text-xs text-muted-foreground">Proyek aktif: </span>
-            <span className="text-sm font-semibold text-primary">{activeProject.nama}</span>
+            <span className="text-xs text-muted-foreground mr-1">Proyek aktif: </span>
+            {isEditingProjName ? (
+              <input
+                type="text"
+                value={projNameInput}
+                onChange={(e) => setProjNameInput(e.target.value)}
+                onBlur={async () => {
+                  setIsEditingProjName(false);
+                  if (projNameInput.trim() && projNameInput !== activeProject.nama) {
+                    try {
+                      const resp = await fetch(`/api/projects/${activeProject.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ nama: projNameInput.trim() }),
+                      });
+                      if (resp.ok) {
+                        refetchProjects();
+                      }
+                    } catch (err) {
+                      console.error("Gagal mengubah nama proyek:", err);
+                    }
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    (e.target as HTMLInputElement).blur();
+                  } else if (e.key === "Escape") {
+                    setProjNameInput(activeProject.nama);
+                    setIsEditingProjName(false);
+                  }
+                }}
+                className="text-sm font-semibold text-primary bg-transparent border-b border-primary/50 focus:outline-none py-0.5"
+                autoFocus
+              />
+            ) : (
+              <span className="inline-flex items-center gap-1.5 group">
+                <span className="text-sm font-semibold text-primary">{activeProject.nama}</span>
+                <button
+                  onClick={() => setIsEditingProjName(true)}
+                  className="opacity-0 group-hover:opacity-100 text-primary hover:text-primary/80 transition-opacity p-0.5 rounded cursor-pointer"
+                  title="Ubah nama proyek"
+                >
+                  <Pencil className="size-3" />
+                </button>
+              </span>
+            )}
             {activeProject.lokasi && <span className="text-xs text-muted-foreground ml-2">— {activeProject.lokasi}</span>}
           </div>
           <Link href="/projects" className="text-[10px] text-muted-foreground hover:text-foreground shrink-0">Ganti Proyek</Link>

@@ -424,6 +424,9 @@ export const LandProspectUpdateStatus = {
 } as const;
 
 export interface LandProspectUpdate {
+  lokasi?: string;
+  luas?: number;
+  hargaM2?: number;
   status?: LandProspectUpdateStatus;
   kelurahan?: string;
   kecamatan?: string;

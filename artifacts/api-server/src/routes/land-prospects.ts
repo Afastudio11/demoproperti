@@ -157,6 +157,21 @@ router.patch("/land-prospects/:id", async (req, res) => {
     const body = UpdateLandProspectBody.parse(req.body);
     const [prospect] = await db.update(landProspectsTable).set(body).where(eq(landProspectsTable.id, parseInt(req.params.id))).returning();
     if (!prospect) return res.status(404).json({ error: "Not found" });
+
+    // Sync project details if prospect has been promoted
+    if (prospect.projectId && (body.lokasi !== undefined || body.luas !== undefined)) {
+      const updateObj: Record<string, any> = {};
+      if (body.lokasi !== undefined) {
+        const kelKec = [prospect.kelurahan, prospect.kecamatan].filter(Boolean).join(", ");
+        updateObj.nama = `Proyek ${kelKec || body.lokasi}`;
+        updateObj.lokasi = body.lokasi;
+      }
+      if (body.luas !== undefined) {
+        updateObj.luas = body.luas;
+      }
+      await db.update(projectsTable).set(updateObj).where(eq(projectsTable.id, prospect.projectId));
+    }
+
     res.json({ ...prospect, createdAt: prospect.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update land prospect");
