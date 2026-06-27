@@ -303,8 +303,8 @@ export default function LahanPage() {
   const [serialCopy, setSerialCopy] = useState({ startLabel: "", count: 3, direction: "right" as BoxDraft["direction"], gap: 0.3 });
   const [copiedDraft, setCopiedDraft] = useState<CanvasPoint[] | null>(null);
   const [copiedShapes, setCopiedShapes] = useState<any[]>([]);
-  const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "", isLocked: false, stageCode: "", terminGroup: "" });
-  const [batchUnitForm, setBatchUnitForm] = useState({ blockPrefix: "A", startNumber: 1, stageCode: "T1", terminGroup: "Termin 1", unitType: "Tipe 36", unitStatus: "belum_dibuka", subkonId: "", subkonName: "" });
+  const [shapeDraft, setShapeDraft] = useState({ shapeType: "unit", label: "", ownerName: "", landArea: 0, price: 0, legalStatus: "", purchaseStatus: "belum_dibeli", plannedUnits: 1, blockCode: "", unitType: "", subkonId: "", subkonName: "", unitStatus: "belum_dibuka", unitId: "", progress: 0, notes: "", isLocked: false, stageCode: "" });
+  const [batchUnitForm, setBatchUnitForm] = useState({ blockPrefix: "A", startNumber: 1, stageCode: "T1", unitType: "Tipe 36", unitStatus: "belum_dibuka", subkonId: "", subkonName: "" });
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
   const [selectedShapeIds, setSelectedShapeIds] = useState<number[]>([]);
@@ -930,6 +930,7 @@ export default function LahanPage() {
             plannedUnits: Number(saved.plannedUnits ?? 1),
             blockCode: saved.blockCode ?? "",
             unitType: saved.unitType ?? "",
+            subkonId: saved.subkonId ? String(saved.subkonId) : "",
             subkonName: saved.subkonName ?? "",
             unitStatus: saved.unitStatus ?? "belum_dibuka",
             unitId: saved.unitId ? String(saved.unitId) : "",
@@ -937,7 +938,6 @@ export default function LahanPage() {
             notes: saved.notes ?? "",
             isLocked: saved.isLocked ?? false,
             stageCode: saved.stageCode ?? "",
-            terminGroup: saved.terminGroup ?? "",
           });
           setDraftPoints(shapePoints);
           setPolygonClosed(true);
@@ -1055,6 +1055,7 @@ export default function LahanPage() {
       plannedUnits: Number(shape.plannedUnits ?? 1),
       blockCode: shape.blockCode ?? "",
       unitType: shape.unitType ?? "",
+      subkonId: shape.subkonId ? String(shape.subkonId) : "",
       subkonName: shape.subkonName ?? "",
       unitStatus: shape.unitStatus ?? "belum_dibuka",
       unitId: shape.unitId ? String(shape.unitId) : "",
@@ -1062,7 +1063,6 @@ export default function LahanPage() {
       notes: shape.notes ?? "",
       isLocked: !!shape.isLocked,
       stageCode: shape.stageCode ?? "",
-      terminGroup: shape.terminGroup ?? "",
     });
     draftPointsRef.current = shapePoints;
     setDraftPoints(shapePoints);
@@ -1348,7 +1348,6 @@ export default function LahanPage() {
             label: `${prefix}-${nomor}`,
             stageCode: batchUnitForm.stageCode.trim().toUpperCase() || null,
             blockCode: prefix,
-            terminGroup: batchUnitForm.terminGroup.trim() || null,
             unitType: batchUnitForm.unitType.trim() || "Tipe 36",
             unitStatus: batchUnitForm.unitStatus,
             subkonId: batchUnitForm.subkonId ? Number(batchUnitForm.subkonId) : null,
@@ -1361,7 +1360,7 @@ export default function LahanPage() {
       if (failed) {
         toast({ title: "Sebagian shape gagal diblok", description: `${selectedUnits.length - failed}/${selectedUnits.length} unit berhasil.`, variant: "destructive" });
       } else {
-        toast({ title: `${selectedUnits.length} unit masuk ${batchUnitForm.stageCode} / ${batchUnitForm.terminGroup}`, description: `Label ${prefix}-${String(startNum).padStart(2, "0")} sampai ${prefix}-${String(startNum + selectedUnits.length - 1).padStart(2, "0")}` });
+        toast({ title: `${selectedUnits.length} unit masuk ${batchUnitForm.stageCode}`, description: `Label ${prefix}-${String(startNum).padStart(2, "0")} sampai ${prefix}-${String(startNum + selectedUnits.length - 1).padStart(2, "0")}` });
       }
     } finally {
       setIsSaving(false);
@@ -1408,13 +1407,12 @@ export default function LahanPage() {
   const duplicateUnitShapes = unitShapes.filter(shape => (unitLabelCounts.get(String(shape.label ?? "").trim().toUpperCase()) ?? 0) > 1);
   const unallocatedUnitShapes = unitShapes.filter(shape => !String(shape.stageCode ?? shape.blockCode ?? "").trim());
   const siteplanGroups = useMemo(() => {
-    const groups = new Map<string, { stageCode: string; blockCode: string; terminGroup: string; count: number; progress: number; types: Set<string>; subkons: Set<string> }>();
+    const groups = new Map<string, { stageCode: string; blockCode: string; count: number; progress: number; types: Set<string>; subkons: Set<string> }>();
     unitShapes.forEach(shape => {
       const stageCode = String(shape.stageCode ?? (/^T\d+$/i.test(String(shape.blockCode ?? "")) ? shape.blockCode : "") ?? "").toUpperCase();
       const blockCode = String(/^T\d+$/i.test(String(shape.blockCode ?? "")) ? String(shape.label ?? "").split(/[-\s_]/)[0] : shape.blockCode ?? String(shape.label ?? "").split(/[-\s_]/)[0] ?? "").toUpperCase();
-      const terminGroup = String(shape.terminGroup ?? "Belum termin");
-      const key = `${stageCode || "Belum tahap"}::${blockCode || "Tanpa blok"}::${terminGroup}`;
-      const current = groups.get(key) ?? { stageCode: stageCode || "Belum tahap", blockCode: blockCode || "Tanpa blok", terminGroup, count: 0, progress: 0, types: new Set<string>(), subkons: new Set<string>() };
+      const key = `${stageCode || "Belum tahap"}::${blockCode || "Tanpa blok"}`;
+      const current = groups.get(key) ?? { stageCode: stageCode || "Belum tahap", blockCode: blockCode || "Tanpa blok", count: 0, progress: 0, types: new Set<string>(), subkons: new Set<string>() };
       current.count += 1;
       current.progress += Number(shape.progress ?? 0);
       if (shape.unitType) current.types.add(String(shape.unitType));
@@ -1426,7 +1424,7 @@ export default function LahanPage() {
       avgProgress: group.count ? Math.round((group.progress / group.count) * 10) / 10 : 0,
       types: Array.from(group.types),
       subkons: Array.from(group.subkons),
-    })).sort((a, b) => a.stageCode.localeCompare(b.stageCode, undefined, { numeric: true }) || a.blockCode.localeCompare(b.blockCode, undefined, { numeric: true }) || a.terminGroup.localeCompare(b.terminGroup, undefined, { numeric: true }));
+    })).sort((a, b) => a.stageCode.localeCompare(b.stageCode, undefined, { numeric: true }) || a.blockCode.localeCompare(b.blockCode, undefined, { numeric: true }));
   }, [unitShapes]);
   const incompleteUnitShapes = unitShapes.filter(shape => !String(shape.unitType ?? "").trim() || !Array.isArray(shape.polygon) || shape.polygon.length < 3);
   const baselineProblems = invalidUnitShapes.length + duplicateUnitShapes.length + unallocatedUnitShapes.length + incompleteUnitShapes.length;
@@ -1564,12 +1562,14 @@ export default function LahanPage() {
           plannedUnits: Number(saved.plannedUnits ?? 1),
           blockCode: saved.blockCode ?? "",
           unitType: saved.unitType ?? "",
+          subkonId: saved.subkonId ? String(saved.subkonId) : "",
           subkonName: saved.subkonName ?? "",
           unitStatus: saved.unitStatus ?? "belum_dibuka",
           unitId: saved.unitId ? String(saved.unitId) : "",
           progress: Number(saved.progress ?? 0),
           notes: saved.notes ?? "",
           isLocked: saved.isLocked ?? false,
+          stageCode: saved.stageCode ?? "",
         });
         const shapePoints = Array.isArray(saved.polygon) ? saved.polygon : draftPoints;
         setDraftPoints(shapePoints);
@@ -1593,6 +1593,7 @@ export default function LahanPage() {
       autoPatchShape(editingShapeId, {
         ...shapeDraft,
         unitId: shapeDraft.unitId ? Number(shapeDraft.unitId) : null,
+        subkonId: shapeDraft.subkonId ? Number(shapeDraft.subkonId) : null,
         isLocked: shapeDraft.isLocked ? 1 : 0,
       });
     }, 700);
@@ -2203,8 +2204,7 @@ export default function LahanPage() {
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
-                  <p className="text-[10px] leading-relaxed text-muted-foreground">Shift/Cmd-drag untuk pilih banyak shape, lalu salin atau hapus sekaligus.</p>
-                  {selectedShapeIds.length > 0 && (
+                  {selectedShapeIds.length > 1 && (
                     <div className="rounded-md border bg-background p-2 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-medium">{selectedShapeIds.length} shape dipilih</span>
@@ -2215,7 +2215,7 @@ export default function LahanPage() {
                         </div>
                       </div>
                       <div className="rounded-md bg-muted/30 p-2 space-y-2">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Kelompokkan ke Tahap/Termin</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Kelompokkan Unit (Bulk)</div>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <Label className="text-[10px]">Blok</Label>
@@ -2236,10 +2236,6 @@ export default function LahanPage() {
                           <div className="space-y-1">
                             <Label className="text-[10px]">Tahap</Label>
                             <Input className="h-7 text-xs" value={batchUnitForm.stageCode} onChange={e => setBatchUnitForm(p => ({ ...p, stageCode: e.target.value.toUpperCase() }))} placeholder="T1" />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px]">Termin</Label>
-                            <Input className="h-7 text-xs" value={batchUnitForm.terminGroup} onChange={e => setBatchUnitForm(p => ({ ...p, terminGroup: e.target.value }))} placeholder="Termin 1" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px]">Tipe</Label>
@@ -2270,6 +2266,7 @@ export default function LahanPage() {
                       </div>
                     </div>
                   )}
+
                   <div className="rounded-md border bg-background p-2 space-y-2">
                     <button
                       type="button"
@@ -2293,15 +2290,14 @@ export default function LahanPage() {
                             <table className="w-full text-[11px]">
                               <thead className="bg-muted/40">
                                 <tr>
-                                  {["Tahap", "Blok", "Termin", "Unit", "Progress"].map(h => <th key={h} className="px-2 py-1 text-left font-medium text-muted-foreground">{h}</th>)}
+                                  {["Tahap", "Blok", "Unit", "Progress"].map(h => <th key={h} className="px-2 py-1 text-left font-medium text-muted-foreground">{h}</th>)}
                                 </tr>
                               </thead>
                               <tbody>
                                 {siteplanGroups.map(group => (
-                                  <tr key={`${group.stageCode}-${group.blockCode}-${group.terminGroup}`} className="border-t">
+                                  <tr key={`${group.stageCode}-${group.blockCode}`} className="border-t">
                                     <td className="px-2 py-1 font-medium">{group.stageCode}</td>
                                     <td className="px-2 py-1">{group.blockCode}</td>
-                                    <td className="px-2 py-1">{group.terminGroup}</td>
                                     <td className="px-2 py-1">{group.count}</td>
                                     <td className="px-2 py-1">{group.avgProgress}%</td>
                                   </tr>
@@ -2318,8 +2314,7 @@ export default function LahanPage() {
                   </div>
                 </div>
 
-                {/* === Simplified Active Shape Editing Panel === */}
-                {editingShapeId && (
+                {selectedShapeIds.length <= 1 && editingShapeId && (
                   <div className="space-y-3">
                     {/* Main Important Details Container */}
                     <div className="rounded-lg border bg-background p-3 space-y-2.5 shadow-sm">
@@ -2370,28 +2365,24 @@ export default function LahanPage() {
 
                           <div className="space-y-1">
                             <Label className="text-[11px] font-semibold">Subkon</Label>
-                            <div className="h-8 text-sm px-3 flex items-center border rounded-md bg-muted/40 text-muted-foreground truncate" title={shapeDraft.subkonName || "Belum ditunjuk"}>
-                              {shapeDraft.subkonName || "Belum ditunjuk"}
-                            </div>
+                            <SubkonSelect
+                              valueMode="id"
+                              allowCreate
+                              projectId={form.projectId}
+                              value={shapeDraft.subkonId}
+                              triggerClassName="h-8 text-sm"
+                              onValueChange={v => setShapeDraft(p => ({ ...p, subkonId: v }))}
+                              onOptionChange={option => setShapeDraft(p => ({ ...p, subkonName: option?.name ?? "" }))}
+                            />
                           </div>
 
-                          <div className="space-y-1">
+                          <div className="space-y-1 col-span-2">
                             <Label className="text-[11px] font-semibold">Tahap</Label>
                             <Input
                               className="h-8 text-sm"
                               value={shapeDraft.stageCode}
                               onChange={e => setShapeDraft(p => ({ ...p, stageCode: e.target.value.toUpperCase() }))}
                               placeholder="T1"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-semibold">Termin</Label>
-                            <Input
-                              className="h-8 text-sm"
-                              value={shapeDraft.terminGroup}
-                              onChange={e => setShapeDraft(p => ({ ...p, terminGroup: e.target.value }))}
-                              placeholder="Termin 1"
                             />
                           </div>
                         </div>
