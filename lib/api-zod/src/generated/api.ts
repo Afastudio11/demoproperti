@@ -926,9 +926,9 @@ export const UpdateConstructionTaskParams = zod.object({
 
 export const UpdateConstructionTaskBody = zod.object({
   "status": zod.enum(['belum_mulai', 'dalam_proses', 'selesai']).optional(),
-  "tanggalMulai": zod.string().optional(),
-  "tanggalSelesai": zod.string().optional(),
-  "catatan": zod.string().optional()
+  "tanggalMulai": zod.string().nullish(),
+  "tanggalSelesai": zod.string().nullish(),
+  "catatan": zod.string().nullish()
 })
 
 export const UpdateConstructionTaskResponse = zod.object({

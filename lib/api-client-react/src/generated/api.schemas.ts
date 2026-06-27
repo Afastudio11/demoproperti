@@ -873,9 +873,12 @@ export const ConstructionTaskUpdateStatus = {
 
 export interface ConstructionTaskUpdate {
   status?: ConstructionTaskUpdateStatus;
-  tanggalMulai?: string;
-  tanggalSelesai?: string;
-  catatan?: string;
+  /** @nullable */
+  tanggalMulai?: string | null;
+  /** @nullable */
+  tanggalSelesai?: string | null;
+  /** @nullable */
+  catatan?: string | null;
 }
 
 export interface ProgressSummary {

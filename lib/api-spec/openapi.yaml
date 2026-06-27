@@ -1609,9 +1609,9 @@ components:
         status:
           type: string
           enum: [belum_mulai, dalam_proses, selesai]
-        tanggalMulai: { type: string }
-        tanggalSelesai: { type: string }
-        catatan: { type: string }
+        tanggalMulai: { type: ["string", "null"] }
+        tanggalSelesai: { type: ["string", "null"] }
+        catatan: { type: ["string", "null"] }
 
     ProgressSummary:
       type: object

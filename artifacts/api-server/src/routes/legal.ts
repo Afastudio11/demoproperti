@@ -387,6 +387,7 @@ router.get("/legal/land-stages", async (req, res) => {
 
     const result = stages.map(stage => {
       const sc = checklist.filter(c => c.landStageId === stage.id);
+      sc.sort((a, b) => (a.itemOrder ?? a.id) - (b.itemOrder ?? b.id));
       const progress = calcLandReadiness(sc);
       const proj = projects.find(p => p.id === stage.projectId);
       return { ...stage, checklist: sc, progress, projectName: proj?.nama ?? "Unknown" };

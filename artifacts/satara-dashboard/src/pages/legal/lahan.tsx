@@ -162,7 +162,7 @@ export default function LandLegalTracker() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stage.checklist?.map((item: any) => (
+                  {[...(stage.checklist ?? [])].sort((a, b) => (a.itemOrder ?? a.id) - (b.itemOrder ?? b.id)).map((item: any) => (
                     <tr key={item.id} className="border-b last:border-0 hover:bg-muted/10">
                       <td className="px-3 py-2 font-medium text-xs">{item.itemName}</td>
                       <td className="px-3 py-2">
