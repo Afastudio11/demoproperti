@@ -107,7 +107,7 @@ async function syncBidangToLandBank(row: typeof planningSiteplanShapesTable.$inf
 
 // Auto find-or-create unit for "unit" type shapes, returns unitId
 async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect): Promise<number | null> {
-  if (row.shapeType !== "unit") return null;
+  if (row.shapeType !== "unit" && row.shapeType !== "fasum") return null;
   if (row.unitId) {
     const [existing] = await db.select().from(unitsTable).where(eq(unitsTable.id, row.unitId));
     if (existing) return existing.id;
@@ -134,7 +134,7 @@ async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect
     projectId: row.projectId,
     blok,
     nomor,
-    tipe: row.unitType || "Tipe 36",
+    tipe: row.unitType || (row.shapeType === "fasum" ? "Fasum" : "Tipe 36"),
     harga: 0,
     status: row.unitStatus || "available",
     progress: Number(row.progress ?? 0),
@@ -331,8 +331,8 @@ router.post("/planning/siteplan/:id/shapes", async (req, res) => {
 
     const [row] = await db.insert(planningSiteplanShapesTable).values({ ...body, siteplanId, projectId: siteplan.projectId }).returning();
 
-    // Auto-link unit for unit shapes
-    if (row.shapeType === "unit" && !row.unitId) {
+    // Auto-link unit for unit and fasum shapes
+    if ((row.shapeType === "unit" || row.shapeType === "fasum") && !row.unitId) {
       const unitId = await autoLinkUnit(row).catch(() => null);
       if (unitId) {
         await db.update(planningSiteplanShapesTable).set({ unitId }).where(eq(planningSiteplanShapesTable.id, row.id));

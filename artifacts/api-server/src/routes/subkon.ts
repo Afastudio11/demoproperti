@@ -91,8 +91,9 @@ async function buildPaymentPreview(contractId: number) {
     .map(unit => {
       const progress = Number(unit.progress ?? 0);
       const earnedGross = Math.round((progress / 100) * valuePerUnit);
-      const earnedRetention = Math.round((progress / 100) * retentionPerUnit);
-      const earnedNet = earnedGross - earnedRetention;
+      // Retention is withheld in full at the end, not deducted from progress payments
+      const earnedRetention = 0;
+      const earnedNet = earnedGross;
       return {
         id: unit.id,
         label: `${unit.blok}-${unit.nomor}`,
@@ -120,7 +121,11 @@ async function buildPaymentPreview(contractId: number) {
 
   const totalCurrentlyEarned = unitProgress.reduce((sum, u) => sum + u.earnedGross, 0);
   const totalCurrentRetention = unitProgress.reduce((sum, u) => sum + u.earnedRetention, 0);
-  const totalCurrentNet = unitProgress.reduce((sum, u) => sum + u.earnedNet, 0);
+  // Cap the total progress net payment at netPayableValue (Contract Value - Total Retention)
+  const totalCurrentNet = Math.min(
+    unitProgress.reduce((sum, u) => sum + u.earnedNet, 0),
+    contract.netPayableValue
+  );
 
   const grossEligibleAmount = Math.max(0, totalCurrentlyEarned - grossAlreadyPaid);
   const retentionDeducted = Math.max(0, totalCurrentRetention - retentionAlreadyDeducted);
