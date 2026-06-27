@@ -586,16 +586,22 @@ export default function LahanPage() {
   }
 
   // Generate unique label per shape type — using distinct prefixes to avoid cross-type conflicts
-  // unit → "A-01", bidang → "B-01", akuisisi → "AKS-01", others → "X-01"
+  // unit → "A-01", bidang → "LH-01", blok → "BK-01", fasum → "FM-01"
   function nextShapeLabel(shapeType: string) {
     const existing = shapeList.map(shape => String(shape.label ?? ""));
     let prefix = "A";
     if (shapeType === "bidang") {
-      prefix = "B";
+      prefix = "LH";
+    } else if (shapeType === "blok") {
+      prefix = "BK";
+    } else if (shapeType === "fasum") {
+      prefix = "FM";
     } else if (shapeType === "akuisisi") {
       prefix = "AKS";
     } else if (shapeType === "unit") {
       prefix = shapeDraft.blockCode.trim().toUpperCase() || "A";
+    } else {
+      prefix = "X";
     }
     let index = 1;
     while (existing.includes(`${prefix}-${String(index).padStart(2, "0")}`) || existing.includes(`${prefix}-${index}`)) {
