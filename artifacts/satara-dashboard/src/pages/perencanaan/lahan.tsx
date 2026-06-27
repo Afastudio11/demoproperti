@@ -1396,6 +1396,25 @@ export default function LahanPage() {
   const projectList = Array.isArray(projects) ? projects : [];
   const prospectList = Array.isArray(prospects) ? prospects : [];
   const shapeList = Array.isArray(siteplanShapes) ? siteplanShapes as any[] : [];
+
+  const getNextNumberForBlock = (block: string): string => {
+    const blockUnits = shapeList.filter(s =>
+      s.id !== editingShapeId &&
+      s.shapeType === "unit" &&
+      String(s.blockCode ?? "").toUpperCase() === block.toUpperCase()
+    );
+    let maxNum = 0;
+    for (const s of blockUnits) {
+      const lbl = String(s.label ?? "").trim();
+      const m = lbl.match(/\d+$/);
+      if (m) {
+        const num = parseInt(m[0], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+    const nextNum = maxNum + 1;
+    return String(nextNum).padStart(2, "0");
+  };
   const bidangShapes = shapeList.filter(shape => shape.shapeType === "bidang");
   const unitShapes = shapeList.filter(shape => shape.shapeType === "unit");
   const unitLabelCounts = unitShapes.reduce((map, shape) => {
@@ -2338,6 +2357,20 @@ export default function LahanPage() {
                         </Button>
                       </div>
 
+                      {/* Tipe Shape Dropdown (Always visible at the top of info block) */}
+                      <div className="space-y-1 text-xs">
+                        <Label className="text-[11px] font-semibold">Tipe Shape</Label>
+                        <Select value={shapeDraft.shapeType} onValueChange={v => setShapeDraft(p => ({ ...p, shapeType: v }))}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unit">Unit Rumah</SelectItem>
+                            <SelectItem value="bidang">Bidang Lahan</SelectItem>
+                            <SelectItem value="blok">Blok/Cluster</SelectItem>
+                            <SelectItem value="fasum">Jalan/Fasum</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                       {shapeDraft.shapeType === "unit" ? (
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="space-y-1">
@@ -2348,16 +2381,22 @@ export default function LahanPage() {
                               onChange={e => {
                                 const newBlock = e.target.value.toUpperCase();
                                 setShapeDraft(p => {
-                                  const trimmed = String(p.label ?? "").trim();
-                                  const match = trimmed.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
-                                  let newLabel = p.label;
-                                  if (match) {
-                                    const separator = trimmed.includes("-") ? "-" : trimmed.includes(" ") ? " " : trimmed.includes("_") ? "_" : "-";
-                                    newLabel = newBlock ? `${newBlock}${separator}${match[2]}` : match[2];
-                                  } else {
-                                    newLabel = newBlock ? `${newBlock}-${p.label}` : p.label;
-                                  }
-                                  return { ...p, blockCode: newBlock, label: newLabel };
+                                  const nextNum = getNextNumberForBlock(newBlock);
+                                  const newLabel = `${newBlock}-${nextNum}`;
+                                  
+                                  const nextUnits = (units as any[]).filter(u => String(u.blok).toUpperCase() === newBlock);
+                                  const matchingUnit = nextUnits.find(u => String(u.nomor) === nextNum);
+                                  const newUnitId = matchingUnit ? String(matchingUnit.id) : "";
+
+                                  return {
+                                    ...p,
+                                    blockCode: newBlock,
+                                    label: newLabel,
+                                    unitId: newUnitId,
+                                    unitType: matchingUnit?.tipe ?? p.unitType,
+                                    subkonName: matchingUnit?.subkonName ?? p.subkonName,
+                                    progress: matchingUnit?.progress ?? p.progress
+                                  };
                                 });
                               }}
                               placeholder="Blok A"
@@ -2377,7 +2416,7 @@ export default function LahanPage() {
                             />
                           </div>
 
-                          <div className="space-y-1 col-span-2">
+                          <div className="space-y-1 text-xs">
                             <Label className="text-[11px] font-semibold">Tahap</Label>
                             <Input
                               className="h-8 text-sm"
@@ -2385,6 +2424,99 @@ export default function LahanPage() {
                               onChange={e => setShapeDraft(p => ({ ...p, stageCode: e.target.value.toUpperCase() }))}
                               placeholder="T1"
                             />
+                          </div>
+
+                          <div className="space-y-1 text-xs">
+                            <Label className="text-[11px] font-semibold">Label (Nomor)</Label>
+                            <Input
+                              className="h-8 text-sm font-mono"
+                              value={shapeDraft.label}
+                              onChange={e => {
+                                const newLabel = e.target.value;
+                                setShapeDraft(p => {
+                                  const trimmed = String(newLabel).trim();
+                                  const match = trimmed.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
+                                  let matchedUnitId = p.unitId;
+                                  let matchedUnitType = p.unitType;
+                                  let matchedSubkonName = p.subkonName;
+                                  let matchedProgress = p.progress;
+
+                                  if (match) {
+                                    const bCode = match[1].toUpperCase();
+                                    const uNum = match[2];
+                                    const unit = (units as any[]).find(u => String(u.blok).toUpperCase() === bCode && String(u.nomor) === uNum);
+                                    if (unit) {
+                                      matchedUnitId = String(unit.id);
+                                      matchedUnitType = unit.tipe ?? p.unitType;
+                                      matchedSubkonName = unit.subkonName ?? p.subkonName;
+                                      matchedProgress = unit.progress ?? p.progress;
+                                    }
+                                  }
+
+                                  return {
+                                    ...p,
+                                    label: newLabel,
+                                    unitId: matchedUnitId,
+                                    unitType: matchedUnitType,
+                                    subkonName: matchedSubkonName,
+                                    progress: matchedProgress
+                                  };
+                                });
+                              }}
+                              placeholder="A-01"
+                            />
+                          </div>
+
+                          <div className="space-y-1 text-xs">
+                            <Label className="text-[11px] font-semibold">Tipe Rumah</Label>
+                            <Input
+                              className="h-8 text-sm"
+                              value={shapeDraft.unitType}
+                              onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))}
+                            />
+                          </div>
+
+                          <div className="space-y-1 text-xs">
+                            <Label className="text-[11px] font-semibold">Status Unit</Label>
+                            <Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => (
+                                  <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1 col-span-2 text-xs">
+                            <Label className="text-[11px] font-semibold">Link Unit Produksi</Label>
+                            <Select
+                              value={shapeDraft.unitId || "none"}
+                              onValueChange={v => {
+                                const unit = (units as any[]).find(u => String(u.id) === v);
+                                setShapeDraft(p => ({
+                                  ...p,
+                                  unitId: v === "none" ? "" : v,
+                                  label: unit ? `${unit.blok}-${unit.nomor}` : p.label,
+                                  unitType: unit?.tipe ?? p.unitType,
+                                  subkonName: unit?.subkonName ?? p.subkonName,
+                                  progress: unit?.progress ?? p.progress
+                                }));
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Belum link</SelectItem>
+                                {(units as any[])
+                                  .filter(u => String(u.blok).toUpperCase() === shapeDraft.blockCode.toUpperCase())
+                                  .map(u => (
+                                    <SelectItem key={u.id} value={String(u.id)}>
+                                      {u.blok}-{u.nomor} · {u.tipe}
+                                    </SelectItem>
+                                  ))
+                                }
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                       ) : (
@@ -2406,7 +2538,7 @@ export default function LahanPage() {
                       )}
                     </div>
 
-                    {/* Unified Advanced Settings & Geometry Container */}
+                    {/* Collapsible Advanced Settings & Geometry Container */}
                     <div className="rounded-lg border bg-muted/20 p-2.5 space-y-2">
                       <button
                         type="button"
@@ -2419,59 +2551,6 @@ export default function LahanPage() {
 
                       {showAdvancedShapeSettings && (
                         <div className="space-y-3 pt-2 border-t border-border/40 text-xs">
-                          {/* Common Metadata Fields */}
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Tipe Shape</Label>
-                              <Select value={shapeDraft.shapeType} onValueChange={v => setShapeDraft(p => ({ ...p, shapeType: v }))}>
-                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="unit">Unit Rumah</SelectItem>
-                                  <SelectItem value="bidang">Bidang Lahan</SelectItem>
-                                  <SelectItem value="blok">Blok/Cluster</SelectItem>
-                                  <SelectItem value="fasum">Jalan/Fasum</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Label (Nomor)</Label>
-                              <Input className="h-8 text-sm font-mono" value={shapeDraft.label} onChange={e => setShapeDraft(p => ({ ...p, label: e.target.value }))} placeholder="A-01" />
-                            </div>
-                          </div>
-
-                          {shapeDraft.shapeType === "unit" && (
-                            <>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Tipe Rumah</Label>
-                                  <Input className="h-8 text-sm" value={shapeDraft.unitType} onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))} />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Status Unit</Label>
-                                  <Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}>
-                                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                      {["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => (
-                                        <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-xs">Link Unit Produksi</Label>
-                                <Select value={shapeDraft.unitId || "none"} onValueChange={v => {
-                                  const unit = (units as any[]).find(u => String(u.id) === v);
-                                  setShapeDraft(p => ({ ...p, unitId: v === "none" ? "" : v, label: unit ? `${unit.blok}-${unit.nomor}` : p.label, unitType: unit?.tipe ?? p.unitType, subkonName: unit?.subkonName ?? p.subkonName, progress: unit?.progress ?? p.progress }));
-                                }}>
-                                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">Belum link</SelectItem>
-                                    {(units as any[]).map(u => <SelectItem key={u.id} value={String(u.id)}>{u.blok}-{u.nomor} · {u.tipe}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
-                              </div>
 
                               {/* Shape Dimension & Box Copy Settings */}
                               {isUnitRectangleDraft(shapeDraft.shapeType, draftPoints) && (
@@ -2489,8 +2568,6 @@ export default function LahanPage() {
                                   </div>
                                 </div>
                               )}
-                            </>
-                          )}
 
                           {/* Serial Copy settings - merged into Advanced block */}
                           {draftPoints.length >= 3 && (
