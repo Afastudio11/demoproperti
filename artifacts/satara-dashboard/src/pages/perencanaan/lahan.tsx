@@ -950,7 +950,9 @@ export default function LahanPage() {
 
     // Auto-patch polygon when dragging/resizing a saved shape
     if ((drag?.mode === "shape" || drag?.mode === "corner" || drag?.mode === "edge" || drag?.mode === "rotate") && editingShapeId) {
-      autoPatchShape(editingShapeId, { polygon: draftPointsRef.current }, { quiet: true });
+      if (draftPointsRef.current && draftPointsRef.current.length >= 3) {
+        autoPatchShape(editingShapeId, { polygon: draftPointsRef.current }, { quiet: true });
+      }
       return;
     }
 

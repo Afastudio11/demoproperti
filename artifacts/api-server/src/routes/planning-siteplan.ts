@@ -28,10 +28,15 @@ function parseUnitLabel(label: string) {
 }
 
 function validateUnitShapePayload(body: Record<string, unknown>) {
-  if (body.shapeType !== "unit") return null;
   const label = String(body.label ?? "").trim();
-  if (!label.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/)) return "Label unit wajib format blok-nomor, contoh A-01.";
-  if (!Array.isArray(body.polygon) || body.polygon.length < 3) return "Polygon unit rumah wajib minimal 3 titik.";
+  if (body.shapeType === "unit") {
+    if (!label.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/)) return "Label unit wajib format blok-nomor, contoh A-01.";
+  } else {
+    if (!label) return "Label wajib diisi.";
+  }
+  if (!Array.isArray(body.polygon) || body.polygon.length < 3) {
+    return "Polygon shape wajib memiliki minimal 3 titik koordinat.";
+  }
   if (!String(body.unitType ?? "").trim()) body.unitType = "Tipe 36";
   return null;
 }

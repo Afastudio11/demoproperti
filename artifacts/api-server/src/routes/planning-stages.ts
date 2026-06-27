@@ -483,15 +483,32 @@ router.post("/planning/stages/bulk", async (req, res) => {
     const lockedStages = existing.filter(stage => stage.lockedAt);
     const lockedKeys = new Set(lockedStages.map(stage => cleanStageCode(stage.stageCode, "").toUpperCase()));
 
-    // 1. First pre-processing pass: auto-assign all unallocated shapes of any defined stage/block
+    // 1. Get all stage-block definitions (both locked ones in DB and draft ones in inputStages)
+    const allStageBlocks: { stageCode: string, blockCode: string }[] = [];
+
+    // Add existing locked blocks from database
+    if (lockedStages.length > 0) {
+      const lockedStageIds = lockedStages.map(s => s.id);
+      const lockedBlocks = await db.select().from(planningStageBlocksTable)
+        .where(and(eq(planningStageBlocksTable.projectId, projectId), inArray(planningStageBlocksTable.stageId, lockedStageIds)));
+      for (const b of lockedBlocks) {
+        allStageBlocks.push({ stageCode: b.stageCode, blockCode: b.blockCode });
+      }
+    }
+
+    // Add draft blocks from request payload
     for (const [stageIndex, stage] of inputStages.entries()) {
       const stageCode = cleanStageCode(stage.stageCode, `T${stageIndex + 1}`);
       if (lockedKeys.has(stageCode)) continue;
       const blocks = (stage.blocks ?? []).filter(block => cleanText(block.blockCode));
       for (const block of blocks) {
-        const blockCode = cleanCode(block.blockCode, "A");
-        await assignUnallocatedShapesToStage(projectId, stageCode, blockCode);
+        allStageBlocks.push({ stageCode, blockCode: cleanCode(block.blockCode, "A") });
       }
+    }
+
+    // 2. Pre-processing pass: auto-assign all unallocated shapes of any defined stage/block
+    for (const { stageCode, blockCode } of allStageBlocks) {
+      await assignUnallocatedShapesToStage(projectId, stageCode, blockCode);
     }
 
     // 2. Fetch baseline summary after auto-assigning so all shapes are correctly mapped
