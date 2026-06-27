@@ -1478,7 +1478,7 @@ export default function LahanPage() {
             className={drawTool === "select" ? (isLocked ? "cursor-not-allowed" : "cursor-move") : drawTool === "delete" ? "cursor-not-allowed" : ""}
           />
           {isLocked && center && (
-            <text x={center.x} y={center.y} textAnchor="middle" dominantBaseline="middle" fontSize={1.8 * hs} fill="#d97706" style={{ pointerEvents: "none", userSelect: "none" }}>⚿</text>
+            <text x={center.x} y={center.y} textAnchor="middle" dominantBaseline="middle" fontSize={1.8 * hs} fill="#d97706" textRendering="geometricPrecision" style={{ pointerEvents: "none", userSelect: "none" }}>⚿</text>
           )}
           {center && (
             <text
@@ -1493,6 +1493,7 @@ export default function LahanPage() {
               strokeWidth={0.34 * sw}
               paintOrder="stroke"
               vectorEffect="non-scaling-stroke"
+              textRendering="geometricPrecision"
               style={{ pointerEvents: "none", userSelect: "none" }}
             >
               {currentShape.label}
@@ -1960,7 +1961,7 @@ export default function LahanPage() {
                   className={cn("relative overflow-hidden rounded-lg border bg-background shadow-sm touch-none", drawTool === "unit_box" || drawTool === "polygon" ? "cursor-crosshair" : drawTool === "pan" ? "cursor-grab" : drawTool === "delete" ? "cursor-not-allowed" : "cursor-default")}
                 >
                 {/* Zoom/pan content wrapper — position:relative so SVG absolute inset-0 anchors here; height driven by img */}
-                <div style={{ transform: `translate3d(${canvasPan.x}px, ${canvasPan.y}px, 0) scale(${canvasZoom})`, transformOrigin: "0 0", position: "relative", width: "100%", willChange: "transform" }}>
+                <div style={{ transform: `translate3d(${canvasPan.x}px, ${canvasPan.y}px, 0) scale(${canvasZoom})`, transformOrigin: "0 0", position: "relative", width: "100%" }}>
                 {siteplanImageUrl ? (
                   <img
                     src={siteplanImageUrl}

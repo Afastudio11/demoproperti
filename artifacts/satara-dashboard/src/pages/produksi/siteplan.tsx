@@ -463,7 +463,6 @@ export default function ProduksiSiteplan() {
                   inset: 0,
                   transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
                   transformOrigin: "0 0",
-                  willChange: "transform",
                 }}>
 
                 {/* Siteplan background image */}
@@ -539,6 +538,7 @@ export default function ProduksiSiteplan() {
                               strokeWidth={0.34 * sw}
                               paintOrder="stroke"
                               vectorEffect="non-scaling-stroke"
+                              textRendering="geometricPrecision"
                               style={{ pointerEvents: "none", userSelect: "none" }}
                             >
                               {shape.label}
@@ -554,6 +554,7 @@ export default function ProduksiSiteplan() {
                               strokeWidth={0.28 * sw}
                               paintOrder="stroke"
                               vectorEffect="non-scaling-stroke"
+                              textRendering="geometricPrecision"
                               style={{ pointerEvents: "none", userSelect: "none" }}
                             >
                               {Math.round(progress)}%
