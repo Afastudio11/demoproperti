@@ -1242,7 +1242,12 @@ router.patch("/finance/approval/subkon/:id", async (req, res) => {
     } else if (status === "approved") {
       const approvals = await db.select().from(paymentApprovalsTable).where(eq(paymentApprovalsTable.paymentId, row.paymentId));
       if (approvals.every(a => a.status === "approved")) {
-        await db.update(subkonPaymentsTable).set({ status: "approved" }).where(eq(subkonPaymentsTable.id, row.paymentId));
+        const [updatedPayment] = await db.update(subkonPaymentsTable).set({ status: "approved" }).where(eq(subkonPaymentsTable.id, row.paymentId)).returning();
+        if (updatedPayment?.paymentType === "retensi") {
+          await db.update(subkonContractsTable)
+            .set({ retentionStatus: "siap_cair" })
+            .where(eq(subkonContractsTable.id, updatedPayment.contractId));
+        }
       }
     }
     await writeAudit("finance", "payment_approval", id, status, before ?? null, row, approvedBy ?? "Finance", notes);
@@ -1297,6 +1302,11 @@ router.patch("/finance/approval/subkon-payments/:id/mark-paid", async (req, res)
     if (existing.status !== "approved" && existing.status !== "paid") return res.status(400).json({ error: "Pembayaran harus approved" });
     const paymentDate = req.body.paymentDate ?? new Date().toISOString().split("T")[0];
     const [row] = await db.update(subkonPaymentsTable).set({ status: "paid", paymentDate }).where(eq(subkonPaymentsTable.id, id)).returning();
+    if (row.paymentType === "retensi") {
+      await db.update(subkonContractsTable)
+        .set({ retentionStatus: "sudah_cair" })
+        .where(eq(subkonContractsTable.id, row.contractId));
+    }
     const [contract] = await db.select().from(subkonContractsTable).where(eq(subkonContractsTable.id, row.contractId));
     if (contract && row.netPayment && row.netPayment > 0) {
       await recordFinanceCashflow({

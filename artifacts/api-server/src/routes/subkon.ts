@@ -119,6 +119,36 @@ async function buildPaymentPreview(contractId: number) {
     rataRata: progressCurrent,
   };
 
+  const hasClaimedRetention = activePayments.some(p => p.paymentType === "retensi");
+  const isRetentionClaim = progressCurrent >= 100 && netAlreadyPaid >= contract.netPayableValue - 1000 && !hasClaimedRetention;
+
+  if (isRetentionClaim) {
+    const netPayment = contract.totalRetention;
+    const grossEligibleAmount = contract.totalRetention;
+    const retentionDeducted = 0;
+    const reasons: string[] = [];
+    if (contract.status !== "aktif") reasons.push("Kontrak belum aktif");
+
+    return {
+      ok: true,
+      contract,
+      canSubmit: reasons.length === 0,
+      reasons,
+      paymentType: "retensi",
+      progressPrevious,
+      progressCurrent: 100,
+      velocity: 0,
+      unitStats,
+      unitProgress,
+      grossEligibleAmount,
+      retentionDeducted,
+      netPayment,
+      totalCurrentlyEarned: contract.contractValue,
+      grossAlreadyPaid: netAlreadyPaid, // Align grossAlreadyPaid for UI recap formatting
+      netAlreadyPaid,
+    };
+  }
+
   const totalCurrentlyEarned = unitProgress.reduce((sum, u) => sum + u.earnedGross, 0);
   const totalCurrentRetention = unitProgress.reduce((sum, u) => sum + u.earnedRetention, 0);
   // Cap the total progress net payment at netPayableValue (Contract Value - Total Retention)
@@ -440,7 +470,7 @@ router.post("/produksi/subkon/payments", async (req, res) => {
     const [row] = await db.insert(subkonPaymentsTable).values({
       contractId,
       paymentTermId: null,
-      paymentType: "progress",
+      paymentType: (readyPreview as any).paymentType || "progress",
       terminNumber: null,
       period: null,
       progressPrevious: readyPreview.progressPrevious,
