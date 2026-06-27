@@ -1089,7 +1089,7 @@ async function seedSekalaEmployees() {
   }
 }
 
-seedSekalaEmployees();
+// seedSekalaEmployees(); // Disabled — jangan jalankan otomatis agar karyawan yang dihapus tidak balik lagi
 
 // ─── SOP ────────────────────────────────────────────────────────────────────
 router.get("/hr/sop", async (_req, res) => {

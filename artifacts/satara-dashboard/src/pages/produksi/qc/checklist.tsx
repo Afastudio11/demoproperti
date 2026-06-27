@@ -195,22 +195,42 @@ export default function QcChecklist() {
                   {items.map(item => (
                     <div
                       key={item.id}
-                      onClick={() => toggleMutation.mutate({ id: item.id, isPass: !item.isPass })}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-colors hover:bg-muted/50 ${item.isPass ? "bg-emerald-500/5" : "bg-muted/20"}`}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-md ${item.isPass ? "bg-emerald-500/5" : "bg-muted/20"}`}
                     >
-                      {item.isPass ? (
-                        <CheckSquare className="size-5 text-emerald-500 shrink-0" />
-                      ) : (
-                        <Square className="size-5 text-muted-foreground shrink-0" />
-                      )}
+                      <button
+                        type="button"
+                        className="shrink-0 focus:outline-none"
+                        onClick={() => toggleMutation.mutate({ id: item.id, isPass: !item.isPass })}
+                        disabled={toggleMutation.isPending}
+                        title={item.isPass ? "Batalkan lulus" : "Tandai lulus"}
+                      >
+                        {item.isPass ? (
+                          <CheckSquare className="size-5 text-emerald-500" />
+                        ) : (
+                          <Square className="size-5 text-muted-foreground" />
+                        )}
+                      </button>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm break-words ${item.isPass ? "text-foreground" : "text-muted-foreground"}`}>{item.qcItem}</p>
-                        {item.inspectedBy && <p className="text-[10px] text-muted-foreground">Diperiksa: {item.inspectedBy}</p>}
+                        <p className="text-[10px] text-muted-foreground h-3.5 leading-3.5">
+                          {item.inspectedBy ? `Diperiksa: ${item.inspectedBy}` : "\u00A0"}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        <span className={`text-xs font-medium ${item.isPass ? "text-emerald-600" : "text-muted-foreground"}`}>
-                          {item.isPass ? "LULUS" : "BELUM"}
-                        </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {item.isPass && (
+                          <button
+                            type="button"
+                            onClick={() => toggleMutation.mutate({ id: item.id, isPass: false })}
+                            disabled={toggleMutation.isPending}
+                            className="text-[10px] font-medium text-emerald-600 border border-emerald-200 rounded px-1.5 py-0.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+                            title="Batalkan lulus"
+                          >
+                            LULUS
+                          </button>
+                        )}
+                        {!item.isPass && (
+                          <span className="text-[10px] font-medium text-muted-foreground">BELUM</span>
+                        )}
                         {!QC_ITEMS.includes(item.qcItem) && (
                           <Button
                             variant="ghost"
