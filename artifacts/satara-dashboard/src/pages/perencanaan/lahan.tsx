@@ -346,6 +346,11 @@ export default function LahanPage() {
     queryFn: () => fetch(`/api/planning/siteplan?projectId=${form.projectId}&_t=${Date.now()}`).then(r => r.json()),
     enabled: !!form.projectId,
   });
+  const { data: planningStages = [] } = useQuery<any[]>({
+    queryKey: ["planning-stages", form.projectId],
+    queryFn: () => fetch(`/api/planning/stages?projectId=${form.projectId}`).then(r => r.json()),
+    enabled: !!form.projectId,
+  });
   const selectedSiteplan = (siteplans as any[]).find(s => s.id === activeSiteplanId) ?? (siteplans as any[])[0] ?? null;
   const { data: siteplanShapes = [], refetch: refetchShapes } = useQuery({
     queryKey: ["planning-siteplan-shapes", selectedSiteplan?.id],
@@ -2247,7 +2252,16 @@ export default function LahanPage() {
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <Label className="text-[10px]">Blok</Label>
-                            <Input className="h-7 text-xs" value={batchUnitForm.blockPrefix} onChange={e => setBatchUnitForm(p => ({ ...p, blockPrefix: e.target.value.toUpperCase() }))} placeholder="A" />
+                            <Input 
+                              className="h-7 text-xs" 
+                              maxLength={1}
+                              value={batchUnitForm.blockPrefix} 
+                              onChange={e => {
+                                const val = e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase();
+                                setBatchUnitForm(p => ({ ...p, blockPrefix: val }));
+                              }} 
+                              placeholder="A" 
+                            />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px]">Nomor Mulai</Label>
@@ -2263,7 +2277,26 @@ export default function LahanPage() {
                           </p>
                           <div className="space-y-1">
                             <Label className="text-[10px]">Tahap</Label>
-                            <Input className="h-7 text-xs" value={batchUnitForm.stageCode} onChange={e => setBatchUnitForm(p => ({ ...p, stageCode: e.target.value.toUpperCase() }))} placeholder="T1" />
+                            <Select 
+                              value={batchUnitForm.stageCode || "T1"} 
+                              onValueChange={v => setBatchUnitForm(p => ({ ...p, stageCode: v }))}
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder="T1" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="T1">T1 (Default)</SelectItem>
+                                {Array.isArray(planningStages) && planningStages.map((stage: any) => {
+                                  const code = stage.stageCode || "";
+                                  if (code === "T1") return null;
+                                  return (
+                                    <SelectItem key={code} value={code}>
+                                      {code} ({stage.stageName || `Tahap ${code}`})
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px]">Tipe</Label>
@@ -2385,9 +2418,10 @@ export default function LahanPage() {
                             <Label className="text-[11px] font-semibold">Kode Blok</Label>
                             <Input
                               className="h-8 text-sm"
+                              maxLength={1}
                               value={shapeDraft.blockCode}
                               onChange={e => {
-                                const newBlock = e.target.value.toUpperCase();
+                                const newBlock = e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase();
                                 setShapeDraft(p => {
                                   const nextNum = getNextNumberForBlock(newBlock);
                                   const newLabel = `${newBlock}-${nextNum}`;
@@ -2407,7 +2441,7 @@ export default function LahanPage() {
                                   };
                                 });
                               }}
-                              placeholder="Blok A"
+                              placeholder="A"
                             />
                           </div>
 
@@ -2426,12 +2460,26 @@ export default function LahanPage() {
 
                           <div className="space-y-1 text-xs">
                             <Label className="text-[11px] font-semibold">Tahap</Label>
-                            <Input
-                              className="h-8 text-sm"
-                              value={shapeDraft.stageCode}
-                              onChange={e => setShapeDraft(p => ({ ...p, stageCode: e.target.value.toUpperCase() }))}
-                              placeholder="T1"
-                            />
+                            <Select 
+                              value={shapeDraft.stageCode || "T1"} 
+                              onValueChange={v => setShapeDraft(p => ({ ...p, stageCode: v }))}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Pilih Tahap" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="T1">T1 (Default)</SelectItem>
+                                {Array.isArray(planningStages) && planningStages.map((stage: any) => {
+                                  const code = stage.stageCode || "";
+                                  if (code === "T1") return null;
+                                  return (
+                                    <SelectItem key={code} value={code}>
+                                      {code} ({stage.stageName || `Tahap ${code}`})
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
                           </div>
 
                           <div className="space-y-1 text-xs">
