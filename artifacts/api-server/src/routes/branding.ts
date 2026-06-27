@@ -74,8 +74,18 @@ router.get("/branding/dashboard", async (req, res) => {
     const organicLeadContrib = 30;
     const brandHealthScore = Math.round((reachScore + engScore + contentCompletion + sentimentComp + organicLeadContrib) / 5);
 
+    const hasData = (
+      socialKpis.length > 0 ||
+      sentimentRows.length > 0 ||
+      trustRows.length > 0 ||
+      projectScores.length > 0 ||
+      founderRows.length > 0 ||
+      pipeline.posted > 0
+    );
+
     res.json({
       brandHealthScore,
+      hasData,
       totalReach,
       engagementRate: Math.round(engagementRate * 10) / 10,
       sentimentScore: Math.round(sentimentScore * 10) / 10,

@@ -218,7 +218,13 @@ function renderSubNav(items: SubNavItem[], location: string) {
           );
         }
         const isRootPath = ["/hr", "/finance", "/marketing", "/produksi", "/branding", "/legal", "/akuisisi", "/administrasi", "/perencanaan"].includes(sub.path);
-        const isSubActive = location === sub.path || (!isRootPath && location.startsWith(sub.path + "/"));
+        const hasMoreSpecificMatch = items.some(item =>
+          item.type === "link" &&
+          item.path !== sub.path &&
+          item.path.startsWith(sub.path + "/") &&
+          (location === item.path || location.startsWith(item.path + "/"))
+        );
+        const isSubActive = location === sub.path || (!isRootPath && location.startsWith(sub.path + "/") && !hasMoreSpecificMatch);
         return (
           <SidebarMenuItem key={sub.path}>
             <SidebarMenuButton asChild isActive={isSubActive} className="h-6 pl-5">

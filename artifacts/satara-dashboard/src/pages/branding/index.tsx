@@ -3,14 +3,14 @@ import { Link } from "wouter";
 import { TrendingUp, Users, Eye, MessageCircle, Star, BarChart3, Zap, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function ScoreGauge({ score, label }: { score: number; label: string }) {
-  const color = score >= 80 ? "text-emerald-600" : score >= 60 ? "text-amber-500" : "text-red-500";
-  const bgColor = score >= 80 ? "bg-emerald-50 border-emerald-200" : score >= 60 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
-  const badge = score >= 80 ? "SEHAT" : score >= 60 ? "WASPADA" : "KRITIS";
-  const badgeColor = score >= 80 ? "bg-emerald-100 text-emerald-700" : score >= 60 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+function ScoreGauge({ score, label, hasData = true }: { score: number; label: string; hasData?: boolean }) {
+  const color = !hasData ? "text-slate-400" : score >= 80 ? "text-emerald-600" : score >= 60 ? "text-amber-500" : "text-red-500";
+  const bgColor = !hasData ? "bg-slate-50 border-slate-200" : score >= 80 ? "bg-emerald-50 border-emerald-200" : score >= 60 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
+  const badge = !hasData ? "BELUM ADA DATA" : score >= 80 ? "SEHAT" : score >= 60 ? "WASPADA" : "KRITIS";
+  const badgeColor = !hasData ? "bg-slate-100 text-slate-600" : score >= 80 ? "bg-emerald-100 text-emerald-700" : score >= 60 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
   return (
     <div className={cn("rounded-xl border-2 p-6 flex flex-col items-center gap-2", bgColor)}>
-      <div className={cn("text-6xl font-black", color)}>{score}</div>
+      <div className={cn("text-6xl font-black", color)}>{hasData ? score : "N/A"}</div>
       <div className="text-sm text-slate-500 font-medium">/ 100</div>
       <span className={cn("px-3 py-1 rounded-full text-xs font-bold tracking-wide", badgeColor)}>{badge}</span>
       <div className="text-sm text-slate-600 mt-1">{label}</div>
@@ -83,15 +83,15 @@ export default function BrandingDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
-          <ScoreGauge score={d.brandHealthScore ?? 0} label="Brand Health Score" />
+          <ScoreGauge score={d.brandHealthScore ?? 0} label="Brand Health Score" hasData={d.hasData} />
           <div className="mt-4 space-y-2">
             {healthComponents.map(c => (
               <div key={c.label} className="flex items-center gap-2">
                 <div className="text-xs text-slate-500 w-32 shrink-0">{c.label}</div>
                 <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-                  <div className={cn("h-1.5 rounded-full", c.score >= 80 ? "bg-emerald-500" : c.score >= 60 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${c.score}%` }} />
+                  <div className={cn("h-1.5 rounded-full", !d.hasData ? "bg-slate-300" : c.score >= 80 ? "bg-emerald-500" : c.score >= 60 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${d.hasData ? c.score : 0}%` }} />
                 </div>
-                <div className="text-xs font-medium text-slate-700 w-8 text-right">{c.score}</div>
+                <div className="text-xs font-medium text-slate-700 w-8 text-right">{d.hasData ? c.score : "-"}</div>
                 <div className="text-xs text-slate-400 w-6">{c.bobot}</div>
               </div>
             ))}

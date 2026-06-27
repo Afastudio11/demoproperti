@@ -2922,7 +2922,7 @@ export default function Akuisisi() {
 
       {tab === "peta" && (
         <div className="flex flex-col gap-3">
-          <div className="min-h-0" style={{ height: "620px" }}>
+          <div className="min-h-0" style={{ height: "calc(100vh - 170px)" }}>
             <SulselAcquisitionMap
               onSelectProspect={(id) => { setSelectedId(id); if (!id) setTerrainData(null); }}
               onTerrainData={(d) => { setTerrainData(d as TerrainData); setTerrainLoading(false); }}
