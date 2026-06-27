@@ -281,6 +281,15 @@ export default function Projects() {
                     <div className="text-[10px] text-muted-foreground mb-0.5">Status</div>
                     <div className="font-medium capitalize">{project.status}</div>
                   </div>
+
+                  {Array.isArray((project as any).subkonNames) && (project as any).subkonNames.length > 0 && (
+                    <div className="col-span-2 mt-1.5 pt-1.5 border-t border-border/40">
+                      <div className="text-[10px] text-muted-foreground mb-0.5">Subkontraktor</div>
+                      <div className="font-medium text-xs text-foreground truncate" title={(project as any).subkonNames.join(", ")}>
+                        {(project as any).subkonNames.join(", ")}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

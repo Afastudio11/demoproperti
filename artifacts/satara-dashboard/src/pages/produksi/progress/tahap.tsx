@@ -7,7 +7,7 @@ import { Link, useLocation } from "wouter";
 const fmtPct = (n: number) => `${Math.round(n)}%`;
 const BASELINE: Record<number, number> = { 1: 10, 2: 25, 3: 40, 4: 55, 5: 70, 6: 85, 7: 95, 8: 100 };
 
-type Unit = { id: number; blok: string; nomor: string; tipe: string; progress: number; stageCode: string | null; weekStarted: number | null };
+type Unit = { id: number; blok: string; nomor: string; tipe: string; progress: number; stageCode: string | null; weekStarted: number | null; subkonName?: string | null };
 type ProjectRow = { projectId: number; projectName: string; units: Unit[] };
 
 export default function ProgressTahap() {
@@ -79,6 +79,7 @@ export default function ProgressTahap() {
             const avg = data.units.reduce((s, u) => s + u.progress, 0) / data.units.length;
             const ahead = data.units.filter(u => getDeviation(u) >= 5).length;
             const critical = data.units.filter(u => getDeviation(u) <= -15).length;
+            const subkons = Array.from(new Set(data.units.map(u => u.subkonName).filter(Boolean)));
             return (
               <Card 
                 key={stageCode}
@@ -90,9 +91,14 @@ export default function ProgressTahap() {
               >
                 <CardHeader className="pb-2 pt-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">{stageCode}</CardTitle>
+                    <CardTitle className="text-sm font-bold">{stageCode}</CardTitle>
                     <span className="text-xs text-muted-foreground">{data.units.length} unit</span>
                   </div>
+                  {subkons.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={subkons.join(", ")}>
+                      Subkon: {subkons.join(", ")}
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>

@@ -240,11 +240,35 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
 
   const existingUnits = await db.select().from(unitsTable).where(eq(unitsTable.projectId, block.projectId));
   const unitShapes = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, block.projectId));
-  for (let i = 1; i <= block.unitCount; i++) {
-    const nomor = String(i).padStart(2, "0");
+
+  // Find all unit shapes already drawn for this block and stage
+  const matchingShapes = unitShapes.filter(shape => {
+    if (shape.shapeType !== "unit") return false;
+    const ref = parseUnitRef(shape);
+    return (
+      ref.blockCode === block.blockCode.toUpperCase() &&
+      String(shape.stageCode ?? "").toUpperCase() === block.stageCode.toUpperCase()
+    );
+  });
+
+  // Determine the list of unit numbers to sync (using visual shape labels or sequential fallback)
+  const nomorsToSync = new Set<string>();
+  if (matchingShapes.length > 0) {
+    for (const shape of matchingShapes) {
+      const ref = parseUnitRef(shape);
+      if (ref.nomor) nomorsToSync.add(ref.nomor.toUpperCase());
+    }
+  } else {
+    for (let i = 1; i <= block.unitCount; i++) {
+      nomorsToSync.add(String(i).padStart(2, "0"));
+    }
+  }
+
+  for (const nomorRaw of nomorsToSync) {
+    const nomor = nomorRaw;
     const existing = existingUnits.find(unit =>
       unit.blok.toUpperCase() === block.blockCode.toUpperCase()
-      && unit.nomor.toLowerCase() === nomor.toLowerCase()
+      && unit.nomor.toUpperCase() === nomor
     );
     const values = {
       projectId: block.projectId,
@@ -271,7 +295,7 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
     const matchingShape = unitShapes.find(shape => {
       if (shape.shapeType !== "unit") return false;
       const ref = parseUnitRef(shape);
-      return ref.blockCode === block.blockCode.toUpperCase() && ref.nomor.toLowerCase() === nomor.toLowerCase();
+      return ref.blockCode === block.blockCode.toUpperCase() && ref.nomor.toUpperCase() === nomor;
     });
     if (matchingShape && unitId) {
       await db.update(planningSiteplanShapesTable)
@@ -535,6 +559,11 @@ router.post("/planning/stages/bulk", async (req, res) => {
         await db.insert(planningStageBlocksTable).values(blockRows);
       }
     }
+
+    // Calculate total unit count across all planning stages for this project
+    const allStages = await db.select().from(planningStagesTable).where(eq(planningStagesTable.projectId, projectId));
+    const totalUnitCount = allStages.reduce((sum, stage) => sum + (stage.totalUnits ?? 0), 0);
+    await db.update(projectsTable).set({ totalUnit: totalUnitCount }).where(eq(projectsTable.id, projectId));
 
     await cleanupDeletedPlanningData(projectId);
     res.json(await enrichStages(projectId));

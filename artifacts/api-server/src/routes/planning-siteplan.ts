@@ -117,7 +117,9 @@ async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect
     if (row.progress != null) values.progress = Number(row.progress);
     if (row.subkonName) values.subkonName = row.subkonName;
     if (row.subkonId) values.subkonId = row.subkonId;
-    if (row.stageCode || row.blockCode) values.stageCode = row.stageCode || row.blockCode;
+    if (row.stageCode || row.blockCode) {
+      values.stageCode = row.stageCode || (/^T?\d+$/i.test(row.blockCode ?? "") ? row.blockCode : null);
+    }
     if (Object.keys(values).length > 0) {
       await db.update(unitsTable).set(values).where(eq(unitsTable.id, found.id));
     }
@@ -131,7 +133,7 @@ async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect
     harga: 0,
     status: row.unitStatus || "available",
     progress: Number(row.progress ?? 0),
-    stageCode: row.stageCode || row.blockCode || null,
+    stageCode: row.stageCode || (/^T?\d+$/i.test(row.blockCode ?? "") ? row.blockCode : null),
     subkonId: row.subkonId || null,
     subkonName: row.subkonName || null,
   }).returning();

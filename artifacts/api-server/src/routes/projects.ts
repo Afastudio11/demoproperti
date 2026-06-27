@@ -4,7 +4,7 @@ import {
   projectsTable, unitsTable, landProspectsTable, legalDocumentsTable,
   leadsTable, customersTable, constructionTasksTable,
   unitQcTable, handoversTable, qcDefectsTable, reworksTable,
-  planningSiteplanShapesTable
+  planningSiteplanShapesTable, planningStageBlocksTable
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
@@ -15,13 +15,31 @@ router.get("/projects", async (req, res) => {
   try {
     const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
     const all = req.query.all === "1" || req.query.all === "true" || req.query.includeHr === "1" || req.query.includeHr === "true";
-    const allProjects = await db.select().from(projectsTable);
+    
+    const [allProjects, blocks] = await Promise.all([
+      db.select().from(projectsTable),
+      db.select().from(planningStageBlocksTable),
+    ]);
+
+    const blocksByProject = new Map<number, string[]>();
+    for (const b of blocks) {
+      const name = String(b.subkonName ?? "").trim();
+      if (name) {
+        const list = blocksByProject.get(b.projectId) ?? [];
+        if (!list.includes(name)) {
+          list.push(name);
+          blocksByProject.set(b.projectId, list);
+        }
+      }
+    }
+
     let projects = includeArchived ? allProjects : allProjects.filter(p => p.status !== "archived");
     if (!all) {
       projects = projects.filter(p => p.fase !== "SCALE" && p.fase !== "KANTOR");
     }
     res.json(projects.map(p => ({
       ...p,
+      subkonNames: blocksByProject.get(p.id) ?? [],
       targetStart: p.targetStart ?? null,
       targetEnd: p.targetEnd ?? null,
       lat: p.lat ?? null,
