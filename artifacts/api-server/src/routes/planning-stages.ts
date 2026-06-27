@@ -104,11 +104,13 @@ async function getSiteplanBaseline(projectId: number) {
     if (!ref.stageCode) unallocatedUnitLabels.push(cleanText(shape.label));
     const stageCode = ref.stageCode;
     const blockCode = ref.blockCode || parseBlockFromLabel(shape.label);
-    const keys = [
-      `${stageCode}::${blockCode}`,
-      `::${blockCode}`,
-    ];
-    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+    if (stageCode) {
+      const key = `${stageCode}::${blockCode}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    } else {
+      const key = `::${blockCode}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
   }
   return {
     shapes,
@@ -456,6 +458,19 @@ router.post("/planning/stages/bulk", async (req, res) => {
     const existing = await db.select().from(planningStagesTable).where(eq(planningStagesTable.projectId, projectId));
     const lockedStages = existing.filter(stage => stage.lockedAt);
     const lockedKeys = new Set(lockedStages.map(stage => cleanStageCode(stage.stageCode, "").toUpperCase()));
+
+    // 1. First pre-processing pass: auto-assign all unallocated shapes of any defined stage/block
+    for (const [stageIndex, stage] of inputStages.entries()) {
+      const stageCode = cleanStageCode(stage.stageCode, `T${stageIndex + 1}`);
+      if (lockedKeys.has(stageCode)) continue;
+      const blocks = (stage.blocks ?? []).filter(block => cleanText(block.blockCode));
+      for (const block of blocks) {
+        const blockCode = cleanCode(block.blockCode, "A");
+        await assignUnallocatedShapesToStage(projectId, stageCode, blockCode);
+      }
+    }
+
+    // 2. Fetch baseline summary after auto-assigning so all shapes are correctly mapped
     const baseline = await getSiteplanBaseline(projectId);
     if (baseline.totalUnitShapes <= 0) return res.status(400).json({ error: "Belum ada unit rumah di siteplan. Gambar unit di Analisis Lahan dulu." });
     if (baseline.duplicateLabels.length) return res.status(409).json({ error: `Label unit siteplan duplikat: ${baseline.duplicateLabels.join(", ")}` });
@@ -495,11 +510,7 @@ router.post("/planning/stages/bulk", async (req, res) => {
         const blockRows = [];
         for (const block of blocks) {
           const blockCode = cleanCode(block.blockCode, "A");
-          const drawn = baseline.counts.get(`${stageCode}::${blockCode}`) ?? baseline.counts.get(`::${blockCode}`) ?? 0;
-          if (!baseline.counts.get(`${stageCode}::${blockCode}`) && baseline.counts.get(`::${blockCode}`)) {
-            await assignUnallocatedShapesToStage(projectId, stageCode, blockCode);
-          }
-          const unitCount = drawn;
+          const unitCount = baseline.counts.get(`${stageCode}::${blockCode}`) ?? baseline.counts.get(`::${blockCode}`) ?? 0;
           const pricePerUnit = numberValue(block.pricePerUnit);
           const subkonValuePerUnit = numberValue(block.subkonValuePerUnit);
           const master = await resolveSubkonMaster({ subkonId: block.subkonId, subkonName: block.subkonName, allowCreate: true });
