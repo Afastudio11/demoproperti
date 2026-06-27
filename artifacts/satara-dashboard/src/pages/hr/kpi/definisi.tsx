@@ -272,11 +272,49 @@ export default function KpiDefinisi() {
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Bobot (%)</label><NumericInput value={form.weight ?? 0} onChange={v => setForm((f: any) => ({ ...f, weight: v }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               </div>
               {form.dataSource === "otomatis" && (
-                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Modul Sumber</label>
-                  <select value={form.sourceModule ?? ""} onChange={e => setForm((f: any) => ({ ...f, sourceModule: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option value="">— Pilih modul —</option>
-                    {["Marketing", "Administrasi KPR", "Legal", "Produksi", "Finance"].map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Modul Sumber Data (pilih satu atau lebih)</label>
+                  <div className="border rounded-lg p-2.5 space-y-2 bg-muted/20">
+                    {Object.entries({
+                      "Marketing": ["Unit Terjual", "Lead Masuk", "Booking", "Berkas KPR", "Survey Rate", "Konversi Lead"],
+                      "Administrasi KPR": ["Akad Ditandatangani", "SP3K", "KPR Cair", "Berkas Lengkap"],
+                      "Legal": ["Permit Readiness", "SHM Split", "Akuisisi Lahan", "Penyelesaian Issue"],
+                      "Produksi": ["Progress Pembangunan", "QC Score", "Unit Selesai", "Velocity Unit"],
+                      "Finance": ["Cash Flow", "Revenue", "HPP", "Profit Margin"],
+                    }).map(([mod, subs]) => {
+                      const current: string[] = (() => {
+                        try { const p = JSON.parse(form.sourceModule ?? "[]"); return Array.isArray(p) ? p : []; } catch { return (form.sourceModule ?? "").split(",").map((s: string) => s.trim()).filter(Boolean); }
+                      })();
+                      const modChecked = subs.some(s => current.includes(`${mod}>${s}`));
+                      const toggle = (key: string) => {
+                        const next = current.includes(key) ? current.filter(x => x !== key) : [...current, key];
+                        setForm((f: any) => ({ ...f, sourceModule: JSON.stringify(next) }));
+                      };
+                      return (
+                        <div key={mod} className="space-y-1">
+                          <p className={`text-[11px] font-semibold ${modChecked ? "text-foreground" : "text-muted-foreground"}`}>{mod}</p>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 pl-2">
+                            {subs.map(sub => {
+                              const key = `${mod}>${sub}`;
+                              const checked = current.includes(key);
+                              return (
+                                <label key={key} className="flex items-center gap-1.5 cursor-pointer">
+                                  <input type="checkbox" checked={checked} onChange={() => toggle(key)} className="rounded" />
+                                  <span className={`text-xs ${checked ? "font-medium text-foreground" : "text-muted-foreground"}`}>{sub}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {(() => {
+                      const current: string[] = (() => { try { const p = JSON.parse(form.sourceModule ?? "[]"); return Array.isArray(p) ? p : []; } catch { return []; } })();
+                      return current.length > 0 && (
+                        <p className="text-[10px] text-muted-foreground border-t pt-1.5">Dipilih: {current.join(", ")}</p>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
             </div>

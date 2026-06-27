@@ -192,7 +192,7 @@ export default function QcChecklist() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">
-                  {items.map(item => (
+                  {[...items].sort((a, b) => a.id - b.id).map(item => (
                     <div
                       key={item.id}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-md ${item.isPass ? "bg-emerald-500/5" : "bg-muted/20"}`}

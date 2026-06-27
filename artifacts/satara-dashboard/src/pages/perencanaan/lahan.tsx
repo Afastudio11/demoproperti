@@ -1819,7 +1819,7 @@ export default function LahanPage() {
                     return (
                       <button key={shape.id} type="button" className="flex w-full items-center gap-2 border-b last:border-0 px-2 py-1.5 text-left text-xs hover:bg-muted/40" onClick={() => startEditShape(shape)}>
                         <span className="font-medium w-16 truncate">{label}</span>
-                        <span className="text-muted-foreground flex-1 truncate">{shape.blockCode || "Tanpa tahap"} · {shape.unitType || "Tanpa tipe"}</span>
+                        <span className="text-muted-foreground flex-1 truncate">{shape.shapeType === "unit" ? `${shape.blockCode || "—"} · ${shape.unitType || "Tanpa tipe"}` : shape.shapeType === "bidang" ? "Land Bank" : shape.shapeType === "blok" ? "Blok/Cluster" : "Jalan/Fasum"}</span>
                         {(invalid || duplicate || missingStage || incomplete) ? <Badge variant="outline" className="text-[10px]">cek</Badge> : <Badge className="text-[10px]">ok</Badge>}
                       </button>
                     );
@@ -2218,35 +2218,135 @@ export default function LahanPage() {
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1"><Label className="text-xs">Tipe Shape</Label><Select value={shapeDraft.shapeType} onValueChange={v => setShapeDraft(p => ({ ...p, shapeType: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unit">Unit Rumah</SelectItem><SelectItem value="bidang">Bidang Lahan</SelectItem><SelectItem value="blok">Blok/Cluster</SelectItem><SelectItem value="fasum">Jalan/Fasum</SelectItem></SelectContent></Select></div>
-                  <div className="space-y-1"><Label className="text-xs">Label</Label><Input className="h-8 text-sm" value={shapeDraft.label} onChange={e => setShapeDraft(p => ({ ...p, label: e.target.value }))} placeholder="A-01 / Bidang 1" /></div>
-                  {shapeDraft.shapeType !== "unit" && (
-                    <>
-                      <div className="space-y-1"><Label className="text-xs">Pemilik</Label><Input className="h-8 text-sm" value={shapeDraft.ownerName} onChange={e => setShapeDraft(p => ({ ...p, ownerName: e.target.value }))} /></div>
-                      <div className="space-y-1"><Label className="text-xs">Status Beli</Label><Select value={shapeDraft.purchaseStatus} onValueChange={v => setShapeDraft(p => ({ ...p, purchaseStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibeli", "proses_nego", "dp", "lunas", "sudah_dibeli", "milik_sendiri"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="space-y-1"><Label className="text-xs">Luas</Label><NumericInput className="h-8 text-sm" value={shapeDraft.landArea} onChange={v => setShapeDraft(p => ({ ...p, landArea: v }))} /></div>
-                      <div className="space-y-1"><Label className="text-xs">Rencana Unit</Label><NumericInput className="h-8 text-sm" value={shapeDraft.plannedUnits} onChange={v => setShapeDraft(p => ({ ...p, plannedUnits: Math.round(v) }))} /></div>
-                    </>
-                  )}
-                  {shapeDraft.shapeType === "unit" && (
-                    <>
-                      <div className="space-y-1"><Label className="text-xs">Lebar Kotak (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.width} onChange={v => updateBoxDraft({ width: Math.max(0.5, v) })} /></div>
-                      <div className="space-y-1"><Label className="text-xs">Tinggi Kotak (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.height} onChange={v => updateBoxDraft({ height: Math.max(0.5, v) })} /></div>
-                      <div className="space-y-1"><Label className="text-xs">Rotasi</Label><NumericInput className="h-8 text-sm" decimals={0} value={boxDraft.rotation} onChange={v => updateBoxDraft({ rotation: v })} /></div>
-                      <div className="space-y-1"><Label className="text-xs">Jumlah Copy</Label><NumericInput className="h-8 text-sm" decimals={0} value={boxDraft.count} onChange={v => updateBoxDraft({ count: Math.max(1, Math.round(v)) })} /></div>
-                      <div className="space-y-1"><Label className="text-xs">Jarak Copy (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.gap} onChange={v => updateBoxDraft({ gap: Math.max(0, v) })} /></div>
-                      <div className="space-y-1"><Label className="text-xs">Arah Copy</Label><Select value={boxDraft.direction} onValueChange={v => updateBoxDraft({ direction: v as BoxDraft["direction"] })}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="right">Kanan</SelectItem><SelectItem value="left">Kiri</SelectItem><SelectItem value="down">Bawah</SelectItem><SelectItem value="up">Atas</SelectItem></SelectContent></Select></div>
-                    </>
-                  )}
-                  <div className="space-y-1"><Label className="text-xs">Tipe Rumah</Label><Input className="h-8 text-sm" value={shapeDraft.unitType} onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))} /></div>
-                          <div className="space-y-1"><Label className="text-xs">Tahap</Label><Input className="h-8 text-sm" value={shapeDraft.blockCode} onChange={e => setShapeDraft(p => ({ ...p, blockCode: e.target.value.toUpperCase() }))} placeholder="T1" /></div>
-                          <div className="space-y-1"><Label className="text-xs">Status Unit</Label><Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
-                          <div className="space-y-1 col-span-2"><Label className="text-xs">Link Unit Produksi</Label><Select value={shapeDraft.unitId || "none"} onValueChange={v => {
-                            const unit = (units as any[]).find(u => String(u.id) === v);
-                            setShapeDraft(p => ({ ...p, unitId: v === "none" ? "" : v, label: unit ? `${unit.blok}-${unit.nomor}` : p.label, unitType: unit?.tipe ?? p.unitType, subkonName: unit?.subkonName ?? p.subkonName, progress: unit?.progress ?? p.progress }));
-                          }}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Belum link</SelectItem>{(units as any[]).map(u => <SelectItem key={u.id} value={String(u.id)}>{u.blok}-{u.nomor} · {u.tipe}</SelectItem>)}</SelectContent></Select></div>
+                {/* === Unit shapes: key info (label, blok, tipe, status, subkon, link) === */}
+                {shapeDraft.shapeType === "unit" && (
+                  <div className="rounded-lg border bg-background p-2.5 space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Info Unit</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Label (Nomor)</Label>
+                        <Input className="h-8 text-sm font-mono" value={shapeDraft.label} onChange={e => setShapeDraft(p => ({ ...p, label: e.target.value }))} placeholder="A-01" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Kode Blok</Label>
+                        <Input className="h-8 text-sm" value={shapeDraft.blockCode} onChange={e => setShapeDraft(p => ({ ...p, blockCode: e.target.value.toUpperCase() }))} placeholder="A" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Tipe Rumah</Label>
+                        <Input className="h-8 text-sm" value={shapeDraft.unitType} onChange={e => setShapeDraft(p => ({ ...p, unitType: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Status Unit</Label>
+                        <Select value={shapeDraft.unitStatus} onValueChange={v => setShapeDraft(p => ({ ...p, unitStatus: v }))}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {["belum_dibuka", "akan_dibangun", "sedang_dibangun", "selesai", "terjual_akad", "bermasalah_rework"].map(s => (
+                              <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {shapeDraft.subkonName && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Subkon</Label>
+                          <div className="h-8 text-sm px-3 flex items-center border rounded-md bg-muted/30 text-muted-foreground truncate">{shapeDraft.subkonName}</div>
                         </div>
+                      )}
+                      <div className={`space-y-1 ${shapeDraft.subkonName ? "" : "col-span-2"}`}>
+                        <Label className="text-xs">Link Unit Produksi</Label>
+                        <Select value={shapeDraft.unitId || "none"} onValueChange={v => {
+                          const unit = (units as any[]).find(u => String(u.id) === v);
+                          setShapeDraft(p => ({ ...p, unitId: v === "none" ? "" : v, label: unit ? `${unit.blok}-${unit.nomor}` : p.label, unitType: unit?.tipe ?? p.unitType, subkonName: unit?.subkonName ?? p.subkonName, progress: unit?.progress ?? p.progress }));
+                        }}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Belum link</SelectItem>
+                            {(units as any[]).map(u => <SelectItem key={u.id} value={String(u.id)}>{u.blok}-{u.nomor} · {u.tipe}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* === Non-unit shapes: label + specific fields === */}
+                {shapeDraft.shapeType !== "unit" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1 col-span-2">
+                      <Label className="text-xs">Label</Label>
+                      <Input className="h-8 text-sm" value={shapeDraft.label} onChange={e => setShapeDraft(p => ({ ...p, label: e.target.value }))} placeholder="Bidang 1" />
+                    </div>
+                    {shapeDraft.shapeType === "bidang" && (
+                      <>
+                        <div className="space-y-1"><Label className="text-xs">Pemilik</Label><Input className="h-8 text-sm" value={shapeDraft.ownerName} onChange={e => setShapeDraft(p => ({ ...p, ownerName: e.target.value }))} /></div>
+                        <div className="space-y-1"><Label className="text-xs">Status Beli</Label><Select value={shapeDraft.purchaseStatus} onValueChange={v => setShapeDraft(p => ({ ...p, purchaseStatus: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent>{["belum_dibeli", "proses_nego", "dp", "lunas", "sudah_dibeli", "milik_sendiri"].map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-1"><Label className="text-xs">Luas (m²)</Label><NumericInput className="h-8 text-sm" value={shapeDraft.landArea} onChange={v => setShapeDraft(p => ({ ...p, landArea: v }))} /></div>
+                        <div className="space-y-1"><Label className="text-xs">Rencana Unit</Label><NumericInput className="h-8 text-sm" value={shapeDraft.plannedUnits} onChange={v => setShapeDraft(p => ({ ...p, plannedUnits: Math.round(v) }))} /></div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* === ALL geometry + serial copy — ONE container === */}
+                <div className="rounded-lg border bg-muted/30 p-2.5 space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Pengaturan Shape</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1"><Label className="text-xs">Tipe Shape</Label><Select value={shapeDraft.shapeType} onValueChange={v => setShapeDraft(p => ({ ...p, shapeType: v }))}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unit">Unit Rumah</SelectItem><SelectItem value="bidang">Bidang Lahan</SelectItem><SelectItem value="blok">Blok/Cluster</SelectItem><SelectItem value="fasum">Jalan/Fasum</SelectItem></SelectContent></Select></div>
+                    {shapeDraft.shapeType === "unit" && (
+                      <>
+                        <div className="space-y-1"><Label className="text-xs">Lebar Kotak (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.width} onChange={v => updateBoxDraft({ width: Math.max(0.5, v) })} /></div>
+                        <div className="space-y-1"><Label className="text-xs">Tinggi Kotak (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.height} onChange={v => updateBoxDraft({ height: Math.max(0.5, v) })} /></div>
+                        <div className="space-y-1"><Label className="text-xs">Rotasi</Label><NumericInput className="h-8 text-sm" decimals={0} value={boxDraft.rotation} onChange={v => updateBoxDraft({ rotation: v })} /></div>
+                        <div className="space-y-1"><Label className="text-xs">Jumlah Copy</Label><NumericInput className="h-8 text-sm" decimals={0} value={boxDraft.count} onChange={v => updateBoxDraft({ count: Math.max(1, Math.round(v)) })} /></div>
+                        <div className="space-y-1"><Label className="text-xs">Jarak Copy (%)</Label><NumericInput className="h-8 text-sm" decimals={1} value={boxDraft.gap} onChange={v => updateBoxDraft({ gap: Math.max(0, v) })} /></div>
+                        <div className="space-y-1"><Label className="text-xs">Arah Copy</Label><Select value={boxDraft.direction} onValueChange={v => updateBoxDraft({ direction: v as BoxDraft["direction"] })}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="right">Kanan</SelectItem><SelectItem value="left">Kiri</SelectItem><SelectItem value="down">Bawah</SelectItem><SelectItem value="up">Atas</SelectItem></SelectContent></Select></div>
+                      </>
+                    )}
+                  </div>
+                  {/* Serial Copy merged into geometry container */}
+                  {editingShapeId && draftPoints.length >= 3 && (
+                    <div className="border-t pt-2 space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Salin Serial</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Label Mulai</Label>
+                          <Input className="h-7 text-xs font-mono" value={serialCopy.startLabel} onChange={e => setSerialCopy(p => ({ ...p, startLabel: e.target.value }))} placeholder="A-04" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Jumlah Salinan</Label>
+                          <NumericInput className="h-7 text-xs" decimals={0} value={serialCopy.count} onChange={v => setSerialCopy(p => ({ ...p, count: Math.max(1, Math.round(v)) }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Arah</Label>
+                          <Select value={serialCopy.direction} onValueChange={v => setSerialCopy(p => ({ ...p, direction: v as BoxDraft["direction"] }))}>
+                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="right">Kanan</SelectItem>
+                              <SelectItem value="left">Kiri</SelectItem>
+                              <SelectItem value="down">Bawah</SelectItem>
+                              <SelectItem value="up">Atas</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Jarak (%)</Label>
+                          <NumericInput className="h-7 text-xs" decimals={1} value={serialCopy.gap} onChange={v => setSerialCopy(p => ({ ...p, gap: Math.max(0, v) }))} />
+                        </div>
+                      </div>
+                      {serialCopy.startLabel && (
+                        <p className="text-[9px] font-mono text-muted-foreground bg-muted rounded px-1.5 py-1">
+                          {Array.from({ length: Math.min(serialCopy.count, 6) }, (_, i) => nextLabel(serialCopy.startLabel, i)).join(" · ")}
+                          {serialCopy.count > 6 ? ` · ... (+${serialCopy.count - 6})` : ""}
+                        </p>
+                      )}
+                      <Button size="sm" className="w-full h-7 text-xs" onClick={batchSerialCopy} disabled={isSaving || !serialCopy.startLabel || serialCopy.count < 1}>
+                        Buat {serialCopy.count} Salinan Serial
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Movement buttons + save indicator */}
                         {editingShapeId && (
                           <div className="grid grid-cols-4 gap-1">
                             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => moveDraft(0, -1)}>Atas</Button>
@@ -2273,67 +2373,6 @@ export default function LahanPage() {
                             </Button>
                           )}
                         </div>
-                        {/* Serial Copy — shown when a shape is being edited */}
-                        {editingShapeId && draftPoints.length >= 3 && (
-                          <div className="rounded-lg border bg-muted/30 p-2.5 space-y-2">
-                            <Label className="text-xs font-semibold">Salin Serial</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-[10px] text-muted-foreground">Label Mulai</Label>
-                                <Input
-                                  className="h-7 text-xs font-mono"
-                                  value={serialCopy.startLabel}
-                                  onChange={e => setSerialCopy(p => ({ ...p, startLabel: e.target.value }))}
-                                  placeholder="A-04"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-[10px] text-muted-foreground">Jumlah Salinan</Label>
-                                <NumericInput
-                                  className="h-7 text-xs"
-                                  decimals={0}
-                                  value={serialCopy.count}
-                                  onChange={v => setSerialCopy(p => ({ ...p, count: Math.max(1, Math.round(v)) }))}
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-[10px] text-muted-foreground">Arah</Label>
-                                <Select value={serialCopy.direction} onValueChange={v => setSerialCopy(p => ({ ...p, direction: v as BoxDraft["direction"] }))}>
-                                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="right">Kanan</SelectItem>
-                                    <SelectItem value="left">Kiri</SelectItem>
-                                    <SelectItem value="down">Bawah</SelectItem>
-                                    <SelectItem value="up">Atas</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-[10px] text-muted-foreground">Jarak (%)</Label>
-                                <NumericInput
-                                  className="h-7 text-xs"
-                                  decimals={1}
-                                  value={serialCopy.gap}
-                                  onChange={v => setSerialCopy(p => ({ ...p, gap: Math.max(0, v) }))}
-                                />
-                              </div>
-                            </div>
-                            {serialCopy.startLabel && (
-                              <p className="text-[9px] font-mono text-muted-foreground bg-muted rounded px-1.5 py-1">
-                                {Array.from({ length: Math.min(serialCopy.count, 6) }, (_, i) => nextLabel(serialCopy.startLabel, i)).join(" · ")}
-                                {serialCopy.count > 6 ? ` · ... (+${serialCopy.count - 6})` : ""}
-                              </p>
-                            )}
-                            <Button
-                              size="sm"
-                              className="w-full h-7 text-xs"
-                              onClick={batchSerialCopy}
-                              disabled={isSaving || !serialCopy.startLabel || serialCopy.count < 1}
-                            >
-                              Buat {serialCopy.count} Salinan Serial
-                            </Button>
-                          </div>
-                        )}
                 <div className="rounded-md border divide-y max-h-56 overflow-auto">
                   {shapeList.length === 0 ? <p className="p-3 text-xs text-muted-foreground">Belum ada shape.</p> : shapeList.map(shape => (
                     <div key={shape.id} className="flex items-center justify-between gap-2 p-2">

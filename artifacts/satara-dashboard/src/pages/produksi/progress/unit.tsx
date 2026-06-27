@@ -594,7 +594,7 @@ export default function ProgressUnit() {
             const targetProgress = unit.weekStarted ? BASELINE[Math.min(8, unit.weekStarted)] ?? 100 : null;
 
             return (
-              <Card key={unit.id} className={`transition-all ${isExpanded ? "ring-1 ring-primary/30" : ""}`}>
+              <Card key={unit.id} className={`transition-colors ${isExpanded ? "ring-1 ring-primary/30" : ""}`}>
                 <div
                   className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
                   onClick={() => {
@@ -667,7 +667,7 @@ export default function ProgressUnit() {
                               <span className="text-xs font-semibold">{fmtPct(unit.progress)} selesai</span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
-                              {unit.tasks.map(task => (
+                              {[...unit.tasks].sort((a, b) => a.id - b.id).map(task => (
                                 <div
                                   key={task.id}
                                   onClick={() => taskMutation.mutate({ id: task.id, status: task.status === "selesai" ? "belum_mulai" : "selesai" })}

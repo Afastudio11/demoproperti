@@ -1,4 +1,4 @@
-import { db, subkonContractsTable, subkonMasterTable } from "@workspace/db";
+import { db, projectsTable, subkonContractsTable, subkonMasterTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 export type SubkonMasterOption = {
@@ -31,13 +31,16 @@ export function normalizedSubkonKey(value: unknown): string {
 }
 
 export async function listSubkonMaster(projectId?: number): Promise<SubkonMasterOption[]> {
-  const [masters, contracts] = await Promise.all([
+  const [masters, contracts, projects] = await Promise.all([
     db.select().from(subkonMasterTable),
     db.select().from(subkonContractsTable),
+    db.select({ id: projectsTable.id, status: projectsTable.status }).from(projectsTable),
   ]);
+  const archivedIds = new Set(projects.filter(p => p.status === "archived").map(p => p.id));
+  const activeContracts = contracts.filter(c => !archivedIds.has(c.projectId));
   const filtered = Number.isFinite(projectId)
-    ? contracts.filter((contract) => contract.projectId === projectId)
-    : contracts;
+    ? activeContracts.filter((contract) => contract.projectId === projectId)
+    : activeContracts;
 
   const stats = new Map<string, Pick<SubkonMasterOption, "contractCount" | "activeContractCount" | "projectIds">>();
 
