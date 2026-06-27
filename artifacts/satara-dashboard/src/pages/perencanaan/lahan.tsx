@@ -51,8 +51,8 @@ function normalizePolygon(coords: Array<[number, number]>): CanvasPoint[] {
   const rangeX = Math.max(0.000001, maxX - minX);
   const rangeY = Math.max(0.000001, maxY - minY);
   return points.map(p => ({
-    x: Math.round((8 + ((p.rawX - minX) / rangeX) * 84) * 10) / 10,
-    y: Math.round((8 + ((maxY - p.rawY) / rangeY) * 84) * 10) / 10,
+    x: Math.round((8 + ((p.rawX - minX) / rangeX) * 84) * 10000) / 10000,
+    y: Math.round((8 + ((maxY - p.rawY) / rangeY) * 84) * 10000) / 10000,
   }));
 }
 
@@ -90,8 +90,8 @@ function rectanglePoints(cx: number, cy: number, width: number, height: number, 
     { x: -width / 2, y: height / 2 },
   ];
   return corners.map(point => ({
-    x: Math.round(Math.max(0, Math.min(100, cx + point.x * Math.cos(rad) - point.y * Math.sin(rad))) * 10) / 10,
-    y: Math.round(Math.max(0, Math.min(100, cy + point.x * Math.sin(rad) + point.y * Math.cos(rad))) * 10) / 10,
+    x: Math.round(Math.max(0, Math.min(100, cx + point.x * Math.cos(rad) - point.y * Math.sin(rad))) * 10000) / 10000,
+    y: Math.round(Math.max(0, Math.min(100, cy + point.x * Math.sin(rad) + point.y * Math.cos(rad))) * 10000) / 10000,
   }));
 }
 
@@ -111,8 +111,8 @@ function polygonBounds(points: CanvasPoint[]) {
     maxX: Math.max(...xs),
     minY: Math.min(...ys),
     maxY: Math.max(...ys),
-    width: Math.max(0.5, Math.round((Math.max(...xs) - Math.min(...xs)) * 10) / 10),
-    height: Math.max(0.5, Math.round((Math.max(...ys) - Math.min(...ys)) * 10) / 10),
+    width: Math.max(0.5, Math.round((Math.max(...xs) - Math.min(...xs)) * 10000) / 10000),
+    height: Math.max(0.5, Math.round((Math.max(...ys) - Math.min(...ys)) * 10000) / 10000),
   };
 }
 
@@ -171,7 +171,7 @@ function resizeBox(points: CanvasPoint[], edgeOrCorner: string | number, target:
     { x: maxX, y: minY },
     { x: maxX, y: maxY },
     { x: minX, y: maxY },
-  ].map(point => ({ x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10 }));
+  ].map(point => ({ x: Math.round(point.x * 10000) / 10000, y: Math.round(point.y * 10000) / 10000 }));
 }
 
 function isUnitRectangleDraft(shapeType: string, points: CanvasPoint[]) {
@@ -184,16 +184,16 @@ function rotateAround(points: CanvasPoint[], center: CanvasPoint, angleDeg: numb
     const dx = point.x - center.x;
     const dy = point.y - center.y;
     return {
-      x: Math.round(Math.max(0, Math.min(100, center.x + dx * Math.cos(rad) - dy * Math.sin(rad))) * 10) / 10,
-      y: Math.round(Math.max(0, Math.min(100, center.y + dx * Math.sin(rad) + dy * Math.cos(rad))) * 10) / 10,
+      x: Math.round(Math.max(0, Math.min(100, center.x + dx * Math.cos(rad) - dy * Math.sin(rad))) * 10000) / 10000,
+      y: Math.round(Math.max(0, Math.min(100, center.y + dx * Math.sin(rad) + dy * Math.cos(rad))) * 10000) / 10000,
     };
   });
 }
 
 function offsetPoints(points: CanvasPoint[], dx: number, dy: number) {
   return points.map(point => ({
-    x: Math.round(Math.max(0, Math.min(100, point.x + dx)) * 10) / 10,
-    y: Math.round(Math.max(0, Math.min(100, point.y + dy)) * 10) / 10,
+    x: Math.round(Math.max(0, Math.min(100, point.x + dx)) * 10000) / 10000,
+    y: Math.round(Math.max(0, Math.min(100, point.y + dy)) * 10000) / 10000,
   }));
 }
 
@@ -566,8 +566,8 @@ export default function LahanPage() {
     const innerX = (e.clientX - rect.left - canvasPan.x) / canvasZoom;
     const innerY = (e.clientY - rect.top - canvasPan.y) / canvasZoom;
     return {
-      x: Math.round(Math.max(0, Math.min(100, (innerX / rect.width) * 100)) * 10) / 10,
-      y: Math.round(Math.max(0, Math.min(100, (innerY / rect.height) * 100)) * 10) / 10,
+      x: Math.round(Math.max(0, Math.min(100, (innerX / rect.width) * 100)) * 10000) / 10000,
+      y: Math.round(Math.max(0, Math.min(100, (innerY / rect.height) * 100)) * 10000) / 10000,
     };
   }
 
@@ -789,10 +789,12 @@ export default function LahanPage() {
         imageRef.current?.setPointerCapture(e.pointerId);
         return;
       }
-      // ── Click on background: deselect active shape ──
+      // ── Click on background: deselect active shape and start panning ──
       const hitShape = shapeAtPoint(point);
       if (!hitShape) {
         resetDraft();
+        dragRef.current = { mode: "pan", lastX: e.clientX, lastY: e.clientY };
+        imageRef.current?.setPointerCapture(e.pointerId);
       }
       return;
     }
@@ -1086,8 +1088,8 @@ export default function LahanPage() {
   function moveDraft(dx: number, dy: number) {
     setDraftPoints(points => {
       const next = points.map(p => ({
-        x: Math.max(0, Math.min(100, Math.round((p.x + dx) * 10) / 10)),
-        y: Math.max(0, Math.min(100, Math.round((p.y + dy) * 10) / 10)),
+        x: Math.max(0, Math.min(100, Math.round((p.x + dx) * 10000) / 10000)),
+        y: Math.max(0, Math.min(100, Math.round((p.y + dy) * 10000) / 10000)),
       }));
       draftPointsRef.current = next;
       return next;
