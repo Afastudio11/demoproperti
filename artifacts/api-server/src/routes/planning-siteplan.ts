@@ -299,6 +299,20 @@ router.post("/planning/siteplan/:id/shapes", async (req, res) => {
 
     const body = { ...req.body };
     if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
+
+    // Clean up empty strings for numeric/integer fields to avoid PostgreSQL errors
+    const numFields = ["landArea", "price", "plannedUnits", "unitId", "subkonId", "progress", "customerId", "sortOrder"];
+    for (const field of numFields) {
+      if (field in body) {
+        if (body[field] === "" || body[field] === null || body[field] === "none") {
+          body[field] = null;
+        } else {
+          const val = Number(body[field]);
+          body[field] = isNaN(val) ? null : val;
+        }
+      }
+    }
+
     const validationError = validateUnitShapePayload(body);
     if (validationError) return res.status(400).json({ error: validationError });
 
@@ -332,6 +346,20 @@ router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
     const shapeId = Number(req.params.shapeId);
     const body = { ...req.body };
     if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
+
+    // Clean up empty strings for numeric/integer fields to avoid PostgreSQL errors
+    const numFields = ["landArea", "price", "plannedUnits", "unitId", "subkonId", "progress", "customerId", "sortOrder"];
+    for (const field of numFields) {
+      if (field in body) {
+        if (body[field] === "" || body[field] === null || body[field] === "none") {
+          body[field] = null;
+        } else {
+          const val = Number(body[field]);
+          body[field] = isNaN(val) ? null : val;
+        }
+      }
+    }
+
     const [existingShape] = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
     if (!existingShape) return res.status(404).json({ error: "Shape tidak ditemukan" });
     const validationError = validateUnitShapePayload({ ...existingShape, ...body });
