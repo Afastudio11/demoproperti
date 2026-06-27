@@ -254,16 +254,81 @@ export default function TahapanPage() {
     setStages(prev => [...prev, newStage(prev.length)]);
   }
 
-  function removeStage(index: number) {
-    setStages(prev => prev.filter((_, i) => i !== index));
+  async function removeStage(index: number) {
+    const stage = stages[index];
+    if (stage.id) {
+      if (!confirm(`Hapus ${stage.stageName} beserta semua unit produksi dan data terkait?`)) return;
+    }
+    const updated = stages.filter((_, i) => i !== index);
+    setStages(updated);
+    if (projectId) {
+      setIsSaving(true);
+      try {
+        const resp = await fetch("/api/planning/stages/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId, stages: updated }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          setStages(data.map(normalizeStage));
+          const summary = await fetch(`/api/planning/stages/siteplan-summary?projectId=${projectId}`).then(r => r.json()).catch(() => null);
+          if (summary && !summary.error) setBaselineSummary(summary);
+          await qc.invalidateQueries({ queryKey: ["planning-stages", projectId] });
+          toast({ title: "Tahap berhasil dihapus dan disinkronkan ke produksi" });
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (err) {
+        toast({ title: "Gagal menghapus", description: err instanceof Error ? err.message : "Terjadi kesalahan", variant: "destructive" });
+      } finally {
+        setIsSaving(false);
+      }
+    }
   }
 
   function addBlock(stageIdx: number) {
     setStages(prev => prev.map((stage, i) => i === stageIdx ? { ...stage, blocks: [...stage.blocks, newBlock(stage.blocks.length)] } : stage));
   }
 
-  function removeBlock(stageIdx: number, blockIdx: number) {
-    setStages(prev => prev.map((stage, i) => i === stageIdx ? { ...stage, blocks: stage.blocks.filter((_, j) => j !== blockIdx) } : stage));
+  async function removeBlock(stageIdx: number, blockIdx: number) {
+    const stage = stages[stageIdx];
+    const block = stage.blocks[blockIdx];
+    if (block.id) {
+      if (!confirm(`Hapus Blok ${block.blockCode} dari ${stage.stageName} beserta semua unit produksi terkait?`)) return;
+    }
+    const updated = stages.map((s, i) => {
+      if (i !== stageIdx) return s;
+      return {
+        ...s,
+        blocks: s.blocks.filter((_, j) => j !== blockIdx),
+      };
+    });
+    setStages(updated);
+    if (projectId) {
+      setIsSaving(true);
+      try {
+        const resp = await fetch("/api/planning/stages/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId, stages: updated }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          setStages(data.map(normalizeStage));
+          const summary = await fetch(`/api/planning/stages/siteplan-summary?projectId=${projectId}`).then(r => r.json()).catch(() => null);
+          if (summary && !summary.error) setBaselineSummary(summary);
+          await qc.invalidateQueries({ queryKey: ["planning-stages", projectId] });
+          toast({ title: "Blok berhasil dihapus dan disinkronkan ke produksi" });
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (err) {
+        toast({ title: "Gagal menghapus", description: err instanceof Error ? err.message : "Terjadi kesalahan", variant: "destructive" });
+      } finally {
+        setIsSaving(false);
+      }
+    }
   }
 
   async function saveDraft() {
