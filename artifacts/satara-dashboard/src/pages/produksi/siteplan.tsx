@@ -459,9 +459,9 @@ export default function ProduksiSiteplan() {
               {/* World container — pan+zoom applied here */}
               <div
                 style={{
-                  position: "absolute",
-                  inset: 0,
-                  transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+                  position: "relative",
+                  width: "100%",
+                  transform: `translate3d(${panX}px, ${panY}px, 0) scale(${zoom})`,
                   transformOrigin: "0 0",
                 }}>
 
@@ -471,7 +471,7 @@ export default function ProduksiSiteplan() {
                     src={imageData}
                     alt="Siteplan"
                     draggable={false}
-                    className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                    className="w-full select-none pointer-events-none origin-center block"
                     style={{
                       opacity: imgOpacity,
                       transform: `translate(${imgTx}%, ${imgTy}%) scale(${imgScale})`,
@@ -479,7 +479,7 @@ export default function ProduksiSiteplan() {
                     }}
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                  <div className="h-[520px] flex items-center justify-center text-xs text-muted-foreground bg-muted/30">
                     Memuat gambar siteplan...
                   </div>
                 )}
