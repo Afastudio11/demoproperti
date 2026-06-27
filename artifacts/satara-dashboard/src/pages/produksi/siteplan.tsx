@@ -226,14 +226,41 @@ export default function ProduksiSiteplan() {
     });
     doc.setTextColor(0, 0, 0);
 
-    const mapX = 14, mapY = 38, mapW = 185, mapH = 135;
+    const maxW = 185, maxH = 135;
     doc.setFillColor(240, 240, 240);
-    doc.roundedRect(mapX, mapY, mapW, mapH, 2, 2, "F");
+    doc.roundedRect(14, 38, maxW, maxH, 2, 2, "F");
 
     let imgData = imageData;
     if (!imgData && siteplanId) {
       try { const r = await fetch(`/api/planning/siteplan/${siteplanId}`); imgData = (await r.json()).imageDataUrl ?? null; } catch { /* skip */ }
     }
+
+    const getImgSize = (src: string): Promise<{ w: number; h: number }> => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => resolve({ w: 100, h: 100 });
+        img.src = src;
+      });
+    };
+
+    let ar = maxW / maxH; // fallback aspect ratio
+    if (imgData) {
+      try {
+        const size = await getImgSize(imgData);
+        if (size.w && size.h) ar = size.w / size.h;
+      } catch {}
+    }
+
+    let mapW = maxW;
+    let mapH = maxW / ar;
+    if (mapH > maxH) {
+      mapH = maxH;
+      mapW = maxH * ar;
+    }
+    const mapX = 14 + (maxW - mapW) / 2;
+    const mapY = 38 + (maxH - mapH) / 2;
+
     if (imgData) {
       const fmt = String(imgData).startsWith("data:image/png") ? "PNG" : "JPEG";
       try { doc.addImage(imgData, fmt, mapX + (mapW * imgTx) / 100, mapY + (mapH * imgTy) / 100, mapW * imgScale, mapH * imgScale, undefined, "FAST"); } catch { /* skip */ }
@@ -280,7 +307,7 @@ export default function ProduksiSiteplan() {
       { label: "Terjual/Akad", rgb: [59, 130, 246] as [number, number, number] },
       { label: "Fasum", rgb: [190, 220, 240] as [number, number, number] },
     ];
-    let lx = mapX + mapW + 6, ly = mapY;
+    let lx = 14 + 185 + 6, ly = 38;
     doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
     doc.text("Legenda", lx, ly + 4);
     doc.setFont("helvetica", "normal");
