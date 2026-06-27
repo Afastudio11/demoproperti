@@ -35,7 +35,7 @@ router.get("/public/payment-proof/:token", async (req, res) => {
       : [];
 
     const docId = `SPK-${String(contract?.id ?? 0).padStart(4, "0")}-P${String(payment.id).padStart(5, "0")}`;
-    const isPaid = payment.status === "paid";
+    const isPaid = payment.status === "paid" || payment.status === "approved";
 
     res.json({
       verified: isPaid,
