@@ -895,7 +895,7 @@ export default function LahanPage() {
       setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height, count: 1, rotation: 0 }));
       setDrawTool("select");
       // Auto-save immediately — no Simpan button needed
-      const autoLabel = shapeDraft.label.trim() || nextUnitLabel();
+      const autoLabel = nextUnitLabel();
       autoSaveNewShape(finalPoints, autoLabel).then(saved => {
         if (saved) {
           setDraftPoints([]);
@@ -1530,7 +1530,7 @@ export default function LahanPage() {
   useEffect(() => {
     if (!polygonClosed || editingShapeId || draftPoints.length < 3) return;
     if (isUnitRectangleDraft(shapeDraft.shapeType, draftPoints)) return; // handled by draw-box
-    const autoLabel = shapeDraft.label.trim() || nextShapeLabel(shapeDraft.shapeType);
+    const autoLabel = nextShapeLabel(shapeDraft.shapeType);
     autoSaveNewShape(draftPoints, autoLabel).then(saved => {
       if (saved) {
         setDraftPoints([]);
@@ -2301,7 +2301,14 @@ export default function LahanPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Kode Blok</Label>
-                        <Input className="h-8 text-sm" value={shapeDraft.blockCode} onChange={e => setShapeDraft(p => ({ ...p, blockCode: e.target.value.toUpperCase() }))} placeholder="A" />
+                        <Input className="h-8 text-sm" value={shapeDraft.blockCode} onChange={e => {
+                          const newBlock = e.target.value.toUpperCase();
+                          setShapeDraft(p => {
+                            const numMatch = String(p.label ?? "").match(/-(\d+)$/);
+                            const newLabel = newBlock && numMatch ? `${newBlock}-${numMatch[1]}` : p.label;
+                            return { ...p, blockCode: newBlock, label: newLabel };
+                          });
+                        }} placeholder="A" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Tipe Rumah</Label>
