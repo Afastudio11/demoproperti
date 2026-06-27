@@ -28,6 +28,21 @@ const EMPTY = { position: "", division: DIVISIONS[0], kpiName: "", description: 
 
 type FilterMode = "divisi" | "jabatan";
 
+function formatSourceModule(sourceModule: string | null) {
+  if (!sourceModule) return "";
+  try {
+    if (sourceModule.startsWith("[")) {
+      const arr = JSON.parse(sourceModule);
+      if (Array.isArray(arr)) {
+        return arr.map(s => s.replace(">", " › ")).join(", ");
+      }
+    }
+  } catch (e) {
+    // fallback
+  }
+  return sourceModule.replace(">", " › ");
+}
+
 export default function KpiDefinisi() {
   const qc = useQueryClient();
   const [form, setForm] = useState<any>(EMPTY);
@@ -224,7 +239,7 @@ export default function KpiDefinisi() {
                           <td className="text-center px-3 py-2 font-semibold">{d.weight}%</td>
                           <td className="text-center px-3 py-2">
                             <span className={cn("px-2 py-0.5 rounded-full text-[11px]", d.dataSource === "otomatis" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600")}>
-                              {d.dataSource === "otomatis" ? `Auto (${d.sourceModule})` : "Manual"}
+                              {d.dataSource === "otomatis" ? `Auto (${formatSourceModule(d.sourceModule)})` : "Manual"}
                             </span>
                           </td>
                           <td className="px-2 py-2">
