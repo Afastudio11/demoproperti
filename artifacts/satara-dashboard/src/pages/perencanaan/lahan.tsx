@@ -2285,16 +2285,27 @@ export default function LahanPage() {
                                 <SelectValue placeholder="T1" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="T1">T1 (Default)</SelectItem>
-                                {Array.isArray(planningStages) && planningStages.map((stage: any) => {
-                                  const code = stage.stageCode || "";
-                                  if (code === "T1") return null;
-                                  return (
-                                    <SelectItem key={code} value={code}>
-                                      {code} ({stage.stageName || `Tahap ${code}`})
-                                    </SelectItem>
-                                  );
-                                })}
+                                {(() => {
+                                  const defaultStages = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12"];
+                                  const allCodes = [...defaultStages];
+                                  if (Array.isArray(planningStages)) {
+                                    for (const s of planningStages) {
+                                      const code = (s.stageCode || "").toUpperCase();
+                                      if (code && !allCodes.includes(code)) {
+                                        allCodes.push(code);
+                                      }
+                                    }
+                                  }
+                                  return allCodes.map(code => {
+                                    const dbStage = Array.isArray(planningStages) ? planningStages.find(s => (s.stageCode || "").toUpperCase() === code) : null;
+                                    const label = dbStage?.stageName ? `${code} (${dbStage.stageName})` : `${code} (Tahap ${code.slice(1)})`;
+                                    return (
+                                      <SelectItem key={code} value={code}>
+                                        {code === "T1" ? "T1 (Default)" : label}
+                                      </SelectItem>
+                                    );
+                                  });
+                                })()}
                               </SelectContent>
                             </Select>
                           </div>
@@ -2468,16 +2479,27 @@ export default function LahanPage() {
                                 <SelectValue placeholder="Pilih Tahap" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="T1">T1 (Default)</SelectItem>
-                                {Array.isArray(planningStages) && planningStages.map((stage: any) => {
-                                  const code = stage.stageCode || "";
-                                  if (code === "T1") return null;
-                                  return (
-                                    <SelectItem key={code} value={code}>
-                                      {code} ({stage.stageName || `Tahap ${code}`})
-                                    </SelectItem>
-                                  );
-                                })}
+                                {(() => {
+                                  const defaultStages = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12"];
+                                  const allCodes = [...defaultStages];
+                                  if (Array.isArray(planningStages)) {
+                                    for (const s of planningStages) {
+                                      const code = (s.stageCode || "").toUpperCase();
+                                      if (code && !allCodes.includes(code)) {
+                                        allCodes.push(code);
+                                      }
+                                    }
+                                  }
+                                  return allCodes.map(code => {
+                                    const dbStage = Array.isArray(planningStages) ? planningStages.find(s => (s.stageCode || "").toUpperCase() === code) : null;
+                                    const label = dbStage?.stageName ? `${code} (${dbStage.stageName})` : `${code} (Tahap ${code.slice(1)})`;
+                                    return (
+                                      <SelectItem key={code} value={code}>
+                                        {code === "T1" ? "T1 (Default)" : label}
+                                      </SelectItem>
+                                    );
+                                  });
+                                })()}
                               </SelectContent>
                             </Select>
                           </div>
