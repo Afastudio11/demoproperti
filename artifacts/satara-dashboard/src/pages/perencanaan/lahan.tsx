@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { calcLandAnalysis, calcMaxUnits, fmtCurrency } from "@/lib/planning-calc";
-import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload, ZoomIn, ZoomOut, Lock, Unlock, RefreshCw, Pencil } from "lucide-react";
+import { Copy, Hand, MousePointer2, Move, Redo2, Save, Square, Download, MapPin, Plus, Trash2, Undo2, Upload, ZoomIn, ZoomOut, Lock, Unlock, RefreshCw, Pencil, ChevronDown } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import SubkonSelect from "@/components/subkon-select";
@@ -364,6 +364,7 @@ export default function LahanPage() {
 
   const [isEditingProjName, setIsEditingProjName] = useState(false);
   const [projNameInput, setProjNameInput] = useState("");
+  const [showRingkasan, setShowRingkasan] = useState(false);
 
   const activeProject = useMemo(() => {
     if (!form.projectId || !projects) return null;
@@ -587,9 +588,18 @@ export default function LahanPage() {
   // unit → "A-01", bidang → "B-01", akuisisi → "AKS-01", others → "X-01"
   function nextShapeLabel(shapeType: string) {
     const existing = shapeList.map(shape => String(shape.label ?? ""));
-    const prefix = shapeType === "bidang" ? "B" : shapeType === "akuisisi" ? "AKS" : "A";
+    let prefix = "A";
+    if (shapeType === "bidang") {
+      prefix = "B";
+    } else if (shapeType === "akuisisi") {
+      prefix = "AKS";
+    } else if (shapeType === "unit") {
+      prefix = shapeDraft.blockCode.trim().toUpperCase() || "A";
+    }
     let index = 1;
-    while (existing.includes(`${prefix}-${String(index).padStart(2, "0")}`)) index += 1;
+    while (existing.includes(`${prefix}-${String(index).padStart(2, "0")}`) || existing.includes(`${prefix}-${index}`)) {
+      index += 1;
+    }
     return `${prefix}-${String(index).padStart(2, "0")}`;
   }
   // Backward-compat alias
@@ -1449,13 +1459,14 @@ export default function LahanPage() {
       if (shape.id === editingShapeId) return null;
       const isSelected = selectedShapeIds.includes(shape.id);
       const isLocked = !!shape.isLocked;
-      const color = shapeColor(shape, shape.id === editingShapeId || isSelected);
-      const poly = Array.isArray(shape.polygon) ? shape.polygon as CanvasPoint[] : [];
+      const currentShape = shape.id === editingShapeId ? { ...shape, ...shapeDraft } : shape;
+      const color = shapeColor(currentShape, shape.id === editingShapeId || isSelected);
+      const poly = Array.isArray(currentShape.polygon) ? currentShape.polygon as CanvasPoint[] : [];
       const center = poly.length >= 3 ? polygonCenter(poly) : null;
       return (
         <g key={shape.id}>
           <polygon
-            points={polygonPoints(shape.polygon)}
+            points={polygonPoints(currentShape.polygon)}
             fill={isLocked ? color.fill.replace(/,[^,)]+\)$/, ",0.35)") : color.fill}
             stroke={isLocked ? "#d97706" : color.stroke}
             strokeWidth={isSelected ? 0.55 * sw : 0.3 * sw}
@@ -1481,14 +1492,14 @@ export default function LahanPage() {
               vectorEffect="non-scaling-stroke"
               style={{ pointerEvents: "none", userSelect: "none" }}
             >
-              {shape.label}
+              {currentShape.label}
             </text>
           )}
         </g>
       );
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, drawTool]);
+  }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, drawTool, shapeDraft]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -2255,38 +2266,49 @@ export default function LahanPage() {
                     </div>
                   )}
                   <div className="rounded-md border bg-background p-2 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold">Ringkasan Tahap/Termin</span>
-                      <Badge variant={unallocatedUnitShapes.length ? "outline" : "secondary"} className="text-[10px]">
-                        {unallocatedUnitShapes.length ? `${unallocatedUnitShapes.length} belum` : "Lengkap"}
-                      </Badge>
-                    </div>
-                    {siteplanGroups.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground">Belum ada unit rumah di siteplan.</p>
-                    ) : (
-                      <div className="max-h-40 overflow-y-auto rounded border">
-                        <table className="w-full text-[11px]">
-                          <thead className="bg-muted/40">
-                            <tr>
-                              {["Tahap", "Blok", "Termin", "Unit", "Progress"].map(h => <th key={h} className="px-2 py-1 text-left font-medium text-muted-foreground">{h}</th>)}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {siteplanGroups.map(group => (
-                              <tr key={`${group.stageCode}-${group.blockCode}-${group.terminGroup}`} className="border-t">
-                                <td className="px-2 py-1 font-medium">{group.stageCode}</td>
-                                <td className="px-2 py-1">{group.blockCode}</td>
-                                <td className="px-2 py-1">{group.terminGroup}</td>
-                                <td className="px-2 py-1">{group.count}</td>
-                                <td className="px-2 py-1">{group.avgProgress}%</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    <button
+                      type="button"
+                      onClick={() => setShowRingkasan(!showRingkasan)}
+                      className="flex items-center justify-between w-full text-left cursor-pointer focus:outline-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold">Ringkasan Tahap/Termin</span>
+                        <Badge variant={unallocatedUnitShapes.length ? "outline" : "secondary"} className="text-[10px]">
+                          {unallocatedUnitShapes.length ? `${unallocatedUnitShapes.length} belum` : "Lengkap"}
+                        </Badge>
                       </div>
-                    )}
-                    {unallocatedUnitShapes.length > 0 && (
-                      <p className="text-[10px] text-amber-600">Unit belum masuk tahap: {unallocatedUnitShapes.slice(0, 5).map(s => s.label).join(", ")}{unallocatedUnitShapes.length > 5 ? "..." : ""}</p>
+                      <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform duration-200", showRingkasan && "rotate-180")} />
+                    </button>
+                    {showRingkasan && (
+                      <div className="space-y-2 pt-1 border-t border-border/40">
+                        {siteplanGroups.length === 0 ? (
+                          <p className="text-[11px] text-muted-foreground">Belum ada unit rumah di siteplan.</p>
+                        ) : (
+                          <div className="max-h-40 overflow-y-auto rounded border">
+                            <table className="w-full text-[11px]">
+                              <thead className="bg-muted/40">
+                                <tr>
+                                  {["Tahap", "Blok", "Termin", "Unit", "Progress"].map(h => <th key={h} className="px-2 py-1 text-left font-medium text-muted-foreground">{h}</th>)}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {siteplanGroups.map(group => (
+                                  <tr key={`${group.stageCode}-${group.blockCode}-${group.terminGroup}`} className="border-t">
+                                    <td className="px-2 py-1 font-medium">{group.stageCode}</td>
+                                    <td className="px-2 py-1">{group.blockCode}</td>
+                                    <td className="px-2 py-1">{group.terminGroup}</td>
+                                    <td className="px-2 py-1">{group.count}</td>
+                                    <td className="px-2 py-1">{group.avgProgress}%</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {unallocatedUnitShapes.length > 0 && (
+                          <p className="text-[10px] text-amber-600">Unit belum masuk tahap: {unallocatedUnitShapes.slice(0, 5).map(s => s.label).join(", ")}{unallocatedUnitShapes.length > 5 ? "..." : ""}</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2304,8 +2326,15 @@ export default function LahanPage() {
                         <Input className="h-8 text-sm" value={shapeDraft.blockCode} onChange={e => {
                           const newBlock = e.target.value.toUpperCase();
                           setShapeDraft(p => {
-                            const numMatch = String(p.label ?? "").match(/-(\d+)$/);
-                            const newLabel = newBlock && numMatch ? `${newBlock}-${numMatch[1]}` : p.label;
+                            const trimmed = String(p.label ?? "").trim();
+                            const match = trimmed.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
+                            let newLabel = p.label;
+                            if (match) {
+                              const separator = trimmed.includes("-") ? "-" : trimmed.includes(" ") ? " " : trimmed.includes("_") ? "_" : "-";
+                              newLabel = newBlock ? `${newBlock}${separator}${match[2]}` : match[2];
+                            } else {
+                              newLabel = newBlock ? `${newBlock}-${p.label}` : p.label;
+                            }
                             return { ...p, blockCode: newBlock, label: newLabel };
                           });
                         }} placeholder="A" />
