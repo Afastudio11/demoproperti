@@ -493,6 +493,17 @@ function createDraftIcon() {
   return L.divIcon({ html: svg, className: "", iconSize: [32, 48], iconAnchor: [16, 48], popupAnchor: [0, -48] });
 }
 
+function createProjectIcon(active = false) {
+  const s = active ? 34 : 28;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 40" width="${s}" height="${Math.round(s * 1.25)}">
+    <path d="M16 1C8.3 1 2 7.3 2 15c0 10.5 14 24 14 24s14-13.5 14-24C30 7.3 23.7 1 16 1z" fill="#111827" stroke="#ffffff" stroke-width="2"/>
+    <path d="M9.5 17.5h13v9h-13z" fill="#ffffff"/>
+    <path d="M8 17.8 16 10l8 7.8" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M14 26.5v-5h4v5" fill="#111827"/>
+  </svg>`;
+  return L.divIcon({ html: svg, className: "", iconSize: [s, Math.round(s * 1.25)], iconAnchor: [s / 2, Math.round(s * 1.25)], popupAnchor: [0, -Math.round(s * 1.15)] });
+}
+
 function formatLuas(n: number) {
   return n >= 10000 ? `${(n / 10000).toFixed(2)} Ha` : `${n.toLocaleString("id-ID")} m²`;
 }
@@ -737,6 +748,20 @@ interface FormState {
   lokasi: string; luas: string; hargaM2: string; roi: string; aksesJalan: string;
 }
 
+export interface ProjectMapItem {
+  id: number;
+  nama: string;
+  lokasi?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  totalUnit?: number | null;
+  fase?: string | null;
+  status?: string | null;
+  kabupaten?: string | null;
+  kecamatan?: string | null;
+  desa?: string | null;
+}
+
 function GeomanControl({ drawMode, onCreated, onDisable }: {
   drawMode: boolean;
   onCreated: (p: DrawnPoly) => void;
@@ -839,6 +864,35 @@ function ProspectMarker({ p, selected, onSelect, onDeselect }: {
         </Marker>
       )}
     </>
+  );
+}
+
+function ProjectMarker({ project }: { project: ProjectMapItem }) {
+  if (project.lat == null || project.lng == null) return null;
+  return (
+    <Marker position={[project.lat, project.lng]} icon={createProjectIcon()}>
+      <Popup maxWidth={280}>
+        <div style={{ fontFamily: "inherit", minWidth: 230 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{project.nama}</div>
+          <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
+            {[project.desa, project.kecamatan, project.kabupaten].filter(Boolean).join(", ") || project.lokasi || "Lokasi belum lengkap"}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 }}>
+            {[
+              { label: "Status", value: project.status ?? "-" },
+              { label: "Fase", value: project.fase ?? "-" },
+              { label: "Total Unit", value: `${project.totalUnit ?? 0} unit` },
+              { label: "Sumber", value: "Daftar Proyek" },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ background: "#f9fafb", borderRadius: 5, padding: "3px 7px", border: "1px solid #e5e7eb" }}>
+                <div style={{ fontSize: 10, color: "#9ca3af" }}>{label}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Popup>
+    </Marker>
   );
 }
 
@@ -993,7 +1047,7 @@ export interface PolygonReadyData {
   geoStr?: string;
 }
 
-export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly, clearKey, externalFlyTarget, onDrillChange }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean; clearKey?: number; externalFlyTarget?: [number, number, number] | null; onDrillChange?: (drill: DrillState) => void } = {}) {
+export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, onPolygonReady, readOnly, clearKey, externalFlyTarget, onDrillChange, projects = [] }: { onSelectProspect?: (id: number | null) => void; onTerrainData?: (data: TerrainResult | null) => void; onPolygonReady?: (data: PolygonReadyData) => void; readOnly?: boolean; clearKey?: number; externalFlyTarget?: [number, number, number] | null; onDrillChange?: (drill: DrillState) => void; projects?: ProjectMapItem[] } = {}) {
   const { data: prospects, refetch } = useListLandProspects({});
   const [layer, setLayer] = useState<LayerKey>("satellite");
   const [showLabel, setShowLabel] = useState(false);
@@ -1031,6 +1085,7 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
 
   const placedCount = (prospects ?? []).filter((p) => p.lat != null || p.polygonCoords).length;
   const unplacedCount = (prospects ?? []).length - placedCount;
+  const mappedProjects = projects.filter((project) => project.lat != null && project.lng != null);
 
   const handleMapClick = useCallback(async (lat: number, lng: number) => {
     setDraft({ lat, lng, lokasi: "", kelurahan: "", kecamatan: "", kabupaten: "", loading: true });
@@ -1292,6 +1347,9 @@ export default function SulselAcquisitionMap({ onSelectProspect, onTerrainData, 
                 onSelect={() => { setSelectedId(p.id); onSelectProspect?.(p.id); }}
                 onDeselect={() => { setSelectedId(null); onSelectProspect?.(null); }}
               />
+            ))}
+            {mappedProjects.map((project) => (
+              <ProjectMarker key={project.id} project={project} />
             ))}
 
             {drawn && (

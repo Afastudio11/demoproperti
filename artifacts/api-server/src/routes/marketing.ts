@@ -22,6 +22,14 @@ const LEAD_STATUSES = [
   "BATAL", "PENDING",
 ];
 
+function isOperationalProject(project: typeof projectsTable.$inferSelect) {
+  return project.status !== "archived" && project.fase !== "SCALE" && project.fase !== "KANTOR";
+}
+
+function scopedToActiveProject<T extends { projectId: number | null }>(rows: T[], activeProjectIds: Set<number>, includeUnassigned = false) {
+  return rows.filter((row) => row.projectId == null ? includeUnassigned : activeProjectIds.has(row.projectId));
+}
+
 function fmtLead(l: typeof leadsTable.$inferSelect) {
   const createdAt = l.createdAt instanceof Date ? l.createdAt : new Date(l.createdAt);
   const agingDays = Math.floor((Date.now() - createdAt.getTime()) / 86400000);
@@ -78,7 +86,11 @@ async function createCustomerFromLeadIfNeeded(lead: typeof leadsTable.$inferSele
 
 router.get("/marketing/leads", async (req, res) => {
   try {
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    const projects = await db.select().from(projectsTable);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
     let leads = await db.select().from(leadsTable).orderBy(desc(leadsTable.createdAt));
+    if (!includeArchived) leads = scopedToActiveProject(leads, activeProjectIds);
     if (req.query.projectId) leads = leads.filter(l => l.projectId === parseInt(req.query.projectId as string));
     if (req.query.status) leads = leads.filter(l => l.status === req.query.status);
     if (req.query.source) leads = leads.filter(l => l.source === req.query.source);
@@ -143,10 +155,11 @@ router.delete("/marketing/leads/:id", async (req, res) => {
 
 router.get("/marketing/dashboard", async (req, res) => {
   try {
-    const leads = await db.select().from(leadsTable);
     const projects = await db.select().from(projectsTable);
-    const campaigns = await db.select().from(campaignsTable);
-    const absorptions = await db.select().from(marketingAbsorptionTable);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
+    const leads = scopedToActiveProject(await db.select().from(leadsTable), activeProjectIds);
+    const campaigns = scopedToActiveProject(await db.select().from(campaignsTable), activeProjectIds);
+    const absorptions = scopedToActiveProject(await db.select().from(marketingAbsorptionTable), activeProjectIds);
     const brandingKpis = await db.select().from(brandingKpiTable);
 
     const now = Date.now();
@@ -271,8 +284,15 @@ router.get("/marketing/dashboard", async (req, res) => {
 
 router.get("/marketing/campaigns", async (req, res) => {
   try {
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    const projects = await db.select().from(projectsTable);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
     let rows = await db.select().from(campaignsTable).orderBy(desc(campaignsTable.createdAt));
-    const leads = await db.select().from(leadsTable);
+    let leads = await db.select().from(leadsTable);
+    if (!includeArchived) {
+      rows = scopedToActiveProject(rows, activeProjectIds);
+      leads = scopedToActiveProject(leads, activeProjectIds);
+    }
     if (req.query.projectId) rows = rows.filter(r => r.projectId === parseInt(req.query.projectId as string));
     const result = rows.map(c => {
       const anggaran = parseFloat((c.anggaran ?? "0").toString());
@@ -426,9 +446,16 @@ router.delete("/marketing/competitors/:id", async (req, res) => {
 
 router.get("/marketing/absorption", async (req, res) => {
   try {
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
     let rows = await db.select().from(marketingAbsorptionTable).orderBy(desc(marketingAbsorptionTable.createdAt));
     const projects = await db.select().from(projectsTable);
-    const leads = await db.select().from(leadsTable);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
+    let leads = await db.select().from(leadsTable);
+    if (!includeArchived) {
+      rows = scopedToActiveProject(rows, activeProjectIds);
+      leads = scopedToActiveProject(leads, activeProjectIds);
+    }
+    if (req.query.projectId) rows = rows.filter(r => r.projectId === parseInt(req.query.projectId as string));
     const monthlyBookings = leads.filter(l => l.status === "BOOKING").length;
     const avgMonthly = Math.max(monthlyBookings / 3, 1);
     res.json(rows.map(r => {

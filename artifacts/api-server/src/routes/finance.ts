@@ -34,6 +34,23 @@ const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number; info:
 
 const router = Router();
 
+function normalizeProjectName(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function isOperationalProject(project: typeof projectsTable.$inferSelect) {
+  return project.status !== "archived" && project.fase !== "SCALE" && project.fase !== "KANTOR";
+}
+
+function scopedByProjectName<T extends { projectName?: string | null }>(rows: T[], activeProjectNames: Set<string>, excludedProjectNames: Set<string>) {
+  return rows.filter((row) => {
+    const key = normalizeProjectName(row.projectName);
+    if (!key) return true;
+    if (excludedProjectNames.has(key)) return false;
+    return activeProjectNames.has(key) || !excludedProjectNames.has(key);
+  });
+}
+
 function parseFinanceNumber(v: any): number {
   if (v === null || v === undefined || v === "") return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
@@ -232,25 +249,14 @@ router.get("/finance/dashboard", async (req, res) => {
     const thisYear = today.getFullYear();
     const next30 = new Date(today); next30.setDate(today.getDate() + 30);
 
-    const [cashflowIn, cashflowOut, debts, receivables, kpps, payments, alerts] = await Promise.all([
-      db.select({ total: sql<number>`coalesce(sum(amount::numeric),0)` })
-        .from(cashflowRecordsTable)
-        .where(and(eq(cashflowRecordsTable.type, "cash_in"),
-          sql`EXTRACT(MONTH FROM transaction_date) = ${thisMonth}`,
-          sql`EXTRACT(YEAR FROM transaction_date) = ${thisYear}`)),
-      db.select({ total: sql<number>`coalesce(sum(amount::numeric),0)` })
-        .from(cashflowRecordsTable)
-        .where(and(eq(cashflowRecordsTable.type, "cash_out"),
-          sql`EXTRACT(MONTH FROM transaction_date) = ${thisMonth}`,
-          sql`EXTRACT(YEAR FROM transaction_date) = ${thisYear}`)),
-      db.select({ total: sql<number>`coalesce(sum(coalesce(remaining_amount,total_amount)::numeric),0)` })
-        .from(debtRecordsTable)
-        .where(and(eq(debtRecordsTable.status, "outstanding"),
-          sql`due_date <= ${next30.toISOString().split("T")[0]}`)),
-      db.select({ total: sql<number>`coalesce(sum(total_amount::numeric),0)` })
-        .from(receivableRecordsTable)
-        .where(and(eq(receivableRecordsTable.status, "current"),
-          sql`due_date <= ${next30.toISOString().split("T")[0]}`)),
+    const projects = await db.select().from(projectsTable);
+    const activeProjectNames = new Set(projects.filter(isOperationalProject).map((project) => normalizeProjectName(project.nama)));
+    const excludedProjectNames = new Set(projects.filter((project) => !isOperationalProject(project)).map((project) => normalizeProjectName(project.nama)));
+
+    const [cashflowRowsRaw, debtsRaw, receivablesRaw, kppsRaw, payments, alerts] = await Promise.all([
+      db.select().from(cashflowRecordsTable),
+      db.select().from(debtRecordsTable),
+      db.select().from(receivableRecordsTable),
       db.select().from(kppFacilitiesTable).where(eq(kppFacilitiesTable.isActive, true)),
       db.select({ kppId: kppPaymentsTable.kppId, total: sql<number>`coalesce(sum(principal_paid::numeric),0)` })
         .from(kppPaymentsTable)
@@ -258,9 +264,22 @@ router.get("/finance/dashboard", async (req, res) => {
       db.select().from(financeAlertsTable).where(eq(financeAlertsTable.isRead, false)).orderBy(desc(financeAlertsTable.createdAt)).limit(10),
     ]);
 
-    const cashIn = Number(cashflowIn[0]?.total ?? 0);
-    const cashOut = Number(cashflowOut[0]?.total ?? 0);
+    const cashflowRows = scopedByProjectName(cashflowRowsRaw, activeProjectNames, excludedProjectNames)
+      .filter((row) => {
+        const d = new Date(row.transactionDate);
+        return d.getMonth() + 1 === thisMonth && d.getFullYear() === thisYear;
+      });
+    const debts = scopedByProjectName(debtsRaw, activeProjectNames, excludedProjectNames)
+      .filter((debt) => debt.status === "outstanding" && debt.dueDate && new Date(debt.dueDate) <= next30);
+    const kpps = scopedByProjectName(kppsRaw, activeProjectNames, excludedProjectNames);
+
+    const cashIn = cashflowRows.filter((row) => row.type === "cash_in").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+    const cashOut = cashflowRows.filter((row) => row.type === "cash_out").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
     const netCashflow = cashIn - cashOut;
+    const debtTotal = debts.reduce((sum, debt) => sum + Number(debt.remainingAmount ?? debt.totalAmount ?? 0), 0);
+    const receivableTotal = receivablesRaw
+      .filter((receivable) => receivable.status === "current" && receivable.dueDate && new Date(receivable.dueDate) <= next30)
+      .reduce((sum, receivable) => sum + Number(receivable.totalAmount ?? 0), 0);
 
     const payMap: Record<number, number> = {};
     for (const p of payments) { payMap[p.kppId] = Number(p.total); }
@@ -283,8 +302,8 @@ router.get("/finance/dashboard", async (req, res) => {
     res.json({
       cashIn, cashOut, netCashflow,
       outstandingKpp: totalKpp,
-      hutangJatuhTempo: Number(debts[0]?.total ?? 0),
-      piutangJatuhTempo: Number(receivables[0]?.total ?? 0),
+      hutangJatuhTempo: debtTotal,
+      piutangJatuhTempo: receivableTotal,
       financeScore: score,
       financeStatus: !hasFinanceData ? "SEHAT" : (score >= 80 ? "SEHAT" : score >= 60 ? "WASPADA" : "KRITIS"),
       alerts,
@@ -761,24 +780,19 @@ Kembalikan HANYA JSON array yang valid, tanpa penjelasan atau markdown.`;
 router.get("/finance/cashflow", async (req, res) => {
   try {
     const { year = new Date().getFullYear() } = req.query;
+    const projects = await db.select().from(projectsTable);
+    const activeProjectNames = new Set(projects.filter(isOperationalProject).map((project) => normalizeProjectName(project.nama)));
+    const excludedProjectNames = new Set(projects.filter((project) => !isOperationalProject(project)).map((project) => normalizeProjectName(project.nama)));
 
-    const monthly = await db.select({
-      month: sql<number>`EXTRACT(MONTH FROM transaction_date)`,
-      type: cashflowRecordsTable.type,
-      category: cashflowRecordsTable.category,
-      total: sql<number>`coalesce(sum(amount::numeric),0)`,
-    })
-      .from(cashflowRecordsTable)
-      .where(sql`EXTRACT(YEAR FROM transaction_date) = ${Number(year)}`)
-      .groupBy(sql`EXTRACT(MONTH FROM transaction_date)`, cashflowRecordsTable.type, cashflowRecordsTable.category)
-      .orderBy(sql`EXTRACT(MONTH FROM transaction_date)`);
+    const rows = scopedByProjectName(await db.select().from(cashflowRecordsTable), activeProjectNames, excludedProjectNames)
+      .filter((row) => new Date(row.transactionDate).getFullYear() === Number(year));
 
     const byMonth: Record<number, { cashIn: number; cashOut: number; categories: Record<string, number> }> = {};
     for (let m = 1; m <= 12; m++) byMonth[m] = { cashIn: 0, cashOut: 0, categories: {} };
 
-    for (const row of monthly) {
-      const m = Number(row.month);
-      const amt = Number(row.total);
+    for (const row of rows) {
+      const m = new Date(row.transactionDate).getMonth() + 1;
+      const amt = Number(row.amount);
       if (row.type === "cash_in") byMonth[m].cashIn += amt;
       else byMonth[m].cashOut += amt;
       byMonth[m].categories[row.category] = (byMonth[m].categories[row.category] ?? 0) + (row.type === "cash_out" ? -amt : amt);
@@ -810,7 +824,10 @@ router.get("/finance/cashflow", async (req, res) => {
 // ─── KPP TRACKER ──────────────────────────────────────────────────────────────
 router.get("/finance/kpp", async (req, res) => {
   try {
-    const [facilities, payments] = await Promise.all([
+    const projects = await db.select().from(projectsTable);
+    const activeProjectNames = new Set(projects.filter(isOperationalProject).map((project) => normalizeProjectName(project.nama)));
+    const excludedProjectNames = new Set(projects.filter((project) => !isOperationalProject(project)).map((project) => normalizeProjectName(project.nama)));
+    const [rawFacilities, payments] = await Promise.all([
       db.select().from(kppFacilitiesTable).orderBy(desc(kppFacilitiesTable.createdAt)),
       db.select({
         kppId: kppPaymentsTable.kppId,
@@ -818,6 +835,7 @@ router.get("/finance/kpp", async (req, res) => {
         totalInterest: sql<number>`coalesce(sum(interest_paid::numeric),0)`,
       }).from(kppPaymentsTable).groupBy(kppPaymentsTable.kppId),
     ]);
+    const facilities = scopedByProjectName(rawFacilities, activeProjectNames, excludedProjectNames);
 
     const payMap: Record<number, { principal: number; interest: number }> = {};
     for (const p of payments) payMap[p.kppId] = { principal: Number(p.totalPrincipal), interest: Number(p.totalInterest) };
@@ -1529,7 +1547,14 @@ router.post("/finance/piutang", async (req, res) => {
 // ─── RAB / PROJECT FINANCE ────────────────────────────────────────────────────
 router.get("/finance/rab", async (req, res) => {
   try {
-    const items = await db.select().from(rabItemsTable).orderBy(rabItemsTable.projectName, rabItemsTable.stageCode);
+    const projects = await db.select().from(projectsTable);
+    const activeProjectNames = new Set(projects.filter(isOperationalProject).map((project) => normalizeProjectName(project.nama)));
+    const excludedProjectNames = new Set(projects.filter((project) => !isOperationalProject(project)).map((project) => normalizeProjectName(project.nama)));
+    const items = scopedByProjectName(
+      await db.select().from(rabItemsTable).orderBy(rabItemsTable.projectName, rabItemsTable.stageCode),
+      activeProjectNames,
+      excludedProjectNames,
+    );
 
     const byProject: Record<string, { rab: number; realisasi: number; stages: Record<string, any[]> }> = {};
     for (const item of items) {
@@ -1560,18 +1585,17 @@ router.get("/finance/rab", async (req, res) => {
 // ─── PROFITABILITAS ───────────────────────────────────────────────────────────
 router.get("/finance/profitabilitas", async (req, res) => {
   try {
-    const cashflowData = await db.select({
-      projectName: cashflowRecordsTable.projectName,
-      type: cashflowRecordsTable.type,
-      total: sql<number>`coalesce(sum(amount::numeric),0)`,
-    }).from(cashflowRecordsTable).groupBy(cashflowRecordsTable.projectName, cashflowRecordsTable.type);
+    const projectsRaw = await db.select().from(projectsTable);
+    const activeProjectNames = new Set(projectsRaw.filter(isOperationalProject).map((project) => normalizeProjectName(project.nama)));
+    const excludedProjectNames = new Set(projectsRaw.filter((project) => !isOperationalProject(project)).map((project) => normalizeProjectName(project.nama)));
+    const cashflowData = scopedByProjectName(await db.select().from(cashflowRecordsTable), activeProjectNames, excludedProjectNames);
 
     const byProject: Record<string, { pendapatan: number; biaya: number }> = {};
     for (const row of cashflowData) {
       const p = row.projectName ?? "Tanpa Proyek";
       if (!byProject[p]) byProject[p] = { pendapatan: 0, biaya: 0 };
-      if (row.type === "cash_in") byProject[p].pendapatan += Number(row.total);
-      else byProject[p].biaya += Number(row.total);
+      if (row.type === "cash_in") byProject[p].pendapatan += Number(row.amount);
+      else byProject[p].biaya += Number(row.amount);
     }
 
     const projects = Object.entries(byProject).map(([name, d]) => ({
@@ -1592,14 +1616,19 @@ router.get("/finance/forecast", async (req, res) => {
   try {
     const today = new Date();
     const MONTHS = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+    const projects = await db.select().from(projectsTable);
+    const activeProjectNames = new Set(projects.filter(isOperationalProject).map((project) => normalizeProjectName(project.nama)));
+    const excludedProjectNames = new Set(projects.filter((project) => !isOperationalProject(project)).map((project) => normalizeProjectName(project.nama)));
 
-    const [receivables, debts, kpps, payments] = await Promise.all([
+    const [receivables, rawDebts, rawKpps, payments] = await Promise.all([
       db.select().from(receivableRecordsTable).where(eq(receivableRecordsTable.status, "current")),
       db.select().from(debtRecordsTable).where(eq(debtRecordsTable.status, "outstanding")),
       db.select().from(kppFacilitiesTable).where(eq(kppFacilitiesTable.isActive, true)),
       db.select({ kppId: kppPaymentsTable.kppId, total: sql<number>`coalesce(sum(principal_paid::numeric),0)` })
         .from(kppPaymentsTable).groupBy(kppPaymentsTable.kppId),
     ]);
+    const debts = scopedByProjectName(rawDebts, activeProjectNames, excludedProjectNames);
+    const kpps = scopedByProjectName(rawKpps, activeProjectNames, excludedProjectNames);
 
     const payMap: Record<number, number> = {};
     for (const p of payments) payMap[p.kppId] = Number(p.total);

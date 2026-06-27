@@ -39,6 +39,14 @@ const AGING_THRESHOLDS: Record<string, { warning: number; kritis: number }> = {
   AKAD: { warning: 14, kritis: 30 },
 };
 
+function isOperationalProject(project: typeof projectsTable.$inferSelect) {
+  return project.status !== "archived" && project.fase !== "SCALE" && project.fase !== "KANTOR";
+}
+
+function scopedToActiveProject<T extends { projectId: number | null }>(rows: T[], activeProjectIds: Set<number>, includeUnassigned = false) {
+  return rows.filter((row) => row.projectId == null ? includeUnassigned : activeProjectIds.has(row.projectId));
+}
+
 function calcAging(statusUpdatedAt: Date | null): number {
   if (!statusUpdatedAt) return 0;
   return Math.floor((Date.now() - statusUpdatedAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -170,7 +178,13 @@ router.post("/administrasi/banks", async (req, res) => {
 
 router.get("/administrasi/dashboard", async (req, res) => {
   try {
-    const customers = await db.select().from(customersTable);
+    const [allCustomers, projects] = await Promise.all([
+      db.select().from(customersTable),
+      db.select().from(projectsTable),
+    ]);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
+    const customers = scopedToActiveProject(allCustomers, activeProjectIds);
+    const activeCustomerIds = new Set(customers.map((customer) => customer.id));
     const now = new Date();
     const thisMonth = now.getMonth() + 1;
     const thisYear = now.getFullYear();
@@ -192,7 +206,7 @@ router.get("/administrasi/dashboard", async (req, res) => {
       PIPELINE_ORDER.includes(c.pipelineStatus ?? "") && c.pipelineStatus !== "HT_CAIR"
     ).length;
 
-    const htRecords = await db.select().from(htRecordsTable);
+    const htRecords = (await db.select().from(htRecordsTable)).filter((record) => activeCustomerIds.has(record.customerId));
     const htBulanIni = htRecords
       .filter(h => {
         if (!h.htDate) return false;
@@ -208,7 +222,7 @@ router.get("/administrasi/dashboard", async (req, res) => {
       })
       .reduce((s, h) => s + (h.htAmount ? parseFloat(h.htAmount) : 0), 0);
 
-    const akadRecords = await db.select().from(akadRecordsTable);
+    const akadRecords = (await db.select().from(akadRecordsTable)).filter((record) => activeCustomerIds.has(record.customerId));
     const akadBulanIni = akadRecords.filter(a => {
       if (!a.akadDate || a.status !== "selesai") return false;
       const d = new Date(a.akadDate);
@@ -219,7 +233,7 @@ router.get("/administrasi/dashboard", async (req, res) => {
     akadBulanIni.forEach(a => { bankCount[a.bank] = (bankCount[a.bank] || 0) + 1; });
     const bestBank = Object.entries(bankCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "-";
 
-    const totalSp3k = await db.select().from(sp3kRecordsTable);
+    const totalSp3k = (await db.select().from(sp3kRecordsTable)).filter((record) => activeCustomerIds.has(record.customerId));
     const expiredSoon = totalSp3k.filter(s => {
       if (!s.expiryDate || s.status !== "approved") return false;
       const days = Math.floor((new Date(s.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -251,8 +265,15 @@ router.get("/administrasi/dashboard", async (req, res) => {
 
 router.get("/administrasi/customers", async (req, res) => {
   try {
-    let customers = await db.select().from(customersTable);
-    const units = await db.select().from(unitsTable);
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    const [projects, allCustomers, allUnits] = await Promise.all([
+      db.select().from(projectsTable),
+      db.select().from(customersTable),
+      db.select().from(unitsTable),
+    ]);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
+    let customers = includeArchived ? allCustomers : scopedToActiveProject(allCustomers, activeProjectIds);
+    const units = includeArchived ? allUnits : allUnits.filter((unit) => activeProjectIds.has(unit.projectId));
     const { status, projectId, bank, picAdmin, search } = req.query as Record<string, string>;
 
     if (status) customers = customers.filter(c => c.pipelineStatus === status);
@@ -551,11 +572,16 @@ router.patch("/administrasi/ots/:id", async (req, res) => {
 
 router.get("/administrasi/sp3k", async (req, res) => {
   try {
-    const records = await db.select().from(sp3kRecordsTable).orderBy(desc(sp3kRecordsTable.createdAt));
-    const customers = await db.select({ id: customersTable.id, nama: customersTable.nama, unitBlock: customersTable.unitBlock }).from(customersTable);
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    const projects = await db.select().from(projectsTable);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
+    const customers = await db.select({ id: customersTable.id, nama: customersTable.nama, unitBlock: customersTable.unitBlock, projectId: customersTable.projectId }).from(customersTable);
+    const scopedCustomerIds = new Set(customers.filter((customer) => includeArchived || (customer.projectId != null && activeProjectIds.has(customer.projectId))).map((customer) => customer.id));
+    const records = (await db.select().from(sp3kRecordsTable).orderBy(desc(sp3kRecordsTable.createdAt)))
+      .filter((record) => scopedCustomerIds.has(record.customerId));
     const custMap = Object.fromEntries(customers.map(c => [c.id, c]));
 
-    const bankSubs = await db.select().from(bankSubmissionsTable);
+    const bankSubs = (await db.select().from(bankSubmissionsTable)).filter((record) => scopedCustomerIds.has(record.customerId));
     const sp3kRate = bankSubs.length > 0 ? Math.round((records.filter(r => r.status === "approved").length / bankSubs.length) * 100) : 0;
 
     res.json({
@@ -613,8 +639,13 @@ router.patch("/administrasi/sp3k/:id", async (req, res) => {
 
 router.get("/administrasi/akad", async (req, res) => {
   try {
-    const records = await db.select().from(akadRecordsTable).orderBy(desc(akadRecordsTable.createdAt));
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    const projects = await db.select().from(projectsTable);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
     const customers = await db.select({ id: customersTable.id, nama: customersTable.nama, unitBlock: customersTable.unitBlock, projectId: customersTable.projectId }).from(customersTable);
+    const scopedCustomerIds = new Set(customers.filter((customer) => includeArchived || (customer.projectId != null && activeProjectIds.has(customer.projectId))).map((customer) => customer.id));
+    const records = (await db.select().from(akadRecordsTable).orderBy(desc(akadRecordsTable.createdAt)))
+      .filter((record) => scopedCustomerIds.has(record.customerId));
     const custMap = Object.fromEntries(customers.map(c => [c.id, c]));
 
     const now = new Date();
@@ -629,7 +660,7 @@ router.get("/administrasi/akad", async (req, res) => {
       return new Date(r.akadDate).getFullYear() === now.getFullYear();
     }).length;
 
-    const allCustomers = await db.select().from(customersTable);
+    const allCustomers = includeArchived ? await db.select().from(customersTable) : scopedToActiveProject(await db.select().from(customersTable), activeProjectIds);
     const booking = allCustomers.length;
     const conversionRate = booking > 0 ? Math.round((tahunIni / booking) * 100) : 0;
 
@@ -684,11 +715,16 @@ router.patch("/administrasi/akad/:id", async (req, res) => {
 
 router.get("/administrasi/ht", async (req, res) => {
   try {
-    const records = await db.select().from(htRecordsTable).orderBy(desc(htRecordsTable.createdAt));
-    const customers = await db.select({ id: customersTable.id, nama: customersTable.nama, unitBlock: customersTable.unitBlock }).from(customersTable);
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true";
+    const projects = await db.select().from(projectsTable);
+    const activeProjectIds = new Set(projects.filter(isOperationalProject).map((project) => project.id));
+    const customers = await db.select({ id: customersTable.id, nama: customersTable.nama, unitBlock: customersTable.unitBlock, projectId: customersTable.projectId }).from(customersTable);
+    const scopedCustomerIds = new Set(customers.filter((customer) => includeArchived || (customer.projectId != null && activeProjectIds.has(customer.projectId))).map((customer) => customer.id));
+    const records = (await db.select().from(htRecordsTable).orderBy(desc(htRecordsTable.createdAt)))
+      .filter((record) => scopedCustomerIds.has(record.customerId));
     const custMap = Object.fromEntries(customers.map(c => [c.id, c]));
 
-    const akadRecords = await db.select().from(akadRecordsTable);
+    const akadRecords = (await db.select().from(akadRecordsTable)).filter((record) => scopedCustomerIds.has(record.customerId));
     const akadMap = Object.fromEntries(akadRecords.map(a => [a.customerId, a.akadDate]));
 
     const now = new Date();

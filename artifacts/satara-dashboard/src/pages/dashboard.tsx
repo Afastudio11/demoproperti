@@ -129,6 +129,11 @@ export default function Dashboard() {
     queryFn: () => fetch("/api/administrasi/dashboard").then(r => r.json()),
     refetchInterval: 60000,
   });
+  const { data: adminCustomers } = useQuery({
+    queryKey: ["administrasi-customers-executive"],
+    queryFn: () => fetch("/api/administrasi/customers").then(r => r.json()),
+    refetchInterval: 60000,
+  });
   const { data: prodData } = useQuery({
     queryKey: ["produksi-dashboard"],
     queryFn: () => fetch("/api/produksi/dashboard").then(r => r.json()),
@@ -180,9 +185,11 @@ export default function Dashboard() {
   const maxPipeCount = Math.max(...pipelineGroups.map(g => g.count), 1);
 
   // Planning / Perencanaan
-  const feasArr = Array.isArray(feasibilities) ? feasibilities : [];
-  const msArr = Array.isArray(milestones) ? milestones : [];
   const projArr = Array.isArray(projects) ? projects : [];
+  const activeProjectIds = new Set(projArr.map((p: any) => p.id));
+  const scopeByActiveProject = (row: any) => row?.projectId == null || activeProjectIds.has(row.projectId);
+  const feasArr = (Array.isArray(feasibilities) ? feasibilities : []).filter(scopeByActiveProject);
+  const msArr = (Array.isArray(milestones) ? milestones : []).filter(scopeByActiveProject);
   const goCount = feasArr.filter((f: any) => (f.roi ?? 0) >= 35 && (f.irr ?? 0) >= 20 && (f.margin ?? 0) >= 25).length;
   const totalRevenue = feasArr.reduce((s: number, f: any) => s + (f.totalRevenue ?? 0), 0);
   const totalPlanUnits = feasArr.reduce((s: number, f: any) => s + (f.totalUnits ?? 0), 0);
@@ -201,7 +208,7 @@ export default function Dashboard() {
   });
 
   // Marketing
-  const leadsArr = Array.isArray(mktLeads) ? mktLeads : [];
+  const leadsArr = (Array.isArray(mktLeads) ? mktLeads : []).filter(scopeByActiveProject);
   const LEAD_FUNNEL = [
     { key: "NEW_LEAD", label: "Lead Baru", color: "bg-slate-400" },
     { key: "CONTACTED", label: "Dihubungi", color: "bg-blue-400" },
@@ -227,25 +234,47 @@ export default function Dashboard() {
   ];
   const pipeCounts: Record<string, number> = adminData?.pipelineCounts ?? {};
   const maxPipeAdmin = Math.max(...PIPE_STAGES.map(s => pipeCounts[s.key] ?? 0), 1);
+  const adminCustomersArr = (Array.isArray(adminCustomers) ? adminCustomers : []).filter(scopeByActiveProject);
+  const activeAdminCustomers = adminCustomersArr.filter((customer: any) =>
+    PIPE_STAGES.some((stage) => stage.key === customer.pipelineStatus) && customer.pipelineStatus !== "HT_CAIR"
+  );
 
   // Produksi
   const prod = prodData?.summary ?? {};
   const critMat: any[] = prodData?.criticalMaterials ?? [];
   const prodAlerts: any[] = prodData?.alerts ?? [];
+  const hasProductionData = (prod.totalUnits ?? 0) > 0;
 
   // Finance
   const fin = finData ?? {};
   const finScore = fin.financeScore ?? 0;
   const finStatus = finScore >= 80 ? "SEHAT" : finScore >= 60 ? "WASPADA" : "KRITIS";
   const finAlerts: any[] = fin.alerts ?? [];
+  const hasFinanceData = !!finData && (
+    (fin.cashIn ?? 0) > 0 ||
+    (fin.cashOut ?? 0) > 0 ||
+    (fin.outstandingKpp ?? 0) > 0 ||
+    (fin.hutangJatuhTempo ?? 0) > 0 ||
+    (fin.piutangJatuhTempo ?? 0) > 0 ||
+    finAlerts.length > 0
+  );
 
   // HR
   const hcScore = hrData?.hcScore ?? 0;
   const hcStatus = hrData?.hcStatus ?? "KRITIS";
   const flightRisks: any[] = hrData?.flightRiskAlerts ?? [];
+  const hrBreakdown = hrData?.hcBreakdown ?? {};
+  const hasHrOperationalData = !!hrData && (
+    (hrData.openPositions ?? 0) > 0 ||
+    flightRisks.length > 0 ||
+    Object.values(hrBreakdown).some((value) => Number(value) > 0 && Number(value) < 100) ||
+    (hrData.avgKpiAchievement ?? 0) > 0 ||
+    (hrData.totalPayroll ?? 0) > 0 ||
+    (hrData.revenuePerEmployee ?? 0) > 0
+  );
 
   // Legal
-  const legalArr = legalDocs ?? [];
+  const legalArr = (legalDocs ?? []).filter(scopeByActiveProject);
   const legalApproved = legalArr.filter((d: any) => d.status === "approved").length;
   const legalPending = legalArr.filter((d: any) => d.status === "pending" || d.status === "in_progress").length;
 
@@ -257,15 +286,15 @@ export default function Dashboard() {
     : "—";
 
   /* ── Health scores for top strip ── */
-  const moduleHealths = [
-    { label: "Finance", score: finScore, href: "/finance" },
-    { label: "Produksi", score: prod.healthScore ?? 0, href: "/produksi" },
-    { label: "Admin KPR", score: adminData?.healthScore ?? 0, href: "/administrasi" },
-    { label: "HR", score: hcScore, href: "/hr" },
-    { label: "Marketing", score: leadsArr.length > 0 ? Math.min(100, Math.round(convRate * 5)) : 0, href: "/marketing" },
-    { label: "Legal", score: legalArr.length > 0 ? Math.round((legalApproved / legalArr.length) * 100) : 0, href: "/legal" },
-    { label: "Perencanaan", score: goCount > 0 ? Math.round((goCount / Math.max(feasArr.length, 1)) * 100) : 0, href: "/perencanaan" },
-    { label: "Serah Terima", score: handoverArr.length > 0 ? Math.round((bastCount / handoverArr.length) * 100) : 0, href: "/serah-terima" },
+  const moduleHealths: Array<{ label: string; score: number | null; href: string; source: string; note?: string }> = [
+    { label: "Finance", score: hasFinanceData ? finScore : null, href: "/finance", source: hasFinanceData ? "Transaksi/KPP aktif" : "Belum ada transaksi" },
+    { label: "Produksi", score: hasProductionData ? (prod.healthScore ?? 0) : null, href: "/produksi", source: hasProductionData ? `${prod.totalUnits} unit produksi` : "Belum ada unit produksi" },
+    { label: "Admin KPR", score: activeAdminCustomers.length > 0 ? (adminData?.healthScore ?? 0) : null, href: "/administrasi", source: activeAdminCustomers.length > 0 ? `${activeAdminCustomers.length} customer proyek aktif` : "Belum ada customer proyek aktif" },
+    { label: "HR", score: hasHrOperationalData ? hcScore : null, href: "/hr", source: hasHrOperationalData ? "Data HR operasional" : "Belum ada input KPI/operasional" },
+    { label: "Marketing", score: leadsArr.length > 0 ? Math.min(100, Math.round(convRate * 5)) : null, href: "/marketing", source: leadsArr.length > 0 ? `${leadsArr.length} lead proyek aktif` : "Belum ada lead proyek aktif" },
+    { label: "Legal", score: legalArr.length > 0 ? Math.round((legalApproved / legalArr.length) * 100) : null, href: "/legal", source: legalArr.length > 0 ? `${legalArr.length} dokumen legal` : "Belum ada dokumen legal" },
+    { label: "Perencanaan", score: feasArr.length > 0 ? Math.round((goCount / Math.max(feasArr.length, 1)) * 100) : null, href: "/perencanaan", source: feasArr.length > 0 ? `${feasArr.length} feasibility` : "Belum ada feasibility" },
+    { label: "Serah Terima", score: handoverArr.length > 0 ? Math.round((bastCount / handoverArr.length) * 100) : null, href: "/serah-terima", source: handoverArr.length > 0 ? `${handoverArr.length} handover` : "Belum ada handover" },
   ];
 
   const dashboardAlerts = Array.isArray(alerts) ? alerts : [];
@@ -376,19 +405,24 @@ export default function Dashboard() {
       <div className="bg-card border rounded-xl p-4">
         <h3 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Health Score per Divisi</h3>
         <div className="grid grid-cols-4 lg:grid-cols-8 gap-3">
-          {moduleHealths.map(({ label, score, href }) => {
-            const color = score >= 80 ? "text-emerald-600" : score >= 60 ? "text-amber-500" : "text-red-500";
-            const bar = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-400" : "bg-red-500";
+          {moduleHealths.map(({ label, score, href, source }) => {
+            const hasScore = typeof score === "number";
+            const shownScore = hasScore ? Math.round(score) : 0;
+            const color = !hasScore ? "text-muted-foreground" : shownScore >= 80 ? "text-emerald-600" : shownScore >= 60 ? "text-amber-500" : "text-red-500";
+            const bar = !hasScore ? "bg-muted-foreground/20" : shownScore >= 80 ? "bg-emerald-500" : shownScore >= 60 ? "bg-amber-400" : "bg-red-500";
             return (
               <Link key={label} href={href}>
                 <div className="flex flex-col gap-1 cursor-pointer group">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">{label}</span>
-                    <span className={cn("text-xs font-bold", color)}>{score || "—"}</span>
+                    <span className={cn("text-xs font-bold", color)}>{hasScore ? shownScore : "—"}</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className={cn("h-full rounded-full transition-all", bar)} style={{ width: `${score}%` }} />
+                    <div className={cn("h-full rounded-full transition-all", bar)} style={{ width: `${hasScore ? shownScore : 0}%` }} />
                   </div>
+                  <span className="text-[9px] text-muted-foreground truncate" title={source}>
+                    {source}
+                  </span>
                 </div>
               </Link>
             );
@@ -400,10 +434,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-card text-card-foreground rounded-xl border overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border/50">
-            <h3 className="font-medium text-sm">Peta Sulawesi Selatan — Sebaran Proyek & Prospek Lahan</h3>
+            <h3 className="font-medium text-sm">Peta Sulawesi Selatan — Proyek Aktif & Prospek Lahan</h3>
           </div>
           <div className="px-3 pb-3 pt-2" style={{ height: 400 }}>
-            <SulselAcquisitionMap readOnly />
+            <SulselAcquisitionMap readOnly projects={projArr} />
           </div>
         </div>
         <div className="flex flex-col gap-4">
@@ -540,11 +574,11 @@ export default function Dashboard() {
           <ModuleCard title="Administrasi KPR" icon={FileCheck2} href="/administrasi"
             badge={(adminData?.agingKritis ?? 0) > 0 ? `${adminData.agingKritis} kritis` : undefined}>
             <div className="grid grid-cols-4 gap-3 mb-4">
-              <MiniKpi label="Total Aktif" value={adminData?.totalAktif ?? "—"} />
+              <MiniKpi label="Total Aktif" value={activeAdminCustomers.length || "—"} />
               <MiniKpi label="HT Bulan Ini" value={adminData?.htBulanIni ? fmtRp(adminData.htBulanIni) : "—"} color="text-emerald-600" />
               <MiniKpi label="Aging Warning" value={adminData?.agingWarning ?? "—"} color={(adminData?.agingWarning ?? 0) > 0 ? "text-amber-500" : undefined} />
-              <MiniKpi label="Health" value={adminData?.healthScore ? `${adminData.healthScore}/100` : "—"}
-                color={(adminData?.healthScore ?? 100) >= 70 ? "text-emerald-600" : "text-red-500"} />
+              <MiniKpi label="Health" value={activeAdminCustomers.length > 0 && adminData?.healthScore != null ? `${adminData.healthScore}/100` : "—"}
+                color={activeAdminCustomers.length === 0 ? "text-muted-foreground" : (adminData?.healthScore ?? 0) >= 70 ? "text-emerald-600" : "text-red-500"} />
             </div>
             <div className="space-y-1.5">
               {PIPE_STAGES.map(({ key, label, color }) => {
@@ -568,8 +602,8 @@ export default function Dashboard() {
               <MiniKpi label="Avg Progress" value={fmtPct(prod.avgProgress ?? 0)} />
               <MiniKpi label="Fasum" value={fmtPct(prod.fasumAvg ?? 0)} color="text-blue-500" />
               <MiniKpi label="HT Tertahan" value={prodData?.htTertahan ? fmtRp(prodData.htTertahan) : "—"} color="text-red-500" />
-              <MiniKpi label="Health" value={prod.healthScore ?? "—"}
-                color={(prod.healthScore ?? 0) >= 80 ? "text-emerald-600" : (prod.healthScore ?? 0) >= 60 ? "text-amber-500" : "text-red-500"} />
+              <MiniKpi label="Health" value={hasProductionData ? (prod.healthScore ?? "—") : "—"}
+                color={!hasProductionData ? "text-muted-foreground" : (prod.healthScore ?? 0) >= 80 ? "text-emerald-600" : (prod.healthScore ?? 0) >= 60 ? "text-amber-500" : "text-red-500"} />
             </div>
             {critMat.length > 0 ? (
               <div>
@@ -641,8 +675,8 @@ export default function Dashboard() {
             badge={flightRisks.length > 0 ? `${flightRisks.length} flight risk` : undefined}>
             <div className="grid grid-cols-4 gap-3 mb-4">
               <MiniKpi label="HC Score"
-                value={hcScore || "—"}
-                color={hcScore >= 80 ? "text-emerald-600" : hcScore >= 60 ? "text-amber-500" : "text-red-500"} />
+                value={hasHrOperationalData ? hcScore : "—"}
+                color={!hasHrOperationalData ? "text-muted-foreground" : hcScore >= 80 ? "text-emerald-600" : hcScore >= 60 ? "text-amber-500" : "text-red-500"} />
               <MiniKpi label="Karyawan Aktif" value={hrData?.totalActive ?? "—"} />
               <MiniKpi label="KPI Rata-rata" value={hrData?.avgKpiAchievement ? `${Math.round(hrData.avgKpiAchievement)}%` : "—"}
                 color={(hrData?.avgKpiAchievement ?? 0) >= 80 ? "text-emerald-600" : "text-amber-500"} />
@@ -750,7 +784,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Monitoring Siteplan Proyek ── */}
-      {siteplanList.length > 0 && (
+      {siteplanList.filter((sp: any) => activeProjectIds.has(sp.projectId)).length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -763,8 +797,8 @@ export default function Dashboard() {
               </button>
             </Link>
           </div>
-          <div className={`grid gap-4 ${siteplanList.length === 1 ? "grid-cols-1 max-w-md" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-            {siteplanList.slice(0, 3).map((sp: any) => {
+          <div className={`grid gap-4 ${siteplanList.filter((sp: any) => activeProjectIds.has(sp.projectId)).length === 1 ? "grid-cols-1 max-w-md" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+            {siteplanList.filter((sp: any) => activeProjectIds.has(sp.projectId)).slice(0, 3).map((sp: any) => {
               const proj = (projArr as any[]).find((p: any) => p.id === sp.projectId);
               return (
                 <Link key={sp.id} href={`/produksi/siteplan`}>

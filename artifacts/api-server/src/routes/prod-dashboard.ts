@@ -24,9 +24,10 @@ router.get("/produksi/dashboard", async (req, res) => {
 
     const rawContracts = await db.select().from(subkonContractsTable);
     const contracts = rawContracts.filter(c => activeProjectIds.has(c.projectId));
+    const activeContractIds = new Set(contracts.map(c => c.id));
 
     const rawPayments = await db.select().from(subkonPaymentsTable);
-    const payments = rawPayments.filter(p => activeProjectIds.has(p.projectId));
+    const payments = rawPayments.filter(p => activeContractIds.has(p.contractId));
 
     const rawFasums = await db.select().from(fasumProgressTable);
     const fasums = rawFasums.filter(f => activeProjectIds.has(f.projectId));

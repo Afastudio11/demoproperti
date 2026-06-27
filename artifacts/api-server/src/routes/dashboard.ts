@@ -11,14 +11,23 @@ import { eq, sql, lt } from "drizzle-orm";
 
 const router: IRouter = Router();
 
+function isDashboardProject(project: typeof projectsTable.$inferSelect) {
+  return project.status !== "archived" && project.fase !== "SCALE" && project.fase !== "KANTOR";
+}
+
 router.get("/dashboard/summary", async (req, res) => {
   try {
-    const [projects, units, leads, customers] = await Promise.all([
+    const [rawProjects, rawUnits, rawLeads, rawCustomers] = await Promise.all([
       db.select().from(projectsTable),
       db.select().from(unitsTable),
       db.select().from(leadsTable),
       db.select().from(customersTable),
     ]);
+    const projects = rawProjects.filter(isDashboardProject);
+    const activeProjectIds = new Set(projects.map((project) => project.id));
+    const units = rawUnits.filter((unit) => activeProjectIds.has(unit.projectId));
+    const leads = rawLeads.filter((lead) => lead.projectId == null || activeProjectIds.has(lead.projectId));
+    const customers = rawCustomers.filter((customer) => customer.projectId == null || activeProjectIds.has(customer.projectId));
 
     const activePhases = projects.reduce((acc: Record<string, number>, p) => {
       acc[p.fase] = (acc[p.fase] || 0) + 1;
@@ -48,7 +57,8 @@ router.get("/dashboard/summary", async (req, res) => {
 
 router.get("/dashboard/kpi", async (req, res) => {
   try {
-    const [leads, customers, units, legalDocs, landProspects, qcDefects, campaigns] = await Promise.all([
+    const [projects, rawLeads, rawCustomers, rawUnits, rawLegalDocs, landProspects, rawQcDefects, campaigns] = await Promise.all([
+      db.select().from(projectsTable),
       db.select().from(leadsTable),
       db.select().from(customersTable),
       db.select().from(unitsTable),
@@ -57,6 +67,13 @@ router.get("/dashboard/kpi", async (req, res) => {
       db.select().from(qcDefectsTable),
       db.select().from(campaignsTable),
     ]);
+    const activeProjectIds = new Set(projects.filter(isDashboardProject).map((project) => project.id));
+    const leads = rawLeads.filter((lead) => lead.projectId == null || activeProjectIds.has(lead.projectId));
+    const customers = rawCustomers.filter((customer) => customer.projectId == null || activeProjectIds.has(customer.projectId));
+    const units = rawUnits.filter((unit) => activeProjectIds.has(unit.projectId));
+    const legalDocs = rawLegalDocs.filter((doc) => activeProjectIds.has(doc.projectId));
+    const activeUnitIds = new Set(units.map((unit) => unit.id));
+    const qcDefects = rawQcDefects.filter((defect) => activeUnitIds.has(defect.unitId));
 
     const totalLeads = leads.length;
     const bookings = leads.filter(l => l.status === "BOOKING").length;
@@ -150,7 +167,7 @@ router.get("/dashboard/cashflow", async (_req, res) => {
 
 router.get("/dashboard/alerts", async (req, res) => {
   try {
-    const projects = await db.select().from(projectsTable);
+    const projects = (await db.select().from(projectsTable)).filter(isDashboardProject);
     const alerts: Array<{id: number; type: string; level: string; message: string; projectId: number; projectName: string; createdAt: string}> = [];
     let alertId = 1;
 
