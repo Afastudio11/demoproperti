@@ -230,12 +230,24 @@ router.get("/produksi/subkon/contracts", async (req, res) => {
       rows = rows.filter(r => r.projectId === pid);
     }
     const terms = await db.select().from(subkonPaymentTermsTable).orderBy(subkonPaymentTermsTable.terminNumber);
-    res.json(rows.map(r => ({
-      ...r,
-      paymentTerms: terms.filter(t => t.contractId === r.id).map(serializeTerm),
-      createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
-    })));
+    const payments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.status, "paid"));
+    
+    const enrichedRows = [];
+    for (const r of rows) {
+      const progressCurrent = await getContractFieldProgress(r.id);
+      const paidPayments = payments.filter(p => p.contractId === r.id);
+      const netAlreadyPaid = paidPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
+      
+      enrichedRows.push({
+        ...r,
+        progressCurrent,
+        netAlreadyPaid,
+        paymentTerms: terms.filter(t => t.contractId === r.id).map(serializeTerm),
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+      });
+    }
+    res.json(enrichedRows);
   } catch (err) {
     req.log.error({ err }, "Failed to list subkon contracts");
     res.status(500).json({ error: "Internal server error" });
@@ -337,6 +349,20 @@ router.patch("/produksi/subkon/contracts/:id", async (req, res) => {
       body.totalRetention = unitCount * retentionPerUnit;
       body.netPayableValue = body.contractValue - body.totalRetention;
     }
+    if ("retentionStatus" in body && (body.retentionStatus === "siap_cair" || body.retentionStatus === "sudah_cair")) {
+      const progressCurrent = await getContractFieldProgress(id);
+      const allPayments = await db.select().from(subkonPaymentsTable).where(eq(subkonPaymentsTable.contractId, id));
+      const paidPayments = allPayments.filter(p => p.status === "paid");
+      const netAlreadyPaid = paidPayments.reduce((sum, p) => sum + (p.netPayment ?? 0), 0);
+      const netPayableValue = existing.netPayableValue;
+
+      if (progressCurrent < 100 || netAlreadyPaid < netPayableValue) {
+        return res.status(400).json({ 
+          error: `Retensi belum bisa dicairkan. Konstruksi fisik harus selesai 100% dan seluruh pembayaran progres (Net: Rp ${netPayableValue.toLocaleString('id-ID')}) harus lunas terbayar terlebih dahulu.` 
+        });
+      }
+    }
+
     const paymentTerms = Array.isArray(body.paymentTerms) ? body.paymentTerms as PaymentTermInput[] : undefined;
     delete body.paymentTerms;
     const [row] = await db.update(subkonContractsTable).set(body).where(eq(subkonContractsTable.id, id)).returning();

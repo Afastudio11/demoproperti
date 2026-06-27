@@ -14,6 +14,7 @@ type Contract = {
   retentionPerUnit: number; totalRetention: number; netPayableValue: number;
   maintenanceMonths: number; startDate: string | null; targetEndDate: string | null;
   retentionStatus: string; status: string;
+  progressCurrent?: number; netAlreadyPaid?: number;
 };
 
 const RETENTION_STATUS: Record<string, string> = {
@@ -115,11 +116,18 @@ export default function SubkonKontrak() {
                       value={c.retentionStatus}
                       onValueChange={retentionStatus => updateRetentionStatus.mutate({ id: c.id, retentionStatus })}
                     >
-                      <SelectTrigger className="h-7 w-40 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-48 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {Object.entries(RETENTION_STATUS).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>{label}</SelectItem>
-                        ))}
+                        {Object.entries(RETENTION_STATUS).map(([value, label]) => {
+                          const isEligibleForRelease = (c.progressCurrent ?? 0) >= 100 && (c.netAlreadyPaid ?? 0) >= c.netPayableValue;
+                          const isReleaseOption = value === "siap_cair" || value === "sudah_cair";
+                          const disabled = isReleaseOption && !isEligibleForRelease;
+                          return (
+                            <SelectItem key={value} value={value} disabled={disabled}>
+                              {label} {!isEligibleForRelease && isReleaseOption && " (Harus 100% & Progres Lunas)"}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
