@@ -7,8 +7,15 @@ import {
   projectsTable,
   subkonContractsTable,
   unitsTable,
+  constructionTasksTable,
+  qcDefectsTable,
+  reworksTable,
+  prodMaterialOutTable,
+  handoversTable,
+  customersTable,
+  subkonPaymentsTable,
 } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { normalizeSubkonName, resolveSubkonMaster } from "../lib/subkon-master";
 
 const router = Router();
@@ -280,6 +287,84 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
   return contract?.id ?? null;
 }
 
+async function cleanupDeletedPlanningData(projectId: number) {
+  // 1. Get all active stage blocks for this project
+  const activeBlocks = await db
+    .select()
+    .from(planningStageBlocksTable)
+    .where(eq(planningStageBlocksTable.projectId, projectId));
+
+  // Create a set of active stageCode::blockCode combinations
+  const activeKeys = new Set(
+    activeBlocks.map(b => `${String(b.stageCode ?? "").toUpperCase()}::${String(b.blockCode ?? "").toUpperCase()}`)
+  );
+
+  // 2. Get all units for this project in production
+  const projectUnits = await db
+    .select()
+    .from(unitsTable)
+    .where(eq(unitsTable.projectId, projectId));
+
+  // Identify units whose stage/block combinations are no longer active
+  const unitsToDelete = projectUnits.filter(u => {
+    const key = `${String(u.stageCode ?? "").toUpperCase()}::${String(u.blok ?? "").toUpperCase()}`;
+    return !activeKeys.has(key);
+  });
+
+  if (unitsToDelete.length > 0) {
+    const unitIds = unitsToDelete.map(u => u.id);
+
+    // Clear matching shapes in planningSiteplanShapesTable
+    await db
+      .update(planningSiteplanShapesTable)
+      .set({
+        unitId: null,
+        stageCode: "",
+        blockCode: "",
+        unitType: "",
+        subkonId: null,
+        subkonName: null,
+      })
+      .where(
+        and(
+          eq(planningSiteplanShapesTable.projectId, projectId),
+          inArray(planningSiteplanShapesTable.unitId, unitIds)
+        )
+      );
+
+    // Delete related records from other production tables
+    await db.delete(constructionTasksTable).where(inArray(constructionTasksTable.unitId, unitIds));
+    await db.delete(qcDefectsTable).where(inArray(qcDefectsTable.unitId, unitIds));
+    await db.delete(reworksTable).where(inArray(reworksTable.unitId, unitIds));
+    await db.delete(prodMaterialOutTable).where(inArray(prodMaterialOutTable.unitId, unitIds));
+    await db.delete(handoversTable).where(inArray(handoversTable.unitId, unitIds));
+    await db.update(customersTable).set({ unitId: null }).where(inArray(customersTable.unitId, unitIds));
+
+    // Finally, delete the units
+    await db.delete(unitsTable).where(inArray(unitsTable.id, unitIds));
+  }
+
+  // 3. Cleanup contracts that are no longer referenced by any remaining block
+  const activeContractIds = activeBlocks
+    .map(b => b.contractId)
+    .filter((id): id is number => Number(id) > 0);
+
+  const projectContracts = await db
+    .select()
+    .from(subkonContractsTable)
+    .where(eq(subkonContractsTable.projectId, projectId));
+
+  const contractsToDelete = projectContracts.filter(c => !activeContractIds.includes(c.id));
+
+  if (contractsToDelete.length > 0) {
+    const contractIds = contractsToDelete.map(c => c.id);
+    // Delete payments first (to avoid foreign key constraint errors)
+    await db.delete(subkonPaymentsTable).where(inArray(subkonPaymentsTable.contractId, contractIds));
+    // Then delete the contracts
+    await db.delete(subkonContractsTable).where(inArray(subkonContractsTable.id, contractIds));
+  }
+}
+
 router.get("/planning/stages/siteplan-summary", async (req, res) => {
   try {
     const projectId = Number(req.query.projectId);
@@ -440,6 +525,7 @@ router.post("/planning/stages/bulk", async (req, res) => {
       }
     }
 
+    await cleanupDeletedPlanningData(projectId);
     res.json(await enrichStages(projectId));
   } catch (err) {
     req.log.error({ err }, "Failed to save planning stages");
@@ -498,6 +584,7 @@ router.post("/planning/stages/publish", async (req, res) => {
     }
     await db.update(projectsTable).set({ totalUnit: totalPlanned }).where(eq(projectsTable.id, projectId));
 
+    await cleanupDeletedPlanningData(projectId);
     res.json({ ok: true, syncedUnits, stages: await enrichStages(projectId) });
   } catch (err) {
     req.log.error({ err }, "Failed to publish planning stages");
