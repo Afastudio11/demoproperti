@@ -605,7 +605,7 @@ export default function HRLembur() {
               <table className="w-full text-xs border-collapse min-w-max">
                 <thead>
                   <tr className="border-b bg-muted/20">
-                    <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/20 min-w-[160px]" rowSpan={2}>Karyawan</th>
+                    <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted min-w-[160px]" rowSpan={2}>Karyawan</th>
                     {Array.from({ length: daysInMonth }, (_, i) => (
                       <th key={i + 1} className="px-0.5 py-1 font-medium text-center w-10 text-muted-foreground" colSpan={2}>{i + 1}</th>
                     ))}
@@ -749,7 +749,7 @@ export default function HRLembur() {
                       className="rounded cursor-pointer"
                     />
                   </th>
-                  <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
+                  <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
                   <th className="text-left px-2 py-2 font-medium min-w-[90px]" rowSpan={2}>Kantor/Proyek</th>
                   {Array.from({ length: daysInMonth }, (_, i) => (
                     <th key={i + 1} className="px-0.5 py-1 font-medium text-center w-10" colSpan={2}>{i + 1}</th>
@@ -864,7 +864,7 @@ export default function HRLembur() {
               <table className="w-full text-xs min-w-max">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
+                    <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted min-w-[160px]" rowSpan={2}>Nama Karyawan</th>
                     {multiPeriods.map(p => (
                       <th key={p.label} className="px-1 py-1 font-medium text-center text-[11px]" colSpan={2}>{p.label}</th>
                     ))}
@@ -914,7 +914,7 @@ export default function HRLembur() {
                   })}
                   {/* Total row */}
                   <tr className="border-t-2 bg-muted/30 font-semibold">
-                    <td className="px-3 py-2 sticky left-0 bg-muted/30 text-xs font-bold border-r">TOTAL</td>
+                    <td className="px-3 py-2 sticky left-0 bg-muted text-xs font-bold border-r">TOTAL</td>
                     {multiPeriods.map(p => {
                       const t = multiEmpNames.reduce((s, emp) => s + (multiSummary[emp]?.[p.label]?.terlambat ?? 0), 0);
                       const l = multiEmpNames.reduce((s, emp) => s + (multiSummary[emp]?.[p.label]?.lembur ?? 0), 0);

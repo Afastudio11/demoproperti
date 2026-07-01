@@ -510,7 +510,7 @@ export default function HRAbsensi() {
               <table className="w-full text-xs border-collapse min-w-max">
                 <thead>
                   <tr className="border-b bg-muted/20">
-                    <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/20 min-w-[160px]">Karyawan</th>
+                    <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted min-w-[160px]">Karyawan</th>
                     <th className="text-left px-2 py-2 font-medium min-w-[100px] text-muted-foreground">Jabatan</th>
                     {Array.from({ length: daysInMonth }, (_, i) => (
                       <th key={i + 1} className="px-0.5 py-2 font-medium text-center w-7 text-muted-foreground">{i + 1}</th>
@@ -674,7 +674,7 @@ export default function HRAbsensi() {
                     className="rounded cursor-pointer"
                   />
                 </th>
-                <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted/30 min-w-[160px]">Nama Karyawan</th>
+                <th className="text-left px-3 py-2 font-medium sticky left-0 bg-muted min-w-[160px]">Nama Karyawan</th>
                 <th className="text-left px-2 py-2 font-medium min-w-[100px]">Kantor/Proyek</th>
                 {Array.from({ length: daysInMonth }, (_, i) => (
                   <th key={i + 1} className="px-1 py-2 font-medium text-center w-7">{i + 1}</th>
