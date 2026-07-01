@@ -432,6 +432,17 @@ export default function HRLembur() {
 
   return (
     <div className="space-y-5">
+      <style>{`
+        .no-spinners::-webkit-outer-spin-button,
+        .no-spinners::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .no-spinners {
+          -moz-appearance: textfield;
+          appearance: textfield;
+        }
+      `}</style>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Data Lembur & Keterlambatan</h1>
@@ -631,7 +642,7 @@ export default function HRLembur() {
                                   value={cell.terlambat}
                                   onChange={e => updateBulkCell(emp.id, d, "terlambat", e.target.value)}
                                   placeholder="0"
-                                  className={`w-7 text-center text-[10px] border rounded py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                                  className={`w-7 text-center text-[10px] border rounded py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-amber-400 no-spinners ${
                                     parseInt(cell.terlambat) > 0 ? "border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-950/30" : ""
                                   }`}
                                 />
@@ -642,7 +653,7 @@ export default function HRLembur() {
                                   value={cell.lembur}
                                   onChange={e => updateBulkCell(emp.id, d, "lembur", e.target.value)}
                                   placeholder="0"
-                                  className={`w-7 text-center text-[10px] border rounded py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-blue-400 ${
+                                  className={`w-7 text-center text-[10px] border rounded py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-blue-400 no-spinners ${
                                     parseInt(cell.lembur) > 0 ? "border-blue-400 text-blue-700 bg-blue-50 dark:bg-blue-950/30" : ""
                                   }`}
                                 />
