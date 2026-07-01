@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Trash2, Users, Filter, AlertCircle, CheckCircle2, Settings, Plus, X } from "lucide-react";
+import { Calendar, Trash2, Users, Filter, AlertCircle, CheckCircle2, Settings, Plus, X, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiJson } from "@/lib/api";
+import * as XLSX from "xlsx";
+
 
 const MONTHS = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
 // Status sesuai Excel: H=Hadir, C=Cuti, I=Izin, T=Terlambat, L=Libur, S=Sakit
@@ -35,6 +37,7 @@ export default function HRAbsensi() {
   const [month, setMonth] = useState(MONTHS[new Date().getMonth()]);
   const [year, setYear] = useState(new Date().getFullYear());
   const [project, setProject] = useState("Semua");
+  const [viewTab, setViewTab] = useState<"harian" | "rekap">("harian");
 
   // Bulk input state
   const [bulkMode, setBulkMode] = useState(false);
@@ -76,6 +79,11 @@ export default function HRAbsensi() {
     queryKey: ["hr-attendance", month, year, selectedProject?.id ?? "all"],
     queryFn: () => fetch(`/api/hr/attendance?${params}`).then(apiJson),
   });
+  const { data: overtimeData = [] } = useQuery<any[]>({
+    queryKey: ["hr-overtime", month, year, selectedProject?.id ?? "all"],
+    queryFn: () => fetch(`/api/hr/overtime?${params}`).then(apiJson),
+  });
+
 
   const saveMut = useMutation({
     mutationFn: (body: any) => {
@@ -162,6 +170,118 @@ export default function HRAbsensi() {
     const s = r.status ?? "";
     statusCounts[s] = (statusCounts[s] ?? 0) + 1;
   }
+
+  // Calculate Monthly Recap Stats
+  const recapData = employees_in_matrix.map(emp => {
+    const days = matrix[emp] ?? {};
+    let H = 0, C = 0, I = 0, T = 0, L = 0, S = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const status = days[d]?.status ?? "";
+      if (status === "H") H++;
+      else if (status === "C") C++;
+      else if (status === "I") I++;
+      else if (status === "T") T++;
+      else if (status === "L") L++;
+      else if (status === "S") S++;
+    }
+
+    const totalHadir = H + T;
+    const scheduledDays = Math.max(0, daysInMonth - L);
+    const persentaseHadir = scheduledDays > 0 ? (totalHadir / scheduledDays) * 100 : 0;
+    const alpa = Math.max(0, daysInMonth - (H + C + I + T + L + S));
+
+    // Overtime and lateness
+    const empOvertime = overtimeData.filter((r: any) => r.employeeName === emp);
+    const totalLemburMenit = empOvertime.reduce((s: number, r: any) => s + (Number(r.lemburJam) || 0), 0);
+    const totalLateMenit = empOvertime.reduce((s: number, r: any) => s + (r.terlambatMenit || 0), 0);
+    const lateCount = empOvertime.filter((r: any) => (r.terlambatMenit || 0) > 0).length;
+
+    const empDb = employees.find((e: any) => e.name === emp);
+    const empRows = data.filter(r => r.employeeName === emp);
+    const proj = empRows[0]?.project ?? empDb?.project ?? empDb?.division ?? empDb?.location ?? "";
+
+    return {
+      name: emp,
+      project: proj,
+      scheduledDays,
+      hadir: H,
+      terlambat: T,
+      totalHadir,
+      persentaseHadir,
+      cuti: C,
+      izin: I,
+      sakit: S,
+      libur: L,
+      alpa,
+      totalLemburMenit,
+      totalLateMenit,
+      lateCount
+    };
+  });
+
+  // Overall calculations for summary cards
+  const totalEmployeesWithRecap = recapData.length;
+  const avgAttendanceRate = totalEmployeesWithRecap > 0
+    ? recapData.reduce((s, r) => s + r.persentaseHadir, 0) / totalEmployeesWithRecap
+    : 0;
+  const totalHadirAll = recapData.reduce((s, r) => s + r.totalHadir, 0);
+  const totalLateCountAll = recapData.reduce((s, r) => s + r.lateCount, 0);
+  const totalLemburMenitAll = recapData.reduce((s, r) => s + r.totalLemburMenit, 0);
+
+  function formatMinutes(min: number) {
+    if (min === 0) return "—";
+    if (min < 60) return `${min} mnt`;
+    const hrs = Math.floor(min / 60);
+    const rem = min % 60;
+    return rem > 0 ? `${hrs} jam ${rem} mnt` : `${hrs} jam`;
+  }
+
+  function exportRecapToExcel() {
+    const headers = [
+      "Nama Karyawan",
+      "Kantor/Proyek",
+      "Hari Kerja Terjadwal",
+      "Hadir (H)",
+      "Terlambat (T)",
+      "Total Kehadiran",
+      "Persentase Kehadiran",
+      "Cuti (C)",
+      "Izin (I)",
+      "Sakit (S)",
+      "Libur (L)",
+      "Alpa / Kosong",
+      "Total Lembur (menit)",
+      "Total Lembur (Jam)",
+      "Total Keterlambatan (menit)"
+    ];
+
+    const rows = recapData.map(r => {
+      const lemburJamStr = r.totalLemburMenit > 0 ? (r.totalLemburMenit / 60).toFixed(2).replace(".", ",") : "0";
+      return [
+        r.name,
+        r.project,
+        `${r.scheduledDays} hari`,
+        r.hadir,
+        r.terlambat,
+        r.totalHadir,
+        `${r.persentaseHadir.toFixed(1).replace(".", ",")}%`,
+        r.cuti || 0,
+        r.izin || 0,
+        r.sakit || 0,
+        r.libur || 0,
+        r.alpa || 0,
+        r.totalLemburMenit,
+        lemburJamStr,
+        r.totalLateMenit
+      ];
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Rekap Absensi");
+    XLSX.writeFile(workbook, `Rekap_Absensi_${month}_${year}.xlsx`);
+  }
+
 
   // Bulk grid handlers — pre-fill dari data existing
   function openBulk() {
@@ -287,28 +407,76 @@ export default function HRAbsensi() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <Filter className="size-4 text-muted-foreground" />
-        <select value={month} onChange={e => setMonth(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
-          {MONTHS.map(m => <option key={m}>{m}</option>)}
-        </select>
-        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} className="text-sm border rounded-md px-2 py-1.5 bg-background w-20" />
-        <select value={project} onChange={e => setProject(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
-          {projectOptions.map(p => <option key={p}>{p}</option>)}
-        </select>
+      {/* Filters and Tab Switcher */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Filter className="size-4 text-muted-foreground" />
+          <select value={month} onChange={e => setMonth(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
+            {MONTHS.map(m => <option key={m}>{m}</option>)}
+          </select>
+          <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} className="text-sm border rounded-md px-2 py-1.5 bg-background w-20" />
+          <select value={project} onChange={e => setProject(e.target.value)} className="text-sm border rounded-md px-2 py-1.5 bg-background">
+            {projectOptions.map(p => <option key={p}>{p}</option>)}
+          </select>
+        </div>
+
+        {/* View Switcher */}
+        <div className="flex rounded-lg border bg-muted p-0.5 text-xs font-medium">
+          <button onClick={() => setViewTab("harian")}
+            className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors",
+              viewTab === "harian" ? "bg-background shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
+            )}>
+            Absensi Harian
+          </button>
+          <button onClick={() => setViewTab("rekap")}
+            className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors",
+              viewTab === "rekap" ? "bg-background shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
+            )}>
+            Rekap Bulanan
+          </button>
+        </div>
       </div>
 
-      {/* Summary */}
-      <div className="flex gap-2 flex-wrap">
-        {Object.entries(STATUS_LABELS).map(([code, label]) => (
-          <div key={code} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium", STATUS_COLORS[code] ?? "bg-muted text-muted-foreground")}>
-            <span className="font-bold">{code}</span>
-            <span>{label}</span>
-            <span className="ml-1 font-bold">{statusCounts[code] ?? 0}</span>
+      {/* Summary Section */}
+      {viewTab === "harian" ? (
+        <div className="flex gap-2 flex-wrap">
+          {Object.entries(STATUS_LABELS).map(([code, label]) => (
+            <div key={code} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium", STATUS_COLORS[code] ?? "bg-muted text-muted-foreground")}>
+              <span className="font-bold">{code}</span>
+              <span>{label}</span>
+              <span className="ml-1 font-bold">{statusCounts[code] ?? 0}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="border rounded-xl p-4 bg-card shadow-sm flex flex-col justify-between h-24">
+            <span className="text-xs text-muted-foreground font-medium">Rata-rata Kehadiran</span>
+            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+              {avgAttendanceRate.toFixed(1).replace(".", ",")}%
+            </span>
           </div>
-        ))}
-      </div>
+          <div className="border rounded-xl p-4 bg-card shadow-sm flex flex-col justify-between h-24">
+            <span className="text-xs text-muted-foreground font-medium">Total Kehadiran</span>
+            <span className="text-2xl font-bold text-foreground tabular-nums">
+              {totalHadirAll} <span className="text-xs font-normal text-muted-foreground font-sans">hari</span>
+            </span>
+          </div>
+          <div className="border rounded-xl p-4 bg-card shadow-sm flex flex-col justify-between h-24">
+            <span className="text-xs text-muted-foreground font-medium">Total Kasus Terlambat</span>
+            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+              {totalLateCountAll} <span className="text-xs font-normal text-muted-foreground font-sans">kali</span>
+            </span>
+          </div>
+          <div className="border rounded-xl p-4 bg-card shadow-sm flex flex-col justify-between h-24">
+            <span className="text-xs text-muted-foreground font-medium">Total Lembur</span>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">
+              {formatMinutes(totalLemburMenitAll)}
+            </span>
+          </div>
+        </div>
+      )}
+
 
       {/* ── BULK INPUT PANEL ─────────────────────────────────────────────────── */}
       {bulkMode && (
@@ -471,7 +639,7 @@ export default function HRAbsensi() {
           <p className="text-sm text-muted-foreground">Belum ada data absensi untuk periode ini</p>
           <p className="text-xs text-muted-foreground mt-1">Klik "Input Semua Karyawan" untuk mengisi absensi</p>
         </div>
-      ) : (
+      ) : viewTab === "harian" ? (
         <>
         {/* Bulk delete bar */}
         {selectedEmps.size > 0 && (
@@ -585,6 +753,69 @@ export default function HRAbsensi() {
           </table>
         </div>
         </>
+      ) : (
+        /* Monthly Recap View */
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-muted-foreground">Menampilkan rekapan untuk {employees_in_matrix.length} karyawan</span>
+            <button
+              onClick={exportRecapToExcel}
+              className="flex items-center gap-1.5 text-xs border rounded-md px-3 py-1.5 bg-background hover:bg-muted/50 font-medium transition-colors cursor-pointer"
+            >
+              <Download className="size-3.5" /> Ekspor Rekap (Excel)
+            </button>
+          </div>
+          <div className="border rounded-xl overflow-auto">
+            <table className="w-full text-xs min-w-max text-left border-collapse">
+              <thead>
+                <tr className="border-b bg-muted/30 text-muted-foreground font-medium">
+                  <th className="px-4 py-3 sticky left-0 bg-background font-medium border-r min-w-[160px]">Nama Karyawan</th>
+                  <th className="px-4 py-3 font-medium min-w-[120px]">Kantor/Proyek</th>
+                  <th className="px-3 py-3 font-medium text-center">Hari Kerja</th>
+                  <th className="px-3 py-3 font-medium text-center text-emerald-700 dark:text-emerald-400">Hadir (H)</th>
+                  <th className="px-3 py-3 font-medium text-center text-amber-600 dark:text-amber-400">Telat (T)</th>
+                  <th className="px-3 py-3 font-medium text-center font-semibold text-emerald-800 dark:text-emerald-300">Total Hadir</th>
+                  <th className="px-3 py-3 font-medium text-center font-bold text-indigo-700 dark:text-indigo-400">% Kehadiran</th>
+                  <th className="px-3 py-3 font-medium text-center text-blue-600 dark:text-blue-400">Cuti (C)</th>
+                  <th className="px-3 py-3 font-medium text-center text-orange-600 dark:text-orange-400">Izin (I)</th>
+                  <th className="px-3 py-3 font-medium text-center text-purple-600 dark:text-purple-400">Sakit (S)</th>
+                  <th className="px-3 py-3 font-medium text-center text-slate-500">Libur (L)</th>
+                  <th className="px-3 py-3 font-medium text-center text-red-600 dark:text-red-400">Alpa/Kosong</th>
+                  <th className="px-4 py-3 font-medium text-right text-blue-700 dark:text-blue-300">Total Lembur</th>
+                  <th className="px-4 py-3 font-medium text-right text-amber-700 dark:text-amber-300">Total Telat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y bg-card">
+                {recapData.map((row) => (
+                  <tr key={row.name} className="hover:bg-muted/10">
+                    <td className="px-4 py-3 sticky left-0 bg-background font-semibold border-r">{row.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{row.project}</td>
+                    <td className="px-3 py-3 text-center">{row.scheduledDays} hari</td>
+                    <td className="px-3 py-3 text-center text-emerald-600 dark:text-emerald-400 font-medium">{row.hadir}</td>
+                    <td className="px-3 py-3 text-center text-amber-600 dark:text-amber-400 font-medium">{row.terlambat}</td>
+                    <td className="px-3 py-3 text-center font-bold">{row.totalHadir}</td>
+                    <td className="px-3 py-3 text-center">
+                      <span className={cn("px-2 py-0.5 rounded-full font-bold text-[11px]",
+                        row.persentaseHadir >= 90 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400" :
+                        row.persentaseHadir >= 75 ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400" :
+                        "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400"
+                      )}>
+                        {row.persentaseHadir.toFixed(1).replace(".", ",")}%
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-center text-blue-600 font-medium">{row.cuti || "—"}</td>
+                    <td className="px-3 py-3 text-center text-orange-600 font-medium">{row.izin || "—"}</td>
+                    <td className="px-3 py-3 text-center text-purple-600 font-medium">{row.sakit || "—"}</td>
+                    <td className="px-3 py-3 text-center text-slate-500">{row.libur || "—"}</td>
+                    <td className="px-3 py-3 text-center text-red-500 dark:text-red-400 font-medium">{row.alpa || "—"}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-blue-600 dark:text-blue-400">{formatMinutes(row.totalLemburMenit)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-amber-600 dark:text-amber-400">{row.totalLateMenit > 0 ? `${row.totalLateMenit} mnt` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
