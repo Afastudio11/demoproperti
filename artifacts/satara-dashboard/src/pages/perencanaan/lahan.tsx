@@ -1582,7 +1582,6 @@ export default function LahanPage() {
     () => shapeList.filter(shape => selectedShapeIds.includes(shape.id) && shape.shapeType === "unit").length,
     [selectedShapeIds, shapeList],
   );
-  const shouldShowUnitLabels = canvasZoom >= 1.9;
 
   useEffect(() => {
     setBatchUnitForm(prev => prev.startNumber === autoBatchStartNumber ? prev : { ...prev, startNumber: autoBatchStartNumber });
@@ -1624,38 +1623,40 @@ export default function LahanPage() {
       const poly = Array.isArray(currentShape.polygon) ? currentShape.polygon as CanvasPoint[] : [];
       if (poly.length < 3) return null;
       const isUnit = currentShape.shapeType === "unit";
-      const isSelected = selectedShapeIds.includes(shape.id);
-      const shouldShowLabel = !isUnit || shouldShowUnitLabels || (isSelected && selectedShapeIds.length <= 1);
       const center = polygonCenter(poly);
-      const bounds = polygonBounds(poly);
       const labelText = String(currentShape.label ?? "").trim();
       if (!labelText && !currentShape.isLocked) return null;
+      const fontSize = isUnit
+        ? canvasZoom < 1.5 ? 8 : canvasZoom < 2.5 ? 9.5 : 11
+        : canvasZoom < 1.5 ? 11 : 13;
 
       return (
         <div
           key={`label-${shape.id}`}
-          className={cn(
-            "absolute z-10 -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-bold leading-none text-white",
-            isUnit ? "text-[11px]" : "text-[13px]",
-            !shouldShowLabel && "hidden",
-          )}
+          className="absolute z-10 select-none"
           style={{
             left: `${center.x}%`,
             top: `${center.y}%`,
-            maxWidth: `${Math.max(24, bounds.width * 7)}%`,
-            textShadow: "0 1px 1px rgba(0,0,0,.85), 0 -1px 1px rgba(0,0,0,.85), 1px 0 1px rgba(0,0,0,.85), -1px 0 1px rgba(0,0,0,.85)",
-            transform: `translate(-50%, -50%) scale(${1 / canvasZoom})`,
+            transform: `scale(${1 / canvasZoom})`,
             transformOrigin: "center",
             pointerEvents: "none",
           }}
         >
-          {currentShape.isLocked && <span className="mr-0.5 text-amber-500">⚿</span>}
-          {labelText}
+          <span
+            className="block -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-center font-bold leading-none text-white"
+            style={{
+              fontSize,
+              textShadow: "0 1px 1px rgba(0,0,0,.85), 0 -1px 1px rgba(0,0,0,.85), 1px 0 1px rgba(0,0,0,.85), -1px 0 1px rgba(0,0,0,.85)",
+            }}
+          >
+            {currentShape.isLocked && <span className="mr-0.5 text-amber-500">⚿</span>}
+            {labelText}
+          </span>
         </div>
       );
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, shapeDraft, dragPreviewPolygons, shouldShowUnitLabels]);
+  }, [shapeList, editingShapeId, canvasZoom, shapeDraft, dragPreviewPolygons]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
