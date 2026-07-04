@@ -1598,6 +1598,25 @@ export default function LahanPage() {
       const previewPolygon = dragPreviewPolygons?.[shape.id];
       const currentShape = shape.id === editingShapeId ? { ...shape, ...shapeDraft } : { ...shape, polygon: previewPolygon ?? shape.polygon };
       const color = shapeColor(currentShape, shape.id === editingShapeId || isSelected);
+
+      const pts = currentShape.polygon as CanvasPoint[];
+      const labelText = String(currentShape.label ?? "").trim();
+      const hasLabel = labelText !== "";
+      let cx = 0, cy = 0;
+      let fontSize = 1.6;
+      if (hasLabel && Array.isArray(pts) && pts.length >= 3) {
+        const bounds = polygonBounds(pts);
+        cx = (bounds.minX + bounds.maxX) / 2;
+        cy = (bounds.minY + bounds.maxY) / 2;
+        const labelLength = Math.max(1, labelText.length);
+        const isUnit = currentShape.shapeType === "unit";
+        if (isUnit) {
+          fontSize = Math.max(1.0, Math.min(2.5, (bounds.width * 1.55) / labelLength));
+        } else {
+          fontSize = Math.max(1.5, Math.min(3.5, (bounds.width * 1.55) / labelLength));
+        }
+      }
+
       return (
         <g key={shape.id}>
           <polygon
@@ -1609,59 +1628,30 @@ export default function LahanPage() {
             onPointerDown={(e) => startShapeDrag(e, shape)}
             className={drawTool === "select" ? (isLocked ? "cursor-not-allowed" : "cursor-move") : drawTool === "delete" ? "cursor-not-allowed" : ""}
           />
+          {hasLabel && Array.isArray(pts) && pts.length >= 3 && (
+            <g style={{ pointerEvents: "none" }}>
+              <text
+                x={cx}
+                y={cy}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize={fontSize}
+                fontWeight={700}
+                fill="#ffffff"
+                stroke="#000000"
+                strokeWidth={0.35}
+                paintOrder="stroke"
+                style={{ userSelect: "none" }}
+              >
+                {labelText}
+              </text>
+            </g>
+          )}
         </g>
       );
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, drawTool, shapeDraft, dragPreviewPolygons]);
-
-  const shapeLabelsOverlay = useMemo(() => {
-    return shapeList.map(shape => {
-      if (shape.id === editingShapeId) return null;
-      const previewPolygon = dragPreviewPolygons?.[shape.id];
-      const currentShape = shape.id === editingShapeId ? { ...shape, ...shapeDraft } : { ...shape, polygon: previewPolygon ?? shape.polygon };
-      const poly = Array.isArray(currentShape.polygon) ? currentShape.polygon as CanvasPoint[] : [];
-      if (poly.length < 3) return null;
-      const isUnit = currentShape.shapeType === "unit";
-      const bounds = polygonBounds(poly);
-      const center = {
-        x: (bounds.minX + bounds.maxX) / 2,
-        y: (bounds.minY + bounds.maxY) / 2,
-      };
-      const labelText = String(currentShape.label ?? "").trim();
-      if (!labelText) return null;
-      const labelLength = Math.max(1, labelText.length);
-      const fitSize = Math.max(6.5, Math.min(11, (bounds.width * 10.5) / labelLength));
-      const fontSize = isUnit
-        ? Math.min(fitSize, canvasZoom < 1.5 ? 8 : canvasZoom < 2.5 ? 9.5 : 11)
-        : canvasZoom < 1.5 ? 11 : 13;
-
-      return (
-        <div
-          key={`label-${shape.id}`}
-          className="absolute z-10 select-none"
-          style={{
-            left: `${center.x}%`,
-            top: `${center.y}%`,
-            transform: `scale(${1 / canvasZoom})`,
-            transformOrigin: "center",
-            pointerEvents: "none",
-          }}
-        >
-          <span
-            className="block -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-center font-bold leading-none text-white"
-            style={{
-              fontSize,
-              textShadow: "0 1px 1px rgba(0,0,0,.85), 0 -1px 1px rgba(0,0,0,.85), 1px 0 1px rgba(0,0,0,.85), -1px 0 1px rgba(0,0,0,.85)",
-            }}
-          >
-            {labelText}
-          </span>
-        </div>
-      );
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapeList, editingShapeId, canvasZoom, shapeDraft, dragPreviewPolygons]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -2215,9 +2205,6 @@ export default function LahanPage() {
                   ))}
                   </>); })()}
                 </svg>
-                <div className="absolute inset-0 pointer-events-none">
-                  {shapeLabelsOverlay}
-                </div>
                 </div>
                 {/* Zoom controls — outside zoom wrapper so they stay fixed size */}
                 <div
