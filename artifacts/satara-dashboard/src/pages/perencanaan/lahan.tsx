@@ -1677,12 +1677,8 @@ export default function LahanPage() {
         const labelLength = Math.max(1, labelText.length);
         const isUnit = currentShape.shapeType === "unit";
         
-        let baseSize = 1.5;
-        if (isUnit) {
-          baseSize = Math.max(1.1, Math.min(2.5, (bounds.width * 1.55) / labelLength));
-        } else {
-          baseSize = Math.max(1.6, Math.min(3.8, (bounds.width * 1.55) / labelLength));
-        }
+        // Unified base size calculation so non-unit shapes (Tahap, Blok, etc.) follow the same scale as unit shapes
+        const baseSize = Math.max(1.1, Math.min(2.5, (bounds.width * 1.55) / labelLength));
         
         // Damped scaling so text gets larger when zoomed in but not excessively huge
         fontSize = baseSize / Math.sqrt(canvasZoom);
