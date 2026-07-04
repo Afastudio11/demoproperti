@@ -293,8 +293,10 @@ export default function ProduksiSiteplan() {
       doc.lines(pts.slice(1).map((p, i) => [((p.x - pts[i].x) / 100) * mapW, ((p.y - pts[i].y) / 100) * mapH]),
         mapX + (pts[0].x / 100) * mapW, mapY + (pts[0].y / 100) * mapH, [1, 1], "FD", true);
       doc.setFontSize(4.5); doc.setTextColor(17, 24, 39);
-      const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-      const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+      const xs = pts.map(p => p.x);
+      const ys = pts.map(p => p.y);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
       doc.text(`${shape.label}\n${Math.round(progress)}%`, mapX + (cx / 100) * mapW, mapY + (cy / 100) * mapH, { align: "center" });
     });
     doc.setTextColor(0, 0, 0); doc.setLineWidth(0.2);
@@ -537,10 +539,7 @@ export default function ProduksiSiteplan() {
                     const progress = unit?.progress ?? shape.progress ?? 0;
                     const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
                     const pts = shape.polygon ?? [];
-                    const cx = pts.length >= 3 ? pts.reduce((s, p) => s + p.x, 0) / pts.length : null;
-                    const cy = pts.length >= 3 ? pts.reduce((s, p) => s + p.y, 0) / pts.length : null;
                     const sw = 1 / zoom;
-                    const hs = 1 / zoom;
                     return (
                       <g key={`unit-${shape.id}`}>
                         <polygon
@@ -552,46 +551,68 @@ export default function ProduksiSiteplan() {
                           onMouseEnter={() => setHoveredShape(shape)}
                           onMouseLeave={() => setHoveredShape(null)}
                         />
-                        {cx !== null && cy !== null && (
-                          <>
-                            <text
-                              x={cx} y={cy - 0.6 * hs}
-                              textAnchor="middle"
-                              dominantBaseline="middle"
-                              fontSize={1.35 * hs}
-                              fontWeight={700}
-                              fill="#ffffff"
-                              stroke="rgba(0,0,0,0.72)"
-                              strokeWidth={0.34 * sw}
-                              paintOrder="stroke"
-                              vectorEffect="non-scaling-stroke"
-                              textRendering="geometricPrecision"
-                              style={{ pointerEvents: "none", userSelect: "none" }}
-                            >
-                              {shape.label}
-                            </text>
-                            <text
-                              x={cx} y={cy + 1.1 * hs}
-                              textAnchor="middle"
-                              dominantBaseline="middle"
-                              fontSize={1.1 * hs}
-                              fontWeight={400}
-                              fill="rgba(255,255,255,0.88)"
-                              stroke="rgba(0,0,0,0.65)"
-                              strokeWidth={0.28 * sw}
-                              paintOrder="stroke"
-                              vectorEffect="non-scaling-stroke"
-                              textRendering="geometricPrecision"
-                              style={{ pointerEvents: "none", userSelect: "none" }}
-                            >
-                              {Math.round(progress)}%
-                            </text>
-                          </>
-                        )}
                       </g>
                     );
                   })}
                 </svg>
+
+                {/* HTML Labels overlay */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                  {unitShapes.map(shape => {
+                    const unit = findUnit(shape);
+                    const progress = unit?.progress ?? shape.progress ?? 0;
+                    const pts = shape.polygon ?? [];
+                    if (pts.length < 3) return null;
+                    const xs = pts.map(p => p.x);
+                    const ys = pts.map(p => p.y);
+                    const minX = Math.min(...xs);
+                    const maxX = Math.max(...xs);
+                    const minY = Math.min(...ys);
+                    const maxY = Math.max(...ys);
+                    const cx = (minX + maxX) / 2;
+                    const cy = (minY + maxY) / 2;
+                    const width = maxX - minX;
+
+                    const labelText = String(shape.label ?? "").trim();
+                    if (!labelText) return null;
+
+                    const labelLength = Math.max(1, labelText.length);
+                    const fitSize = Math.max(6, Math.min(10.5, (width * 10.5) / labelLength));
+                    const fontSize = Math.min(fitSize, 10.5);
+
+                    return (
+                      <div
+                        key={`label-${shape.id}`}
+                        className="absolute flex flex-col items-center justify-center text-center select-none"
+                        style={{
+                          left: `${cx}%`,
+                          top: `${cy}%`,
+                          transform: "translate(-50%, -50%)",
+                          width: `${width}%`,
+                        }}
+                      >
+                        <span
+                          className="block font-bold text-white leading-none whitespace-nowrap"
+                          style={{
+                            fontSize: `${fontSize}px`,
+                            textShadow: "0 1px 1px rgba(0,0,0,0.85), 0 -1px 1px rgba(0,0,0,0.85), 1px 0 1px rgba(0,0,0,0.85), -1px 0 1px rgba(0,0,0,0.85)",
+                          }}
+                        >
+                          {labelText}
+                        </span>
+                        <span
+                          className="block font-semibold text-white/90 leading-none mt-0.5"
+                          style={{
+                            fontSize: `${fontSize * 0.82}px`,
+                            textShadow: "0 1px 1px rgba(0,0,0,0.85), 0 -1px 1px rgba(0,0,0,0.85), 1px 0 1px rgba(0,0,0,0.85), -1px 0 1px rgba(0,0,0,0.85)",
+                          }}
+                        >
+                          {Math.round(progress)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Zoom level badge (top-right, inside canvas) */}
