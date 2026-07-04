@@ -621,6 +621,7 @@ export default function ProduksiSiteplan() {
                       </g>
                     );
                   })}
+                </svg>
               </div>
 
               {/* Zoom level badge (top-right, inside canvas) */}
