@@ -1604,17 +1604,25 @@ export default function LahanPage() {
       const hasLabel = labelText !== "";
       let cx = 0, cy = 0;
       let fontSize = 1.6;
+      let strokeWidth = 0.15;
       if (hasLabel && Array.isArray(pts) && pts.length >= 3) {
         const bounds = polygonBounds(pts);
         cx = (bounds.minX + bounds.maxX) / 2;
         cy = (bounds.minY + bounds.maxY) / 2;
         const labelLength = Math.max(1, labelText.length);
         const isUnit = currentShape.shapeType === "unit";
+        
+        let baseSize = 1.5;
         if (isUnit) {
-          fontSize = Math.max(1.0, Math.min(2.5, (bounds.width * 1.55) / labelLength));
+          baseSize = Math.max(1.1, Math.min(2.5, (bounds.width * 1.55) / labelLength));
         } else {
-          fontSize = Math.max(1.5, Math.min(3.5, (bounds.width * 1.55) / labelLength));
+          baseSize = Math.max(1.6, Math.min(3.8, (bounds.width * 1.55) / labelLength));
         }
+        
+        // Damped scaling so text gets larger when zoomed in but not excessively huge
+        fontSize = baseSize / Math.sqrt(canvasZoom);
+        // Keep outline stroke thin (1px-2px on screen)
+        strokeWidth = (baseSize * 0.15) / canvasZoom;
       }
 
       return (
@@ -1639,7 +1647,7 @@ export default function LahanPage() {
                 fontWeight={700}
                 fill="#ffffff"
                 stroke="#000000"
-                strokeWidth={0.35}
+                strokeWidth={strokeWidth}
                 paintOrder="stroke"
                 style={{ userSelect: "none" }}
               >

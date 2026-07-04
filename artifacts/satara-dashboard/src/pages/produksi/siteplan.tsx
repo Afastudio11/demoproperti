@@ -561,10 +561,29 @@ export default function ProduksiSiteplan() {
                     if (pts.length < 3) return null;
                     const xs = pts.map(p => p.x);
                     const ys = pts.map(p => p.y);
-                    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-                    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+                    const bounds = {
+                      minX: Math.min(...xs),
+                      maxX: Math.max(...xs),
+                      minY: Math.min(...ys),
+                      maxY: Math.max(...ys),
+                      width: Math.max(...xs) - Math.min(...xs),
+                    };
+                    const cx = (bounds.minX + bounds.maxX) / 2;
+                    const cy = (bounds.minY + bounds.maxY) / 2;
                     const sw = 1 / zoom;
                     const labelText = String(shape.label ?? "").trim();
+
+                    let fontSize = 1.6;
+                    let strokeWidth = 0.15;
+                    if (labelText) {
+                      const labelLength = Math.max(1, labelText.length);
+                      const baseSize = Math.max(1.1, Math.min(2.5, (bounds.width * 1.55) / labelLength));
+                      // Damped scaling so text gets larger when zoomed in but not excessively huge
+                      fontSize = baseSize / Math.sqrt(zoom);
+                      // Keep outline stroke thin (1px-2px on screen)
+                      strokeWidth = (baseSize * 0.15) / zoom;
+                    }
+
                     return (
                       <g key={`unit-${shape.id}`}>
                         <polygon
@@ -581,14 +600,14 @@ export default function ProduksiSiteplan() {
                             {/* Outline stroke text */}
                             <text
                               x={cx}
-                              y={cy - 0.7}
+                              y={cy - (0.55 * fontSize)}
                               textAnchor="middle"
                               dominantBaseline="central"
-                              fontSize={1.8}
+                              fontSize={fontSize}
                               fontWeight={700}
                               fill="#ffffff"
                               stroke="#000000"
-                              strokeWidth={0.4}
+                              strokeWidth={strokeWidth}
                               paintOrder="stroke"
                               style={{ userSelect: "none" }}
                             >
@@ -596,14 +615,14 @@ export default function ProduksiSiteplan() {
                             </text>
                             <text
                               x={cx}
-                              y={cy + 0.9}
+                              y={cy + (0.65 * fontSize)}
                               textAnchor="middle"
                               dominantBaseline="central"
-                              fontSize={1.4}
+                              fontSize={fontSize * 0.8}
                               fontWeight={600}
                               fill="rgba(255,255,255,0.92)"
                               stroke="#000000"
-                              strokeWidth={0.3}
+                              strokeWidth={strokeWidth * 0.8}
                               paintOrder="stroke"
                               style={{ userSelect: "none" }}
                             >
