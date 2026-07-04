@@ -1623,11 +1623,17 @@ export default function LahanPage() {
       const poly = Array.isArray(currentShape.polygon) ? currentShape.polygon as CanvasPoint[] : [];
       if (poly.length < 3) return null;
       const isUnit = currentShape.shapeType === "unit";
-      const center = polygonCenter(poly);
+      const bounds = polygonBounds(poly);
+      const center = {
+        x: (bounds.minX + bounds.maxX) / 2,
+        y: (bounds.minY + bounds.maxY) / 2,
+      };
       const labelText = String(currentShape.label ?? "").trim();
-      if (!labelText && !currentShape.isLocked) return null;
+      if (!labelText) return null;
+      const labelLength = Math.max(1, labelText.length);
+      const fitSize = Math.max(6.5, Math.min(11, (bounds.width * 10.5) / labelLength));
       const fontSize = isUnit
-        ? canvasZoom < 1.5 ? 8 : canvasZoom < 2.5 ? 9.5 : 11
+        ? Math.min(fitSize, canvasZoom < 1.5 ? 8 : canvasZoom < 2.5 ? 9.5 : 11)
         : canvasZoom < 1.5 ? 11 : 13;
 
       return (
@@ -1649,7 +1655,6 @@ export default function LahanPage() {
               textShadow: "0 1px 1px rgba(0,0,0,.85), 0 -1px 1px rgba(0,0,0,.85), 1px 0 1px rgba(0,0,0,.85), -1px 0 1px rgba(0,0,0,.85)",
             }}
           >
-            {currentShape.isLocked && <span className="mr-0.5 text-amber-500">⚿</span>}
             {labelText}
           </span>
         </div>
