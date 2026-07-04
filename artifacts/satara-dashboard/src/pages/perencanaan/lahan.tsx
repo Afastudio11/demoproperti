@@ -83,7 +83,7 @@ function distance(a: CanvasPoint, b: CanvasPoint) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function rectanglePoints(cx: number, cy: number, width: number, height: number, rotation: number): CanvasPoint[] {
+function rectanglePoints(cx: number, cy: number, width: number, height: number, rotation: number, aspectRatio: number = 1): CanvasPoint[] {
   const rad = (rotation * Math.PI) / 180;
   const corners = [
     { x: -width / 2, y: -height / 2 },
@@ -91,10 +91,16 @@ function rectanglePoints(cx: number, cy: number, width: number, height: number, 
     { x: width / 2, y: height / 2 },
     { x: -width / 2, y: height / 2 },
   ];
-  return corners.map(point => ({
-    x: Math.round(Math.max(0, Math.min(100, cx + point.x * Math.cos(rad) - point.y * Math.sin(rad))) * 10000) / 10000,
-    y: Math.round(Math.max(0, Math.min(100, cy + point.x * Math.sin(rad) + point.y * Math.cos(rad))) * 10000) / 10000,
-  }));
+  return corners.map(point => {
+    const px = point.x * aspectRatio;
+    const py = point.y;
+    const rx = px * Math.cos(rad) - py * Math.sin(rad);
+    const ry = px * Math.sin(rad) + py * Math.cos(rad);
+    return {
+      x: Math.round(Math.max(0, Math.min(100, cx + rx / aspectRatio)) * 10000) / 10000,
+      y: Math.round(Math.max(0, Math.min(100, cy + ry)) * 10000) / 10000,
+    };
+  });
 }
 
 function polygonCenter(points: CanvasPoint[]) {
@@ -156,38 +162,84 @@ function boxFromCorners(a: CanvasPoint, b: CanvasPoint) {
   ];
 }
 
-function resizeBox(points: CanvasPoint[], edgeOrCorner: string | number, target: CanvasPoint) {
+function resizeBox(
+  points: CanvasPoint[],
+  edgeOrCorner: string | number,
+  target: CanvasPoint,
+  aspectRatio: number = 1
+) {
   if (points.length !== 4) return points;
-  const box = polygonBounds(points);
-  let { minX, maxX, minY, maxY } = box;
-  if (edgeOrCorner === 0 || edgeOrCorner === "left") minX = Math.min(target.x, maxX - 0.5);
-  if (edgeOrCorner === 1 || edgeOrCorner === "right") maxX = Math.max(target.x, minX + 0.5);
-  if (edgeOrCorner === 2 || edgeOrCorner === "right") maxX = Math.max(target.x, minX + 0.5);
-  if (edgeOrCorner === 3 || edgeOrCorner === "left") minX = Math.min(target.x, maxX - 0.5);
-  if (edgeOrCorner === 0 || edgeOrCorner === "top") minY = Math.min(target.y, maxY - 0.5);
-  if (edgeOrCorner === 1 || edgeOrCorner === "top") minY = Math.min(target.y, maxY - 0.5);
-  if (edgeOrCorner === 2 || edgeOrCorner === "bottom") maxY = Math.max(target.y, minY + 0.5);
-  if (edgeOrCorner === 3 || edgeOrCorner === "bottom") maxY = Math.max(target.y, minY + 0.5);
-  return [
+
+  const cx = points.reduce((sum, p) => sum + p.x, 0) / 4;
+  const cy = points.reduce((sum, p) => sum + p.y, 0) / 4;
+
+  const dx = (points[1].x - points[0].x) * aspectRatio;
+  const dy = points[1].y - points[0].y;
+  const rad = Math.atan2(dy, dx);
+
+  const rotateBack = (p: CanvasPoint) => {
+    const rx = (p.x - cx) * aspectRatio;
+    const ry = p.y - cy;
+    const nx = rx * Math.cos(-rad) - ry * Math.sin(-rad);
+    const ny = rx * Math.sin(-rad) + ry * Math.cos(-rad);
+    return { x: nx / aspectRatio, y: ny };
+  };
+
+  const alignedPoints = points.map(rotateBack);
+  const alignedTarget = rotateBack(target);
+
+  const xs = alignedPoints.map(p => p.x);
+  const ys = alignedPoints.map(p => p.y);
+  let minX = Math.min(...xs);
+  let maxX = Math.max(...xs);
+  let minY = Math.min(...ys);
+  let maxY = Math.max(...ys);
+
+  if (edgeOrCorner === 0 || edgeOrCorner === "left") minX = Math.min(alignedTarget.x, maxX - 0.5);
+  if (edgeOrCorner === 1 || edgeOrCorner === "right") maxX = Math.max(alignedTarget.x, minX + 0.5);
+  if (edgeOrCorner === 2 || edgeOrCorner === "right") maxX = Math.max(alignedTarget.x, minX + 0.5);
+  if (edgeOrCorner === 3 || edgeOrCorner === "left") minX = Math.min(alignedTarget.x, maxX - 0.5);
+  
+  if (edgeOrCorner === 0 || edgeOrCorner === "top") minY = Math.min(alignedTarget.y, maxY - 0.5);
+  if (edgeOrCorner === 1 || edgeOrCorner === "top") minY = Math.min(alignedTarget.y, maxY - 0.5);
+  if (edgeOrCorner === 2 || edgeOrCorner === "bottom") maxY = Math.max(alignedTarget.y, minY + 0.5);
+  if (edgeOrCorner === 3 || edgeOrCorner === "bottom") maxY = Math.max(alignedTarget.y, minY + 0.5);
+
+  const newAlignedPoints = [
     { x: minX, y: minY },
     { x: maxX, y: minY },
     { x: maxX, y: maxY },
     { x: minX, y: maxY },
-  ].map(point => ({ x: Math.round(point.x * 10000) / 10000, y: Math.round(point.y * 10000) / 10000 }));
+  ];
+
+  const rotateForward = (p: CanvasPoint) => {
+    const rx = p.x * aspectRatio;
+    const ry = p.y;
+    const nx = rx * Math.cos(rad) - ry * Math.sin(rad);
+    const ny = rx * Math.sin(rad) + ry * Math.cos(rad);
+    return {
+      x: Math.round(Math.max(0, Math.min(100, cx + nx / aspectRatio)) * 10000) / 10000,
+      y: Math.round(Math.max(0, Math.min(100, cy + ny)) * 10000) / 10000,
+    };
+  };
+
+  return newAlignedPoints.map(rotateForward);
 }
 
 function isUnitRectangleDraft(shapeType: string, points: CanvasPoint[]) {
   return shapeType === "unit" && points.length === 4;
 }
 
-function rotateAround(points: CanvasPoint[], center: CanvasPoint, angleDeg: number) {
+function rotateAround(points: CanvasPoint[], center: CanvasPoint, angleDeg: number, aspectRatio: number = 1) {
   const rad = (angleDeg * Math.PI) / 180;
   return points.map(point => {
-    const dx = point.x - center.x;
+    const dx = (point.x - center.x) * aspectRatio;
     const dy = point.y - center.y;
+    const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
     return {
-      x: Math.round(Math.max(0, Math.min(100, center.x + dx * Math.cos(rad) - dy * Math.sin(rad))) * 10000) / 10000,
-      y: Math.round(Math.max(0, Math.min(100, center.y + dx * Math.sin(rad) + dy * Math.cos(rad))) * 10000) / 10000,
+      x: Math.round(Math.max(0, Math.min(100, center.x + rx / aspectRatio)) * 10000) / 10000,
+      y: Math.round(Math.max(0, Math.min(100, center.y + ry)) * 10000) / 10000,
     };
   });
 }
@@ -820,7 +872,9 @@ export default function LahanPage() {
       setPolygonClosed(true);
       dragRef.current = { mode: "draw-box", start: point, last: point };
       imageRef.current?.setPointerCapture(e.pointerId);
-      const next = rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation);
+      const rect = imageRef.current?.getBoundingClientRect();
+      const R = rect && rect.height > 0 ? rect.width / rect.height : 1;
+      const next = rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation, R);
       draftPointsRef.current = next;
       setDraftPoints(next);
       return;
@@ -896,6 +950,7 @@ export default function LahanPage() {
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!imageRef.current || !dragRef.current) return;
     const rect = imageRef.current.getBoundingClientRect();
+    const R = rect.height > 0 ? rect.width / rect.height : 1;
     const drag = dragRef.current;
     const point = canvasPoint(e);
     if (!point) return;
@@ -903,7 +958,7 @@ export default function LahanPage() {
       dragRef.current = { ...drag, last: point };
       const width = Math.abs(point.x - drag.start.x);
       const height = Math.abs(point.y - drag.start.y);
-      const next = width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, point) : rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation);
+      const next = width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, point) : rectanglePoints(point.x, point.y, boxDraft.width, boxDraft.height, boxDraft.rotation, R);
       scheduleDraftPoints(next);
       return;
     }
@@ -911,7 +966,7 @@ export default function LahanPage() {
       const points = draftPointsRef.current;
       const next = !isUnitRectangleDraft(shapeDraft.shapeType, points)
         ? points.map((p, i) => i === drag.index ? point : p)
-        : resizeBox(points, drag.index, point);
+        : resizeBox(points, drag.index, point, R);
       if (isUnitRectangleDraft(shapeDraft.shapeType, points)) {
         const bounds = polygonBounds(next);
         setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height }));
@@ -920,16 +975,18 @@ export default function LahanPage() {
       return;
     }
     if (drag.mode === "edge") {
-      const next = resizeBox(draftPointsRef.current, drag.edge, point);
+      const next = resizeBox(draftPointsRef.current, drag.edge, point, R);
       const bounds = polygonBounds(next);
       setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height }));
       scheduleDraftPoints(next);
       return;
     }
     if (drag.mode === "rotate") {
-      const currentAngle = Math.atan2(point.y - drag.center.y, point.x - drag.center.x) * 180 / Math.PI;
+      const dy = point.y - drag.center.y;
+      const dx = (point.x - drag.center.x) * R;
+      const currentAngle = Math.atan2(dy, dx) * 180 / Math.PI;
       const angle = currentAngle - drag.startAngle;
-      scheduleDraftPoints(rotateAround(drag.startPoints, drag.center, e.shiftKey ? Math.round(angle / 15) * 15 : angle));
+      scheduleDraftPoints(rotateAround(drag.startPoints, drag.center, e.shiftKey ? Math.round(angle / 15) * 15 : angle, R));
       return;
     }
     if (drag.mode === "marquee") {
@@ -974,9 +1031,11 @@ export default function LahanPage() {
     dragRef.current = null;
 
     if (drag?.mode === "draw-box") {
+      const rect = imageRef.current?.getBoundingClientRect();
+      const R = rect && rect.height > 0 ? rect.width / rect.height : 1;
       const width = Math.abs(drag.last.x - drag.start.x);
       const height = Math.abs(drag.last.y - drag.start.y);
-      const finalPoints = width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, drag.last) : rectanglePoints(drag.start.x, drag.start.y, boxDraft.width, boxDraft.height, boxDraft.rotation);
+      const finalPoints = width >= 0.5 && height >= 0.5 ? boxFromCorners(drag.start, drag.last) : rectanglePoints(drag.start.x, drag.start.y, boxDraft.width, boxDraft.height, boxDraft.rotation, R);
       draftPointsRef.current = finalPoints;
       const bounds = polygonBounds(finalPoints);
       setBoxDraft(prev => ({ ...prev, width: bounds.width, height: bounds.height, count: 1, rotation: 0 }));
@@ -1199,7 +1258,9 @@ export default function LahanPage() {
       const updated = { ...prev, ...next };
       if (isUnitRectangleDraft(shapeDraft.shapeType, draftPoints)) {
         const center = polygonCenter(draftPoints);
-        const nextPoints = rectanglePoints(center.x, center.y, updated.width, updated.height, updated.rotation);
+        const rect = imageRef.current?.getBoundingClientRect();
+        const R = rect && rect.height > 0 ? rect.width / rect.height : 1;
+        const nextPoints = rectanglePoints(center.x, center.y, updated.width, updated.height, updated.rotation, R);
         draftPointsRef.current = nextPoints;
         setDraftPoints(nextPoints);
         setPolygonClosed(true);
@@ -1228,11 +1289,15 @@ export default function LahanPage() {
     const point = canvasPoint(e);
     if (!point) return;
     rememberDraft();
+    const rect = imageRef.current?.getBoundingClientRect();
+    const R = rect && rect.height > 0 ? rect.width / rect.height : 1;
     const center = polygonCenter(draftPoints);
+    const dy = point.y - center.y;
+    const dx = (point.x - center.x) * R;
     dragRef.current = {
       mode: "rotate",
       center,
-      startAngle: Math.atan2(point.y - center.y, point.x - center.x) * 180 / Math.PI,
+      startAngle: Math.atan2(dy, dx) * 180 / Math.PI,
       startPoints: draftPoints,
     };
     imageRef.current?.setPointerCapture(e.pointerId);
