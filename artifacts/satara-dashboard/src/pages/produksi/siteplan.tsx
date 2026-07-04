@@ -102,7 +102,7 @@ export default function ProduksiSiteplan() {
     enabled: !!projectId,
   });
 
-  const imgTransform = (activeSiteplan?.imageTransform ?? {}) as { opacity?: number; scale?: number; x?: number; y?: number };
+  const imgTransform = (fullSiteplan?.imageTransform ?? activeSiteplan?.imageTransform ?? {}) as { opacity?: number; scale?: number; x?: number; y?: number };
   const imgOpacity = imgTransform.opacity ?? 0.86;
   const imgScale = imgTransform.scale ?? 1;
   const imgTx = imgTransform.x ?? 0;
@@ -175,8 +175,18 @@ export default function ProduksiSiteplan() {
       const rect = el.getBoundingClientRect();
       changeZoomAt(factor, e.clientX - rect.left, e.clientY - rect.top);
     };
+    const preventGesture = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
     el.addEventListener("wheel", handler, { passive: false });
-    return () => el.removeEventListener("wheel", handler);
+    el.addEventListener("gesturestart", preventGesture, { passive: false });
+    el.addEventListener("gesturechange", preventGesture, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", handler);
+      el.removeEventListener("gesturestart", preventGesture);
+      el.removeEventListener("gesturechange", preventGesture);
+    };
   }, [changeZoomAt, siteplanId]);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -567,7 +577,7 @@ export default function ProduksiSiteplan() {
                 </svg>
 
                 {/* HTML Labels overlay — inside world container so it scales with zoom */}
-                <div className="absolute inset-0 pointer-events-none" style={{ overflow: "visible" }}>
+                <div className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: "visible" }}>
                   {unitShapes.map(shape => {
                     const pts = shape.polygon ?? [];
                     if (pts.length < 3) return null;
