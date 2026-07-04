@@ -1582,6 +1582,7 @@ export default function LahanPage() {
     () => shapeList.filter(shape => selectedShapeIds.includes(shape.id) && shape.shapeType === "unit").length,
     [selectedShapeIds, shapeList],
   );
+  const shouldShowUnitLabels = canvasZoom >= 1.9;
 
   useEffect(() => {
     setBatchUnitForm(prev => prev.startNumber === autoBatchStartNumber ? prev : { ...prev, startNumber: autoBatchStartNumber });
@@ -1591,7 +1592,6 @@ export default function LahanPage() {
   // NOT on every draftPoints update (drag). This eliminates per-frame re-render of all shapes.
   const shapeListSvg = useMemo(() => {
     const sw = 1 / canvasZoom;
-    const hs = 1 / canvasZoom;
     return shapeList.map(shape => {
       if (shape.id === editingShapeId) return null;
       const isSelected = selectedShapeIds.includes(shape.id);
@@ -1599,8 +1599,6 @@ export default function LahanPage() {
       const previewPolygon = dragPreviewPolygons?.[shape.id];
       const currentShape = shape.id === editingShapeId ? { ...shape, ...shapeDraft } : { ...shape, polygon: previewPolygon ?? shape.polygon };
       const color = shapeColor(currentShape, shape.id === editingShapeId || isSelected);
-      const poly = Array.isArray(currentShape.polygon) ? currentShape.polygon as CanvasPoint[] : [];
-      const center = poly.length >= 3 ? polygonCenter(poly) : null;
       return (
         <g key={shape.id}>
           <polygon
@@ -1612,33 +1610,52 @@ export default function LahanPage() {
             onPointerDown={(e) => startShapeDrag(e, shape)}
             className={drawTool === "select" ? (isLocked ? "cursor-not-allowed" : "cursor-move") : drawTool === "delete" ? "cursor-not-allowed" : ""}
           />
-          {isLocked && center && (
-            <text x={center.x} y={center.y} textAnchor="middle" dominantBaseline="middle" fontSize={1.8 * hs} fill="#d97706" textRendering="geometricPrecision" style={{ pointerEvents: "none", userSelect: "none" }}>⚿</text>
-          )}
-          {center && (
-            <text
-              x={center.x}
-              y={center.y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={1.35 * hs}
-              fontWeight={700}
-              fill="#ffffff"
-              stroke="rgba(0,0,0,0.72)"
-              strokeWidth={0.34 * sw}
-              paintOrder="stroke"
-              vectorEffect="non-scaling-stroke"
-              textRendering="geometricPrecision"
-              style={{ pointerEvents: "none", userSelect: "none" }}
-            >
-              {currentShape.label}
-            </text>
-          )}
         </g>
       );
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, drawTool, shapeDraft, dragPreviewPolygons]);
+
+  const shapeLabelsOverlay = useMemo(() => {
+    return shapeList.map(shape => {
+      if (shape.id === editingShapeId) return null;
+      const previewPolygon = dragPreviewPolygons?.[shape.id];
+      const currentShape = shape.id === editingShapeId ? { ...shape, ...shapeDraft } : { ...shape, polygon: previewPolygon ?? shape.polygon };
+      const poly = Array.isArray(currentShape.polygon) ? currentShape.polygon as CanvasPoint[] : [];
+      if (poly.length < 3) return null;
+      const isUnit = currentShape.shapeType === "unit";
+      const isSelected = selectedShapeIds.includes(shape.id);
+      const shouldShowLabel = !isUnit || shouldShowUnitLabels || (isSelected && selectedShapeIds.length <= 1);
+      const center = polygonCenter(poly);
+      const bounds = polygonBounds(poly);
+      const labelText = String(currentShape.label ?? "").trim();
+      if (!labelText && !currentShape.isLocked) return null;
+
+      return (
+        <div
+          key={`label-${shape.id}`}
+          className={cn(
+            "absolute z-10 -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-bold leading-none text-white",
+            isUnit ? "text-[11px]" : "text-[13px]",
+            !shouldShowLabel && "hidden",
+          )}
+          style={{
+            left: `${center.x}%`,
+            top: `${center.y}%`,
+            maxWidth: `${Math.max(24, bounds.width * 7)}%`,
+            textShadow: "0 1px 1px rgba(0,0,0,.85), 0 -1px 1px rgba(0,0,0,.85), 1px 0 1px rgba(0,0,0,.85), -1px 0 1px rgba(0,0,0,.85)",
+            transform: `translate(-50%, -50%) scale(${1 / canvasZoom})`,
+            transformOrigin: "center",
+            pointerEvents: "none",
+          }}
+        >
+          {currentShape.isLocked && <span className="mr-0.5 text-amber-500">⚿</span>}
+          {labelText}
+        </div>
+      );
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, shapeDraft, dragPreviewPolygons, shouldShowUnitLabels]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -2192,6 +2209,9 @@ export default function LahanPage() {
                   ))}
                   </>); })()}
                 </svg>
+                <div className="absolute inset-0 pointer-events-none">
+                  {shapeLabelsOverlay}
+                </div>
                 </div>
                 {/* Zoom controls — outside zoom wrapper so they stay fixed size */}
                 <div
