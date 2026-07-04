@@ -559,7 +559,12 @@ export default function ProduksiSiteplan() {
                     const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
                     const pts = shape.polygon ?? [];
                     if (pts.length < 3) return null;
+                    const xs = pts.map(p => p.x);
+                    const ys = pts.map(p => p.y);
+                    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+                    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
                     const sw = 1 / zoom;
+                    const labelText = String(shape.label ?? "").trim();
                     return (
                       <g key={`unit-${shape.id}`}>
                         <polygon
@@ -571,67 +576,45 @@ export default function ProduksiSiteplan() {
                           onMouseEnter={() => setHoveredShape(shape)}
                           onMouseLeave={() => setHoveredShape(null)}
                         />
+                        {labelText && (
+                          <g style={{ pointerEvents: "none" }}>
+                            {/* Outline stroke text */}
+                            <text
+                              x={cx}
+                              y={cy - 0.7}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              fontSize={1.8}
+                              fontWeight={700}
+                              fill="#ffffff"
+                              stroke="#000000"
+                              strokeWidth={0.4}
+                              paintOrder="stroke"
+                              style={{ userSelect: "none" }}
+                            >
+                              {labelText}
+                            </text>
+                            <text
+                              x={cx}
+                              y={cy + 0.9}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              fontSize={1.4}
+                              fontWeight={600}
+                              fill="rgba(255,255,255,0.92)"
+                              stroke="#000000"
+                              strokeWidth={0.3}
+                              paintOrder="stroke"
+                              style={{ userSelect: "none" }}
+                            >
+                              {Math.round(progress)}%
+                            </text>
+                          </g>
+                        )}
                       </g>
                     );
                   })}
                 </svg>
-
-                {/* HTML Labels overlay — inside world container so it scales with zoom */}
-                <div className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: "visible" }}>
-                  {unitShapes.map(shape => {
-                    const pts = shape.polygon ?? [];
-                    if (pts.length < 3) return null;
-                    const unit = findUnit(shape);
-                    const progress = unit?.progress ?? shape.progress ?? 0;
-                    const xs = pts.map(p => p.x);
-                    const ys = pts.map(p => p.y);
-                    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-                    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-                    const labelText = String(shape.label ?? "").trim();
-                    if (!labelText) return null;
-                    return (
-                      <div
-                        key={`lbl-${shape.id}`}
-                        style={{
-                          position: "absolute",
-                          left: `${cx}%`,
-                          top: `${cy}%`,
-                          transform: "translate(-50%, -50%)",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          pointerEvents: "none",
-                          userSelect: "none",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: "#fff",
-                            lineHeight: 1.2,
-                            whiteSpace: "nowrap",
-                            textShadow: "0 1px 2px rgba(0,0,0,.95), 0 -1px 2px rgba(0,0,0,.95), 1px 0 2px rgba(0,0,0,.95), -1px 0 2px rgba(0,0,0,.95)",
-                          }}
-                        >
-                          {labelText}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 600,
-                            color: "rgba(255,255,255,.9)",
-                            lineHeight: 1.2,
-                            whiteSpace: "nowrap",
-                            textShadow: "0 1px 2px rgba(0,0,0,.9), 0 -1px 2px rgba(0,0,0,.9), 1px 0 2px rgba(0,0,0,.9), -1px 0 2px rgba(0,0,0,.9)",
-                          }}
-                        >
-                          {Math.round(progress)}%
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
 
               {/* Zoom level badge (top-right, inside canvas) */}
