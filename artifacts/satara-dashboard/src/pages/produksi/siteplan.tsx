@@ -580,8 +580,8 @@ export default function ProduksiSiteplan() {
                       const baseSize = Math.max(1.1, Math.min(2.5, (bounds.width * 1.55) / labelLength));
                       // Damped scaling so text gets larger when zoomed in but not excessively huge
                       fontSize = baseSize / Math.sqrt(zoom);
-                      // Keep outline stroke thin (1px-2px on screen)
-                      strokeWidth = (baseSize * 0.15) / zoom;
+                      // Keep outline stroke thin but highly readable (increased multiplier for slightly thicker look)
+                      strokeWidth = (baseSize * 0.24) / zoom;
                     }
 
                     return (

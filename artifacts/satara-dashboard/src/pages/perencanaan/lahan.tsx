@@ -1686,8 +1686,8 @@ export default function LahanPage() {
         
         // Damped scaling so text gets larger when zoomed in but not excessively huge
         fontSize = baseSize / Math.sqrt(canvasZoom);
-        // Keep outline stroke thin (1px-2px on screen)
-        strokeWidth = (baseSize * 0.15) / canvasZoom;
+        // Keep outline stroke thin but highly readable (increased multiplier for slightly thicker look)
+        strokeWidth = (baseSize * 0.24) / canvasZoom;
       }
 
       return (
