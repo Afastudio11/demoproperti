@@ -23,8 +23,10 @@ type CanvasPoint = { x: number; y: number };
 type SiteplanTransform = { opacity: number; scale: number; x: number; y: number; locked: boolean };
 type DrawTool = "select" | "pan" | "polygon" | "unit_box" | "delete";
 type BoxDraft = { width: number; height: number; rotation: number; gap: number; count: number; direction: "right" | "left" | "down" | "up" };
+type ShapePolygonMap = Record<number, CanvasPoint[]>;
 type DragState =
   | { mode: "shape" | "pan"; lastX: number; lastY: number }
+  | { mode: "selection"; lastX: number; lastY: number; startPolygons: ShapePolygonMap; offsetX: number; offsetY: number }
   | { mode: "draw-box"; start: CanvasPoint; last: CanvasPoint }
   | { mode: "marquee"; start: CanvasPoint; current: CanvasPoint }
   | { mode: "corner"; index: number }
@@ -197,6 +199,16 @@ function offsetPoints(points: CanvasPoint[], dx: number, dy: number) {
   }));
 }
 
+function constrainOffsetForPolygons(polygons: CanvasPoint[][], dx: number, dy: number) {
+  const points = polygons.flat();
+  if (points.length === 0) return { dx, dy };
+  const bounds = polygonBounds(points);
+  return {
+    dx: Math.round(Math.max(-bounds.minX, Math.min(100 - bounds.maxX, dx)) * 10000) / 10000,
+    dy: Math.round(Math.max(-bounds.minY, Math.min(100 - bounds.maxY, dy)) * 10000) / 10000,
+  };
+}
+
 function shapeColor(shape: Record<string, any>, isEditing: boolean) {
   if (isEditing) return { fill: "rgba(245,158,11,.32)", stroke: "#f59e0b" };
   if (shape.shapeType === "bidang") return { fill: "rgba(16,185,129,.22)", stroke: "#059669" };
@@ -308,13 +320,16 @@ export default function LahanPage() {
   const [draftPoints, setDraftPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [editingShapeId, setEditingShapeId] = useState<number | null>(null);
   const [selectedShapeIds, setSelectedShapeIds] = useState<number[]>([]);
+  const [dragPreviewPolygons, setDragPreviewPolygons] = useState<ShapePolygonMap | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ start: CanvasPoint; current: CanvasPoint } | null>(null);
   const [draftHistory, setDraftHistory] = useState<CanvasPoint[][]>([]);
   const imageRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const draftPointsRef = useRef<CanvasPoint[]>([]);
+  const dragPreviewPolygonsRef = useRef<ShapePolygonMap | null>(null);
   // RAF ref — caps setDraftPoints at one React re-render per animation frame (~60fps)
   const rafRef = useRef<number | null>(null);
+  const previewRafRef = useRef<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justLoadedEditingRef = useRef<number | null>(null);
@@ -823,6 +838,27 @@ export default function LahanPage() {
   function startShapeDrag(e: React.PointerEvent<SVGPolygonElement>, shape: any) {
     if (drawTool !== "select") return;
     e.stopPropagation();
+
+    if (selectedShapeIds.length > 1 && selectedShapeIds.includes(shape.id)) {
+      if (shape.isLocked) return;
+      const selectedShapes = shapeList.filter(item => selectedShapeIds.includes(item.id));
+      const movablePolygons = selectedShapes.reduce<ShapePolygonMap>((map, item) => {
+        const polygon = Array.isArray(item.polygon) ? item.polygon as CanvasPoint[] : [];
+        if (!item.isLocked && polygon.length >= 3) map[item.id] = polygon;
+        return map;
+      }, {});
+      if (Object.keys(movablePolygons).length === 0) return;
+      draftPointsRef.current = [];
+      setDraftPoints([]);
+      setPolygonClosed(false);
+      setEditingShapeId(null);
+      dragPreviewPolygonsRef.current = movablePolygons;
+      setDragPreviewPolygons(movablePolygons);
+      dragRef.current = { mode: "selection", lastX: e.clientX, lastY: e.clientY, startPolygons: movablePolygons, offsetX: 0, offsetY: 0 };
+      imageRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+
     rememberDraft();
     setSelectedShapeIds([shape.id]);
     startEditShape(shape);
@@ -845,6 +881,15 @@ export default function LahanPage() {
     rafRef.current = requestAnimationFrame(() => {
       setDraftPoints(draftPointsRef.current);
       rafRef.current = null;
+    });
+  }
+
+  function scheduleDragPreviewPolygons(next: ShapePolygonMap) {
+    dragPreviewPolygonsRef.current = next;
+    if (previewRafRef.current !== null) return;
+    previewRafRef.current = requestAnimationFrame(() => {
+      setDragPreviewPolygons(dragPreviewPolygonsRef.current);
+      previewRafRef.current = null;
     });
   }
 
@@ -900,6 +945,24 @@ export default function LahanPage() {
     dragRef.current = { ...drag, lastX: e.clientX, lastY: e.clientY };
     if (drag.mode === "shape") {
       scheduleDraftPoints(offsetPoints(draftPointsRef.current, dx, dy));
+    } else if (drag.mode === "selection") {
+      const bounded = constrainOffsetForPolygons(
+        Object.values(drag.startPolygons),
+        drag.offsetX + dx,
+        drag.offsetY + dy,
+      );
+      const nextPolygons = Object.entries(drag.startPolygons).reduce<ShapePolygonMap>((map, [id, polygon]) => {
+        map[Number(id)] = offsetPoints(polygon, bounded.dx, bounded.dy);
+        return map;
+      }, {});
+      dragRef.current = {
+        ...drag,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        offsetX: bounded.dx,
+        offsetY: bounded.dy,
+      };
+      scheduleDragPreviewPolygons(nextPolygons);
     } else if (drag.mode === "pan") {
       // Pan mode moves the canvas viewport (in pixel space, before zoom adjustment)
       setCanvasPan(prev => ({ x: prev.x + clientDx, y: prev.y + clientDy }));
@@ -966,6 +1029,41 @@ export default function LahanPage() {
       if (draftPointsRef.current && draftPointsRef.current.length >= 3) {
         autoPatchShape(editingShapeId, { polygon: draftPointsRef.current }, { quiet: true });
       }
+      return;
+    }
+
+    if (drag?.mode === "selection") {
+      const finalPolygons = dragPreviewPolygonsRef.current ?? {};
+      const entries = Object.entries(finalPolygons).filter(([, polygon]) => polygon.length >= 3);
+      dragPreviewPolygonsRef.current = null;
+      setDragPreviewPolygons(null);
+      if (Math.abs(drag.offsetX) < 0.0001 && Math.abs(drag.offsetY) < 0.0001) return;
+      if (entries.length === 0) return;
+      const siteplanId = selectedSiteplan?.id;
+      if (siteplanId) {
+        qc.setQueryData<any[]>(["planning-siteplan-shapes", siteplanId], rows => {
+          if (!Array.isArray(rows)) return rows;
+          return rows.map(row => finalPolygons[row.id] ? { ...row, polygon: finalPolygons[row.id] } : row);
+        });
+      }
+      setIsSaving(true);
+      Promise.all(entries.map(([id, polygon]) => fetch(`/api/planning/siteplan/shapes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ polygon }),
+      }))).then(async results => {
+        const failed = results.filter(resp => !resp.ok).length;
+        await refetchShapes();
+        if (failed) {
+          toast({ title: "Sebagian shape gagal digeser", description: `${entries.length - failed}/${entries.length} shape berhasil disimpan.`, variant: "destructive" });
+        } else {
+          toast({ title: `${entries.length} shape digeser` });
+        }
+      }).catch(() => {
+        toast({ title: "Gagal menyimpan posisi shape", variant: "destructive" });
+      }).finally(() => {
+        setIsSaving(false);
+      });
       return;
     }
 
@@ -1171,6 +1269,8 @@ export default function LahanPage() {
     setEditingShapeId(null);
     setSelectedShapeIds([]);
     setSelectionBox(null);
+    dragPreviewPolygonsRef.current = null;
+    setDragPreviewPolygons(null);
   }
 
   function closePolygon() {
@@ -1496,7 +1596,8 @@ export default function LahanPage() {
       if (shape.id === editingShapeId) return null;
       const isSelected = selectedShapeIds.includes(shape.id);
       const isLocked = !!shape.isLocked;
-      const currentShape = shape.id === editingShapeId ? { ...shape, ...shapeDraft } : shape;
+      const previewPolygon = dragPreviewPolygons?.[shape.id];
+      const currentShape = shape.id === editingShapeId ? { ...shape, ...shapeDraft } : { ...shape, polygon: previewPolygon ?? shape.polygon };
       const color = shapeColor(currentShape, shape.id === editingShapeId || isSelected);
       const poly = Array.isArray(currentShape.polygon) ? currentShape.polygon as CanvasPoint[] : [];
       const center = poly.length >= 3 ? polygonCenter(poly) : null;
@@ -1537,7 +1638,7 @@ export default function LahanPage() {
       );
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, drawTool, shapeDraft]);
+  }, [shapeList, selectedShapeIds, editingShapeId, canvasZoom, drawTool, shapeDraft, dragPreviewPolygons]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
