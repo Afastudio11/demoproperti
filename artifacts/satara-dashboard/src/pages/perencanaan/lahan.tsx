@@ -1674,11 +1674,8 @@ export default function LahanPage() {
         const bounds = polygonBounds(pts);
         cx = (bounds.minX + bounds.maxX) / 2;
         cy = (bounds.minY + bounds.maxY) / 2;
-        const labelLength = Math.max(1, labelText.length);
-        const isUnit = currentShape.shapeType === "unit";
-        
-        // Unified base size calculation so non-unit shapes (Tahap, Blok, etc.) follow the same scale as unit shapes
-        const baseSize = Math.max(1.1, Math.min(2.5, (bounds.width * 1.55) / labelLength));
+        // Set a uniform base size of 1.25 so stages (Tahap), blocks, and unit shapes all have the exact same font size
+        const baseSize = 1.25;
         
         // Damped scaling so text gets larger when zoomed in but not excessively huge
         fontSize = baseSize / Math.sqrt(canvasZoom);

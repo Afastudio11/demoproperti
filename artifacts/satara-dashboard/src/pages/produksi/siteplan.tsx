@@ -576,8 +576,8 @@ export default function ProduksiSiteplan() {
                     let fontSize = 1.6;
                     let strokeWidth = 0.15;
                     if (labelText) {
-                      const labelLength = Math.max(1, labelText.length);
-                      const baseSize = Math.max(1.1, Math.min(2.5, (bounds.width * 1.55) / labelLength));
+                      // Set a uniform base size of 1.25 so all unit labels have the exact same font size
+                      const baseSize = 1.25;
                       // Damped scaling so text gets larger when zoomed in but not excessively huge
                       fontSize = baseSize / Math.sqrt(zoom);
                       // Keep outline stroke thin but highly readable (increased multiplier for slightly thicker look)
