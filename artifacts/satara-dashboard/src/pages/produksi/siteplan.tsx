@@ -162,11 +162,20 @@ export default function ProduksiSiteplan() {
     });
   }, []);
 
-  const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    changeZoomAt(factor, e.clientX - rect.left, e.clientY - rect.top);
+  // Use native non-passive wheel listener so preventDefault() actually works
+  // and the browser page doesn't zoom when siteplan zoom hits min/max
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const rect = el.getBoundingClientRect();
+      changeZoomAt(factor, e.clientX - rect.left, e.clientY - rect.top);
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
   }, [changeZoomAt]);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -479,7 +488,6 @@ export default function ProduksiSiteplan() {
               ref={containerRef}
               className="relative overflow-hidden bg-neutral-900"
               style={{ height: MAP_H, cursor: dragRef.current.active ? "grabbing" : "grab" }}
-              onWheel={onWheel}
               onMouseDown={onMouseDown}
               onMouseMove={onMouseMove}
               onMouseUp={onMouseUp}
@@ -539,7 +547,21 @@ export default function ProduksiSiteplan() {
                     const progress = unit?.progress ?? shape.progress ?? 0;
                     const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
                     const pts = shape.polygon ?? [];
+                    if (pts.length < 3) return null;
+                    const xs = pts.map(p => p.x);
+                    const ys = pts.map(p => p.y);
+                    const minX = Math.min(...xs);
+                    const maxX = Math.max(...xs);
+                    const minY = Math.min(...ys);
+                    const maxY = Math.max(...ys);
+                    const cx = (minX + maxX) / 2;
+                    const cy = (minY + maxY) / 2;
+                    const w = maxX - minX;
+                    const h = maxY - minY;
                     const sw = 1 / zoom;
+                    // Font size proportional to shape width — scales naturally with zoom
+                    const fs = Math.max(0.8, Math.min(2.2, w * 0.32));
+                    const labelText = String(shape.label ?? "").trim();
                     return (
                       <g key={`unit-${shape.id}`}>
                         <polygon
@@ -551,68 +573,54 @@ export default function ProduksiSiteplan() {
                           onMouseEnter={() => setHoveredShape(shape)}
                           onMouseLeave={() => setHoveredShape(null)}
                         />
+                        {labelText && (
+                          <foreignObject
+                            x={minX} y={minY}
+                            width={w} height={h}
+                            style={{ pointerEvents: "none", overflow: "visible" }}
+                          >
+                            <div
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                textAlign: "center",
+                                userSelect: "none",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: `${fs}px`,
+                                  fontWeight: 700,
+                                  color: "#ffffff",
+                                  lineHeight: 1.15,
+                                  whiteSpace: "nowrap",
+                                  textShadow: "0 0.04em 0.06em rgba(0,0,0,0.9), 0 -0.04em 0.06em rgba(0,0,0,0.9), 0.04em 0 0.06em rgba(0,0,0,0.9), -0.04em 0 0.06em rgba(0,0,0,0.9)",
+                                }}
+                              >
+                                {labelText}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: `${fs * 0.78}px`,
+                                  fontWeight: 600,
+                                  color: "rgba(255,255,255,0.92)",
+                                  lineHeight: 1.15,
+                                  whiteSpace: "nowrap",
+                                  textShadow: "0 0.04em 0.06em rgba(0,0,0,0.85), 0 -0.04em 0.06em rgba(0,0,0,0.85), 0.04em 0 0.06em rgba(0,0,0,0.85), -0.04em 0 0.06em rgba(0,0,0,0.85)",
+                                }}
+                              >
+                                {Math.round(progress)}%
+                              </span>
+                            </div>
+                          </foreignObject>
+                        )}
                       </g>
                     );
                   })}
-                </svg>
-
-                {/* HTML Labels overlay */}
-                <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                  {unitShapes.map(shape => {
-                    const unit = findUnit(shape);
-                    const progress = unit?.progress ?? shape.progress ?? 0;
-                    const pts = shape.polygon ?? [];
-                    if (pts.length < 3) return null;
-                    const xs = pts.map(p => p.x);
-                    const ys = pts.map(p => p.y);
-                    const minX = Math.min(...xs);
-                    const maxX = Math.max(...xs);
-                    const minY = Math.min(...ys);
-                    const maxY = Math.max(...ys);
-                    const cx = (minX + maxX) / 2;
-                    const cy = (minY + maxY) / 2;
-                    const width = maxX - minX;
-
-                    const labelText = String(shape.label ?? "").trim();
-                    if (!labelText) return null;
-
-                    const labelLength = Math.max(1, labelText.length);
-                    const fitSize = Math.max(6, Math.min(10.5, (width * 10.5) / labelLength));
-                    const fontSize = Math.min(fitSize, 10.5);
-
-                    return (
-                      <div
-                        key={`label-${shape.id}`}
-                        className="absolute flex flex-col items-center justify-center text-center select-none"
-                        style={{
-                          left: `${cx}%`,
-                          top: `${cy}%`,
-                          transform: "translate(-50%, -50%)",
-                          width: `${width}%`,
-                        }}
-                      >
-                        <span
-                          className="block font-bold text-white leading-none whitespace-nowrap"
-                          style={{
-                            fontSize: `${fontSize}px`,
-                            textShadow: "0 1px 1px rgba(0,0,0,0.85), 0 -1px 1px rgba(0,0,0,0.85), 1px 0 1px rgba(0,0,0,0.85), -1px 0 1px rgba(0,0,0,0.85)",
-                          }}
-                        >
-                          {labelText}
-                        </span>
-                        <span
-                          className="block font-semibold text-white/90 leading-none mt-0.5"
-                          style={{
-                            fontSize: `${fontSize * 0.82}px`,
-                            textShadow: "0 1px 1px rgba(0,0,0,0.85), 0 -1px 1px rgba(0,0,0,0.85), 1px 0 1px rgba(0,0,0,0.85), -1px 0 1px rgba(0,0,0,0.85)",
-                          }}
-                        >
-                          {Math.round(progress)}%
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
 
               {/* Zoom level badge (top-right, inside canvas) */}
