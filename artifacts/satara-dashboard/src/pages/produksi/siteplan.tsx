@@ -163,7 +163,8 @@ export default function ProduksiSiteplan() {
   }, []);
 
   // Use native non-passive wheel listener so preventDefault() actually works
-  // and the browser page doesn't zoom when siteplan zoom hits min/max
+  // and the browser page doesn't zoom when siteplan zoom hits min/max.
+  // Depend on siteplanId so the effect re-runs when the canvas mounts/unmounts.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -176,7 +177,7 @@ export default function ProduksiSiteplan() {
     };
     el.addEventListener("wheel", handler, { passive: false });
     return () => el.removeEventListener("wheel", handler);
-  }, [changeZoomAt]);
+  }, [changeZoomAt, siteplanId]);
 
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -548,20 +549,7 @@ export default function ProduksiSiteplan() {
                     const fill = unitFill(progress, shape.unitStatus ?? unit?.status);
                     const pts = shape.polygon ?? [];
                     if (pts.length < 3) return null;
-                    const xs = pts.map(p => p.x);
-                    const ys = pts.map(p => p.y);
-                    const minX = Math.min(...xs);
-                    const maxX = Math.max(...xs);
-                    const minY = Math.min(...ys);
-                    const maxY = Math.max(...ys);
-                    const cx = (minX + maxX) / 2;
-                    const cy = (minY + maxY) / 2;
-                    const w = maxX - minX;
-                    const h = maxY - minY;
                     const sw = 1 / zoom;
-                    // Font size proportional to shape width — scales naturally with zoom
-                    const fs = Math.max(0.8, Math.min(2.2, w * 0.32));
-                    const labelText = String(shape.label ?? "").trim();
                     return (
                       <g key={`unit-${shape.id}`}>
                         <polygon
@@ -573,55 +561,67 @@ export default function ProduksiSiteplan() {
                           onMouseEnter={() => setHoveredShape(shape)}
                           onMouseLeave={() => setHoveredShape(null)}
                         />
-                        {labelText && (
-                          <foreignObject
-                            x={minX} y={minY}
-                            width={w} height={h}
-                            style={{ pointerEvents: "none", overflow: "visible" }}
-                          >
-                            <div
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                textAlign: "center",
-                                userSelect: "none",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: `${fs}px`,
-                                  fontWeight: 700,
-                                  color: "#ffffff",
-                                  lineHeight: 1.15,
-                                  whiteSpace: "nowrap",
-                                  textShadow: "0 0.04em 0.06em rgba(0,0,0,0.9), 0 -0.04em 0.06em rgba(0,0,0,0.9), 0.04em 0 0.06em rgba(0,0,0,0.9), -0.04em 0 0.06em rgba(0,0,0,0.9)",
-                                }}
-                              >
-                                {labelText}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: `${fs * 0.78}px`,
-                                  fontWeight: 600,
-                                  color: "rgba(255,255,255,0.92)",
-                                  lineHeight: 1.15,
-                                  whiteSpace: "nowrap",
-                                  textShadow: "0 0.04em 0.06em rgba(0,0,0,0.85), 0 -0.04em 0.06em rgba(0,0,0,0.85), 0.04em 0 0.06em rgba(0,0,0,0.85), -0.04em 0 0.06em rgba(0,0,0,0.85)",
-                                }}
-                              >
-                                {Math.round(progress)}%
-                              </span>
-                            </div>
-                          </foreignObject>
-                        )}
                       </g>
                     );
                   })}
                 </svg>
+
+                {/* HTML Labels overlay — inside world container so it scales with zoom */}
+                <div className="absolute inset-0 pointer-events-none" style={{ overflow: "visible" }}>
+                  {unitShapes.map(shape => {
+                    const pts = shape.polygon ?? [];
+                    if (pts.length < 3) return null;
+                    const unit = findUnit(shape);
+                    const progress = unit?.progress ?? shape.progress ?? 0;
+                    const xs = pts.map(p => p.x);
+                    const ys = pts.map(p => p.y);
+                    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+                    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+                    const labelText = String(shape.label ?? "").trim();
+                    if (!labelText) return null;
+                    return (
+                      <div
+                        key={`lbl-${shape.id}`}
+                        style={{
+                          position: "absolute",
+                          left: `${cx}%`,
+                          top: `${cy}%`,
+                          transform: "translate(-50%, -50%)",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          pointerEvents: "none",
+                          userSelect: "none",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "#fff",
+                            lineHeight: 1.2,
+                            whiteSpace: "nowrap",
+                            textShadow: "0 1px 2px rgba(0,0,0,.95), 0 -1px 2px rgba(0,0,0,.95), 1px 0 2px rgba(0,0,0,.95), -1px 0 2px rgba(0,0,0,.95)",
+                          }}
+                        >
+                          {labelText}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 600,
+                            color: "rgba(255,255,255,.9)",
+                            lineHeight: 1.2,
+                            whiteSpace: "nowrap",
+                            textShadow: "0 1px 2px rgba(0,0,0,.9), 0 -1px 2px rgba(0,0,0,.9), 1px 0 2px rgba(0,0,0,.9), -1px 0 2px rgba(0,0,0,.9)",
+                          }}
+                        >
+                          {Math.round(progress)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Zoom level badge (top-right, inside canvas) */}
