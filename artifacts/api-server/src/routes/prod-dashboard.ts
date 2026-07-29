@@ -9,6 +9,51 @@ import { eq, and, inArray } from "drizzle-orm";
 
 const router: IRouter = Router();
 
+const parseProjectId = (value: string | undefined) => {
+  const projectId = Number(value);
+  return Number.isInteger(projectId) && projectId > 0 ? projectId : null;
+};
+
+type ResolvedProjectId = { projectId: number };
+type RouteError = { status: number; error: string };
+type TemplateItemInput = { item: string; bobot: number };
+
+async function resolveProjectId(value: string | undefined): Promise<ResolvedProjectId | RouteError> {
+  const projectId = parseProjectId(value);
+  if (!projectId) return { status: 400, error: "Project id tidak valid" };
+
+  const [project] = await db
+    .select({ id: projectsTable.id })
+    .from(projectsTable)
+    .where(eq(projectsTable.id, projectId));
+
+  if (!project) return { status: 404, error: "Proyek tidak ditemukan" };
+  return { projectId };
+}
+
+function normalizeTemplateItems(items: unknown): { items: TemplateItemInput[] } | { error: string } {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { error: "Items array wajib diisi" };
+  }
+
+  const normalized: TemplateItemInput[] = [];
+  for (const [idx, raw] of items.entries()) {
+    const value = raw as { item?: unknown; bobot?: unknown };
+    const item = String(value.item ?? "").trim();
+    const bobot = Number(value.bobot);
+    if (!item) return { error: `Nama pekerjaan baris ${idx + 1} wajib diisi` };
+    if (!Number.isFinite(bobot) || bobot < 0) return { error: `Bobot baris ${idx + 1} tidak valid` };
+    normalized.push({ item, bobot });
+  }
+
+  const totalBobot = normalized.reduce((sum, item) => sum + item.bobot, 0);
+  if (totalBobot < 95 || totalBobot > 105) {
+    return { error: `Total bobot harus mendekati 100% (sekarang: ${totalBobot}%)` };
+  }
+
+  return { items: normalized };
+}
+
 router.get("/produksi/dashboard", async (req, res) => {
   try {
     const rawProjects = await db.select().from(projectsTable);
@@ -266,7 +311,10 @@ router.post("/produksi/units/seed-tasks/:unitId", async (req, res) => {
 // Get template for a project (returns items or empty array if using default)
 router.get("/produksi/project-templates/:projectId", async (req, res) => {
   try {
-    const projectId = parseInt(req.params.projectId);
+    const resolved = await resolveProjectId(req.params.projectId);
+    if ("error" in resolved) return res.status(resolved.status).json({ error: resolved.error });
+    const { projectId } = resolved;
+
     const templates = await db.select().from(projectTaskTemplatesTable)
       .where(eq(projectTaskTemplatesTable.projectId, projectId))
       .orderBy(projectTaskTemplatesTable.urutan);
@@ -280,24 +328,18 @@ router.get("/produksi/project-templates/:projectId", async (req, res) => {
 // Save/replace template for a project
 router.put("/produksi/project-templates/:projectId", async (req, res) => {
   try {
-    const projectId = parseInt(req.params.projectId);
-    const { items } = req.body as { items: { item: string; bobot: number }[] };
+    const resolved = await resolveProjectId(req.params.projectId);
+    if ("error" in resolved) return res.status(resolved.status).json({ error: resolved.error });
+    const { projectId } = resolved;
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: "Items array wajib diisi" });
-    }
-
-    // Validate total bobot ~= 100
-    const totalBobot = items.reduce((s, i) => s + i.bobot, 0);
-    if (totalBobot < 95 || totalBobot > 105) {
-      return res.status(400).json({ error: `Total bobot harus mendekati 100% (sekarang: ${totalBobot}%)` });
-    }
+    const normalized = normalizeTemplateItems((req.body as { items?: unknown }).items);
+    if ("error" in normalized) return res.status(400).json({ error: normalized.error });
 
     // Delete existing then insert new
     await db.delete(projectTaskTemplatesTable).where(eq(projectTaskTemplatesTable.projectId, projectId));
-    const values = items.map((item, idx) => ({
+    const values = normalized.items.map((item, idx) => ({
       projectId,
-      item: item.item.trim(),
+      item: item.item,
       bobot: item.bobot,
       urutan: idx,
     }));
@@ -316,8 +358,12 @@ router.put("/produksi/project-templates/:projectId", async (req, res) => {
 // Copy template from another project
 router.post("/produksi/project-templates/:projectId/copy-from/:sourceProjectId", async (req, res) => {
   try {
-    const projectId = parseInt(req.params.projectId);
-    const sourceProjectId = parseInt(req.params.sourceProjectId);
+    const target = await resolveProjectId(req.params.projectId);
+    if ("error" in target) return res.status(target.status).json({ error: target.error });
+    const source = await resolveProjectId(req.params.sourceProjectId);
+    if ("error" in source) return res.status(source.status).json({ error: source.error });
+    const { projectId } = target;
+    const sourceProjectId = source.projectId;
 
     const sourceTemplates = await db.select().from(projectTaskTemplatesTable)
       .where(eq(projectTaskTemplatesTable.projectId, sourceProjectId))
@@ -350,7 +396,10 @@ router.post("/produksi/project-templates/:projectId/copy-from/:sourceProjectId",
 // Delete custom template (revert to default)
 router.delete("/produksi/project-templates/:projectId", async (req, res) => {
   try {
-    const projectId = parseInt(req.params.projectId);
+    const resolved = await resolveProjectId(req.params.projectId);
+    if ("error" in resolved) return res.status(resolved.status).json({ error: resolved.error });
+    const { projectId } = resolved;
+
     await db.delete(projectTaskTemplatesTable).where(eq(projectTaskTemplatesTable.projectId, projectId));
     res.json({ projectId, isCustom: false, message: "Template dikembalikan ke default" });
   } catch (err) {
@@ -362,7 +411,10 @@ router.delete("/produksi/project-templates/:projectId", async (req, res) => {
 // Initialize template from defaults (for easy editing)
 router.post("/produksi/project-templates/:projectId/init-defaults", async (req, res) => {
   try {
-    const projectId = parseInt(req.params.projectId);
+    const resolved = await resolveProjectId(req.params.projectId);
+    if ("error" in resolved) return res.status(resolved.status).json({ error: resolved.error });
+    const { projectId } = resolved;
+
     const existing = await db.select().from(projectTaskTemplatesTable)
       .where(eq(projectTaskTemplatesTable.projectId, projectId));
     if (existing.length > 0) {

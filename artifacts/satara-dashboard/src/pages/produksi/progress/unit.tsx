@@ -145,7 +145,7 @@ export default function ProgressUnit() {
   const [selectedTemplateProjectId, setSelectedTemplateProjectId] = useState<string>("");
   const activeTemplateProjectId = selectedTemplateProjectId || (filterProject !== "all" ? filterProject : (projects && projects[0] ? String(projects[0].id) : ""));
 
-  const { data: templateData, refetch: refetchTemplate } = useQuery({
+  const { data: templateData } = useQuery({
     queryKey: ["project-task-template", activeTemplateProjectId],
     queryFn: async () => {
       if (!activeTemplateProjectId) return null;
@@ -156,50 +156,50 @@ export default function ProgressUnit() {
     enabled: !!activeTemplateProjectId,
   });
 
+  const loadTemplateForProject = async (projId: string) => {
+    const res = await fetch(`/api/produksi/project-templates/${projId}`);
+    if (!res.ok) throw new Error("Gagal memuat template proyek");
+    const data = await res.json();
+    qc.setQueryData(["project-task-template", projId], data);
+    setTemplateItems(
+      data.isCustom && data.items.length > 0
+        ? data.items.map((t: any) => ({ item: t.item, bobot: t.bobot }))
+        : (data.defaults ?? []),
+    );
+    return data;
+  };
+
   const openTemplateDialog = async (projId?: string) => {
     const targetProjId = projId || (filterProject !== "all" ? filterProject : (projects && projects[0] ? String(projects[0].id) : ""));
     setSelectedTemplateProjectId(targetProjId);
+    setCopyFromProject("");
+    setShowTemplateDialog(true);
     
     if (targetProjId) {
       try {
-        const res = await fetch(`/api/produksi/project-templates/${targetProjId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.isCustom && data.items.length > 0) {
-            setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
-          } else {
-            setTemplateItems(data.defaults ?? []);
-          }
-        }
-      } catch (err) {
-        console.error(err);
+        await loadTemplateForProject(targetProjId);
+      } catch (err: any) {
+        toast({ title: err.message || "Gagal memuat template proyek", variant: "destructive" });
       }
     }
-    setShowTemplateDialog(true);
   };
 
   const handleSelectTemplateProject = async (projId: string) => {
     setSelectedTemplateProjectId(projId);
+    setCopyFromProject("");
     try {
-      const res = await fetch(`/api/produksi/project-templates/${projId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.isCustom && data.items.length > 0) {
-          setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
-        } else {
-          setTemplateItems(data.defaults ?? []);
-        }
-      }
-    } catch (err) {
-      console.error(err);
+      await loadTemplateForProject(projId);
+    } catch (err: any) {
+      toast({ title: err.message || "Gagal memuat template proyek", variant: "destructive" });
     }
   };
 
   const saveTemplate = async () => {
-    if (!activeTemplateProjectId) return;
+    const projectId = activeTemplateProjectId;
+    if (!projectId) return;
     setTemplateSaving(true);
     try {
-      const res = await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}`, {
+      const res = await fetch(`/api/produksi/project-templates/${projectId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: templateItems }),
@@ -208,8 +208,10 @@ export default function ProgressUnit() {
         const err = await res.json();
         throw new Error(err.error || "Gagal menyimpan");
       }
+      const data = await res.json();
+      qc.setQueryData(["project-task-template", projectId], data);
       toast({ title: "Template pekerjaan berhasil disimpan" });
-      refetchTemplate();
+      await qc.invalidateQueries({ queryKey: ["project-task-template", projectId] });
       qc.invalidateQueries({ queryKey: ["progress-summary"] });
       setShowTemplateDialog(false);
     } catch (err: any) {
@@ -220,30 +222,38 @@ export default function ProgressUnit() {
   };
 
   const resetTemplateToDefault = async () => {
-    if (!activeTemplateProjectId) return;
+    const projectId = activeTemplateProjectId;
+    if (!projectId) return;
     try {
-      await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}`, { method: "DELETE" });
+      const res = await fetch(`/api/produksi/project-templates/${projectId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal reset template");
+      }
       toast({ title: "Template dikembalikan ke standar" });
-      refetchTemplate();
+      await qc.invalidateQueries({ queryKey: ["project-task-template", projectId] });
       qc.invalidateQueries({ queryKey: ["progress-summary"] });
       setShowTemplateDialog(false);
-    } catch {
-      toast({ title: "Gagal reset template", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: err.message || "Gagal reset template", variant: "destructive" });
     }
   };
 
   const copyTemplateFrom = async (sourceId: string) => {
-    if (!activeTemplateProjectId || !sourceId) return;
+    const projectId = activeTemplateProjectId;
+    if (!projectId || !sourceId) return;
     try {
-      const res = await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}/copy-from/${sourceId}`, { method: "POST" });
+      const res = await fetch(`/api/produksi/project-templates/${projectId}/copy-from/${sourceId}`, { method: "POST" });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Gagal menyalin");
       }
       const data = await res.json();
       setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
+      qc.setQueryData(["project-task-template", projectId], { ...data, isCustom: true, defaults: templateData?.defaults ?? [] });
+      setCopyFromProject("");
       toast({ title: "Template berhasil disalin dari proyek lain" });
-      refetchTemplate();
+      await qc.invalidateQueries({ queryKey: ["project-task-template", projectId] });
     } catch (err: any) {
       toast({ title: err.message || "Gagal menyalin template", variant: "destructive" });
     }
