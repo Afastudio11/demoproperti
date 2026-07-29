@@ -142,35 +142,64 @@ export default function ProgressUnit() {
   });
 
   // Template data for current project
-  const templateProjectId = filterProject !== "all" ? filterProject : "";
+  const [selectedTemplateProjectId, setSelectedTemplateProjectId] = useState<string>("");
+  const activeTemplateProjectId = selectedTemplateProjectId || (filterProject !== "all" ? filterProject : (projects && projects[0] ? String(projects[0].id) : ""));
+
   const { data: templateData, refetch: refetchTemplate } = useQuery({
-    queryKey: ["project-task-template", templateProjectId],
+    queryKey: ["project-task-template", activeTemplateProjectId],
     queryFn: async () => {
-      const res = await fetch(`/api/produksi/project-templates/${templateProjectId}`);
+      if (!activeTemplateProjectId) return null;
+      const res = await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}`);
       if (!res.ok) throw new Error("Failed");
       return res.json() as Promise<{ projectId: number; items: any[]; isCustom: boolean; defaults: { item: string; bobot: number }[] }>;
     },
-    enabled: !!templateProjectId,
+    enabled: !!activeTemplateProjectId,
   });
 
-  const openTemplateDialog = async () => {
-    if (!templateProjectId) {
-      toast({ title: "Pilih proyek terlebih dahulu", variant: "destructive" });
-      return;
-    }
-    if (templateData?.isCustom && templateData.items.length > 0) {
-      setTemplateItems(templateData.items.map(t => ({ item: t.item, bobot: t.bobot })));
-    } else {
-      setTemplateItems(templateData?.defaults ?? []);
+  const openTemplateDialog = async (projId?: string) => {
+    const targetProjId = projId || (filterProject !== "all" ? filterProject : (projects && projects[0] ? String(projects[0].id) : ""));
+    setSelectedTemplateProjectId(targetProjId);
+    
+    if (targetProjId) {
+      try {
+        const res = await fetch(`/api/produksi/project-templates/${targetProjId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.isCustom && data.items.length > 0) {
+            setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
+          } else {
+            setTemplateItems(data.defaults ?? []);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
     }
     setShowTemplateDialog(true);
   };
 
+  const handleSelectTemplateProject = async (projId: string) => {
+    setSelectedTemplateProjectId(projId);
+    try {
+      const res = await fetch(`/api/produksi/project-templates/${projId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.isCustom && data.items.length > 0) {
+          setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
+        } else {
+          setTemplateItems(data.defaults ?? []);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const saveTemplate = async () => {
-    if (!templateProjectId) return;
+    if (!activeTemplateProjectId) return;
     setTemplateSaving(true);
     try {
-      const res = await fetch(`/api/produksi/project-templates/${templateProjectId}`, {
+      const res = await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: templateItems }),
@@ -181,6 +210,7 @@ export default function ProgressUnit() {
       }
       toast({ title: "Template pekerjaan berhasil disimpan" });
       refetchTemplate();
+      qc.invalidateQueries({ queryKey: ["progress-summary"] });
       setShowTemplateDialog(false);
     } catch (err: any) {
       toast({ title: err.message || "Gagal menyimpan template", variant: "destructive" });
@@ -190,11 +220,12 @@ export default function ProgressUnit() {
   };
 
   const resetTemplateToDefault = async () => {
-    if (!templateProjectId) return;
+    if (!activeTemplateProjectId) return;
     try {
-      await fetch(`/api/produksi/project-templates/${templateProjectId}`, { method: "DELETE" });
+      await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}`, { method: "DELETE" });
       toast({ title: "Template dikembalikan ke standar" });
       refetchTemplate();
+      qc.invalidateQueries({ queryKey: ["progress-summary"] });
       setShowTemplateDialog(false);
     } catch {
       toast({ title: "Gagal reset template", variant: "destructive" });
@@ -202,9 +233,9 @@ export default function ProgressUnit() {
   };
 
   const copyTemplateFrom = async (sourceId: string) => {
-    if (!templateProjectId || !sourceId) return;
+    if (!activeTemplateProjectId || !sourceId) return;
     try {
-      const res = await fetch(`/api/produksi/project-templates/${templateProjectId}/copy-from/${sourceId}`, { method: "POST" });
+      const res = await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}/copy-from/${sourceId}`, { method: "POST" });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Gagal menyalin");
@@ -465,11 +496,9 @@ export default function ProgressUnit() {
           <p className="text-sm text-muted-foreground">Klik unit untuk lihat dan update progress pekerjaan</p>
         </div>
         <div className="flex gap-2">
-          {templateProjectId && (
-            <Button variant="outline" size="sm" onClick={openTemplateDialog} className="gap-1.5 h-8">
-              <Settings className="size-3.5" /> Template Bobot
-            </Button>
-          )}
+          <Button variant="outline" size="sm" onClick={() => openTemplateDialog()} className="gap-1.5 h-8">
+            <Settings className="size-3.5" /> Template Bobot
+          </Button>
           <Dialog open={showTambahUnit} onOpenChange={setShowTambahUnit}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1.5 h-8">
@@ -615,8 +644,21 @@ export default function ProgressUnit() {
       <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-sm flex items-center gap-2">
-              <Settings className="size-4" /> Template Bobot Pekerjaan — {projectList.find(p => String(p.projectId) === templateProjectId)?.projectName ?? ""}
+            <DialogTitle className="text-sm flex flex-wrap items-center justify-between gap-2 pr-6">
+              <span className="flex items-center gap-2">
+                <Settings className="size-4 text-emerald-600" /> Template Bobot Pekerjaan
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-normal text-muted-foreground">Proyek:</span>
+                <Select value={activeTemplateProjectId} onValueChange={handleSelectTemplateProject}>
+                  <SelectTrigger className="h-7 text-xs w-48"><SelectValue placeholder="Pilih Proyek..." /></SelectTrigger>
+                  <SelectContent>
+                    {(projects ?? []).map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
@@ -627,7 +669,7 @@ export default function ProgressUnit() {
                 <Select value={copyFromProject} onValueChange={setCopyFromProject}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih proyek sumber..." /></SelectTrigger>
                   <SelectContent>
-                    {(projects ?? []).filter(p => String(p.id) !== templateProjectId).map(p => (
+                    {(projects ?? []).filter(p => String(p.id) !== activeTemplateProjectId).map(p => (
                       <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>
                     ))}
                   </SelectContent>
@@ -859,7 +901,15 @@ export default function ProgressUnit() {
                         ) : (
                           <>
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-medium text-muted-foreground">Checklist Pekerjaan {templateData?.isCustom ? "Kustom" : "Standar"} ({unit.tasks.length} Item)</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-muted-foreground">Checklist Pekerjaan ({unit.tasks.length} Item)</span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openTemplateDialog(String(unit.projectId)); }}
+                                  className="text-[10px] text-emerald-600 hover:underline flex items-center gap-1 font-medium"
+                                >
+                                  <Settings className="size-3" /> Edit Template Bobot
+                                </button>
+                              </div>
                               <span className="text-xs font-semibold">{fmtPct(unit.progress)} selesai</span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
