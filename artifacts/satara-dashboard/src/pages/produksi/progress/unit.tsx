@@ -350,7 +350,8 @@ export default function ProgressUnit() {
   const realUnits: (UnitRow & { projectName: string })[] = (data ?? []).flatMap(p => p.units.map(u => ({ ...u, projectName: p.projectName })));
   const realUnitIds = new Set(realUnits.map(u => u.id));
   const realUnitKeys = new Set(realUnits.map(u => `${u.projectId}:${u.blok}-${u.nomor}`.toLowerCase()));
-  const planningUnits: (UnitRow & { projectName: string })[] = (allSiteplanShapes as any[])
+  const shapesList = Array.isArray(allSiteplanShapes) ? allSiteplanShapes : [];
+  const planningUnits: (UnitRow & { projectName: string })[] = shapesList
     .filter(shape => String(shape.shapeType ?? "").toLowerCase() === "unit")
     .filter(shape => !shape.unitId || !realUnitIds.has(shape.unitId))
     .map(shape => {

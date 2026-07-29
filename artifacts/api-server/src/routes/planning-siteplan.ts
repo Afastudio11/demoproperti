@@ -64,8 +64,8 @@ async function enrichShapes(shapes: (typeof planningSiteplanShapesTable.$inferSe
       progress: unit?.progress ?? shape.progress ?? 0,
       unitStatus: unit?.status ?? shape.unitStatus,
       customerName: customer?.nama ?? null,
-      createdAt: shape.createdAt.toISOString(),
-      updatedAt: shape.updatedAt.toISOString(),
+      createdAt: shape.createdAt ? (typeof shape.createdAt === "string" ? shape.createdAt : shape.createdAt.toISOString?.() ?? String(shape.createdAt)) : new Date().toISOString(),
+      updatedAt: shape.updatedAt ? (typeof shape.updatedAt === "string" ? shape.updatedAt : shape.updatedAt.toISOString?.() ?? String(shape.updatedAt)) : new Date().toISOString(),
     };
   });
 }
