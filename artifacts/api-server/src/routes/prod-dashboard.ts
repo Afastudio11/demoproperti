@@ -3,9 +3,9 @@ import { db } from "@workspace/db";
 import {
   unitsTable, constructionTasksTable, subkonContractsTable, subkonPaymentsTable,
   fasumProgressTable, prodMaterialMasterTable, prodMaterialInTable, prodMaterialOutTable,
-  unitQcTable, reworksTable, projectsTable
+  unitQcTable, reworksTable, projectsTable, projectTaskTemplatesTable
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -204,46 +204,186 @@ router.get("/produksi/progress/summary", async (req, res) => {
   }
 });
 
+// ─── Standard tasks fallback (used when project has no custom template) ───
+const STANDARD_TASKS = [
+  { item: "Galian", bobot: 3 },
+  { item: "Pondasi", bobot: 6 },
+  { item: "Sloof", bobot: 5 },
+  { item: "Kolom", bobot: 5 },
+  { item: "Pasangan Dinding Bata/Hebel", bobot: 12 },
+  { item: "Ring Balk (Balok Atas)", bobot: 5 },
+  { item: "Rangka Atap (Baja Ringan)", bobot: 4 },
+  { item: "Penutup Atap (Genteng Metal/Spandek)", bobot: 5 },
+  { item: "Cor Plat Teras", bobot: 4 },
+  { item: "Cor Plat WC", bobot: 4 },
+  { item: "Topi-topi", bobot: 2 },
+  { item: "Kuda-Kuda", bobot: 4 },
+  { item: "Plaster", bobot: 7 },
+  { item: "Aplus", bobot: 6 },
+  { item: "Kusen Pintu", bobot: 1 },
+  { item: "Kusen Jendela", bobot: 1 },
+  { item: "Kusen L", bobot: 1 },
+  { item: "Instalasi Pipa", bobot: 1 },
+  { item: "Pemasangan Keramik 40x40", bobot: 5 },
+  { item: "Pemasangan Keramik 25x40", bobot: 2 },
+  { item: "Pemasangan Keramik 25x25", bobot: 1 },
+  { item: "Pemasangan Closet dll", bobot: 1 },
+  { item: "Cat", bobot: 7 },
+  { item: "Pemasangan Rangka Plafon", bobot: 3 },
+  { item: "Pemasangan Gypsum", bobot: 2 },
+  { item: "Floor Teras", bobot: 3 },
+];
+
 router.post("/produksi/units/seed-tasks/:unitId", async (req, res) => {
   try {
     const unitId = parseInt(req.params.unitId);
     const existing = await db.select().from(constructionTasksTable).where(eq(constructionTasksTable.unitId, unitId));
     if (existing.length > 0) return res.json({ message: "Tasks already exist", count: existing.length });
 
-    const STANDARD_TASKS = [
-      { item: "Galian", bobot: 3 },
-      { item: "Pondasi", bobot: 6 },
-      { item: "Sloof", bobot: 5 },
-      { item: "Kolom", bobot: 5 },
-      { item: "Pasangan Dinding Bata/Hebel", bobot: 12 },
-      { item: "Ring Balk (Balok Atas)", bobot: 5 },
-      { item: "Rangka Atap (Baja Ringan)", bobot: 4 },
-      { item: "Penutup Atap (Genteng Metal/Spandek)", bobot: 5 },
-      { item: "Cor Plat Teras", bobot: 4 },
-      { item: "Cor Plat WC", bobot: 4 },
-      { item: "Topi-topi", bobot: 2 },
-      { item: "Kuda-Kuda", bobot: 4 },
-      { item: "Plaster", bobot: 7 },
-      { item: "Aplus", bobot: 6 },
-      { item: "Kusen Pintu", bobot: 1 },
-      { item: "Kusen Jendela", bobot: 1 },
-      { item: "Kusen L", bobot: 1 },
-      { item: "Instalasi Pipa", bobot: 1 },
-      { item: "Pemasangan Keramik 40x40", bobot: 5 },
-      { item: "Pemasangan Keramik 25x40", bobot: 2 },
-      { item: "Pemasangan Keramik 25x25", bobot: 1 },
-      { item: "Pemasangan Closet dll", bobot: 1 },
-      { item: "Cat", bobot: 7 },
-      { item: "Pemasangan Rangka Plafon", bobot: 3 },
-      { item: "Pemasangan Gypsum", bobot: 2 },
-      { item: "Floor Teras", bobot: 3 },
-    ];
+    // Find project for this unit to check for custom template
+    const [unit] = await db.select({ projectId: unitsTable.projectId }).from(unitsTable).where(eq(unitsTable.id, unitId));
+    let tasksToSeed = STANDARD_TASKS;
 
-    await db.insert(constructionTasksTable).values(STANDARD_TASKS.map(t => ({ ...t, unitId, status: "belum_mulai" })));
-    res.status(201).json({ message: "Tasks seeded", count: STANDARD_TASKS.length });
+    if (unit) {
+      const templates = await db.select().from(projectTaskTemplatesTable)
+        .where(eq(projectTaskTemplatesTable.projectId, unit.projectId))
+        .orderBy(projectTaskTemplatesTable.urutan);
+      if (templates.length > 0) {
+        tasksToSeed = templates.map(t => ({ item: t.item, bobot: t.bobot }));
+      }
+    }
+
+    await db.insert(constructionTasksTable).values(tasksToSeed.map(t => ({ ...t, unitId, status: "belum_mulai" })));
+    res.status(201).json({ message: "Tasks seeded", count: tasksToSeed.length, source: tasksToSeed === STANDARD_TASKS ? "default" : "custom" });
   } catch (err) {
     req.log.error({ err }, "Failed to seed tasks");
     res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// ─── Project Task Template CRUD ──────────────────────────────────────────────
+
+// Get template for a project (returns items or empty array if using default)
+router.get("/produksi/project-templates/:projectId", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const templates = await db.select().from(projectTaskTemplatesTable)
+      .where(eq(projectTaskTemplatesTable.projectId, projectId))
+      .orderBy(projectTaskTemplatesTable.urutan);
+    res.json({ projectId, items: templates, isCustom: templates.length > 0, defaults: STANDARD_TASKS });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get project templates");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Save/replace template for a project
+router.put("/produksi/project-templates/:projectId", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const { items } = req.body as { items: { item: string; bobot: number }[] };
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "Items array wajib diisi" });
+    }
+
+    // Validate total bobot ~= 100
+    const totalBobot = items.reduce((s, i) => s + i.bobot, 0);
+    if (totalBobot < 95 || totalBobot > 105) {
+      return res.status(400).json({ error: `Total bobot harus mendekati 100% (sekarang: ${totalBobot}%)` });
+    }
+
+    // Delete existing then insert new
+    await db.delete(projectTaskTemplatesTable).where(eq(projectTaskTemplatesTable.projectId, projectId));
+    const values = items.map((item, idx) => ({
+      projectId,
+      item: item.item.trim(),
+      bobot: item.bobot,
+      urutan: idx,
+    }));
+    await db.insert(projectTaskTemplatesTable).values(values);
+
+    const saved = await db.select().from(projectTaskTemplatesTable)
+      .where(eq(projectTaskTemplatesTable.projectId, projectId))
+      .orderBy(projectTaskTemplatesTable.urutan);
+    res.json({ projectId, items: saved, isCustom: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to save project templates");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Copy template from another project
+router.post("/produksi/project-templates/:projectId/copy-from/:sourceProjectId", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const sourceProjectId = parseInt(req.params.sourceProjectId);
+
+    const sourceTemplates = await db.select().from(projectTaskTemplatesTable)
+      .where(eq(projectTaskTemplatesTable.projectId, sourceProjectId))
+      .orderBy(projectTaskTemplatesTable.urutan);
+
+    if (sourceTemplates.length === 0) {
+      return res.status(404).json({ error: "Proyek sumber belum memiliki template kustom" });
+    }
+
+    // Delete existing then copy
+    await db.delete(projectTaskTemplatesTable).where(eq(projectTaskTemplatesTable.projectId, projectId));
+    const values = sourceTemplates.map((t, idx) => ({
+      projectId,
+      item: t.item,
+      bobot: t.bobot,
+      urutan: idx,
+    }));
+    await db.insert(projectTaskTemplatesTable).values(values);
+
+    const saved = await db.select().from(projectTaskTemplatesTable)
+      .where(eq(projectTaskTemplatesTable.projectId, projectId))
+      .orderBy(projectTaskTemplatesTable.urutan);
+    res.json({ projectId, items: saved, copiedFrom: sourceProjectId });
+  } catch (err) {
+    req.log.error({ err }, "Failed to copy project templates");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Delete custom template (revert to default)
+router.delete("/produksi/project-templates/:projectId", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    await db.delete(projectTaskTemplatesTable).where(eq(projectTaskTemplatesTable.projectId, projectId));
+    res.json({ projectId, isCustom: false, message: "Template dikembalikan ke default" });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete project templates");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Initialize template from defaults (for easy editing)
+router.post("/produksi/project-templates/:projectId/init-defaults", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const existing = await db.select().from(projectTaskTemplatesTable)
+      .where(eq(projectTaskTemplatesTable.projectId, projectId));
+    if (existing.length > 0) {
+      return res.json({ projectId, items: existing, isCustom: true, message: "Template sudah ada" });
+    }
+
+    const values = STANDARD_TASKS.map((t, idx) => ({
+      projectId,
+      item: t.item,
+      bobot: t.bobot,
+      urutan: idx,
+    }));
+    await db.insert(projectTaskTemplatesTable).values(values);
+
+    const saved = await db.select().from(projectTaskTemplatesTable)
+      .where(eq(projectTaskTemplatesTable.projectId, projectId))
+      .orderBy(projectTaskTemplatesTable.urutan);
+    res.status(201).json({ projectId, items: saved, isCustom: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to init default templates");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

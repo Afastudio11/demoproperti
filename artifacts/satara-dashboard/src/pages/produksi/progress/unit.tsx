@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { CheckSquare, Square, ChevronDown, ChevronUp, RefreshCw, Search, Plus, Download } from "lucide-react";
+import { CheckSquare, Square, ChevronDown, ChevronUp, RefreshCw, Search, Plus, Download, Settings, Trash2, Copy, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import SubkonSelect from "@/components/subkon-select";
 import jsPDF from "jspdf";
@@ -75,6 +75,10 @@ export default function ProgressUnit() {
   const [showTambahUnit, setShowTambahUnit] = useState(false);
   const [form, setForm] = useState({ projectId: "", stageCode: "T1", blok: "", nomor: "", tipe: "Tipe 36", subkonId: "", subkonName: "", weekStarted: "" });
   const [quickProgress, setQuickProgress] = useState<Record<number, number>>({});
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [templateItems, setTemplateItems] = useState<{ item: string; bobot: number }[]>([]);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [copyFromProject, setCopyFromProject] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -136,6 +140,84 @@ export default function ProgressUnit() {
       return fetch(`/api/planning/siteplan-shapes${suffix}`).then(r => r.json());
     },
   });
+
+  // Template data for current project
+  const templateProjectId = filterProject !== "all" ? filterProject : "";
+  const { data: templateData, refetch: refetchTemplate } = useQuery({
+    queryKey: ["project-task-template", templateProjectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/produksi/project-templates/${templateProjectId}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{ projectId: number; items: any[]; isCustom: boolean; defaults: { item: string; bobot: number }[] }>;
+    },
+    enabled: !!templateProjectId,
+  });
+
+  const openTemplateDialog = async () => {
+    if (!templateProjectId) {
+      toast({ title: "Pilih proyek terlebih dahulu", variant: "destructive" });
+      return;
+    }
+    if (templateData?.isCustom && templateData.items.length > 0) {
+      setTemplateItems(templateData.items.map(t => ({ item: t.item, bobot: t.bobot })));
+    } else {
+      setTemplateItems(templateData?.defaults ?? []);
+    }
+    setShowTemplateDialog(true);
+  };
+
+  const saveTemplate = async () => {
+    if (!templateProjectId) return;
+    setTemplateSaving(true);
+    try {
+      const res = await fetch(`/api/produksi/project-templates/${templateProjectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: templateItems }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal menyimpan");
+      }
+      toast({ title: "Template pekerjaan berhasil disimpan" });
+      refetchTemplate();
+      setShowTemplateDialog(false);
+    } catch (err: any) {
+      toast({ title: err.message || "Gagal menyimpan template", variant: "destructive" });
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const resetTemplateToDefault = async () => {
+    if (!templateProjectId) return;
+    try {
+      await fetch(`/api/produksi/project-templates/${templateProjectId}`, { method: "DELETE" });
+      toast({ title: "Template dikembalikan ke standar" });
+      refetchTemplate();
+      setShowTemplateDialog(false);
+    } catch {
+      toast({ title: "Gagal reset template", variant: "destructive" });
+    }
+  };
+
+  const copyTemplateFrom = async (sourceId: string) => {
+    if (!templateProjectId || !sourceId) return;
+    try {
+      const res = await fetch(`/api/produksi/project-templates/${templateProjectId}/copy-from/${sourceId}`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal menyalin");
+      }
+      const data = await res.json();
+      setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
+      toast({ title: "Template berhasil disalin dari proyek lain" });
+      refetchTemplate();
+    } catch (err: any) {
+      toast({ title: err.message || "Gagal menyalin template", variant: "destructive" });
+    }
+  };
+
 
   async function ensureProductionUnit(unitId: number) {
     if (unitId > 0) return unitId;
@@ -379,10 +461,15 @@ export default function ProgressUnit() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-bold">Progress Unit — Checklist 26 Item</h1>
+          <h1 className="text-lg font-bold">Progress Unit — Checklist {templateData?.isCustom ? "Kustom" : "Standar"}</h1>
           <p className="text-sm text-muted-foreground">Klik unit untuk lihat dan update progress pekerjaan</p>
         </div>
         <div className="flex gap-2">
+          {templateProjectId && (
+            <Button variant="outline" size="sm" onClick={openTemplateDialog} className="gap-1.5 h-8">
+              <Settings className="size-3.5" /> Template Bobot
+            </Button>
+          )}
           <Dialog open={showTambahUnit} onOpenChange={setShowTambahUnit}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1.5 h-8">
@@ -524,6 +611,115 @@ export default function ProgressUnit() {
         </Select>
       </div>
 
+      {/* Template Pekerjaan Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <Settings className="size-4" /> Template Bobot Pekerjaan — {projectList.find(p => String(p.projectId) === templateProjectId)?.projectName ?? ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Copy from project */}
+            <div className="flex flex-wrap items-end gap-2 p-3 rounded-lg bg-muted/40 border border-dashed">
+              <div className="flex-1 min-w-48 space-y-1">
+                <Label className="text-xs">Salin template dari proyek lain</Label>
+                <Select value={copyFromProject} onValueChange={setCopyFromProject}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih proyek sumber..." /></SelectTrigger>
+                  <SelectContent>
+                    {(projects ?? []).filter(p => String(p.id) !== templateProjectId).map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1" disabled={!copyFromProject} onClick={() => copyTemplateFrom(copyFromProject)}>
+                <Copy className="size-3" /> Salin
+              </Button>
+            </div>
+
+            {/* Items table */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">Item Pekerjaan</span>
+                <span className={`text-xs font-semibold ${
+                  (() => { const total = templateItems.reduce((s, i) => s + i.bobot, 0); return total >= 95 && total <= 105 ? "text-emerald-600" : "text-red-500"; })()
+                }`}>
+                  Total: {templateItems.reduce((s, i) => s + i.bobot, 0)}%
+                </span>
+              </div>
+              <div className="border rounded-lg overflow-hidden">
+                <div className="grid grid-cols-[1fr,80px,40px] gap-0 bg-muted/50 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
+                  <span>Nama Pekerjaan</span>
+                  <span className="text-center">Bobot %</span>
+                  <span></span>
+                </div>
+                {templateItems.map((item, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr,80px,40px] gap-0 items-center px-3 py-1 border-t hover:bg-muted/20">
+                    <Input
+                      className="h-7 text-xs border-0 shadow-none px-0 focus-visible:ring-0"
+                      value={item.item}
+                      onChange={e => {
+                        const next = [...templateItems];
+                        next[idx] = { ...next[idx], item: e.target.value };
+                        setTemplateItems(next);
+                      }}
+                    />
+                    <Input
+                      className="h-7 text-xs text-center border-0 shadow-none focus-visible:ring-0"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={item.bobot}
+                      onChange={e => {
+                        const next = [...templateItems];
+                        next[idx] = { ...next[idx], bobot: Number(e.target.value) || 0 };
+                        setTemplateItems(next);
+                      }}
+                    />
+                    <Button
+                      variant="ghost" size="sm" className="h-6 w-6 p-0"
+                      onClick={() => setTemplateItems(templateItems.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="size-3 text-muted-foreground hover:text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                variant="outline" size="sm" className="w-full h-7 text-xs gap-1 mt-1"
+                onClick={() => setTemplateItems([...templateItems, { item: "", bobot: 0 }])}
+              >
+                <Plus className="size-3" /> Tambah Item
+              </Button>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t">
+              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-muted-foreground" onClick={resetTemplateToDefault}>
+                <RotateCcw className="size-3" /> Reset ke Default
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowTemplateDialog(false)}>Batal</Button>
+                <Button
+                  size="sm" className="h-8 text-xs"
+                  disabled={templateSaving || templateItems.length === 0 || templateItems.some(i => !i.item.trim())}
+                  onClick={saveTemplate}
+                >
+                  {templateSaving ? "Menyimpan..." : "Simpan Template"}
+                </Button>
+              </div>
+            </div>
+
+            {templateData?.isCustom && (
+              <p className="text-[10px] text-muted-foreground text-center">
+                ⚡ Proyek ini menggunakan template kustom ({templateData.items.length} item). Unit baru akan menggunakan template ini.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {isLoading ? (
         <div className="py-12 text-center text-sm text-muted-foreground">Memuat data unit...</div>
       ) : filtered.length === 0 ? (
@@ -657,13 +853,13 @@ export default function ProgressUnit() {
                           <div className="py-3 text-center space-y-2">
                             {unit.isPlanningUnit && <p className="text-xs text-muted-foreground">Unit ini mirror dari Perencanaan. Mulai checklist akan membuat unit produksi dan link ke siteplan.</p>}
                             <Button size="sm" variant="outline" onClick={() => seedMutation.mutate(unit.id)} className="h-7 text-xs gap-1.5">
-                              <Plus className="size-3" /> Inisialisasi Checklist 26 Item
+                              <Plus className="size-3" /> Inisialisasi Checklist {templateData?.isCustom ? `${templateData.items.length} Item (Kustom)` : "26 Item"}
                             </Button>
                           </div>
                         ) : (
                           <>
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-medium text-muted-foreground">Checklist Pekerjaan Standar (26 Item)</span>
+                              <span className="text-xs font-medium text-muted-foreground">Checklist Pekerjaan {templateData?.isCustom ? "Kustom" : "Standar"} ({unit.tasks.length} Item)</span>
                               <span className="text-xs font-semibold">{fmtPct(unit.progress)} selesai</span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
