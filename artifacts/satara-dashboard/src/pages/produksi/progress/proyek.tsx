@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link, useLocation } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from "recharts";
-import { TrendingUp, TrendingDown, Minus, BarChart3, ChevronRight, Map, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, BarChart3, ChevronRight, Map, Download, ChevronDown, ChevronUp, Settings, Plus, Trash2, Copy, RotateCcw } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -408,6 +413,115 @@ export default function ProgressProyek() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [view, setView] = useState<"list" | "chart">("list");
   const [expandedSiteplan, setExpandedSiteplan] = useState<number | null>(null);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  // Template Modal State
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [activeTemplateProjectId, setActiveTemplateProjectId] = useState<string>("");
+  const [templateItems, setTemplateItems] = useState<{ item: string; bobot: number }[]>([]);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [copyFromProject, setCopyFromProject] = useState("");
+
+  const { data: templateData, refetch: refetchTemplate } = useQuery({
+    queryKey: ["project-task-template", activeTemplateProjectId],
+    queryFn: async () => {
+      if (!activeTemplateProjectId) return null;
+      const res = await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<{ projectId: number; items: any[]; isCustom: boolean; defaults: { item: string; bobot: number }[] }>;
+    },
+    enabled: !!activeTemplateProjectId,
+  });
+
+  const openTemplateDialog = async (projId: string) => {
+    setActiveTemplateProjectId(projId);
+    try {
+      const res = await fetch(`/api/produksi/project-templates/${projId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.isCustom && data.items.length > 0) {
+          setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
+        } else {
+          setTemplateItems(data.defaults ?? []);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setShowTemplateDialog(true);
+  };
+
+  const handleSelectTemplateProject = async (projId: string) => {
+    setActiveTemplateProjectId(projId);
+    try {
+      const res = await fetch(`/api/produksi/project-templates/${projId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.isCustom && data.items.length > 0) {
+          setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
+        } else {
+          setTemplateItems(data.defaults ?? []);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const saveTemplate = async () => {
+    if (!activeTemplateProjectId) return;
+    setTemplateSaving(true);
+    try {
+      const res = await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: templateItems }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal menyimpan");
+      }
+      toast({ title: "Template pekerjaan berhasil disimpan" });
+      refetchTemplate();
+      qc.invalidateQueries({ queryKey: ["progress-summary"] });
+      setShowTemplateDialog(false);
+    } catch (err: any) {
+      toast({ title: err.message || "Gagal menyimpan template", variant: "destructive" });
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const resetTemplateToDefault = async () => {
+    if (!activeTemplateProjectId) return;
+    try {
+      await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}`, { method: "DELETE" });
+      toast({ title: "Template dikembalikan ke standar" });
+      refetchTemplate();
+      qc.invalidateQueries({ queryKey: ["progress-summary"] });
+      setShowTemplateDialog(false);
+    } catch {
+      toast({ title: "Gagal reset template", variant: "destructive" });
+    }
+  };
+
+  const copyTemplateFrom = async (sourceId: string) => {
+    if (!activeTemplateProjectId || !sourceId) return;
+    try {
+      const res = await fetch(`/api/produksi/project-templates/${activeTemplateProjectId}/copy-from/${sourceId}`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal menyalin");
+      }
+      const data = await res.json();
+      setTemplateItems(data.items.map((t: any) => ({ item: t.item, bobot: t.bobot })));
+      toast({ title: "Template berhasil disalin dari proyek lain" });
+      refetchTemplate();
+    } catch (err: any) {
+      toast({ title: err.message || "Gagal menyalin template", variant: "destructive" });
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["progress-summary"],
@@ -527,6 +641,13 @@ export default function ProgressProyek() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{proj.totalUnits} unit</span>
                       <button
+                        onClick={() => openTemplateDialog(String(proj.projectId))}
+                        className="text-xs flex items-center gap-1 px-2.5 py-1 rounded border border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 font-medium transition-colors"
+                      >
+                        <Settings className="size-3" />
+                        Template Bobot
+                      </button>
+                      <button
                         onClick={() => setExpandedSiteplan(isSiteplanOpen ? null : proj.projectId)}
                         className={`text-xs flex items-center gap-1 px-2 py-1 rounded border transition-colors ${isSiteplanOpen ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
                       >
@@ -600,6 +721,128 @@ export default function ProgressProyek() {
           })}
         </div>
       )}
+
+      {/* Template Pekerjaan Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex flex-wrap items-center justify-between gap-2 pr-6">
+              <span className="flex items-center gap-2">
+                <Settings className="size-4 text-emerald-600" /> Template Bobot Pekerjaan
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-normal text-muted-foreground">Proyek:</span>
+                <Select value={activeTemplateProjectId} onValueChange={handleSelectTemplateProject}>
+                  <SelectTrigger className="h-7 text-xs w-48"><SelectValue placeholder="Pilih Proyek..." /></SelectTrigger>
+                  <SelectContent>
+                    {all.map(p => (
+                      <SelectItem key={p.projectId} value={String(p.projectId)}>{p.projectName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Copy from project */}
+            <div className="flex flex-wrap items-end gap-2 p-3 rounded-lg bg-muted/40 border border-dashed">
+              <div className="flex-1 min-w-48 space-y-1">
+                <Label className="text-xs">Salin template dari proyek lain</Label>
+                <Select value={copyFromProject} onValueChange={setCopyFromProject}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih proyek sumber..." /></SelectTrigger>
+                  <SelectContent>
+                    {all.filter(p => String(p.projectId) !== activeTemplateProjectId).map(p => (
+                      <SelectItem key={p.projectId} value={String(p.projectId)}>{p.projectName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1" disabled={!copyFromProject} onClick={() => copyTemplateFrom(copyFromProject)}>
+                <Copy className="size-3" /> Salin
+              </Button>
+            </div>
+
+            {/* Items table */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">Item Pekerjaan</span>
+                <span className={`text-xs font-semibold ${
+                  (() => { const total = templateItems.reduce((s, i) => s + i.bobot, 0); return total >= 95 && total <= 105 ? "text-emerald-600" : "text-red-500"; })()
+                }`}>
+                  Total: {templateItems.reduce((s, i) => s + i.bobot, 0)}%
+                </span>
+              </div>
+              <div className="border rounded-lg overflow-hidden">
+                <div className="grid grid-cols-[1fr,80px,40px] gap-0 bg-muted/50 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
+                  <span>Nama Pekerjaan</span>
+                  <span className="text-center">Bobot %</span>
+                  <span></span>
+                </div>
+                {templateItems.map((item, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr,80px,40px] gap-0 items-center px-3 py-1 border-t hover:bg-muted/20">
+                    <Input
+                      className="h-7 text-xs border-0 shadow-none px-0 focus-visible:ring-0"
+                      value={item.item}
+                      onChange={e => {
+                        const next = [...templateItems];
+                        next[idx] = { ...next[idx], item: e.target.value };
+                        setTemplateItems(next);
+                      }}
+                    />
+                    <Input
+                      className="h-7 text-xs text-center border-0 shadow-none focus-visible:ring-0"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={item.bobot}
+                      onChange={e => {
+                        const next = [...templateItems];
+                        next[idx] = { ...next[idx], bobot: Number(e.target.value) || 0 };
+                        setTemplateItems(next);
+                      }}
+                    />
+                    <Button
+                      variant="ghost" size="sm" className="h-6 w-6 p-0"
+                      onClick={() => setTemplateItems(templateItems.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="size-3 text-muted-foreground hover:text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                variant="outline" size="sm" className="w-full h-7 text-xs gap-1 mt-1"
+                onClick={() => setTemplateItems([...templateItems, { item: "", bobot: 0 }])}
+              >
+                <Plus className="size-3" /> Tambah Item
+              </Button>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t">
+              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-muted-foreground" onClick={resetTemplateToDefault}>
+                <RotateCcw className="size-3" /> Reset ke Default
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowTemplateDialog(false)}>Batal</Button>
+                <Button
+                  size="sm" className="h-8 text-xs"
+                  disabled={templateSaving || templateItems.length === 0 || templateItems.some(i => !i.item.trim())}
+                  onClick={saveTemplate}
+                >
+                  {templateSaving ? "Menyimpan..." : "Simpan Template"}
+                </Button>
+              </div>
+            </div>
+
+            {templateData?.isCustom && (
+              <p className="text-[10px] text-muted-foreground text-center">
+                ⚡ Proyek ini menggunakan template kustom ({templateData.items.length} item). Unit baru akan menggunakan template ini.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
