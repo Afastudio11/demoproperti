@@ -292,6 +292,23 @@ router.get("/planning/siteplan-shapes", async (req, res) => {
     const rows = projectId
       ? await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId))
       : await db.select().from(planningSiteplanShapesTable);
+
+    // Auto-link any unlinked unit shapes so they automatically become units in unitsTable
+    const unlinked = rows.filter(s => s.shapeType === "unit" && !s.unitId);
+    if (unlinked.length > 0) {
+      for (const shape of unlinked) {
+        try {
+          const unitId = await autoLinkUnit(shape);
+          if (unitId) {
+            await db.update(planningSiteplanShapesTable).set({ unitId }).where(eq(planningSiteplanShapesTable.id, shape.id));
+            (shape as any).unitId = unitId;
+          }
+        } catch {
+          // ignore individual sync errors
+        }
+      }
+    }
+
     res.json(await enrichShapes(rows));
   } catch (err) {
     res.status(500).json({ error: "Gagal mengambil shapes" });

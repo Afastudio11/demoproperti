@@ -348,17 +348,18 @@ export default function ProgressUnit() {
   });
 
   const realUnits: (UnitRow & { projectName: string })[] = (data ?? []).flatMap(p => p.units.map(u => ({ ...u, projectName: p.projectName })));
+  const realUnitIds = new Set(realUnits.map(u => u.id));
   const realUnitKeys = new Set(realUnits.map(u => `${u.projectId}:${u.blok}-${u.nomor}`.toLowerCase()));
   const planningUnits: (UnitRow & { projectName: string })[] = (allSiteplanShapes as any[])
-    .filter(shape => shape.shapeType === "unit")
-    .filter(shape => !shape.unitId)
+    .filter(shape => String(shape.shapeType ?? "").toLowerCase() === "unit")
+    .filter(shape => !shape.unitId || !realUnitIds.has(shape.unitId))
     .map(shape => {
       const parsed = parseUnitLabel(shape.label);
       const projectName = (data ?? []).find(project => project.projectId === shape.projectId)?.projectName
         ?? (projects ?? []).find(project => project.id === shape.projectId)?.nama
         ?? `Project #${shape.projectId}`;
       return {
-        id: -Number(shape.id),
+        id: shape.unitId ? Number(shape.unitId) : -Number(shape.id),
         projectId: Number(shape.projectId),
         projectName,
         blok: parsed.blok,
