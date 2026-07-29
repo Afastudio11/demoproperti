@@ -108,11 +108,18 @@ async function syncBidangToLandBank(row: typeof planningSiteplanShapesTable.$inf
 // Auto find-or-create unit for "unit" type shapes, returns unitId
 async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect): Promise<number | null> {
   if (row.shapeType !== "unit" && row.shapeType !== "fasum") return null;
+  const { blok, nomor } = parseUnitLabel(row.label);
   if (row.unitId) {
     const [existing] = await db.select().from(unitsTable).where(eq(unitsTable.id, row.unitId));
-    if (existing) return existing.id;
+    if (
+      existing &&
+      existing.projectId === row.projectId &&
+      existing.blok.toLowerCase() === blok.toLowerCase() &&
+      existing.nomor.toLowerCase() === nomor.toLowerCase()
+    ) {
+      return existing.id;
+    }
   }
-  const { blok, nomor } = parseUnitLabel(row.label);
   const existingUnits = await db.select().from(unitsTable).where(eq(unitsTable.projectId, row.projectId));
   const found = existingUnits.find(u => u.blok.toLowerCase() === blok.toLowerCase() && u.nomor.toLowerCase() === nomor.toLowerCase());
   if (found) {
@@ -349,9 +356,9 @@ router.post("/planning/siteplan/:id/shapes", async (req, res) => {
     const [row] = await db.insert(planningSiteplanShapesTable).values({ ...body, siteplanId, projectId: siteplan.projectId }).returning();
 
     // Auto-link unit for unit and fasum shapes
-    if ((row.shapeType === "unit" || row.shapeType === "fasum") && !row.unitId) {
+    if (row.shapeType === "unit" || row.shapeType === "fasum") {
       const unitId = await autoLinkUnit(row).catch(() => null);
-      if (unitId) {
+      if (unitId && unitId !== row.unitId) {
         await db.update(planningSiteplanShapesTable).set({ unitId }).where(eq(planningSiteplanShapesTable.id, row.id));
         (row as any).unitId = unitId;
       }
@@ -400,14 +407,10 @@ router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
 
     // Sync unit data
     if (row.shapeType === "unit") {
-      let unitId = row.unitId;
-      if (!unitId) {
-        // Auto-link if not yet linked
-        unitId = await autoLinkUnit(row).catch(() => null);
-        if (unitId) {
-          await db.update(planningSiteplanShapesTable).set({ unitId }).where(eq(planningSiteplanShapesTable.id, row.id));
-          (row as any).unitId = unitId;
-        }
+      const unitId = await autoLinkUnit(row).catch(() => null);
+      if (unitId && unitId !== row.unitId) {
+        await db.update(planningSiteplanShapesTable).set({ unitId }).where(eq(planningSiteplanShapesTable.id, row.id));
+        (row as any).unitId = unitId;
       }
       if (unitId) {
         const values: Record<string, unknown> = {};

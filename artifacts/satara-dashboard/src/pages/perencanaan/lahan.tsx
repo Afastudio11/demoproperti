@@ -2696,7 +2696,7 @@ export default function LahanPage() {
                                 setShapeDraft(p => {
                                   const trimmed = String(newLabel).trim();
                                   const match = trimmed.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
-                                  let matchedUnitId = p.unitId;
+                                  let matchedUnitId = "";
                                   let matchedUnitType = p.unitType;
                                   let matchedSubkonName = p.subkonName;
                                   let matchedProgress = p.progress;
