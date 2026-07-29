@@ -364,7 +364,7 @@ export default function ProgressUnit() {
         blok: parsed.blok,
         nomor: parsed.nomor,
         tipe: shape.unitType || "Tipe 36",
-        stageCode: shape.blockCode || null,
+        stageCode: shape.stageCode || shape.blockCode || null,
         progress: Number(shape.progress ?? 0),
         weekStarted: null,
         subkonName: shape.subkonName ?? null,
@@ -480,8 +480,28 @@ export default function ProgressUnit() {
     if (filterStage !== "all" && u.stageCode !== filterStage) return false;
     const st = getStatus(u.progress, u.weekStarted);
     if (filterStatus !== "all" && st.label.toLowerCase() !== filterStatus.toLowerCase()) return false;
-    const q = search.toLowerCase();
-    if (q && !`${u.blok}${u.nomor}${u.tipe}${u.subkonName ?? ""}`.toLowerCase().includes(q)) return false;
+    const q = search.trim().toLowerCase();
+    if (q) {
+      const cleanQ = q.replace(/[-\s_]/g, "");
+      const fullLabel = `${u.blok}-${u.nomor}`.toLowerCase();
+      const cleanLabel = `${u.blok}${u.nomor}`.toLowerCase();
+      const tipeStr = String(u.tipe ?? "").toLowerCase();
+      const subkonStr = String(u.subkonName ?? "").toLowerCase();
+      const projectStr = String(u.projectName ?? "").toLowerCase();
+      const stageStr = String(u.stageCode ?? "").toLowerCase();
+
+      const matches =
+        fullLabel.includes(q) ||
+        cleanLabel.includes(cleanQ) ||
+        u.nomor.toLowerCase().includes(q) ||
+        u.blok.toLowerCase() === q ||
+        tipeStr.includes(q) ||
+        subkonStr.includes(q) ||
+        projectStr.includes(q) ||
+        stageStr.includes(q);
+
+      if (!matches) return false;
+    }
     return true;
   });
 
