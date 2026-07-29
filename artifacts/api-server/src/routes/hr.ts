@@ -767,7 +767,7 @@ router.post("/hr/attendance/bulk", async (req, res) => {
     }
     const normalized = await normalizeHrOperationalRows(records);
     for (const record of normalized) {
-      if (!record.employeeName) return res.status(400).json({ error: "employeeName/employeeId wajib valid" });
+      if (!record.employeeName) continue;
       await db.delete(attendanceRecordsTable).where(and(
         eq(attendanceRecordsTable.employeeName, record.employeeName),
         eq(attendanceRecordsTable.project, record.project ?? ""),
@@ -776,8 +776,12 @@ router.post("/hr/attendance/bulk", async (req, res) => {
         eq(attendanceRecordsTable.day, Number(record.day)),
       ));
     }
-    const rows = await db.insert(attendanceRecordsTable).values(normalized).returning();
-    await syncCultureFromAttendance(rows);
+    const toInsert = normalized.filter(r => r.status && String(r.status).trim() !== "");
+    let rows: any[] = [];
+    if (toInsert.length > 0) {
+      rows = await db.insert(attendanceRecordsTable).values(toInsert).returning();
+      await syncCultureFromAttendance(rows);
+    }
     res.json({ inserted: rows.length });
   } catch (e: any) { err500(res, e); }
 });
@@ -832,7 +836,21 @@ router.post("/hr/overtime/bulk", async (req, res) => {
       return;
     }
     const normalized = await normalizeHrOperationalRows(records);
-    const rows = await db.insert(overtimeRecordsTable).values(normalized).returning();
+    for (const record of normalized) {
+      if (!record.employeeName) continue;
+      await db.delete(overtimeRecordsTable).where(and(
+        eq(overtimeRecordsTable.employeeName, record.employeeName),
+        eq(overtimeRecordsTable.project, record.project ?? ""),
+        eq(overtimeRecordsTable.month, record.month ?? ""),
+        eq(overtimeRecordsTable.year, Number(record.year)),
+        eq(overtimeRecordsTable.day, Number(record.day)),
+      ));
+    }
+    const toInsert = normalized.filter(r => (Number(r.lemburJam) || 0) > 0 || (Number(r.terlambatMenit) || 0) > 0);
+    let rows: any[] = [];
+    if (toInsert.length > 0) {
+      rows = await db.insert(overtimeRecordsTable).values(toInsert).returning();
+    }
     res.json({ inserted: rows.length });
   } catch (e: any) { err500(res, e); }
 });

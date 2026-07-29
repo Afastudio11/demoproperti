@@ -104,7 +104,8 @@ export default function HRAbsensi() {
 
   const bulkDelMut = useMutation({
     mutationFn: async (empNames: string[]) => {
-      const ids = data.filter(r => empNames.includes(r.employeeName)).map(r => r.id);
+      const lowerNames = new Set(empNames.map(n => n.toLowerCase()));
+      const ids = data.filter(r => lowerNames.has(String(r.employeeName).toLowerCase())).map(r => r.id);
       for (const id of ids) await fetch(`/api/hr/attendance/${id}`, { method: "DELETE" }).then(apiJson);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-attendance"] }); setSelectedEmps(new Set()); },
@@ -316,19 +317,18 @@ export default function HRAbsensi() {
     const records: any[] = [];
     for (const emp of employees) {
       const days = bulkGrid[emp.id] ?? {};
-      for (const [dayStr, status] of Object.entries(days)) {
-        if (status) {
-          records.push({
-            employeeId: emp.id,
-            employeeName: emp.name,
-            projectId: findProject(bulkProject)?.id ?? null,
-            project: bulkProject,
-            month,
-            year,
-            day: Number(dayStr),
-            status,
-          });
-        }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const status = days[d] ?? "";
+        records.push({
+          employeeId: emp.id,
+          employeeName: emp.name,
+          projectId: findProject(bulkProject)?.id ?? null,
+          project: bulkProject,
+          month,
+          year,
+          day: d,
+          status,
+        });
       }
     }
     if (!records.length) { setBulkError("Belum ada data absensi yang diisi."); return; }

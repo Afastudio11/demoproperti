@@ -135,7 +135,8 @@ export default function HRLembur() {
 
   const bulkDelMut = useMutation({
     mutationFn: async (empNames: string[]) => {
-      const ids = data.filter((r: any) => empNames.includes(r.employeeName)).map((r: any) => r.id);
+      const lowerNames = new Set(empNames.map(n => n.toLowerCase()));
+      const ids = data.filter((r: any) => lowerNames.has(String(r.employeeName).toLowerCase())).map((r: any) => r.id);
       for (const id of ids) await fetch(`/api/hr/overtime/${id}`, { method: "DELETE" }).then(apiJson);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-overtime"] }); setSelectedEmps(new Set()); },
@@ -223,21 +224,20 @@ export default function HRLembur() {
     const records: any[] = [];
     for (const emp of employees) {
       const days = bulkGrid[emp.id] ?? {};
-      for (const [dayStr, vals] of Object.entries(days)) {
+      for (let d = 1; d <= daysInMonth; d++) {
+        const vals = days[d] ?? { lembur: "", terlambat: "" };
         const lembur = parseInt(vals.lembur) || 0;
         const terlambat = parseInt(vals.terlambat) || 0;
-        if (lembur > 0 || terlambat > 0) {
-          records.push({
-            employeeId: emp.id,
-            employeeName: emp.name,
-            projectId: findProject(bulkProject)?.id ?? null,
-            project: bulkProject,
-            month, year,
-            day: Number(dayStr),
-            lemburJam: lembur.toString(), // field lama, nilainya sekarang menit
-            terlambatMenit: terlambat,
-          });
-        }
+        records.push({
+          employeeId: emp.id,
+          employeeName: emp.name,
+          projectId: findProject(bulkProject)?.id ?? null,
+          project: bulkProject,
+          month, year,
+          day: d,
+          lemburJam: lembur.toString(),
+          terlambatMenit: terlambat,
+        });
       }
     }
     if (!records.length) { setBulkError("Belum ada data yang diisi."); return; }
