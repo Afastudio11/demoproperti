@@ -21,7 +21,7 @@ const subModules = [
   {
     group: "1. Baseline dari Perencanaan",
     items: [
-      { name: "Rencana Produksi", path: "/produksi/progress/unit", desc: "Unit hasil publish dari Rencana Tahapan" },
+      { name: "Rencana Produksi", path: "/perencanaan/tahapan", desc: "Unit hasil publish dari Rencana Tahapan" },
       { name: "Progress Proyek",  path: "/produksi/progress/proyek", desc: "Summary progress per proyek" },
       { name: "Progress Tahap",   path: "/produksi/progress/tahap", desc: "Progress per tahap pekerjaan" },
       { name: "Progress Unit",    path: "/produksi/progress/unit", desc: "Checklist 24 item per unit" },

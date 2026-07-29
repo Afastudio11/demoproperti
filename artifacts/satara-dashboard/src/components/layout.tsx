@@ -176,7 +176,7 @@ const marketingSubNav: SubNavItem[] = [
 const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Command Center", path: "/produksi" },
   { type: "group", label: "Baseline dari Perencanaan" },
-  { type: "link", name: "Rencana Produksi", path: "/produksi/progress/unit" },
+  { type: "link", name: "Rencana Produksi", path: "/perencanaan/tahapan" },
   { type: "link", name: "Progress Proyek", path: "/produksi/progress/proyek" },
   { type: "link", name: "Progress Tahap", path: "/produksi/progress/tahap" },
   { type: "link", name: "Progress Unit", path: "/produksi/progress/unit" },
