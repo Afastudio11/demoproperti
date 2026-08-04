@@ -110,7 +110,10 @@ export default function SubkonSelect({
         <SelectTrigger className={cn("h-8 text-sm", triggerClassName)}>
           <SelectValue placeholder={isLoading ? "Memuat subkon..." : options.length === 0 ? "Belum ada master subkon" : placeholder} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent
+          className="overscroll-contain"
+          style={{ maxHeight: "min(18rem, var(--radix-select-content-available-height))" }}
+        >
           {options.filter(option => option.status !== "inactive").map((option) => (
             <SelectItem key={option.id} value={selectValue(option)}>
               {option.name}
