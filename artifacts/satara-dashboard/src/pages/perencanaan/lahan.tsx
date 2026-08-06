@@ -1458,11 +1458,15 @@ export default function LahanPage() {
   async function deleteShape(id: number) {
     const resp = await fetch(`/api/planning/siteplan/shapes/${id}`, { method: "DELETE" });
     if (!resp.ok) {
-      toast({ title: "Gagal hapus shape", variant: "destructive" });
+      const err = await resp.json().catch(() => null);
+      toast({ title: err?.error || "Gagal hapus shape", variant: "destructive" });
       return;
     }
     if (editingShapeId === id) resetDraft();
     setSelectedShapeIds(prev => prev.filter(shapeId => shapeId !== id));
+    qc.invalidateQueries({ queryKey: ["progress-summary"] });
+    qc.invalidateQueries({ queryKey: ["units"] });
+    qc.invalidateQueries({ queryKey: ["planning-siteplan-unit-shapes"] });
     await refetchShapes();
   }
 
@@ -1478,6 +1482,9 @@ export default function LahanPage() {
     }
     setSelectedShapeIds([]);
     resetDraft();
+    qc.invalidateQueries({ queryKey: ["progress-summary"] });
+    qc.invalidateQueries({ queryKey: ["units"] });
+    qc.invalidateQueries({ queryKey: ["planning-siteplan-unit-shapes"] });
     await refetchShapes();
   }
 

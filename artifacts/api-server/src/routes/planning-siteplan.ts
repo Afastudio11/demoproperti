@@ -6,6 +6,8 @@ import {
   planningLandBankTable,
   unitsTable,
   customersTable,
+  constructionTasksTable,
+  akadRecordsTable,
 } from "@workspace/db/schema";
 import { eq, like, and, ne, desc, inArray } from "drizzle-orm";
 
@@ -459,27 +461,56 @@ router.delete("/planning/siteplan/shapes/:shapeId", async (req, res) => {
   try {
     const shapeId = Number(req.params.shapeId);
     const [shape] = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
+    if (!shape) return res.status(404).json({ error: "Shape tidak ditemukan" });
 
-    if (shape?.shapeType === "unit" && shape.unitId) {
-      const [unit] = await db.select().from(unitsTable).where(eq(unitsTable.id, shape.unitId));
-      if (unit) {
-        if (unit.customerId) {
+    if (shape.shapeType === "unit") {
+      let targetUnit: typeof unitsTable.$inferSelect | undefined;
+      if (shape.unitId) {
+        const [u] = await db.select().from(unitsTable).where(eq(unitsTable.id, shape.unitId));
+        targetUnit = u;
+      }
+      if (!targetUnit && shape.label) {
+        const { blok, nomor } = parseUnitLabel(shape.label);
+        const existing = await db.select().from(unitsTable).where(
+          and(
+            eq(unitsTable.projectId, shape.projectId),
+            eq(unitsTable.blok, blok),
+            eq(unitsTable.nomor, nomor)
+          )
+        );
+        targetUnit = existing[0];
+      }
+
+      if (targetUnit) {
+        if (targetUnit.customerId) {
+          const akads = await db.select().from(akadRecordsTable).where(eq(akadRecordsTable.customerId, targetUnit.customerId));
+          if (akads.length > 0) {
+            return res.status(409).json({
+              error: `Unit ${targetUnit.blok}-${targetUnit.nomor} tidak dapat dihapus karena sudah ada data akad terkait.`,
+              canArchive: false,
+            });
+          }
           return res.status(409).json({
-            error: `Unit ${unit.blok}-${unit.nomor} tidak dapat dihapus karena sudah terikat dengan customer.`,
+            error: `Unit ${targetUnit.blok}-${targetUnit.nomor} tidak dapat dihapus karena sudah terikat dengan customer.`,
+            canArchive: false,
           });
         }
         const protectedStatuses = ["selesai", "terjual_akad", "serah_terima", "akad"];
-        if (protectedStatuses.includes(unit.status ?? "")) {
+        if (protectedStatuses.includes(targetUnit.status ?? "")) {
           return res.status(409).json({
-            error: `Unit ${unit.blok}-${unit.nomor} berstatus "${unit.status}" dan tidak dapat dihapus dari siteplan. Arsipkan unit melalui modul Produksi jika tidak diperlukan lagi.`,
+            error: `Unit ${targetUnit.blok}-${targetUnit.nomor} berstatus "${targetUnit.status}" dan tidak dapat dihapus dari siteplan. Arsipkan unit melalui modul Produksi jika tidak diperlukan lagi.`,
             canArchive: true,
           });
         }
+
+        // Delete associated construction tasks and the production unit from unitsTable
+        await db.delete(constructionTasksTable).where(eq(constructionTasksTable.unitId, targetUnit.id));
+        await db.delete(unitsTable).where(eq(unitsTable.id, targetUnit.id));
       }
     }
 
     await db.delete(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
-    if (shape?.shapeType === "bidang") {
+    if (shape.shapeType === "bidang") {
       await db.delete(planningLandBankTable).where(like(planningLandBankTable.notes, `%siteplan #${shapeId}%`));
     }
     res.json({ ok: true });
