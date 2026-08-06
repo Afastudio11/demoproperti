@@ -188,6 +188,61 @@ router.post("/planning/siteplan/sync-all-units", async (req, res) => {
   }
 });
 
+// Cleanup orphaned units — remove units from unitsTable that have no siteplan shape
+router.post("/planning/siteplan/cleanup-orphaned-units", async (req, res) => {
+  try {
+    const allShapes = await db.select().from(planningSiteplanShapesTable);
+    const allUnits = await db.select().from(unitsTable);
+
+    // Collect all unit IDs that are referenced by siteplan shapes (via unitId)
+    const shapeUnitIds = new Set(
+      allShapes.filter(s => s.shapeType === "unit" && s.unitId).map(s => s.unitId as number)
+    );
+
+    // Also match by projectId + blok + nomor for shapes without unitId
+    const shapeKeys = new Set(
+      allShapes
+        .filter(s => s.shapeType === "unit")
+        .map(s => {
+          const { blok, nomor } = parseUnitLabel(s.label);
+          return `${s.projectId}:${blok.toLowerCase()}-${nomor.toLowerCase()}`;
+        })
+    );
+
+    const protectedStatuses = ["selesai", "terjual_akad", "serah_terima", "akad"];
+    let deleted = 0;
+    const skipped: string[] = [];
+
+    for (const unit of allUnits) {
+      // Check if this unit is referenced by any siteplan shape
+      const hasShapeById = shapeUnitIds.has(unit.id);
+      const unitKey = `${unit.projectId}:${unit.blok.toLowerCase()}-${unit.nomor.toLowerCase()}`;
+      const hasShapeByKey = shapeKeys.has(unitKey);
+
+      if (hasShapeById || hasShapeByKey) continue; // Unit exists in siteplan, keep it
+
+      // Check if unit is protected
+      if (unit.customerId) {
+        skipped.push(`${unit.blok}-${unit.nomor} (customer terikat)`);
+        continue;
+      }
+      if (protectedStatuses.includes(unit.status ?? "")) {
+        skipped.push(`${unit.blok}-${unit.nomor} (status: ${unit.status})`);
+        continue;
+      }
+
+      // Safe to delete — remove construction tasks and unit
+      await db.delete(constructionTasksTable).where(eq(constructionTasksTable.unitId, unit.id));
+      await db.delete(unitsTable).where(eq(unitsTable.id, unit.id));
+      deleted++;
+    }
+
+    res.json({ deleted, skipped, totalUnits: allUnits.length, totalShapes: allShapes.filter(s => s.shapeType === "unit").length });
+  } catch (err) {
+    res.status(500).json({ error: "Cleanup orphaned units gagal" });
+  }
+});
+
 // List siteplans — EXCLUDES imageDataUrl for performance (can be large base64)
 router.get("/planning/siteplan", async (req, res) => {
   try {
