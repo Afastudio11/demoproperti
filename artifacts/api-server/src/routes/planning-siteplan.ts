@@ -191,8 +191,16 @@ router.post("/planning/siteplan/sync-all-units", async (req, res) => {
 // Cleanup orphaned units — remove units from unitsTable that have no siteplan shape
 router.post("/planning/siteplan/cleanup-orphaned-units", async (req, res) => {
   try {
-    const allShapes = await db.select().from(planningSiteplanShapesTable);
-    const allUnits = await db.select().from(unitsTable);
+    const requestedProjectId = Number((req.body as { projectId?: unknown } | undefined)?.projectId);
+    const projectId = Number.isInteger(requestedProjectId) && requestedProjectId > 0 ? requestedProjectId : null;
+    const [allShapes, allUnits] = await Promise.all([
+      projectId
+        ? db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, projectId))
+        : db.select().from(planningSiteplanShapesTable),
+      projectId
+        ? db.select().from(unitsTable).where(eq(unitsTable.projectId, projectId))
+        : db.select().from(unitsTable),
+    ]);
 
     // Collect all unit IDs that are referenced by siteplan shapes (via unitId)
     const shapeUnitIds = new Set(
@@ -237,7 +245,7 @@ router.post("/planning/siteplan/cleanup-orphaned-units", async (req, res) => {
       deleted++;
     }
 
-    res.json({ deleted, skipped, totalUnits: allUnits.length, totalShapes: allShapes.filter(s => s.shapeType === "unit").length });
+    res.json({ projectId, deleted, skipped, totalUnits: allUnits.length, totalShapes: allShapes.filter(s => s.shapeType === "unit").length });
   } catch (err) {
     res.status(500).json({ error: "Cleanup orphaned units gagal" });
   }

@@ -357,6 +357,30 @@ export default function ProgressUnit() {
     },
   });
 
+  const cleanupOrphanedUnitsMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const res = await fetch("/api/planning/siteplan/cleanup-orphaned-units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(projectId === "all" ? {} : { projectId: Number(projectId) }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Gagal menghapus unit tidak sinkron");
+      return result as { deleted: number; skipped: string[]; projectId: number | null };
+    },
+    onSuccess: (result) => {
+      setExpandedUnit(null);
+      qc.invalidateQueries({ queryKey: ["progress-summary"] });
+      qc.invalidateQueries({ queryKey: ["units"] });
+      qc.invalidateQueries({ queryKey: ["units-list"] });
+      qc.invalidateQueries({ queryKey: ["planning-siteplan-unit-shapes"] });
+      qc.invalidateQueries({ queryKey: ["planning-siteplan-shapes"] });
+      const skippedNote = result.skipped.length > 0 ? ` ${result.skipped.length} unit dilindungi dan tidak dihapus.` : "";
+      toast({ title: `${result.deleted} unit tidak sinkron dihapus.`, description: skippedNote.trim() || undefined });
+    },
+    onError: (err: Error) => toast({ title: err.message || "Gagal menghapus unit tidak sinkron", variant: "destructive" }),
+  });
+
   const realUnits: (UnitRow & { projectName: string })[] = (data ?? []).flatMap(p => p.units.map(u => ({ ...u, projectName: p.projectName })));
   const realUnitIds = new Set(realUnits.map(u => u.id));
   const realUnitKeys = new Set(realUnits.map(u => `${u.projectId}:${u.blok}-${u.nomor}`.toLowerCase()));
@@ -617,6 +641,22 @@ export default function ProgressUnit() {
               <Download className="size-3.5" /> Export PDF Bank
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 h-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            disabled={cleanupOrphanedUnitsMutation.isPending}
+            onClick={() => {
+              const scope = filterProject === "all" ? "seluruh proyek" : "proyek yang sedang dipilih";
+              const confirmed = window.confirm(
+                `Hapus semua unit yang tidak terhubung ke shape unit pada Siteplan untuk ${scope}?\n\nUnit yang sudah terikat customer atau berstatus selesai/akad tidak akan dihapus.`
+              );
+              if (confirmed) cleanupOrphanedUnitsMutation.mutate(filterProject);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+            {cleanupOrphanedUnitsMutation.isPending ? "Menghapus..." : "Hapus tidak sinkron"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 h-8">
             <RefreshCw className="size-3.5" />
           </Button>
