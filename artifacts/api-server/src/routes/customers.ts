@@ -49,7 +49,19 @@ router.get("/customers", async (req, res) => {
 router.post("/customers", async (req, res) => {
   try {
     const body = CreateCustomerBody.parse(req.body);
-    const [customer] = await db.insert(customersTable).values(body).returning();
+    const [unit] = body.unitId
+      ? await db.select().from(unitsTable).where(eq(unitsTable.id, body.unitId))
+      : [undefined];
+    if (body.unitId && !unit) return res.status(400).json({ error: "Unit tidak ditemukan pada Siteplan/proyek." });
+    if (unit?.customerId) return res.status(409).json({ error: `Unit ${unit.blok}-${unit.nomor} sudah terhubung ke customer lain.` });
+    const [customer] = await db.insert(customersTable).values({
+      ...body,
+      ...(unit ? { projectId: unit.projectId, unitBlock: `${unit.blok}-${unit.nomor}`, stageCode: unit.stageCode } : {}),
+    }).returning();
+    if (unit) {
+      await db.update(unitsTable).set({ customerId: customer.id }).where(eq(unitsTable.id, unit.id));
+      await db.update(planningSiteplanShapesTable).set({ customerId: customer.id }).where(eq(planningSiteplanShapesTable.unitId, unit.id));
+    }
     res.status(201).json({ ...customer, projectId: customer.projectId ?? null, unitId: customer.unitId ?? null, pekerjaan: customer.pekerjaan ?? null, bank: customer.bank ?? null, catatan: customer.catatan ?? null, createdAt: customer.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create customer");
@@ -94,8 +106,28 @@ router.get("/customers/:id", async (req, res) => {
 router.patch("/customers/:id", async (req, res) => {
   try {
     const body = UpdateCustomerBody.parse(req.body);
-    const [customer] = await db.update(customersTable).set(body).where(eq(customersTable.id, parseInt(req.params.id))).returning();
+    const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(customersTable).where(eq(customersTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    const nextUnitId = body.unitId ?? existing.unitId;
+    const [unit] = nextUnitId
+      ? await db.select().from(unitsTable).where(eq(unitsTable.id, nextUnitId))
+      : [undefined];
+    if (nextUnitId && !unit) return res.status(400).json({ error: "Unit tidak ditemukan pada Siteplan/proyek." });
+    if (unit?.customerId && unit.customerId !== id) return res.status(409).json({ error: `Unit ${unit.blok}-${unit.nomor} sudah terhubung ke customer lain.` });
+    const [customer] = await db.update(customersTable).set({
+      ...body,
+      ...(unit ? { projectId: unit.projectId, unitBlock: `${unit.blok}-${unit.nomor}`, stageCode: unit.stageCode } : {}),
+    }).where(eq(customersTable.id, id)).returning();
     if (!customer) return res.status(404).json({ error: "Not found" });
+    if (existing.unitId && existing.unitId !== unit?.id) {
+      await db.update(unitsTable).set({ customerId: null }).where(eq(unitsTable.id, existing.unitId));
+      await db.update(planningSiteplanShapesTable).set({ customerId: null }).where(eq(planningSiteplanShapesTable.unitId, existing.unitId));
+    }
+    if (unit) {
+      await db.update(unitsTable).set({ customerId: id }).where(eq(unitsTable.id, unit.id));
+      await db.update(planningSiteplanShapesTable).set({ customerId: id }).where(eq(planningSiteplanShapesTable.unitId, unit.id));
+    }
     res.json({ ...customer, projectId: customer.projectId ?? null, unitId: customer.unitId ?? null, pekerjaan: customer.pekerjaan ?? null, bank: customer.bank ?? null, catatan: customer.catatan ?? null, createdAt: customer.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to update customer");

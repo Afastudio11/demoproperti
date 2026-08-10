@@ -285,7 +285,10 @@ export default function ProgressUnit() {
         weekStarted: form.weekStarted ? parseInt(form.weekStarted) : null,
       };
       const res = await fetch("/api/units", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        const result = await res.json().catch(() => ({}));
+        throw new Error(result.error || "Gagal menambahkan unit");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -293,7 +296,7 @@ export default function ProgressUnit() {
       toast({ title: `Unit Blok ${form.blok}-${form.nomor} berhasil ditambahkan` });
       setForm(p => ({ ...p, nomor: "" }));
     },
-    onError: () => toast({ title: "Gagal menambahkan unit", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: err.message || "Gagal menambahkan unit", variant: "destructive" }),
   });
 
   const seedMutation = useMutation({

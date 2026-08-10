@@ -10,6 +10,7 @@ import {
   akadRecordsTable,
 } from "@workspace/db/schema";
 import { eq, like, and, ne, desc, inArray } from "drizzle-orm";
+import { normalizeUnitLabel, sameUnitIdentity, unitIdentityKey } from "../lib/unit-identity";
 
 const router = Router();
 
@@ -23,10 +24,10 @@ const PURCHASE_TO_LB_STATUS: Record<string, string> = {
 };
 
 function parseUnitLabel(label: string) {
+  const identity = normalizeUnitLabel(label);
+  if (identity) return identity;
   const trimmed = String(label ?? "").trim();
-  const match = trimmed.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
-  if (!match) return { blok: trimmed.split(/[-\s_]/)[0] || "A", nomor: trimmed.split(/[-\s_]/).slice(1).join("-") || trimmed || "1" };
-  return { blok: match[1].toUpperCase(), nomor: match[2] };
+  return { blok: trimmed.split(/[-\s_]/)[0] || "A", nomor: trimmed.split(/[-\s_]/).slice(1).join("-") || trimmed || "1", label: trimmed };
 }
 
 function validateUnitShapePayload(body: Record<string, unknown>) {
@@ -109,24 +110,30 @@ async function syncBidangToLandBank(row: typeof planningSiteplanShapesTable.$inf
 
 // Auto find-or-create unit for "unit" type shapes, returns unitId
 async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect): Promise<number | null> {
-  if (row.shapeType !== "unit" && row.shapeType !== "fasum") return null;
-  const { blok, nomor } = parseUnitLabel(row.label);
+  if (row.shapeType !== "unit") return null;
+  const identity = normalizeUnitLabel(row.label);
+  if (!identity) throw new Error("Label unit wajib format blok-nomor, contoh G-01.");
+  const { blok, nomor } = identity;
   if (row.unitId) {
     const [existing] = await db.select().from(unitsTable).where(eq(unitsTable.id, row.unitId));
     if (
       existing &&
       existing.projectId === row.projectId &&
-      existing.blok.toLowerCase() === blok.toLowerCase() &&
-      existing.nomor.toLowerCase() === nomor.toLowerCase()
+      sameUnitIdentity(existing, { projectId: row.projectId, blok, nomor })
     ) {
+      if (existing.blok !== blok || existing.nomor !== nomor) {
+        await db.update(unitsTable).set({ blok, nomor }).where(eq(unitsTable.id, existing.id));
+      }
       return existing.id;
     }
   }
   const existingUnits = await db.select().from(unitsTable).where(eq(unitsTable.projectId, row.projectId));
-  const found = existingUnits.find(u => u.blok.toLowerCase() === blok.toLowerCase() && u.nomor.toLowerCase() === nomor.toLowerCase());
+  const found = existingUnits.find(unit => sameUnitIdentity(unit, { projectId: row.projectId, blok, nomor }));
   if (found) {
     // Sync status/progress from shape to unit
     const values: Record<string, unknown> = {};
+    if (found.blok !== blok) values.blok = blok;
+    if (found.nomor !== nomor) values.nomor = nomor;
     if (row.unitStatus) values.status = row.unitStatus;
     if (row.progress != null) values.progress = Number(row.progress);
     if (row.subkonName) values.subkonName = row.subkonName;
@@ -143,7 +150,7 @@ async function autoLinkUnit(row: typeof planningSiteplanShapesTable.$inferSelect
     projectId: row.projectId,
     blok,
     nomor,
-    tipe: row.unitType || (row.shapeType === "fasum" ? "Fasum" : "Tipe 36"),
+    tipe: row.unitType || "Tipe 36",
     harga: 0,
     status: row.unitStatus || "available",
     progress: Number(row.progress ?? 0),
@@ -175,6 +182,11 @@ router.post("/planning/siteplan/sync-all-units", async (req, res) => {
     let synced = 0;
     for (const shape of unitShapes) {
       try {
+        const identity = normalizeUnitLabel(shape.label);
+        if (identity && shape.label !== identity.label) {
+          await db.update(planningSiteplanShapesTable).set({ label: identity.label }).where(eq(planningSiteplanShapesTable.id, shape.id));
+          shape.label = identity.label;
+        }
         const unitId = await autoLinkUnit(shape);
         if (unitId && unitId !== shape.unitId) {
           await db.update(planningSiteplanShapesTable).set({ unitId }).where(eq(planningSiteplanShapesTable.id, shape.id));
@@ -208,13 +220,14 @@ router.post("/planning/siteplan/cleanup-orphaned-units", async (req, res) => {
     );
 
     // Also match by projectId + blok + nomor for shapes without unitId
-    const shapeKeys = new Set(
+    // A label fallback is only valid for shapes that have not been linked yet.
+    // Once a shape has a unitId, that exact ID is authoritative and duplicate
+    // legacy rows such as G-1 / G-01 can be cleaned up safely.
+    const unlinkedShapeKeys = new Set(
       allShapes
-        .filter(s => s.shapeType === "unit")
-        .map(s => {
-          const { blok, nomor } = parseUnitLabel(s.label);
-          return `${s.projectId}:${blok.toLowerCase()}-${nomor.toLowerCase()}`;
-        })
+        .filter(s => s.shapeType === "unit" && !s.unitId)
+        .map(s => unitIdentityKey(s.projectId, normalizeUnitLabel(s.label)?.blok, normalizeUnitLabel(s.label)?.nomor))
+        .filter((key): key is string => key !== null)
     );
 
     const protectedStatuses = ["selesai", "terjual_akad", "serah_terima", "akad"];
@@ -224,10 +237,9 @@ router.post("/planning/siteplan/cleanup-orphaned-units", async (req, res) => {
     for (const unit of allUnits) {
       // Check if this unit is referenced by any siteplan shape
       const hasShapeById = shapeUnitIds.has(unit.id);
-      const unitKey = `${unit.projectId}:${unit.blok.toLowerCase()}-${unit.nomor.toLowerCase()}`;
-      const hasShapeByKey = shapeKeys.has(unitKey);
+      const hasUnlinkedShapeByKey = unlinkedShapeKeys.has(unitIdentityKey(unit.projectId, unit.blok, unit.nomor) ?? "");
 
-      if (hasShapeById || hasShapeByKey) continue; // Unit exists in siteplan, keep it
+      if (hasShapeById || hasUnlinkedShapeByKey) continue; // Unit exists in siteplan, keep it
 
       // Check if unit is protected
       if (unit.customerId) {
@@ -370,6 +382,11 @@ router.get("/planning/siteplan-shapes", async (req, res) => {
     if (unitShapes.length > 0) {
       for (const shape of unitShapes) {
         try {
+          const identity = normalizeUnitLabel(shape.label);
+          if (identity && shape.label !== identity.label) {
+            await db.update(planningSiteplanShapesTable).set({ label: identity.label }).where(eq(planningSiteplanShapesTable.id, shape.id));
+            shape.label = identity.label;
+          }
           const unitId = await autoLinkUnit(shape);
           if (unitId && unitId !== shape.unitId) {
             await db.update(planningSiteplanShapesTable).set({ unitId }).where(eq(planningSiteplanShapesTable.id, shape.id));
@@ -395,6 +412,11 @@ router.post("/planning/siteplan/:id/shapes", async (req, res) => {
 
     const body = { ...req.body };
     if (typeof body.isLocked === "boolean") body.isLocked = body.isLocked ? 1 : 0;
+    if (body.shapeType === "unit") {
+      const identity = normalizeUnitLabel(body.label);
+      if (!identity) return res.status(400).json({ error: "Label unit wajib format blok-nomor, contoh G-01." });
+      body.label = identity.label;
+    }
 
     // Clean up empty strings for numeric/integer fields to avoid PostgreSQL errors
     const numFields = ["landArea", "price", "plannedUnits", "unitId", "subkonId", "progress", "customerId", "sortOrder"];
@@ -420,8 +442,8 @@ router.post("/planning/siteplan/:id/shapes", async (req, res) => {
 
     const [row] = await db.insert(planningSiteplanShapesTable).values({ ...body, siteplanId, projectId: siteplan.projectId }).returning();
 
-    // Auto-link unit for unit and fasum shapes
-    if (row.shapeType === "unit" || row.shapeType === "fasum") {
+    // Auto-link the production unit only for unit shapes.
+    if (row.shapeType === "unit") {
       const unitId = await autoLinkUnit(row).catch(() => null);
       if (unitId && unitId !== row.unitId) {
         await db.update(planningSiteplanShapesTable).set({ unitId }).where(eq(planningSiteplanShapesTable.id, row.id));
@@ -458,6 +480,11 @@ router.patch("/planning/siteplan/shapes/:shapeId", async (req, res) => {
 
     const [existingShape] = await db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.id, shapeId));
     if (!existingShape) return res.status(404).json({ error: "Shape tidak ditemukan" });
+    if ((body.shapeType ?? existingShape.shapeType) === "unit") {
+      const identity = normalizeUnitLabel(body.label ?? existingShape.label);
+      if (!identity) return res.status(400).json({ error: "Label unit wajib format blok-nomor, contoh G-01." });
+      body.label = identity.label;
+    }
     const validationError = validateUnitShapePayload({ ...existingShape, ...body });
     if (validationError) return res.status(400).json({ error: validationError });
 

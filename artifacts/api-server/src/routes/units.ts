@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { planningSiteplanShapesTable, unitsTable, akadRecordsTable, projectsTable } from "@workspace/db";
+import { planningSiteplanShapesTable, planningSiteplansTable, unitsTable, akadRecordsTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateUnitBody, UpdateUnitBody } from "@workspace/api-zod";
 import { resolveSubkonMaster } from "../lib/subkon-master";
 import { findSubkonContract } from "../lib/production-relations";
+import { normalizeUnitIdentity, normalizeUnitLabel, sameUnitIdentity } from "../lib/unit-identity";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,26 @@ router.get("/units", async (req, res) => {
 router.post("/units", async (req, res) => {
   try {
     const body = CreateUnitBody.parse(req.body);
+    const identity = normalizeUnitIdentity(body.blok, body.nomor);
+    if (!identity) return res.status(400).json({ error: "Format unit wajib blok-nomor, contoh G-01." });
+
+    const [projectUnits, projectSiteplans, projectShapes] = await Promise.all([
+      db.select().from(unitsTable).where(eq(unitsTable.projectId, body.projectId)),
+      db.select().from(planningSiteplansTable).where(eq(planningSiteplansTable.projectId, body.projectId)),
+      db.select().from(planningSiteplanShapesTable).where(eq(planningSiteplanShapesTable.projectId, body.projectId)),
+    ]);
+    const duplicate = projectUnits.find(unit => sameUnitIdentity(unit, { projectId: body.projectId, ...identity }));
+    if (duplicate) {
+      return res.status(409).json({ error: `Unit ${identity.label} sudah ada pada proyek ini.` });
+    }
+
+    const matchingShape = projectShapes.find(shape => {
+      const shapeIdentity = normalizeUnitLabel(shape.label);
+      return shape.shapeType === "unit" && shape.projectId === body.projectId && shapeIdentity?.label === identity.label;
+    });
+    if (projectSiteplans.length > 0 && !matchingShape) {
+      return res.status(409).json({ error: `Unit ${identity.label} belum ada di Siteplan. Tambahkan shape unit di Siteplan terlebih dahulu.` });
+    }
     const master = await resolveSubkonMaster({
       subkonId: (req.body as { subkonId?: unknown }).subkonId,
       subkonName: (req.body as { subkonName?: unknown }).subkonName,
@@ -50,11 +71,18 @@ router.post("/units", async (req, res) => {
     });
     const [unit] = await db.insert(unitsTable).values({
       ...body,
+      blok: identity.blok,
+      nomor: identity.nomor,
       contractId: contract?.id ?? null,
       stageCode,
       subkonId: master?.id ?? null,
       subkonName,
     }).returning();
+    if (matchingShape) {
+      await db.update(planningSiteplanShapesTable)
+        .set({ unitId: unit.id, label: identity.label })
+        .where(eq(planningSiteplanShapesTable.id, matchingShape.id));
+    }
     res.status(201).json({ ...unit, customerId: unit.customerId ?? null, createdAt: unit.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create unit");

@@ -21,6 +21,7 @@ import {
 } from "@workspace/db";
 import { eq, and, desc, or, like, sql } from "drizzle-orm";
 import { recordFinanceCashflow } from "../lib/finance-sync";
+import { normalizeUnitLabel, unitIdentityKey } from "../lib/unit-identity";
 
 const router: IRouter = Router();
 
@@ -99,6 +100,41 @@ const DEFAULT_DOCUMENTS = [
 function parseRequiredId(value: string): number | null {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function resolveCustomerUnit(
+  input: Record<string, unknown>,
+  fallback?: typeof customersTable.$inferSelect,
+) {
+  const requestedUnitId = input.unitId ?? fallback?.unitId ?? null;
+  const requestedProjectId = input.projectId ?? fallback?.projectId ?? null;
+  const requestedUnitBlock = input.unitBlock ?? fallback?.unitBlock ?? null;
+  let unit: typeof unitsTable.$inferSelect | undefined;
+
+  if (requestedUnitId) {
+    const [found] = await db.select().from(unitsTable).where(eq(unitsTable.id, Number(requestedUnitId)));
+    unit = found;
+  } else if (requestedProjectId && requestedUnitBlock) {
+    const identity = normalizeUnitLabel(requestedUnitBlock);
+    if (!identity) throw new Error("Format unit wajib blok-nomor, contoh G-01.");
+    const projectUnits = await db.select().from(unitsTable).where(eq(unitsTable.projectId, Number(requestedProjectId)));
+    unit = projectUnits.find(candidate => unitIdentityKey(candidate.projectId, candidate.blok, candidate.nomor) === unitIdentityKey(requestedProjectId, identity.blok, identity.nomor));
+  }
+
+  if (!unit && (requestedUnitId || requestedUnitBlock)) throw new Error("Unit tidak ditemukan pada Siteplan/proyek yang dipilih.");
+  if (unit && requestedProjectId && unit.projectId !== Number(requestedProjectId)) throw new Error("Unit harus berasal dari proyek yang sama.");
+  return unit ?? null;
+}
+
+async function syncCustomerUnitLink(customerId: number, unitId: number | null, previousUnitId: number | null) {
+  if (previousUnitId && previousUnitId !== unitId) {
+    await db.update(unitsTable).set({ customerId: null }).where(eq(unitsTable.id, previousUnitId));
+    await db.update(planningSiteplanShapesTable).set({ customerId: null }).where(eq(planningSiteplanShapesTable.unitId, previousUnitId));
+  }
+  if (unitId) {
+    await db.update(unitsTable).set({ customerId }).where(eq(unitsTable.id, unitId));
+    await db.update(planningSiteplanShapesTable).set({ customerId }).where(eq(planningSiteplanShapesTable.unitId, unitId));
+  }
 }
 
 function normalizeDocumentTemplate(document: (typeof DEFAULT_DOCUMENTS)[number], customerId: number) {
@@ -291,9 +327,12 @@ router.get("/administrasi/customers", async (req, res) => {
     }
 
     res.json(customers.map(c => {
+      const fallbackIdentity = normalizeUnitLabel(c.unitBlock);
       const unit = c.unitId
         ? units.find(u => u.id === c.unitId)
-        : units.find(u => u.projectId === c.projectId && `${u.blok}-${u.nomor}`.toLowerCase() === String(c.unitBlock ?? "").toLowerCase());
+        : fallbackIdentity && c.projectId != null
+          ? units.find(u => unitIdentityKey(u.projectId, u.blok, u.nomor) === unitIdentityKey(c.projectId, fallbackIdentity.blok, fallbackIdentity.nomor))
+          : undefined;
       return { ...serializeCustomer(c), progressRumah: unit?.progress ?? null, unitProgress: unit?.progress ?? null };
     }));
   } catch (err) {
@@ -326,12 +365,16 @@ router.get("/administrasi/customers/master", async (req, res) => {
 
 router.post("/administrasi/customers", async (req, res) => {
   try {
-    const body = req.body;
+    const body = req.body as any;
+    const unit = await resolveCustomerUnit(body);
+    if (unit?.customerId) return res.status(409).json({ error: `Unit ${unit.blok}-${unit.nomor} sudah terhubung ke customer lain.` });
     const [customer] = await db.insert(customersTable).values({
       ...body,
+      ...(unit ? { projectId: unit.projectId, unitId: unit.id, unitBlock: `${unit.blok}-${unit.nomor}`, stageCode: unit.stageCode } : {}),
       statusUpdatedAt: new Date(),
       pipelineStatus: body.pipelineStatus ?? "MINAT",
     }).returning();
+    await syncCustomerUnitLink(customer.id, unit?.id ?? null, null);
     if (customer.pipelineStatus) {
       await db.insert(customerStatusHistoryTable).values({
         customerId: customer.id,
@@ -365,11 +408,16 @@ router.patch("/administrasi/customers/:id", async (req, res) => {
   try {
     const id = parseRequiredId(req.params.id);
     if (!id) return res.status(400).json({ error: "Invalid customer id" });
-    const body = req.body;
+    const body = req.body as any;
     const [existing] = await db.select().from(customersTable).where(eq(customersTable.id, id));
     if (!existing) return res.status(404).json({ error: "Not found" });
 
-    const updateData: Record<string, unknown> = { ...body };
+    const unit = await resolveCustomerUnit(body, existing);
+    if (unit?.customerId && unit.customerId !== id) return res.status(409).json({ error: `Unit ${unit.blok}-${unit.nomor} sudah terhubung ke customer lain.` });
+    const updateData: Record<string, unknown> = {
+      ...body,
+      ...(unit ? { projectId: unit.projectId, unitId: unit.id, unitBlock: `${unit.blok}-${unit.nomor}`, stageCode: unit.stageCode } : {}),
+    };
     if (body.pipelineStatus && body.pipelineStatus !== existing.pipelineStatus) {
       updateData.statusUpdatedAt = new Date();
       await db.insert(customerStatusHistoryTable).values({
@@ -382,6 +430,7 @@ router.patch("/administrasi/customers/:id", async (req, res) => {
     }
 
     const [updated] = await db.update(customersTable).set(updateData).where(eq(customersTable.id, id)).returning();
+    await syncCustomerUnitLink(id, unit?.id ?? null, existing.unitId ?? null);
     res.json(serializeCustomer(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to update administrasi customer");

@@ -984,6 +984,9 @@ router.post("/finance/credit-facilities/:id/allocations", async (req, res) => {
     if (unitIds.length > 0) {
       const allUnits = await db.select().from(unitsTable);
       const selectedUnits = allUnits.filter(u => unitIds.includes(u.id));
+      if (selectedUnits.length !== unitIds.length || selectedUnits.some(unit => unit.projectId !== facility.projectId)) {
+        return res.status(400).json({ error: "Setiap unit kredit harus berasal dari proyek fasilitas yang sama." });
+      }
       const perUnit = selectedUnits.length > 0 ? Number(facility.plafon ?? 0) / selectedUnits.length : 0;
       rows = selectedUnits.map(unit => ({
         facilityId,

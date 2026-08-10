@@ -17,6 +17,7 @@ import {
 } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { normalizeSubkonName, resolveSubkonMaster } from "../lib/subkon-master";
+import { normalizeUnitIdentity, normalizeUnitLabel, sameUnitIdentity } from "../lib/unit-identity";
 
 const router = Router();
 
@@ -71,14 +72,14 @@ function parseBlockFromLabel(label: string) {
 
 function parseUnitRef(shape: typeof planningSiteplanShapesTable.$inferSelect) {
   const label = cleanText(shape.label);
-  const match = label.match(/^([A-Za-z]+)[-\s_]*(\d+[A-Za-z]?)$/);
+  const identity = normalizeUnitLabel(label);
   const fallbackBlock = cleanText(shape.blockCode);
   const legacyStage = /^T?\d+$/i.test(fallbackBlock) ? fallbackBlock : "";
   const explicitStage = cleanText(shape.stageCode);
   return {
     stageCode: cleanStageCode(explicitStage || legacyStage, ""),
-    blockCode: (match?.[1] ?? (legacyStage ? "" : fallbackBlock) ?? "").toUpperCase(),
-    nomor: match?.[2] ?? "",
+    blockCode: (identity?.blok ?? (legacyStage ? "" : fallbackBlock) ?? "").toUpperCase(),
+    nomor: identity?.nomor ?? "",
     unitType: cleanText(shape.unitType, "Tipe 36"),
     subkonId: shape.subkonId ?? null,
     subkonName: normalizeSubkonName(shape.subkonName) || "",
@@ -265,15 +266,16 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
   }
 
   for (const nomorRaw of nomorsToSync) {
-    const nomor = nomorRaw;
+    const identity = normalizeUnitIdentity(block.blockCode, nomorRaw);
+    if (!identity) continue;
+    const nomor = identity.nomor;
     const existing = existingUnits.find(unit =>
-      unit.blok.toUpperCase() === block.blockCode.toUpperCase()
-      && unit.nomor.toUpperCase() === nomor
+      sameUnitIdentity(unit, { projectId: block.projectId, blok: identity.blok, nomor })
     );
     const values = {
       projectId: block.projectId,
       contractId: contract?.id ?? null,
-      blok: block.blockCode,
+      blok: identity.blok,
       nomor,
       tipe: block.unitType,
       harga: block.pricePerUnit,
@@ -295,7 +297,7 @@ async function publishBlock(block: typeof planningStageBlocksTable.$inferSelect)
     const matchingShape = unitShapes.find(shape => {
       if (shape.shapeType !== "unit") return false;
       const ref = parseUnitRef(shape);
-      return ref.blockCode === block.blockCode.toUpperCase() && ref.nomor.toUpperCase() === nomor;
+      return ref.blockCode === identity.blok && ref.nomor === nomor;
     });
     if (matchingShape && unitId) {
       await db.update(planningSiteplanShapesTable)
