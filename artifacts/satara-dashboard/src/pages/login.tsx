@@ -86,11 +86,42 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading || !username || !password}
-              className="w-full bg-foreground text-background text-sm font-medium py-2.5 rounded-md hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="w-full bg-foreground text-background text-sm font-medium py-2.5 rounded-md hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
             >
               {loading ? "Memproses..." : "Masuk"}
             </button>
           </form>
+
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground font-medium">Akses Cepat Demo</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={async () => {
+              setUsername("admin");
+              setPassword("admin123");
+              setError("");
+              setLoading(true);
+              try {
+                await login("admin", "admin123");
+              } catch (err: any) {
+                setError(err.message ?? "Login demo gagal");
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="w-full border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-semibold py-2.5 rounded-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Building2 className="size-4" />
+            Masuk sebagai Demo Super Admin
+          </button>
         </div>
 
         <p className="text-center text-[11px] text-muted-foreground/60 mt-6">
