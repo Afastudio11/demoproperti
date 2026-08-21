@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth, type AuthUser } from "@/contexts/auth-context";
 import { ConfirmationProvider } from "@/contexts/confirmation-context";
 import Login from "@/pages/login";
-import LandingPage from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import PublicPaymentProof from "@/pages/public-payment-proof";
 import Dashboard from "@/pages/dashboard";
@@ -154,7 +153,7 @@ import FinanceDataQuality from "@/pages/finance/data-quality";
 const queryClient = new QueryClient();
 
 const MODULE_PATH_RULES: Array<{ module: string; matches: (path: string) => boolean }> = [
-  { module: "executive_overview", matches: (path) => path === "/executive" || path === "/teamwork" },
+  { module: "executive_overview", matches: (path) => path === "/" || path === "/executive" || path === "/teamwork" },
   { module: "projects", matches: (path) => path === "/projects" || path.startsWith("/projects/") },
   { module: "akuisisi", matches: (path) => path === "/akuisisi" || path.startsWith("/akuisisi/") },
   { module: "perencanaan", matches: (path) => path === "/perencanaan" || path.startsWith("/perencanaan/") || path === "/slis" },
@@ -226,19 +225,11 @@ function AppRoutes() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <img src="/satara-logo.png" alt="Satara" className="size-10 object-contain opacity-50" />
+          <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
           <div className="text-sm text-muted-foreground">Memuat...</div>
         </div>
       </div>
     );
-  }
-
-  if (location === "/") {
-    return <LandingPage />;
-  }
-
-  if (location === "/executive") {
-    return <ExecutiveRedirect />;
   }
 
   if (location.startsWith("/public/payment-proof/")) {
@@ -249,6 +240,10 @@ function AppRoutes() {
     return <Login />;
   }
 
+  if (location === "/" || location === "/executive") {
+    return <ExecutiveRedirect />;
+  }
+
   if (!hasPageAccess(location, user)) {
     return <AccessDenied />;
   }
@@ -256,6 +251,7 @@ function AppRoutes() {
   return (
     <Layout>
       <Switch>
+        <Route path="/" component={ExecutiveRedirect} />
         <Route path="/executive" component={ExecutiveRedirect} />
         <Route path="/teamwork" component={Dashboard} />
         <Route path="/projects" component={Projects} />

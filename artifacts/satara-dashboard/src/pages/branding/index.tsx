@@ -74,7 +74,7 @@ export default function BrandingDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Branding — Command Center</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Satara Development Brand Intelligence Platform</p>
+          <p className="text-sm text-slate-500 mt-0.5">Property Development Brand Intelligence Platform</p>
         </div>
         <Link href="/branding/health">
           <button className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition">Lihat Health Report →</button>
@@ -158,7 +158,7 @@ export default function BrandingDashboard() {
           { label: "Social Media Performance", desc: "KPI semua platform per bulan", path: "/branding/sosmed", color: "border-purple-200 hover:bg-purple-50" },
           { label: "Content Performance", desc: "Ranking konten, Top & Viral", path: "/branding/performa-konten", color: "border-emerald-200 hover:bg-emerald-50" },
           { label: "Personal Branding Founder", desc: "KPI & influence score Arya", path: "/branding/founder", color: "border-amber-200 hover:bg-amber-50" },
-          { label: "Corporate Branding", desc: "Skor per brand Satara Group", path: "/branding/korporat", color: "border-rose-200 hover:bg-rose-50" },
+          { label: "Corporate Branding", desc: "Skor per brand Property Group", path: "/branding/korporat", color: "border-rose-200 hover:bg-rose-50" },
           { label: "Public Relations", desc: "Kegiatan PR & media exposure", path: "/branding/pr", color: "border-indigo-200 hover:bg-indigo-50" },
         ].map(item => (
           <Link key={item.path} href={item.path}>

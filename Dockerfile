@@ -19,7 +19,8 @@ RUN pnpm install --frozen-lockfile
 # ── Stage 3: migrate (schema push — run once on first deploy) ─────────────────
 FROM deps AS migrate
 COPY lib/ ./lib/
-CMD ["pnpm", "--filter", "@workspace/db", "push"]
+COPY scripts/ ./scripts/
+CMD ["sh", "-c", "pnpm --filter @workspace/db push && pnpm --filter @workspace/scripts seed-all-menus"]
 
 # ── Stage 4: build (compile API + Vite frontend) ──────────────────────────────
 FROM deps AS build

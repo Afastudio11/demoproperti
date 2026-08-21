@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, APP_SYSTEM_PROMPT } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -98,7 +98,7 @@ Kecamatan Terbaik: ${slisKab.kecamatanTeratas?.map((k) => `${k.name} (${k.score}
     { title: "REI Sulawesi Selatan", url: "https://www.rei.or.id" },
   ];
 
-  const prompt = `Kamu adalah SLIS AI — analis investasi properti senior Satara Development, spesialis riset pasar Sulawesi Selatan.
+  const prompt = `Kamu adalah SLIS AI — analis investasi properti senior Property Development, spesialis riset pasar Sulawesi Selatan.
 Kamu memiliki pengetahuan mendalam tentang: ekonomi daerah Sulsel, proyek infrastruktur pemerintah, pasar perumahan FLPP & komersial, data BPS, tren urbanisasi, kawasan industri, dan kondisi lahan.
 
 PERTANYAAN USER: "${question}"
@@ -125,7 +125,7 @@ ${DATA_SOURCES.map((s, i) => `${i + 1}. ${s.title} — ${s.url}`).join("\n")}
 
 Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
 {
-  "jawaban": "<analisis komprehensif MINIMAL 200 kata. Wajib sertakan: kondisi pasar saat ini, data ekonomi konkret, infrastruktur strategis, peluang investasi spesifik, risiko utama, dan rekomendasi action untuk Satara Development>",
+  "jawaban": "<analisis komprehensif MINIMAL 200 kata. Wajib sertakan: kondisi pasar saat ini, data ekonomi konkret, infrastruktur strategis, peluang investasi spesifik, risiko utama, dan rekomendasi action untuk Property Development>",
   "poin_penting": [
     "<insight kunci 1 dengan angka/data spesifik>",
     "<insight kunci 2 dengan angka/data spesifik>",
@@ -158,7 +158,7 @@ CATATAN: "visualisasi" bisa null jika benar-benar tidak ada data yang cocok untu
     const completion = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
-        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "system", content: APP_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       temperature: 0.15,

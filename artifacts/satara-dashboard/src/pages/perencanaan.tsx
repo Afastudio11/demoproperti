@@ -113,7 +113,7 @@ export default function Perencanaan() {
       warnings.push({
         type: "FINANSIAL",
         project: (proj as Record<string, string>)?.nama ?? `Proyek #${f.projectId}`,
-        detail: `ROI ${(f.roi ?? 0).toFixed(1)}% — di bawah standar minimum Satara 25%`,
+        detail: `ROI ${(f.roi ?? 0).toFixed(1)}% — di bawah standar minimum Property 25%`,
         severity: (f.roi ?? 0) < 15 ? "red" : "amber",
       });
     }
@@ -185,7 +185,7 @@ export default function Perencanaan() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectName: proj?.nama ?? "Portofolio Satara",
+          projectName: proj?.nama ?? "Portofolio Property",
           roi: best.roi, irr: best.irr, margin: best.margin,
           paybackPeriod: best.paybackPeriod, npv: best.npv,
           totalRevenue: best.totalRevenue, totalCost: best.totalCost,

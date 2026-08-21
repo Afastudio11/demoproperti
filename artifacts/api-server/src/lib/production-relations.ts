@@ -98,7 +98,7 @@ export async function getUnitsForContract(contractId: number) {
 export async function getContractFieldProgress(contractId: number): Promise<number> {
   const units = await getUnitsForContract(contractId);
   if (units.length === 0) {
-    throw httpError("Belum ada unit yang terhubung ke kontrak subkon ini");
+    return 0;
   }
 
   const totalProgress = units.reduce((sum, unit) => sum + (unit.progress ?? 0), 0);

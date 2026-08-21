@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, APP_SYSTEM_PROMPT } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -57,7 +57,7 @@ router.post("/ai/kabupaten-insight", async (req, res) => {
     ? `Rencana ekspansi roadmap: Tahun ${roadmapItem.tahun} | Target ${roadmapItem.target_unit} unit | Investasi ${roadmapItem.estimasi_investasi}${roadmapItem.estimasi_revenue ? ` | Revenue ${roadmapItem.estimasi_revenue}` : ""} | Kec. prioritas: ${roadmapItem.kecamatan_prioritas?.join(", ") ?? "-"}`
     : "";
 
-  const prompt = `Kamu adalah SLIS AI, analis properti senior Satara Development. Berikan analisis mendalam, aktual, dan berbasis fakta untuk ${kabupaten}, Sulawesi Selatan.
+  const prompt = `Kamu adalah SLIS AI, analis properti senior Property Development. Berikan analisis mendalam, aktual, dan berbasis fakta untuk ${kabupaten}, Sulawesi Selatan.
 
 ${slisSection ? `═══ SKOR SLIS ═══\n${slisSection}\n` : ""}${roadmapSection ? `\n═══ ROADMAP EKSPANSI ═══\n${roadmapSection}\n` : ""}
 ═══ DATA LAHAN EXISTING ═══
@@ -86,7 +86,7 @@ Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
     "<langkah konkret 2 dalam 30-90 hari>",
     "<langkah konkret 3 dalam 3-6 bulan>"
   ],
-  "skor_urgensi": <angka integer 0-100: seberapa urgent Satara Development harus masuk sekarang sebelum kehilangan momentum>,
+  "skor_urgensi": <angka integer 0-100: seberapa urgent Property Development harus masuk sekarang sebelum kehilangan momentum>,
   "alasan_urgensi": "<1 kalimat singkat mengapa skor urgensi tersebut>"
 }`;
 
@@ -94,7 +94,7 @@ Format output PERSIS JSON berikut (tanpa markdown, tanpa teks di luar JSON):
     const completion = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
-        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "system", content: APP_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       temperature: 0.2,

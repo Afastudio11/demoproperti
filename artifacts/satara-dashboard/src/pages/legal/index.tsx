@@ -67,7 +67,7 @@ export default function LegalDashboard() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold">Legal & Perizinan</h1>
-        <p className="text-sm text-muted-foreground">Legalitas, perizinan, dan SHM seluruh proyek Satara</p>
+        <p className="text-sm text-muted-foreground">Legalitas, perizinan, dan SHM seluruh proyek</p>
       </div>
 
       {/* Panel F — Alerts */}

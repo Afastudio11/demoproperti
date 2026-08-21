@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, APP_SYSTEM_PROMPT } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -20,9 +20,9 @@ router.post("/ai/expansion-roadmap", async (req, res) => {
     `- ${p.lokasi}${p.kabupaten ? ` (${p.kabupaten})` : ""}: ${(p.luas / 10000).toFixed(2)} Ha, Rp${p.hargaM2.toLocaleString("id-ID")}/m², ROI ${p.roi}%, Status: ${p.status}`
   ).join("\n");
 
-  const prompt = `Kamu adalah SLIS AI (Satara Land Intelligence System), konsultan ekspansi properti senior untuk Satara Development di Sulawesi Selatan.
+  const prompt = `Kamu adalah SLIS AI (Land Intelligence System), konsultan ekspansi properti senior untuk Property Development di Sulawesi Selatan.
 
-Satara Development adalah developer perumahan subsidi & komersial yang sedang ekspansi multi-kabupaten di Sulawesi Selatan. Mereka membutuhkan analisis komprehensif dan roadmap ekspansi berbasis data scoring SLIS untuk 5 tahun ke depan.
+Property Development adalah developer perumahan subsidi & komersial yang sedang ekspansi multi-kabupaten di Sulawesi Selatan. Mereka membutuhkan analisis komprehensif dan roadmap ekspansi berbasis data scoring SLIS untuk 5 tahun ke depan.
 
 ═══ DATA SCORING KABUPATEN (Top 15 dari 24) ═══
 ${topKab}
@@ -37,9 +37,9 @@ ${budget || "Belum dispesifikasikan (asumsikan Rp10-50 Miliar tahap awal)"}
 Berikan analisis SLIS yang SANGAT KOMPREHENSIF dan DETAIL. Setiap section harus diisi dengan analisis mendalam berbasis data scoring di atas.
 Format output PERSIS JSON berikut (tanpa markdown, tanpa teks luar JSON):
 {
-  "ringkasan_strategi": "<3-4 kalimat ringkasan strategi ekspansi keseluruhan Satara Development>",
+  "ringkasan_strategi": "<3-4 kalimat ringkasan strategi ekspansi keseluruhan Property Development>",
   "analisis_pasar": "<3-4 kalimat analisis kondisi pasar properti di Sulsel saat ini dan tren ke depan>",
-  "analisis_kompetitor": "<2-3 kalimat positioning Satara vs kompetitor, peluang di pasar yang belum terisi>",
+  "analisis_kompetitor": "<2-3 kalimat positioning Property vs kompetitor, peluang di pasar yang belum terisi>",
   "roadmap": [
     {
       "tahun": 2026,
@@ -93,7 +93,7 @@ Semua analisis harus SPESIFIK dan BERBASIS DATA scoring yang diberikan, bukan ge
     const completion = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
-        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "system", content: APP_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       temperature: 0.15,

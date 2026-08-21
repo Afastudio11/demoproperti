@@ -62,7 +62,7 @@ export default function HRDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Human Resource</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Satara Human Resource Management System</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Human Resource Management System</p>
         </div>
         <Link href="/hr/organisasi">
           <button className="flex items-center gap-2 bg-foreground text-background text-sm font-medium px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">

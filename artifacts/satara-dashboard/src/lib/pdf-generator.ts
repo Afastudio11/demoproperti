@@ -3,23 +3,10 @@ import autoTable from "jspdf-autotable";
 import type { LandProspect } from "@workspace/api-client-react";
 
 // ─── Logo preload ──────────────────────────────────────────────────────────────
-
 let _logoBase64: string | null = null;
 
 export async function preloadPdfAssets(): Promise<void> {
-  if (_logoBase64) return;
-  try {
-    const response = await fetch("/satara-logo.png");
-    const blob = await response.blob();
-    _logoBase64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    _logoBase64 = null;
-  }
+  // No logo needed
 }
 
 // ─── Colors (Black & White) ───────────────────────────────────────────────────
@@ -131,27 +118,19 @@ function drawHeader(doc: jsPDF, title: string, subtitle: string) {
   doc.setFillColor(30, 30, 30);
   doc.rect(0, 0, 3, 22, "F");
 
-  // Logo (if preloaded) — original is 3840×2160 (16:9), preserve ratio
-  const logoX = 5;
-  const logoY = 4;
-  const logoW = 16;
-  const logoH = logoW * (2160 / 3840); // = 9 mm
-  if (_logoBase64) {
-    doc.addImage(_logoBase64, "PNG", logoX, logoY, logoW, logoH);
-  }
-  const textX = _logoBase64 ? logoX + logoW + 2 : 17;
+  const textX = 14;
 
-  // Company name — dark text
+  // Header title — dark text
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(20, 20, 20);
-  doc.text("SATARA DEVELOPMENT", textX, 9);
+  doc.text("PROPERTY DEVELOPMENT", textX, 9);
 
   // Tagline
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(130, 130, 130);
-  doc.text("Internal Operations Dashboard — Strictly Confidential", textX, 16);
+  doc.text("Operations Dashboard — Strictly Confidential", textX, 16);
 
   // Doc type (right, dark)
   doc.setFont("helvetica", "bold");
@@ -192,7 +171,7 @@ function drawFooter(doc: jsPDF, pageNum: number, totalPages: number) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(150, 150, 150);
-  doc.text("Dokumen ini bersifat rahasia dan hanya untuk penggunaan internal Satara Development.", 14, H - 3);
+  doc.text("Dokumen ini bersifat rahasia dan hanya untuk penggunaan internal Property Development.", 14, H - 3);
   doc.text(`Hal. ${pageNum} / ${totalPages}`, W - 14, H - 3, { align: "right" });
 }
 
@@ -503,7 +482,7 @@ export function generateSiteAnalysis(payload: DocPayload) {
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7.5);
     doc.setTextColor(...GRAY);
-    doc.text(`${competitors.length} properti kompetitor teridentifikasi di ${prospect.kabupaten ?? "kabupaten ini"}. Sumber: Database Satara.`, 14, y);
+    doc.text(`${competitors.length} properti kompetitor teridentifikasi di ${prospect.kabupaten ?? "kabupaten ini"}. Sumber: Database Property.`, 14, y);
     y += 8;
   } else {
     // Fallback ke data AI jika DB lokal kosong
@@ -1092,7 +1071,7 @@ export function generateLegalChecking(payload: DocPayload) {
     startY: y,
     margin: { left: 14, right: 14 },
     head: [["Diperiksa Oleh", "Tanggal Pemeriksaan", "Tanda Tangan"]],
-    body: [["Tim Legal Satara Development", today(), "\n\n_____________________"]],
+    body: [["Tim Legal Property Development", today(), "\n\n_____________________"]],
     styles: { fontSize: 8.5, cellPadding: 4, halign: "center", textColor: BLACK },
     headStyles: { fillColor: [240, 240, 240] as [number,number,number], textColor: [30,30,30] as [number,number,number], fontStyle: "bold" },
     tableLineColor: LGRAY,
@@ -1325,7 +1304,7 @@ export function generatePKSMoU(payload: DocPayload) {
   // Pasal 1: Para Pihak
   y = sectionTitle(doc, "PASAL 1 — PARA PIHAK", y);
   const paraLines = [
-    "PIHAK PERTAMA  :  PT. SATARA DEVELOPMENT (selanjutnya disebut \"Pengembang\")",
+    "PIHAK PERTAMA  :  PT. Property Development (selanjutnya disebut \"Pengembang\")",
     "                            beralamat di: ____________________________________________",
     "                            diwakili oleh: _____________________ selaku Direktur",
     "",
@@ -1441,7 +1420,7 @@ export function generatePKSMoU(payload: DocPayload) {
     margin: { left: 14, right: 14 },
     head: [["PIHAK PERTAMA", "PIHAK KEDUA"]],
     body: [[
-      "PT. Satara Development\n\n\n\n\n_____________________________\nDirektur\nMaterai Rp 10.000",
+      "PT. Property Development\n\n\n\n\n_____________________________\nDirektur\nMaterai Rp 10.000",
       `Pemilik Lahan — ${prospect.lokasi}\n\n\n\n\n_____________________________\nNama & Tanda Tangan\nMaterai Rp 10.000`,
     ]],
     styles: { fontSize: 9, cellPadding: 5, halign: "center", textColor: BLACK },

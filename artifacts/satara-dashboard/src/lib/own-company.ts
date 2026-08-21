@@ -2,7 +2,7 @@ export const OWN_COMPANY_NAMES = [
   "PT BERKAH BINTANG PRATAMA",
   "BERKAH BINTANG PRATAMA",
   "BERKAH BINTANG",
-  "SATARA DEVELOPMENT",
+  "Property Development",
 ];
 
 export function isOwnCompany(pengembang?: string | null): boolean {

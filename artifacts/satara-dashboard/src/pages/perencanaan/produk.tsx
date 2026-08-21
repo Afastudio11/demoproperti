@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,12 @@ export default function ProdukPage() {
   const [typeBaseline, setTypeBaseline] = useState<TypeBaseline[]>([]);
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
+
+  useEffect(() => {
+    if (!projectId && Array.isArray(projects) && projects.length > 0) {
+      selectProject(projects[0].id);
+    }
+  }, [projectId, projects]);
 
   const selectProject = async (id: number) => {
     setProjectId(id);

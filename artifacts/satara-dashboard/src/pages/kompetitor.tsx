@@ -28,9 +28,9 @@ interface ImportMeta {
 
 // ─── LocalStorage ─────────────────────────────────────────────────────────────
 
-const LS_MANUAL   = "satara_komp_manual";
-const LS_IMPORT   = "satara_komp_import";
-const LS_IMP_META = "satara_komp_import_meta";
+const LS_MANUAL   = "app_komp_manual";
+const LS_IMPORT   = "app_komp_import";
+const LS_IMP_META = "app_komp_import_meta";
 
 function loadManual(): KompetitorEntry[] {
   try { return JSON.parse(localStorage.getItem(LS_MANUAL) ?? "[]"); } catch { return []; }

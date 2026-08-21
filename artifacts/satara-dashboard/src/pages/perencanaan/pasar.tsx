@@ -13,7 +13,7 @@ import { Save, Plus, Trash2 } from "lucide-react";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { useConfirm } from "@/contexts/confirmation-context";
 
-const SATARA_STANDARDS = { minDemand: 60 };
+const APP_STANDARDS = { minDemand: 60 };
 
 function num(v: string) { return parseFloat(v) || 0; }
 
@@ -60,27 +60,6 @@ export default function PasarPage() {
     },
   });
 
-  useEffect(() => {
-    if (existing) {
-      const ex = existing as Record<string, unknown>;
-      setForm(prev => ({
-        ...prev,
-        ...(ex as object),
-        kelurahan: (ex.kelurahan as string) || prev.kelurahan,
-        kecamatan: (ex.kecamatan as string) || prev.kecamatan,
-        kabupaten: (ex.kabupaten as string) || prev.kabupaten,
-      }));
-      setSavedId((existing as Record<string, number>).id);
-      const savedComps = (existing as Record<string, unknown>).competitors;
-      if (Array.isArray(savedComps) && savedComps.length > 0) {
-        setCompetitors(savedComps as Competitor[]);
-      }
-      // If no saved competitors, keep the auto-filled ones from marketing
-    }
-  }, [existing]);
-
-  const setF = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: typeof v === "string" ? num(v) || v : v }));
-
   const getLocationFromProspect = (pid: number) => {
     if (!Array.isArray(landProspects)) return {};
     const lp = (landProspects as Record<string, unknown>[]).find(p => p.projectId === pid);
@@ -105,6 +84,62 @@ export default function PasarPage() {
         distance: (c.jarak as number) ?? 0,
       }));
   };
+
+  const selectProject = (pid: number) => {
+    const loc = getLocationFromProspect(pid);
+    const comps = getCompetitorsFromMarketing(pid);
+    const proj = Array.isArray(projects) ? (projects as any[]).find(p => p.id === pid) : null;
+    const projKab = proj?.lokasi?.includes("Gowa") ? "Gowa" : proj?.lokasi?.includes("Maros") ? "Maros" : "Makassar";
+    setForm(prev => ({
+      ...defaultForm,
+      ...prev,
+      projectId: pid,
+      kabupaten: loc.kabupaten || projKab || "Gowa",
+      kecamatan: loc.kecamatan || (projKab === "Gowa" ? "Somba Opu" : projKab === "Maros" ? "Mandai" : "Biringkanaya"),
+      kelurahan: loc.kelurahan || (projKab === "Gowa" ? "Paccinongang" : projKab === "Maros" ? "Bontoa" : "Sudiang"),
+      populationGrowth: 2.8,
+      backlogHousing: 14500,
+      marriageRate: 3200,
+      flppEligible: 65,
+      purchasePower: 80,
+      roadAccess: 85,
+      nearTolPlaza: 75,
+      nearSchool: 90,
+      nearMarket: 85,
+    }));
+    setCompetitors(comps.length > 0 ? comps : [
+      { name: "Graha Harmoni Gowa", type: "tapak", price: 185, units: 120, absorption: 12, distance: 1.2 },
+      { name: "Pesona Pallangga Indah", type: "tapak", price: 195, units: 85, absorption: 8, distance: 2.5 },
+      { name: "Bumi Samata Permai", type: "tapak", price: 210, units: 60, absorption: 6, distance: 3.1 },
+    ]);
+    setSavedId(null);
+  };
+
+  useEffect(() => {
+    if (!form.projectId && Array.isArray(projects) && projects.length > 0) {
+      selectProject(projects[0].id);
+    }
+  }, [projects, form.projectId, landProspects, marketingCompetitors]);
+
+  useEffect(() => {
+    if (existing) {
+      const ex = existing as Record<string, unknown>;
+      setForm(prev => ({
+        ...prev,
+        ...(ex as object),
+        kelurahan: (ex.kelurahan as string) || prev.kelurahan,
+        kecamatan: (ex.kecamatan as string) || prev.kecamatan,
+        kabupaten: (ex.kabupaten as string) || prev.kabupaten,
+      }));
+      setSavedId((existing as Record<string, number>).id);
+      const savedComps = (existing as Record<string, unknown>).competitors;
+      if (Array.isArray(savedComps) && savedComps.length > 0) {
+        setCompetitors(savedComps as Competitor[]);
+      }
+    }
+  }, [existing]);
+
+  const setF = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: typeof v === "string" ? num(v) || v : v }));
 
   const demandScore = calcDemandScore({
     populationGrowth: form.populationGrowth,
@@ -135,41 +170,35 @@ export default function PasarPage() {
     if (!savedId) return;
     const ok = await confirm({
       title: "Hapus Analisis Pasar",
-      description: "Apakah Anda yakin ingin menghapus analisis pasar untuk proyek ini?",
+      description: "Data analisis pasar untuk proyek ini akan dihapus. Lanjutkan?",
       confirmText: "Hapus",
       cancelText: "Batal",
       variant: "destructive",
     });
-    if (ok) {
-      const resp = await fetch(`/api/planning/market/${savedId}`, { method: "DELETE" });
-      if (!resp.ok) { toast({ title: "Gagal menghapus", variant: "destructive" }); return; }
-      setSavedId(null);
-      setForm({ ...defaultForm, projectId: form.projectId });
-      setCompetitors([]);
-      await qc.invalidateQueries({ queryKey: ["planning-market"] });
-      toast({ title: "Analisis pasar dihapus" });
-    }
+    if (!ok) return;
+    const resp = await fetch(`/api/planning/market/${savedId}`, { method: "DELETE" });
+    if (!resp.ok) { toast({ title: "Gagal hapus", variant: "destructive" }); return; }
+    setSavedId(null);
+    setForm({ ...defaultForm, projectId: form.projectId });
+    setCompetitors([]);
+    await qc.invalidateQueries({ queryKey: ["planning-market"] });
+    toast({ title: "Analisis pasar berhasil dihapus" });
   };
 
   const scoreColor = demandScore >= 70 ? "text-emerald-500" : demandScore >= 50 ? "text-amber-500" : "text-red-500";
-  const projectList = Array.isArray(projects) ? projects : [];
+  const projectList = (projects as Record<string, unknown>[] | undefined) ?? [];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Analisis Pasar & Permintaan</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Demografi, ekonomi, lokasi, kompetitor & demand score</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Analisis Pasar & Permintaan</h1>
+          <p className="text-xs text-muted-foreground">Demografi, ekonomi, lokasi, kompetitor & demand score</p>
         </div>
         <div className="flex items-center gap-2">
           {savedId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDelete}
-              className="border-red-200 hover:bg-red-50/50 text-red-600 cursor-pointer animate-fade-in"
-            >
-              Hapus Analisis
+            <Button size="sm" variant="outline" onClick={handleDelete} className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10">
+              <Trash2 className="size-3.5" />Hapus
             </Button>
           )}
           <Button size="sm" onClick={save} className="gap-1.5"><Save className="size-3.5" />Simpan</Button>
@@ -177,15 +206,11 @@ export default function PasarPage() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Label className="text-sm shrink-0">Proyek</Label>
-        <Select onValueChange={v => {
-          const pid = parseInt(v);
-          const loc = getLocationFromProspect(pid);
-          const comps = getCompetitorsFromMarketing(pid);
-          setForm({ ...defaultForm, projectId: pid, ...loc });
-          setCompetitors(comps);
-          setSavedId(null);
-        }}>
+        <Label className="text-sm shrink-0 font-medium">Proyek</Label>
+        <Select
+          value={form.projectId ? String(form.projectId) : ""}
+          onValueChange={v => selectProject(parseInt(v))}
+        >
           <SelectTrigger className="h-8 w-64">
             <SelectValue placeholder="Pilih proyek..." />
           </SelectTrigger>
@@ -351,7 +376,7 @@ export default function PasarPage() {
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                   <div className={`h-full rounded-full transition-all ${demandScore >= 70 ? "bg-emerald-500" : demandScore >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${demandScore}%` }} />
                 </div>
-                <div className="text-xs text-muted-foreground">Target minimum Satara: {SATARA_STANDARDS.minDemand} poin</div>
+                <div className="text-xs text-muted-foreground">Target minimum Property: {APP_STANDARDS.minDemand} poin</div>
               </CardContent>
             </Card>
             <Card>

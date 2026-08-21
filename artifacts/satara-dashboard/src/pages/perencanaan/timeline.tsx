@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +55,12 @@ export default function TimelinePage() {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
+
+  useEffect(() => {
+    if (!projectId && Array.isArray(projects) && projects.length > 0) {
+      selectProject(projects[0].id);
+    }
+  }, [projectId, projects]);
 
   const selectProject = async (id: number) => {
     setProjectId(id);
@@ -171,7 +177,7 @@ export default function TimelinePage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-semibold">Timeline SPTIS</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Satara Project Timeline Intelligence System — master schedule & milestone tracking</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Project Timeline Intelligence System — master schedule & milestone tracking</p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={generateFromStages} disabled={!projectId} className="gap-1.5"><RefreshCw className="size-3.5" />Generate dari Tahapan</Button>

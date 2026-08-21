@@ -52,13 +52,13 @@ app.use(
     }),
     secret: process.env.SESSION_SECRET ?? (() => {
       if (isProduction) throw new Error("SESSION_SECRET wajib dikonfigurasi di production");
-      return "satara-local-dev-secret-change-me";
+      return "app-local-dev-secret-change-me";
     })(),
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: isProduction,
+      secure: process.env.COOKIE_SECURE === "true",
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },

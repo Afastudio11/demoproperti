@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { expansionTargetsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, APP_SYSTEM_PROMPT } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -75,7 +75,7 @@ router.post("/expansion/:id/analyze", async (req, res) => {
       ? `Harga pinggir kota (${fmtHarga(row.hargaPinggirMin)}–${fmtHarga(row.hargaPinggirMax)}) MEMUNGKINKAN margin FLPP (target HPP <Rp166jt, kavling 60–72m²)`
       : `Harga terlalu tinggi untuk FLPP standar`;
 
-    const prompt = `Kamu adalah analis ekspansi senior Satara Development. Analisis potensi ekspansi ke ${row.kabupaten}, Sulawesi Selatan untuk developer perumahan subsidi/FLPP dan komersial skala menengah.
+    const prompt = `Kamu adalah analis ekspansi senior Property Development. Analisis potensi ekspansi ke ${row.kabupaten}, Sulawesi Selatan untuk developer perumahan subsidi/FLPP dan komersial skala menengah.
 
 DATA REFERENSI ${row.kabupaten.toUpperCase()}:
 - Harga lahan pinggir kota: ${fmtHarga(row.hargaPinggirMin)} – ${fmtHarga(row.hargaPinggirMax)}
@@ -84,7 +84,7 @@ DATA REFERENSI ${row.kabupaten.toUpperCase()}:
 - Kelayakan FLPP: ${flppNote}
 - Skor heuristik awal (affordability+growth+strategic): ${row.heuristicScore}/100
 
-KRITERIA SATARA DEVELOPMENT:
+KRITERIA Property Development:
 - Target ROI minimal 35%, margin gross minimal 25%
 - Produk utama: perumahan subsidi FLPP type 36/45, kavling 60–72 m²
 - Target segmen: MBR & MBM di kota/kabupaten dengan pertumbuhan ekonomi jelas
@@ -100,7 +100,7 @@ Berikan analisis ekspansi komprehensif. Format output PERSIS JSON berikut (tanpa
 {
   "expansionScore": <integer 0-100, final score setelah AI analisis>,
   "tier": "<tier1|tier2|tier3 — WAJIB sesuai definisi di atas>",
-  "ringkasan": "<2-3 kalimat ringkasan posisi ${row.kabupaten} untuk Satara>",
+  "ringkasan": "<2-3 kalimat ringkasan posisi ${row.kabupaten} untuk Property>",
   "keunggulan": ["<keunggulan 1>", "<keunggulan 2>", "<keunggulan 3>"],
   "risiko": ["<risiko 1>", "<risiko 2>"],
   "kecamatanPrioritas": ["<kecamatan 1 yang paling potensial>", "<kecamatan 2>"],
@@ -114,7 +114,7 @@ Berikan analisis ekspansi komprehensif. Format output PERSIS JSON berikut (tanpa
     const completion = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
-        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "system", content: APP_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       temperature: 0.15,

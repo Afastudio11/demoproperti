@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,12 @@ export default function CashflowPage() {
   const [kpp, setKpp] = useState({ bankName: "", approvedAmount: 0, interestRate: 6, tenureMonths: 12, adminFee: 0 });
 
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
+
+  useEffect(() => {
+    if (!projectId && Array.isArray(projects) && projects.length > 0) {
+      selectProject(projects[0].id);
+    }
+  }, [projectId, projects]);
 
   const selectProject = async (id: number) => {
     setProjectId(id);

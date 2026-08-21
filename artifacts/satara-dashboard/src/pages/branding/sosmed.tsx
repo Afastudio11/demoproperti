@@ -49,7 +49,7 @@ export default function BrandingSosmed() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Social Media Performance</h1>
-          <p className="text-sm text-slate-500">KPI semua platform media sosial brand Satara</p>
+          <p className="text-sm text-slate-500">KPI semua platform media sosial brand</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700"><Plus size={15} /> Input KPI Platform</button>
       </div>

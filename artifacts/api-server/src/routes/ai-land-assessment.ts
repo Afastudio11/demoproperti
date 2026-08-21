@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT, filterOwnCompany } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, APP_SYSTEM_PROMPT, filterOwnCompany } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -364,7 +364,7 @@ router.post("/ai/land-assessment", async (req, res) => {
   const noLocalCompKec = compListKec.length === 0;
   const noLocalCompKab = compList.length === 0;
 
-  const prompt = `Kamu adalah SLIS (Satara Land Intelligence System), analis properti senior berpengalaman 15 tahun untuk Satara Development — developer perumahan di Sulawesi Selatan.
+  const prompt = `Kamu adalah SLIS (Land Intelligence System), analis properti senior berpengalaman 15 tahun untuk Property Development — developer perumahan di Sulawesi Selatan.
 
 ATURAN KETAT:
 1. Semua angka finansial sudah dihitung oleh Calculation Engine — JANGAN hitung ulang, JANGAN ubah angka, JANGAN buat angka baru.
@@ -528,15 +528,15 @@ WAJIB lakukan analisis ini:
 
 TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
 {
-  "ringkasanEksekutif": "<3-4 paragraf (350-450 kata). Jelaskan mengapa lahan ini mendapat skor ${sc.total} dan kategori '${sc.category}'. Sebutkan kekuatan utama dan kelemahan utama berdasarkan data di atas. Kontekskan dengan kondisi pasar properti ${kabupaten ?? "Sulawesi Selatan"} dan strategi developer perumahan yang tepat untuk area ini. Spesifik — sebut nama wilayah, kondisi aktual, dan implikasi bagi Satara Development.>",
+  "ringkasanEksekutif": "<3-4 paragraf (350-450 kata). Jelaskan mengapa lahan ini mendapat skor ${sc.total} dan kategori '${sc.category}'. Sebutkan kekuatan utama dan kelemahan utama berdasarkan data di atas. Kontekskan dengan kondisi pasar properti ${kabupaten ?? "Sulawesi Selatan"} dan strategi developer perumahan yang tepat untuk area ini. Spesifik — sebut nama wilayah, kondisi aktual, dan implikasi bagi Property Development.>",
   "analisisLokasi": "<3 paragraf (250-350 kata). Analisis mendalam ${[kelurahan, kecamatan, kabupaten].filter(Boolean).join(", ") || "lokasi ini"}: (1) aksesibilitas dan infrastruktur jalan utama di sekitar, (2) fasilitas terdekat yang relevan untuk target pembeli — sekolah, pasar, RS, pusat perbelanjaan — sebutkan nama spesifik jika kamu tahu, (3) karakteristik sosial-ekonomi penduduk sekitar dan daya beli, (4) potensi pertumbuhan wilayah berdasarkan rencana tata ruang atau pembangunan infrastruktur yang kamu ketahui.>",
   "analisisFisikLahan": "<2-3 paragraf (200-300 kata). Analisis bentuk lahan (${bentukLahan}), kontur (${konturLabel}), implikasi teknis dan biaya matang, potensi hambatan konstruksi, rekomendasi konkret tata letak kavling dan posisi fasum/RTH.>",
   "analisisKompetitor": {
     "tingkatPersaingan": "${noLocalCompKec ? (noLocalCompKab ? "Rendah" : "Sedang") : (compListKec.length >= 5 ? "Tinggi" : "Sedang")}",
     "kompetitorKecamatan": "<WAJIB 2-3 paragraf SUBSTANTIF. ${noLocalCompKec ? `Database tidak punya data kompetitor di Kec. ${kecamatan ?? "ini"}, namun berdasarkan pengetahuanmu tentang pasar properti ${kabupaten ?? "wilayah ini"}: (1) Sebutkan developer atau perumahan yang kamu ketahui di area sekitar, (2) Analisis apakah ini adalah white space (peluang first-mover) atau blind spot (demand memang rendah), (3) Apa yang membuat pembeli memilih lokasi ini vs kecamatan lain? Berikan analisis berbobot, bukan sekadar "tidak ada data".` : `Sebutkan kompetitor spesifik dari daftar: ${compListKec.slice(0, 5).map(c => c.name + (c.pengembang ? " ("+c.pengembang+")" : "")).join(", ")}. Analisis produk, harga, dan strategi mereka.`}>",
-    "kompetitorKabupaten": "<WAJIB 2-3 paragraf. ${noLocalCompKab ? `Database tidak punya data perumahan di ${kabupaten ?? "kabupaten ini"}. Berdasarkan pengetahuanmu: (1) Sebutkan minimal 3 developer atau perumahan yang kamu ketahui di ${kabupaten ?? "kabupaten ini"} atau kabupaten tetangga terdekat, (2) Karakteristik pasar properti ${kabupaten ?? "kabupaten ini"} — segmen yang dominan (subsidi vs komersial), rentang harga pasar, (3) Siapa pemain dominan dan bagaimana Satara bisa bersaing?` : `Analisis ${compList.length} kompetitor di kabupaten. Sebutkan 3-5 terkuat: ${compList.slice(0, 5).map(c => c.name).join(", ")}.`}>",
+    "kompetitorKabupaten": "<WAJIB 2-3 paragraf. ${noLocalCompKab ? `Database tidak punya data perumahan di ${kabupaten ?? "kabupaten ini"}. Berdasarkan pengetahuanmu: (1) Sebutkan minimal 3 developer atau perumahan yang kamu ketahui di ${kabupaten ?? "kabupaten ini"} atau kabupaten tetangga terdekat, (2) Karakteristik pasar properti ${kabupaten ?? "kabupaten ini"} — segmen yang dominan (subsidi vs komersial), rentang harga pasar, (3) Siapa pemain dominan dan bagaimana Property bisa bersaing?` : `Analisis ${compList.length} kompetitor di kabupaten. Sebutkan 3-5 terkuat: ${compList.slice(0, 5).map(c => c.name).join(", ")}.`}>",
     "posisiHarga": "<2 paragraf. Bandingkan target harga jual ${rp(fin.hargaJualFinal)} dengan harga pasar di area (data survei: ${hargaRumahNum > 0 ? "Rp " + hargaRumahNum.toLocaleString("id-ID") : "belum tersedia — estimasi dari tipe produk dan karakteristik area"}). Rekomendasikan strategi harga yang kompetitif: apakah perlu price penetration, pricing at market, atau premium pricing, dan alasannya.>",
-    "rekomendasiSegmen": "<2 paragraf. Segmen pembeli yang paling tepat untuk lahan di ${[kecamatan, kabupaten].filter(Boolean).join(", ")} ini — profil demografis, pekerjaan dominan, daya beli. Strategi diferensiasi vs kompetitor yang ada: apa yang bisa membuat proyek Satara lebih menarik? Sebutkan 2-3 keunggulan konkret yang bisa dibangun.>"
+    "rekomendasiSegmen": "<2 paragraf. Segmen pembeli yang paling tepat untuk lahan di ${[kecamatan, kabupaten].filter(Boolean).join(", ")} ini — profil demografis, pekerjaan dominan, daya beli. Strategi diferensiasi vs kompetitor yang ada: apa yang bisa membuat proyek Property lebih menarik? Sebutkan 2-3 keunggulan konkret yang bisa dibangun.>"
   },
   "analisisRisiko": [
     { "risiko": "Risiko Hukum/Legal", "level": "${risks.legalRisk}", "deskripsi": "<1-2 kalimat spesifik kondisi ${statusKepemilikan ?? "tidak diketahui"} dan implikasi waktu serta biaya>", "mitigasi": "<langkah mitigasi konkret dengan timeline realistis>" },
@@ -546,7 +546,7 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
     { "risiko": "Risiko Harga Tanah", "level": "${risks.hargaRisk}", "deskripsi": "<Harga Rp ${hargaM2Num.toLocaleString("id-ID")}/m² vs harga maks akuisisi Rp ${fin.maxHargaM2.toLocaleString("id-ID")}/m² — ${fin.maxHargaM2 > 0 && hargaM2Num <= fin.maxHargaM2 ? "harga masih dalam batas layak" : "harga di atas batas layak, wajib negosiasi"}>", "mitigasi": "<strategi negosiasi konkret — target harga, cara approach, BATNA>" },
     { "risiko": "Risiko Pasar/Permintaan", "level": "${risks.marketRisk}", "deskripsi": "<kondisi daya serap pasar ${tipe} di ${kecamatan ?? "area ini"} — apakah ada demand terpendam atau pasar sudah jenuh>", "mitigasi": "<strategi marketing dan timeline penjualan realistis>" }
   ],
-  "rekomendasiNarasi": "<3 paragraf (300-400 kata). (1) Jelaskan keputusan '${decisionLabel}' dengan argumentasi kuat berdasarkan data. (2) Kondisi spesifik yang HARUS dipenuhi sebelum Satara commit — sebutkan minimal 3 kondisi konkret. (3) Langkah selanjutnya dengan timeline: apa yang harus dilakukan dalam 1 minggu, 1 bulan, dan 3 bulan ke depan. ${sc.decision === "BELI_DENGAN_NEGOSIASI" ? `Tekankan bahwa harga saat ini Rp ${hargaM2Num.toLocaleString("id-ID")}/m² vs target maksimum Rp ${fin.maxHargaM2.toLocaleString("id-ID")}/m² — negosiasi WAJIB ke Rp ${fin.negotTargetM2.toLocaleString("id-ID")}/m² atau lebih rendah.` : ""}>",
+  "rekomendasiNarasi": "<3 paragraf (300-400 kata). (1) Jelaskan keputusan '${decisionLabel}' dengan argumentasi kuat berdasarkan data. (2) Kondisi spesifik yang HARUS dipenuhi sebelum Property commit — sebutkan minimal 3 kondisi konkret. (3) Langkah selanjutnya dengan timeline: apa yang harus dilakukan dalam 1 minggu, 1 bulan, dan 3 bulan ke depan. ${sc.decision === "BELI_DENGAN_NEGOSIASI" ? `Tekankan bahwa harga saat ini Rp ${hargaM2Num.toLocaleString("id-ID")}/m² vs target maksimum Rp ${fin.maxHargaM2.toLocaleString("id-ID")}/m² — negosiasi WAJIB ke Rp ${fin.negotTargetM2.toLocaleString("id-ID")}/m² atau lebih rendah.` : ""}>",
   "legalChecklist": [
     { "item": "<verifikasi status ${statusKepemilikan ?? "kepemilikan"} — langkah pertama spesifik>", "prioritas": "tinggi" },
     { "item": "<cek sertifikat dan riwayat perolehan — langkah konkret>", "prioritas": "tinggi" },
@@ -556,7 +556,7 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
     { "item": "<cek izin lokasi dan kesesuaian RTRW>", "prioritas": "sedang" },
     { "item": "<persiapan dokumen untuk proses konversi/balik nama>", "prioritas": "rendah" }
   ],
-  "draftMou": "<Draft MOU formal 450-550 kata. NOTA KESEPAHAMAN (MOU) PENGIKATAN JUAL BELI LAHAN. Nomor: _____/SATARA/MOU/${new Date().getFullYear()}. Pasal 1 — Identitas Para Pihak: PIHAK PERTAMA (Penjual/Pemilik Lahan) dan PIHAK KEDUA (PT Satara Development). Pasal 2 — Objek: Lahan seluas ${luasNum.toLocaleString("id-ID")} m² berlokasi di ${[kelurahan, kecamatan, kabupaten].filter(Boolean).join(", ") || lokasi || "—"}, Status: ${statusKepemilikan ?? "—"}. Pasal 3 — Harga: Rp ${hargaM2Num.toLocaleString("id-ID")}/m², total Rp ${fin.totalAkuisisi.toLocaleString("id-ID")}, mekanisme pembayaran. Pasal 4 — Jangka Waktu Pengikatan: 90 hari kerja. Pasal 5 — Kewajiban Penjual: menjamin keabsahan dokumen, bebas sengketa, batas jelas. Pasal 6 — Kondisi Penangguhan: due diligence legal, persetujuan internal Satara. Pasal 7 — Uang Tanda Jadi: 2% dari harga, hangus jika Penjual wanprestasi. Pasal 8 — Penyelesaian Sengketa: musyawarah mufakat, BANI jika tidak tercapai. Tanda Tangan Para Pihak.>",
+  "draftMou": "<Draft MOU formal 450-550 kata. NOTA KESEPAHAMAN (MOU) PENGIKATAN JUAL BELI LAHAN. Nomor: _____/PROPERTY/MOU/${new Date().getFullYear()}. Pasal 1 — Identitas Para Pihak: PIHAK PERTAMA (Penjual/Pemilik Lahan) dan PIHAK KEDUA (PT Property Development). Pasal 2 — Objek: Lahan seluas ${luasNum.toLocaleString("id-ID")} m² berlokasi di ${[kelurahan, kecamatan, kabupaten].filter(Boolean).join(", ") || lokasi || "—"}, Status: ${statusKepemilikan ?? "—"}. Pasal 3 — Harga: Rp ${hargaM2Num.toLocaleString("id-ID")}/m², total Rp ${fin.totalAkuisisi.toLocaleString("id-ID")}, mekanisme pembayaran. Pasal 4 — Jangka Waktu Pengikatan: 90 hari kerja. Pasal 5 — Kewajiban Penjual: menjamin keabsahan dokumen, bebas sengketa, batas jelas. Pasal 6 — Kondisi Penangguhan: due diligence legal, persetujuan internal Property. Pasal 7 — Uang Tanda Jadi: 2% dari harga, hangus jika Penjual wanprestasi. Pasal 8 — Penyelesaian Sengketa: musyawarah mufakat, BANI jika tidak tercapai. Tanda Tangan Para Pihak.>",
   "nextActions": [
     "<dalam 3 hari: tindakan paling kritis dan konkret>",
     "<dalam 1-2 minggu: due diligence legal dan survei lapangan>",
@@ -569,7 +569,7 @@ TUGASMU: Hasilkan HANYA JSON berikut, tanpa markdown, tanpa teks lain:
     const completion = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
-        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "system", content: APP_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       temperature: 0.15,

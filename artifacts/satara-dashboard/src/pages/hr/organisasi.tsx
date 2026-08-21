@@ -171,7 +171,7 @@ export default function Organisasi() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Organisasi & Headcount</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Struktur dan komposisi SDM Satara Development</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Struktur dan komposisi SDM Property Development</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowOfficeForm(true)} className="flex items-center gap-2 border text-foreground text-sm font-medium px-3 py-1.5 rounded-md hover:bg-muted transition-colors">

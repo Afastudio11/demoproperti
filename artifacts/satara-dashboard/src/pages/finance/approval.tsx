@@ -102,12 +102,12 @@ async function downloadReceipt(items: Approval[]) {
   doc.setTextColor(...black);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("SATARA DEVELOPMENT", M, 16);
+  doc.text("PROPERTY OPERATIONS", M, 16);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(...darkGrey);
-  doc.text("Internal Operations Dashboard  ·  Divisi Keuangan", M, 22);
+  doc.text("Operations Dashboard  ·  Divisi Keuangan", M, 22);
 
   // Title
   doc.setTextColor(...black);
@@ -373,11 +373,11 @@ async function downloadReceipt(items: Approval[]) {
   doc.setFontSize(6.5);
   doc.setTextColor(200, 200, 200);
   doc.text(
-    "Dokumen ini diterbitkan secara digital oleh sistem Satara Development. Scan QR code di pojok kanan atas untuk memverifikasi keaslian.",
+    "Dokumen ini diterbitkan secara digital oleh sistem internal operasional properti. Scan QR code di pojok kanan atas untuk memverifikasi keaslian.",
     W / 2, 290, { align: "center" }
   );
   doc.text(
-    `${docId}  ·  Digenerate: ${generatedAt}  ·  Satara Development © ${new Date().getFullYear()}`,
+    `${docId}  ·  Digenerate: ${generatedAt}  ·  Operations Dashboard © ${new Date().getFullYear()}`,
     W / 2, 294, { align: "center" }
   );
 

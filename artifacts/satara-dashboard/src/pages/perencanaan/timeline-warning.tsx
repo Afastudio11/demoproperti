@@ -94,7 +94,7 @@ export default function TimelineWarningPage() {
                 {overdue.map(m => (
                   <tr key={m.id} className="border-b bg-red-50/30 hover:bg-red-50/50">
                     <td className="px-3 py-2 font-medium">{m.projectName}</td>
-                    <td className="px-3 py-2">{m.milestone}</td>
+                    <td className="px-3 py-2">{m.taskName || m.milestone}</td>
                     <td className="px-3 py-2">{m.phase}</td>
                     <td className="px-3 py-2 text-red-600">{m.targetDate}</td>
                     <td className="px-3 py-2 font-semibold text-red-700">{Math.abs(m.days)} hari</td>
@@ -127,7 +127,7 @@ export default function TimelineWarningPage() {
                 {dueThisWeek.map(m => (
                   <tr key={m.id} className="border-b hover:bg-muted/30">
                     <td className="px-3 py-2 font-medium">{m.projectName}</td>
-                    <td className="px-3 py-2">{m.milestone}</td>
+                    <td className="px-3 py-2">{m.taskName || m.milestone}</td>
                     <td className="px-3 py-2">{m.targetDate}</td>
                     <td className="px-3 py-2 font-semibold text-orange-600">{m.days} hari</td>
                     <td className="px-3 py-2">{m.status}</td>
@@ -161,7 +161,7 @@ export default function TimelineWarningPage() {
                   return (
                     <tr key={m.id} className={cn("border-b hover:bg-muted/30", bg ? bg + "/30" : "")}>
                       <td className="px-3 py-2 font-medium">{m.projectName}</td>
-                      <td className="px-3 py-2">{m.milestone}</td>
+                      <td className="px-3 py-2">{m.taskName || m.milestone}</td>
                       <td className="px-3 py-2">{m.phase}</td>
                       <td className="px-3 py-2">{m.targetDate ?? "-"}</td>
                       <td className="px-3 py-2">{m.status}</td>

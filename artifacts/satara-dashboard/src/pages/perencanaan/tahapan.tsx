@@ -205,6 +205,16 @@ export default function TahapanPage() {
   const totalSubkon = stages.reduce((sum, stage) => sum + stage.blocks.reduce((s, block) => s + block.unitCount * block.subkonValuePerUnit, 0), 0);
 
   useEffect(() => {
+    const params = new URLSearchParams(search);
+    const pId = Number(params.get("projectId"));
+    if (pId && projectId !== pId) {
+      selectProject(pId);
+    } else if (!projectId && Array.isArray(projects) && projects.length > 0) {
+      selectProject(projects[0].id);
+    }
+  }, [search, projects, projectId]);
+
+  useEffect(() => {
     masterFillDoneRef.current = false;
   }, [projectId]);
 

@@ -394,7 +394,7 @@ export default function Ekspansi() {
             Potensi Ekspansi Sulsel
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Scoring & analisis AI 24 kabupaten/kota Sulawesi Selatan untuk ekspansi Satara Development
+            Scoring & analisis AI 24 kabupaten/kota Sulawesi Selatan untuk ekspansi Property Development
           </p>
         </div>
         <div className="flex gap-2">

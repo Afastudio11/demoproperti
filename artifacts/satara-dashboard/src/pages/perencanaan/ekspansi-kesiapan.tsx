@@ -75,7 +75,7 @@ export default function EkspansiKesiapanPage() {
         <Link href="/perencanaan"><Button variant="ghost" size="sm" className="h-7"><ArrowLeft className="size-3.5 mr-1" />Kembali</Button></Link>
         <div>
           <h1 className="text-lg font-semibold">Expansion Readiness Score</h1>
-          <p className="text-xs text-muted-foreground">Kesiapan Satara Development untuk ekspansi ke proyek baru</p>
+          <p className="text-xs text-muted-foreground">Kesiapan Property Development untuk ekspansi ke proyek baru</p>
         </div>
       </div>
 

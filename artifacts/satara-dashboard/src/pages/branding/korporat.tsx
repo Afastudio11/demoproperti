@@ -3,10 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const BRANDS = ["Satara Group", "SN Residence", "Sekala Industry", "Loka Resort", "Proyek Baru"];
+const BRANDS = ["Property Group", "SN Residence", "Sekala Industry", "Loka Resort", "Proyek Baru"];
 const MONTHS = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
 
-const emptyForm = { brandName: "Satara Group", periodYear: new Date().getFullYear(), periodMonth: new Date().getMonth() + 1, awarenessScore: "", consistencyScore: "", totalReach: "", notes: "" };
+const emptyForm = { brandName: "Property Group", periodYear: new Date().getFullYear(), periodMonth: new Date().getMonth() + 1, awarenessScore: "", consistencyScore: "", totalReach: "", notes: "" };
 
 export default function BrandingKorporat() {
   const qc = useQueryClient();
@@ -41,7 +41,7 @@ export default function BrandingKorporat() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Corporate Branding</h1>
-          <p className="text-sm text-slate-500">Tracking kesehatan brand setiap entitas Satara Group</p>
+          <p className="text-sm text-slate-500">Tracking kesehatan brand setiap entitas Property Group</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
           <Plus size={15} /> Input Data Brand

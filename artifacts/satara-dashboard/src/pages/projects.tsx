@@ -168,7 +168,7 @@ export default function Projects() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Daftar Proyek</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Kelola seluruh proyek Satara Development</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Kelola seluruh proyek Property Development</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -230,7 +230,7 @@ export default function Projects() {
           <div className="text-sm text-muted-foreground max-w-xs">
             {showArchived
               ? "Proyek yang di-archive akan muncul di sini dan bisa di-restore kapan saja."
-              : "Tambahkan proyek pertama Satara Development. Proyek ini akan tersambung ke semua modul — Perencanaan, Legal, Marketing, Produksi, dan Serah Terima."}
+              : "Tambahkan proyek pertama Property Development. Proyek ini akan tersambung ke semua modul — Perencanaan, Legal, Marketing, Produksi, dan Serah Terima."}
           </div>
           {!showArchived && (
             <Button onClick={handleOpen} className="mt-2 gap-1.5 bg-foreground hover:bg-foreground/90 text-background">

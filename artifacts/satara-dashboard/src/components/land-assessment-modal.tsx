@@ -612,7 +612,7 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
               namaPemilik: "",
               kontakPemilik: "",
             };
-            localStorage.setItem(`satara_survey_${pid}`, JSON.stringify(surveyData));
+            localStorage.setItem(`app_survey_${pid}`, JSON.stringify(surveyData));
 
             // ── Auto-fill checklist values dari data form modal ──
             const tipeRumahLabel: Record<string, string> = {
@@ -642,15 +642,15 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
               autoChecked.push("shm_alas_hak");
             }
 
-            const existingVals = (() => { try { return JSON.parse(localStorage.getItem("satara_checklist_vals") ?? "{}"); } catch { return {}; } })() as Record<string, unknown>;
+            const existingVals = (() => { try { return JSON.parse(localStorage.getItem("app_checklist_vals") ?? "{}"); } catch { return {}; } })() as Record<string, unknown>;
             existingVals[pid] = newChecklistVals;
-            localStorage.setItem("satara_checklist_vals", JSON.stringify(existingVals));
+            localStorage.setItem("app_checklist_vals", JSON.stringify(existingVals));
 
-            const existingChecked = (() => { try { return JSON.parse(localStorage.getItem("satara_acq_checklist") ?? "{}"); } catch { return {}; } })() as Record<string, unknown>;
+            const existingChecked = (() => { try { return JSON.parse(localStorage.getItem("app_acq_checklist") ?? "{}"); } catch { return {}; } })() as Record<string, unknown>;
             const prevChecked: string[] = Array.isArray(existingChecked[pid]) ? (existingChecked[pid] as string[]) : [];
             const mergedChecked = [...new Set([...prevChecked, ...autoChecked])];
             existingChecked[pid] = mergedChecked;
-            localStorage.setItem("satara_acq_checklist", JSON.stringify(existingChecked));
+            localStorage.setItem("app_acq_checklist", JSON.stringify(existingChecked));
 
             // Sync ke DB
             fetch(`/api/land-prospects/${pid}/acquisition`, {
@@ -686,8 +686,8 @@ export default function LandAssessmentModal({ polygon, terrainData, terrainLoadi
                 estimasiProfit: result.calc?.financials?.profit,
                 tingkatRisiko: result.calc?.risks?.overallRisk,
               };
-              localStorage.setItem(`satara_ai_${pid}`, JSON.stringify(aiResult));
-              localStorage.setItem(`satara_full_ai_${pid}`, JSON.stringify(result));
+              localStorage.setItem(`app_ai_${pid}`, JSON.stringify(aiResult));
+              localStorage.setItem(`app_full_ai_${pid}`, JSON.stringify(result));
             }
           }
         } catch { /* ignore — prospect tetap tersimpan ke pipeline */ }

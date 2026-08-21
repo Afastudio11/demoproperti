@@ -31,7 +31,7 @@ export default function BrandingKonten() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Content Management</h1>
-          <p className="text-sm text-slate-500">Perencanaan, produksi, dan tracking seluruh konten brand Satara</p>
+          <p className="text-sm text-slate-500">Perencanaan, produksi, dan tracking seluruh konten brand</p>
         </div>
         <Link href="/branding/konten/new">
           <button className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700"><Plus size={15} /> Tambah Konten</button>

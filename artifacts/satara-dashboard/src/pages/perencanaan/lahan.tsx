@@ -501,6 +501,12 @@ export default function LahanPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlProjectId, urlProspectId]);
 
+  useEffect(() => {
+    if (!form.projectId && !urlProjectId && Array.isArray(projects) && projects.length > 0) {
+      selectProject(projects[0].id);
+    }
+  }, [form.projectId, urlProjectId, projects]);
+
   const setF = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: typeof v === "string" ? (parseFloat(v) || v) : v }));
 
   async function syncProspectToSiteplan(resp: Record<string, any>, projectId: number) {
@@ -2045,7 +2051,7 @@ export default function LahanPage() {
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Efisiensi lahan</span>
-                    <span className="font-medium">70% (standar Satara)</span>
+                    <span className="font-medium">70% (standar operasional)</span>
                   </div>
                 </div>
               )}

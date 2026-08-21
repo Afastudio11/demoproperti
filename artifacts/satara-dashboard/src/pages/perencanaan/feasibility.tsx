@@ -17,7 +17,7 @@ import { NumericInput } from "@/components/ui/numeric-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
-const SATARA = { roi: 35, irr: 20, payback: 24, margin: 25 };
+const PROPERTY = { roi: 35, irr: 20, payback: 24, margin: 25 };
 
 const defaultInputs: FeasibilityInputs = {
   landCost: 0, landPrepCost: 0, constructionCostPerUnit: 0,
@@ -72,11 +72,12 @@ export default function FeasibilityPage() {
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => fetch("/api/projects").then(r => r.json()) });
 
   useEffect(() => {
-    if (!urlProjectId || autoSelected || !projects) return;
+    if (autoSelected || !projects || !Array.isArray(projects) || projects.length === 0) return;
+    const targetId = urlProjectId || projects[0].id;
     setAutoSelected(true);
-    selectProject(urlProjectId);
+    selectProject(targetId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlProjectId, projects]);
+  }, [urlProjectId, projects, autoSelected]);
 
   const selectProject = async (id: number) => {
     setProjectId(id);
@@ -225,7 +226,7 @@ export default function FeasibilityPage() {
     const passCount = [result.passROI, result.passIRR, result.passMargin, result.passPayback].filter(Boolean).length;
     const rec = passCount === 4 ? "APPROVE" : passCount >= 2 ? "HOLD" : "REJECT";
     const content = [
-      `CEO DECISION REPORT — SATARA DEVELOPMENT`,
+      `CEO DECISION REPORT — Property Development`,
       `========================================`,
       `PROYEK     : ${proj?.nama ?? `Proyek #${projectId}`}`,
       `UNIT       : ${inputs.totalUnits} unit`,
@@ -240,7 +241,7 @@ export default function FeasibilityPage() {
       `NPV        : ${fmtCurrency(result.npv)}`,
       `BEP        : ${result.bepUnits} unit`,
       `PEAK FUND  : ${fmtCurrency(result.peakFunding)}`,
-      `KRITERIA   : ${passCount}/4 standar Satara terpenuhi`,
+      `KRITERIA   : ${passCount}/4 standar operasional terpenuhi`,
       `REKOMENDASI: ${rec}`,
       ``,
       aiText ? `ANALISIS AI:\n${aiText}` : "",
@@ -392,10 +393,10 @@ export default function FeasibilityPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { label: "ROI", value: fmtPct(result.roi), pass: result.passROI, target: `target ≥${SATARA.roi}%` },
-                  { label: "IRR", value: fmtPct(result.irr), pass: result.passIRR, target: `target ≥${SATARA.irr}%` },
-                  { label: "Margin", value: fmtPct(result.margin), pass: result.passMargin, target: `target ≥${SATARA.margin}%` },
-                  { label: "Payback", value: `${result.paybackPeriod} bulan`, pass: result.passPayback, target: `target ≤${SATARA.payback} bln` },
+                  { label: "ROI", value: fmtPct(result.roi), pass: result.passROI, target: `target ≥${PROPERTY.roi}%` },
+                  { label: "IRR", value: fmtPct(result.irr), pass: result.passIRR, target: `target ≥${PROPERTY.irr}%` },
+                  { label: "Margin", value: fmtPct(result.margin), pass: result.passMargin, target: `target ≥${PROPERTY.margin}%` },
+                  { label: "Payback", value: `${result.paybackPeriod} bulan`, pass: result.passPayback, target: `target ≤${PROPERTY.payback} bln` },
                 ].map(kpi => (
                   <Card key={kpi.label} className={`border-2 ${kpi.pass ? "border-emerald-200" : "border-red-200"}`}>
                     <CardContent className="p-3 space-y-1">
@@ -474,7 +475,7 @@ export default function FeasibilityPage() {
                           result.passROI || result.passIRR ? "REKOMENDASI: HOLD / REVIEW" : "REKOMENDASI: REJECT"}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {[result.passROI, result.passIRR, result.passMargin, result.passPayback].filter(Boolean).length} dari 4 kriteria standar Satara terpenuhi
+                        {[result.passROI, result.passIRR, result.passMargin, result.passPayback].filter(Boolean).length} dari 4 kriteria standar operasional terpenuhi
                       </div>
                     </div>
                   </div>
@@ -505,7 +506,7 @@ export default function FeasibilityPage() {
                     <div className="font-semibold">Asumsi Utama:</div>
                     <div>Harga jual {fmtCurrency(inputs.sellingPricePerUnit)}/unit · {inputs.totalUnits} unit · {inputs.salesPerMonth} unit/bln</div>
                     <div>KPR {inputs.kprPct}% · Cash keras {inputs.cashHardPct}% · Cash bertahap {inputs.cashInstallmentPct}%</div>
-                    <div>Standar Satara: ROI≥{SATARA.roi}% · IRR≥{SATARA.irr}% · Margin≥{SATARA.margin}% · Payback≤{SATARA.payback} bln</div>
+                    <div>standar operasional: ROI≥{PROPERTY.roi}% · IRR≥{PROPERTY.irr}% · Margin≥{PROPERTY.margin}% · Payback≤{PROPERTY.payback} bln</div>
                   </div>
                 </CardContent>
               </Card>

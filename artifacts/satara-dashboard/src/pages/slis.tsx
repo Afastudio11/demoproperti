@@ -93,7 +93,7 @@ function buildKabRekomendasi(kab: KabupatenScore): { verdict: string; verdictCol
   } else {
     verdict = "TIDAK DIREKOMENDASIKAN — Risiko Tinggi";
     verdictColor = "text-red-600 bg-red-50 border-red-200";
-    kesimpulan = `${kab.name} saat ini tidak memenuhi threshold minimum pengembangan perumahan Satara (skor ${kab.score}/100). Kombinasi kelemahan di beberapa faktor kunci menciptakan risiko bisnis yang signifikan. Alokasikan sumber daya ke kabupaten dengan skor lebih tinggi.`;
+    kesimpulan = `${kab.name} saat ini tidak memenuhi threshold minimum pengembangan perumahan Property (skor ${kab.score}/100). Kombinasi kelemahan di beberapa faktor kunci menciptakan risiko bisnis yang signifikan. Alokasikan sumber daya ke kabupaten dengan skor lebih tinggi.`;
   }
 
   return { verdict, verdictColor, kekuatan, kelemahan, kesimpulan };
@@ -173,7 +173,7 @@ function KabupatenDetail({ kab, onSelectKec }: { kab: KabupatenScore; onSelectKe
 
       {/* Rekomendasi */}
       <div className="space-y-2">
-        <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">REKOMENDASI SATARA</div>
+        <div className="text-[10px] font-semibold text-muted-foreground tracking-wider">REKOMENDASI PROPERTY</div>
         <div className={cn("rounded-md border px-2.5 py-1.5 text-[11px] font-semibold", rek.verdictColor)}>
           {rek.verdict}
         </div>
@@ -463,7 +463,7 @@ interface KabInsight {
   alasan_urgensi: string;
 }
 
-const KAB_INSIGHT_CACHE_PREFIX = "satara_kab_insight_";
+const KAB_INSIGHT_CACHE_PREFIX = "app_kab_insight_";
 function loadInsightCache(kabupaten: string): KabInsight | null {
   try { return JSON.parse(localStorage.getItem(KAB_INSIGHT_CACHE_PREFIX + kabupaten.toLowerCase()) ?? "null"); }
   catch { return null; }
@@ -509,7 +509,7 @@ const SORTED_KAB_WITH_KEC = SORTED_KAB.map(k => ({
   kecamatanTeratas: k.kecamatan?.slice(0, 3).map((kec: KecamatanScore) => kec.name) ?? [],
 }));
 
-const ROADMAP_CACHE_KEY = "satara_expansion_roadmap";
+const ROADMAP_CACHE_KEY = "app_expansion_roadmap";
 function loadRoadmapCache(): RoadmapResult | null {
   try { return JSON.parse(localStorage.getItem(ROADMAP_CACHE_KEY) ?? "null"); } catch { return null; }
 }

@@ -164,7 +164,7 @@ const OUTPUT_ITEMS = [
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
-const CHECKLIST_KEY = "satara_acq_checklist";
+const CHECKLIST_KEY = "app_acq_checklist";
 
 function loadChecklist(): Record<number, string[]> {
   try { return JSON.parse(localStorage.getItem(CHECKLIST_KEY) ?? "{}"); } catch { return {}; }
@@ -174,14 +174,14 @@ function saveChecklist(s: Record<number, string[]>) {
 }
 
 function loadAiResult(id: number): AiResult | null {
-  try { return JSON.parse(localStorage.getItem(`satara_ai_${id}`) ?? "null"); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(`app_ai_${id}`) ?? "null"); } catch { return null; }
 }
 function saveAiResult(id: number, r: AiResult | null) {
-  if (r) localStorage.setItem(`satara_ai_${id}`, JSON.stringify(r));
-  else localStorage.removeItem(`satara_ai_${id}`);
+  if (r) localStorage.setItem(`app_ai_${id}`, JSON.stringify(r));
+  else localStorage.removeItem(`app_ai_${id}`);
 }
 
-const CHECKLIST_VALS_KEY = "satara_checklist_vals";
+const CHECKLIST_VALS_KEY = "app_checklist_vals";
 function loadChecklistValues(): Record<number, Record<string, string>> {
   try { return JSON.parse(localStorage.getItem(CHECKLIST_VALS_KEY) ?? "{}"); } catch { return {}; }
 }
@@ -190,11 +190,11 @@ function saveChecklistValues(s: Record<number, Record<string, string>>) {
 }
 
 function loadFullAiResult(id: number): Record<string, unknown> | null {
-  try { return JSON.parse(localStorage.getItem(`satara_full_ai_${id}`) ?? "null"); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(`app_full_ai_${id}`) ?? "null"); } catch { return null; }
 }
 function saveFullAiResult(id: number, r: Record<string, unknown> | null) {
-  if (r) localStorage.setItem(`satara_full_ai_${id}`, JSON.stringify(r));
-  else localStorage.removeItem(`satara_full_ai_${id}`);
+  if (r) localStorage.setItem(`app_full_ai_${id}`, JSON.stringify(r));
+  else localStorage.removeItem(`app_full_ai_${id}`);
 }
 
 
@@ -212,10 +212,10 @@ interface SurveyData {
 const SURVEY_DEFAULTS: SurveyData = { bentukLahan: "", statusLegal: "", topografi: "", kondisiJalan: "", utilitas: [], peilBanjir: "", namaPemilik: "", kontakPemilik: "" };
 
 function loadSurvey(id: number): SurveyData {
-  try { return { ...SURVEY_DEFAULTS, ...JSON.parse(localStorage.getItem(`satara_survey_${id}`) ?? "{}") }; } catch { return { ...SURVEY_DEFAULTS }; }
+  try { return { ...SURVEY_DEFAULTS, ...JSON.parse(localStorage.getItem(`app_survey_${id}`) ?? "{}") }; } catch { return { ...SURVEY_DEFAULTS }; }
 }
 function saveSurvey(id: number, s: SurveyData) {
-  localStorage.setItem(`satara_survey_${id}`, JSON.stringify(s));
+  localStorage.setItem(`app_survey_${id}`, JSON.stringify(s));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -287,7 +287,7 @@ function ProspectDetailPanel({
   const [, navigate] = useLocation();
   const [aiTab, setAiTab] = useState<"ringkasan" | "lokasi" | "risiko" | "finansial" | "kompetitor" | "rekomendasi" | "simulasi">("ringkasan");
 
-  const SIM_KEY = `satara_sim_${prospect.id}`;
+  const SIM_KEY = `app_sim_${prospect.id}`;
   const [simInputs, setSimInputs] = useState<{ modalAwal: string; hargaJual: string; biayaPerUnit: string; reinvestPct: string; maxUnitLahan: string }>(() => {
     try { const s = localStorage.getItem(SIM_KEY); if (s) return { maxUnitLahan: "", ...JSON.parse(s) }; } catch {}
     return { modalAwal: "", hargaJual: "", biayaPerUnit: "", reinvestPct: "100", maxUnitLahan: "" };
@@ -2436,7 +2436,7 @@ function WilayahDetailPanel({ drillState, allProspects }: {
         <div className="flex items-center gap-4 text-[11px] text-muted-foreground shrink-0">
           <span><span className="font-semibold text-foreground">{competitors.length}</span> developer</span>
           <span><span className="font-semibold text-foreground">{totalUnitKompetitor.toLocaleString("id-ID")}</span> unit</span>
-          <span><span className="font-semibold text-foreground">{activeProspects.length}</span> prospek Satara</span>
+          <span><span className="font-semibold text-foreground">{activeProspects.length}</span> prospek</span>
         </div>
       </div>
 
@@ -2710,7 +2710,7 @@ function WilayahDetailPanel({ drillState, allProspects }: {
             {/* Prospek Aktif */}
             <div className="p-4 space-y-2.5 overflow-y-auto" style={{ maxHeight: 220 }}>
               <div className="flex items-center justify-between">
-                <div className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Prospek Aktif Satara</div>
+                <div className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Prospek Aktif Property</div>
                 {activeProspects.length > 0 && (
                   <span className="text-[9px] font-bold text-foreground bg-muted border rounded px-1.5 py-px">{activeProspects.length}</span>
                 )}

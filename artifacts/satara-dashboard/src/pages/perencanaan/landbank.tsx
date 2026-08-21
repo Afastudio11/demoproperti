@@ -322,7 +322,7 @@ export default function LandBankPage() {
                   <div>
                     <div className="text-sm font-semibold text-amber-700">Stok Land Bank Di Bawah Standar Minimum</div>
                     <p className="text-xs text-amber-600 mt-0.5">
-                      Coverage {coverageMonths} bulan — standar minimum Satara {MIN_COVERAGE_MONTHS} bulan.
+                      Coverage {coverageMonths} bulan — standar minimum Property {MIN_COVERAGE_MONTHS} bulan.
                       {acquisitionDeadlineMonth > 0
                         ? ` Akuisisi tahap berikutnya harus dimulai paling lambat bulan ke-${acquisitionDeadlineMonth}.`
                         : " Akuisisi harus dilakukan segera."}

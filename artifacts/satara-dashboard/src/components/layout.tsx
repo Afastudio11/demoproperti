@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Building2, MapPin, Calculator, FileCheck2,
-  Users, HardHat, Settings, ChevronsUpDown,
+  Users, HardHat, Settings, ChevronsUpDown, ChevronDown, ChevronRight,
   Shield, ShieldCheck, UserCog, Megaphone, Landmark, LogOut,
 } from "lucide-react";
 import {
@@ -27,7 +27,6 @@ import {
 // ─── Module key → nav item definition ────────────────────────────────────────
 const navItems = [
   { moduleKey: "executive_overview", name: "Executive Overview", path: "/teamwork", icon: LayoutDashboard },
-  { moduleKey: "akuisisi", name: "Akuisisi Lahan", path: "/akuisisi", icon: MapPin },
   { moduleKey: "perencanaan", name: "Perencanaan", path: "/perencanaan", icon: Calculator },
   { moduleKey: "projects", name: "Daftar Proyek", path: "/projects", icon: Building2 },
   { moduleKey: "legal", name: "Legal & Perizinan", path: "/legal", icon: ShieldCheck },
@@ -59,11 +58,6 @@ const financeSubNav: SubNavItem[] = [
   { type: "link", name: "Profitabilitas", path: "/finance/profitabilitas" },
   { type: "link", name: "Forecast Cashflow", path: "/finance/forecast" },
   { type: "link", name: "Accounting", path: "/finance/accounting" },
-  { type: "group", label: "Kontrol & Strategi" },
-  { type: "link", name: "Audit", path: "/finance/audit" },
-  { type: "link", name: "Data Quality", path: "/finance/data-quality" },
-  { type: "link", name: "Early Warning", path: "/finance/warning" },
-  { type: "link", name: "Analisis Ekspansi", path: "/finance/ekspansi" },
 ];
 
 const hrSubNav: SubNavItem[] = [
@@ -114,10 +108,6 @@ const brandingSubNav: SubNavItem[] = [
   { type: "link", name: "Content ROI", path: "/branding/roi" },
   { type: "link", name: "Trust Score", path: "/branding/trust" },
   { type: "link", name: "Brand Health Score", path: "/branding/health" },
-];
-
-const akuisisiSubNav: SubNavItem[] = [
-  { type: "link", name: "Pipeline Prospek", path: "/akuisisi" },
 ];
 
 const perencanaanSubNav: SubNavItem[] = [
@@ -205,18 +195,29 @@ const produksiSubNav: SubNavItem[] = [
   { type: "link", name: "Analitik Produksi", path: "/produksi/analitik" },
 ];
 
+const SUB_NAVS: Record<string, SubNavItem[]> = {
+  perencanaan: perencanaanSubNav,
+  legal: legalSubNav,
+  marketing: marketingSubNav,
+  administrasi: administrasiSubNav,
+  produksi: produksiSubNav,
+  finance: financeSubNav,
+  branding: brandingSubNav,
+  hr: hrSubNav,
+};
+
 function renderSubNav(items: SubNavItem[], location: string) {
   return (
-    <div className="group-data-[collapsible=icon]:hidden">
+    <div className="group-data-[collapsible=icon]:hidden pl-1 pr-1 py-1 space-y-0.5 transition-all duration-200">
       {items.map((sub, i) => {
         if (sub.type === "group") {
           return (
-            <div key={`group-${i}`} className="px-5 pt-2.5 pb-0.5">
+            <div key={`group-${i}`} className="px-5 pt-2 pb-0.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">{sub.label}</span>
             </div>
           );
         }
-        const isRootPath = ["/hr", "/finance", "/marketing", "/produksi", "/branding", "/legal", "/akuisisi", "/administrasi", "/perencanaan"].includes(sub.path);
+        const isRootPath = ["/hr", "/finance", "/marketing", "/produksi", "/branding", "/legal", "/administrasi", "/perencanaan"].includes(sub.path);
         const hasMoreSpecificMatch = items.some(item =>
           item.type === "link" &&
           item.path !== sub.path &&
@@ -239,9 +240,59 @@ function renderSubNav(items: SubNavItem[], location: string) {
   );
 }
 
+function getInitialOpenMenus(currentPath: string): Record<string, boolean> {
+  const state: Record<string, boolean> = {};
+  if (currentPath.startsWith("/perencanaan") || currentPath === "/slis") state["perencanaan"] = true;
+  if (currentPath.startsWith("/legal")) state["legal"] = true;
+  if (currentPath.startsWith("/marketing")) state["marketing"] = true;
+  if (currentPath.startsWith("/administrasi")) state["administrasi"] = true;
+  if (currentPath.startsWith("/produksi")) state["produksi"] = true;
+  if (currentPath.startsWith("/finance")) state["finance"] = true;
+  if (currentPath.startsWith("/branding")) state["branding"] = true;
+  if (currentPath.startsWith("/hr")) state["hr"] = true;
+  return state;
+}
+
 function DashboardSidebar() {
   const [location, navigate] = useLocation();
   const { user, logout } = useAuth();
+  const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>(() => getInitialOpenMenus(location));
+
+  React.useEffect(() => {
+    setOpenMenus(prev => {
+      const updated = { ...prev };
+      if (location.startsWith("/perencanaan") || location === "/slis") updated["perencanaan"] = true;
+      if (location.startsWith("/legal")) updated["legal"] = true;
+      if (location.startsWith("/marketing")) updated["marketing"] = true;
+      if (location.startsWith("/administrasi")) updated["administrasi"] = true;
+      if (location.startsWith("/produksi")) updated["produksi"] = true;
+      if (location.startsWith("/finance")) updated["finance"] = true;
+      if (location.startsWith("/branding")) updated["branding"] = true;
+      if (location.startsWith("/hr")) updated["hr"] = true;
+      return updated;
+    });
+  }, [location]);
+
+  const toggleMenu = (key: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setOpenMenus(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const allModuleKeysWithSub = Object.keys(SUB_NAVS);
+  const areAllOpen = allModuleKeysWithSub.every(k => openMenus[k]);
+
+  const toggleAll = () => {
+    if (areAllOpen) {
+      setOpenMenus({});
+    } else {
+      const allOpen: Record<string, boolean> = {};
+      allModuleKeysWithSub.forEach(k => { allOpen[k] = true; });
+      setOpenMenus(allOpen);
+    }
+  };
 
   const isSuperAdmin = user?.role === "super_admin";
   const allowedModules = user?.allowedModules ?? [];
@@ -250,16 +301,6 @@ function DashboardSidebar() {
   const visibleNavItems = navItems.filter(item =>
     isSuperAdmin || allowedModules.includes(item.moduleKey)
   );
-
-  const isAkuisisi = location === "/akuisisi" || location.startsWith("/akuisisi/");
-  const isPerencanaan = location === "/perencanaan" || location.startsWith("/perencanaan/") || location === "/slis";
-  const isLegal = location === "/legal" || location.startsWith("/legal/");
-  const isAdministrasi = location === "/administrasi" || location.startsWith("/administrasi/");
-  const isProduksi = location === "/produksi" || location.startsWith("/produksi/");
-  const isMarketing = location === "/marketing" || location.startsWith("/marketing/");
-  const isHR = location === "/hr" || location.startsWith("/hr/");
-  const isBranding = location === "/branding" || location.startsWith("/branding/");
-  const isFinance = location === "/finance" || location.startsWith("/finance/");
 
   async function handleLogout() {
     await logout();
@@ -271,9 +312,11 @@ function DashboardSidebar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2.5 w-full hover:bg-sidebar-accent rounded-md p-1 -m-1 transition-colors shrink-0">
-              <img src="/satara-logo.png" alt="Satara" className="size-10 object-contain shrink-0" />
+              <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
+                <Building2 className="size-5" />
+              </div>
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-                <span className="text-sm font-medium">Satara Dev.</span>
+                <span className="text-sm font-medium">Operations</span>
                 <ChevronsUpDown className="size-3 text-muted-foreground" />
               </div>
             </button>
@@ -308,49 +351,66 @@ function DashboardSidebar() {
 
       <SidebarContent className="px-2.5">
         <SidebarGroup className="p-0">
+          <div className="flex items-center justify-between px-2 py-1 mb-1 text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden border-b border-border/40 pb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px] text-muted-foreground/70">Menu Navigasi</span>
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="flex items-center gap-1 hover:text-foreground text-[10px] font-medium px-2 py-0.5 rounded bg-muted/40 hover:bg-muted transition-colors border border-border/40"
+              title={areAllOpen ? "Tutup Semua Sub-menu" : "Buka Semua Sub-menu"}
+            >
+              {areAllOpen ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}
+              <span>{areAllOpen ? "Tutup Semua" : "Buka Semua"}</span>
+            </button>
+          </div>
+
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleNavItems.map((item) => {
-                const isAkuisisiItem = item.path === "/akuisisi";
-                const isPerencanaanItem = item.path === "/perencanaan";
-                const isLegalItem = item.path === "/legal";
-                const isAdministrasiItem = item.path === "/administrasi";
-                const isProduksiItem = item.path === "/produksi";
-                const isMarketingItem = item.path === "/marketing";
-                const isHRItem = item.path === "/hr";
-                const isBrandingItem = item.path === "/branding";
-                const isFinanceItem = item.path === "/finance";
+                const subNav = SUB_NAVS[item.moduleKey];
+                const hasSub = Boolean(subNav && subNav.length > 0);
+                const isOpen = openMenus[item.moduleKey] ?? false;
+
                 const isActive =
                   location === item.path ||
                   (item.path !== "/" && location.startsWith(item.path)) ||
-                  (isAkuisisiItem && isAkuisisi) ||
-                  (isPerencanaanItem && isPerencanaan) ||
-                  (isLegalItem && isLegal) ||
-                  (isAdministrasiItem && isAdministrasi) ||
-                  (isProduksiItem && isProduksi) ||
-                  (isMarketingItem && isMarketing) ||
-                  (isHRItem && isHR) ||
-                  (isBrandingItem && isBranding) ||
-                  (isFinanceItem && isFinance);
+                  (item.moduleKey === "perencanaan" && (location.startsWith("/perencanaan") || location === "/slis"));
 
                 return (
                   <React.Fragment key={item.path}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive} className="h-7">
-                        <Link href={item.path}>
-                          <span className="text-sm">{item.name}</span>
-                        </Link>
-                      </SidebarMenuButton>
+                    <SidebarMenuItem className="relative">
+                      <div className="flex items-center w-full group/item rounded-md hover:bg-sidebar-accent/50 transition-colors">
+                        <SidebarMenuButton asChild isActive={isActive} className="h-7 flex-1 pr-1">
+                          <Link
+                            href={item.path}
+                            onClick={() => {
+                              if (hasSub && !isOpen) {
+                                setOpenMenus(prev => ({ ...prev, [item.moduleKey]: true }));
+                              }
+                            }}
+                          >
+                            <span className="text-sm font-medium">{item.name}</span>
+                          </Link>
+                        </SidebarMenuButton>
+
+                        {hasSub && (
+                          <button
+                            type="button"
+                            onClick={(e) => toggleMenu(item.moduleKey, e)}
+                            className="size-6 mr-1 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:hidden shrink-0"
+                            title={isOpen ? `Tutup menu ${item.name}` : `Buka menu ${item.name}`}
+                          >
+                            {isOpen ? (
+                              <ChevronDown className="size-3.5 transition-transform duration-200 text-foreground/70" />
+                            ) : (
+                              <ChevronRight className="size-3.5 transition-transform duration-200 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </SidebarMenuItem>
-                    {isAkuisisiItem && isAkuisisi && renderSubNav(akuisisiSubNav, location)}
-                    {isPerencanaanItem && isPerencanaan && renderSubNav(perencanaanSubNav, location)}
-                    {isLegalItem && isLegal && renderSubNav(legalSubNav, location)}
-                    {isAdministrasiItem && isAdministrasi && renderSubNav(administrasiSubNav, location)}
-                    {isProduksiItem && isProduksi && renderSubNav(produksiSubNav, location)}
-                    {isMarketingItem && isMarketing && renderSubNav(marketingSubNav, location)}
-                    {isHRItem && isHR && renderSubNav(hrSubNav, location)}
-                    {isBrandingItem && isBranding && renderSubNav(brandingSubNav, location)}
-                    {isFinanceItem && isFinance && renderSubNav(financeSubNav, location)}
+
+                    {hasSub && isOpen && renderSubNav(subNav, location)}
                   </React.Fragment>
                 );
               })}

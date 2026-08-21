@@ -4,7 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MONTHS = ["JANUARI","FEBRUARI","MARET","APRIL","MEI","JUNI","JULI","AGUSTUS","SEPTEMBER","OKTOBER","NOVEMBER","DESEMBER"];
-const PROJECTS = ["SN Residence 3","SN Residence 4","Barru","Loka Resort","Satara Group","Sekala Industry"];
+const PROJECTS = ["SN Residence 3","SN Residence 4","Barru","Loka Resort","Property Group","Sekala Industry"];
 
 const emptyForm = { projectName: "SN Residence 3", periodYear: new Date().getFullYear(), periodMonth: new Date().getMonth() + 1, awarenessScore: "", engagementScore: "", inquiryScore: "", sentimentScore: "", notes: "" };
 

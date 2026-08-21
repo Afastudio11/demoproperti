@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT, filterOwnCompany } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, APP_SYSTEM_PROMPT, filterOwnCompany } from "../lib/deepseek";
 
 const router: IRouter = Router();
 
@@ -222,7 +222,7 @@ router.post("/ai/analyze-land", async (req, res) => {
   const totalAkuisisiStr = `Rp${totalAkuisisi.toLocaleString("id-ID")}`;
 
   const prompt = `═══════════════════════════════════════════════════════════════
-DATA PROSPEK LAHAN — SATARA DEVELOPMENT
+DATA PROSPEK LAHAN — Property Development
 ═══════════════════════════════════════════════════════════════
 
 IDENTITAS LAHAN:
@@ -247,7 +247,7 @@ FINANSIAL:
   Checklist Due Diligence: ${checkedItems ?? 0} item selesai
 ${poiSection}${competitorSection}
 
-═══ STANDAR KELAYAKAN WAJIB SATARA DEVELOPMENT ═══
+═══ STANDAR KELAYAKAN WAJIB Property Development ═══
   ✓ ROI minimal 25% (margin gross >20%)
   ✓ Akses jalan minimal 5 meter
   ✓ Status legal: SHM diutamakan, HGB masih acceptable
@@ -267,11 +267,11 @@ WAJIB dalam setiap bagian:
 Output HARUS berupa JSON valid saja (tanpa markdown, tanpa teks di luar JSON):
 {
   "verdict": "Sangat Direkomendasikan" | "Direkomendasikan" | "Perlu Review" | "Tidak Direkomendasikan",
-  "score": <integer 0-100 berdasarkan standar kelayakan Satara>,
+  "score": <integer 0-100 berdasarkan standar kelayakan Property>,
   "kategori": "<sama dengan verdict>",
   "ringkasan": "<4-5 kalimat SUBSTANTIF: (1) keputusan dan alasannya, (2) karakteristik kawasan dan lingkungan sekitar yang spesifik — sebutkan landmark/infrastruktur nyata, (3) kondisi fisik dan legal lahan, (4) potensi dan proyeksi nilai properti ke depan, (5) catatan kritis jika ada>",
   "kelebihan": [
-    "<kelebihan 1: spesifik dengan angka/data, contoh: 'Akses jalan 8m, 2x standar minimum Satara — memungkinkan produk tipe 36/72 dengan parkir di halaman'>",
+    "<kelebihan 1: spesifik dengan angka/data, contoh: 'Akses jalan 8m, 2x standar minimum Property — memungkinkan produk tipe 36/72 dengan parkir di halaman'>",
     "<kelebihan 2: spesifik>",
     "<kelebihan 3: spesifik>",
     "<kelebihan 4: spesifik>",
@@ -303,7 +303,7 @@ Output HARUS berupa JSON valid saja (tanpa markdown, tanpa teks di luar JSON):
     const completion = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
-        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "system", content: APP_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       temperature: 0.15,

@@ -28,7 +28,7 @@ export function createDeepSeekClient(): OpenAI {
 
 export const DEEPSEEK_MODEL = "deepseek-chat";
 
-export const SATARA_SYSTEM_PROMPT = `Kamu adalah konsultan properti dan analis investasi senior kelas dunia yang bekerja eksklusif untuk Satara Development — developer perumahan terkemuka di Sulawesi Selatan, Indonesia.
+export const APP_SYSTEM_PROMPT = `Kamu adalah konsultan properti dan analis investasi senior kelas dunia yang bekerja eksklusif untuk Property Development — developer perumahan terkemuka di Sulawesi Selatan, Indonesia.
 
 KEAHLIAN UTAMAMU:
 - Analisis kelayakan investasi properti di pasar Indonesia, khususnya Sulawesi Selatan

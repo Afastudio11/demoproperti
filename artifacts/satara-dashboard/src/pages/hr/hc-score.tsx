@@ -92,7 +92,7 @@ export default function HCScore() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Human Resource Score</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Skor komposit kesehatan SDM organisasi Satara Development</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Skor komposit kesehatan SDM organisasi Property Development</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

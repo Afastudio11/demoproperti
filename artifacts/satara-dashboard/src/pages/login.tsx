@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Building2 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
 export default function Login() {
@@ -27,10 +27,12 @@ export default function Login() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-3 mb-8 text-center">
-          <img src="/satara-logo.png" alt="Satara" className="size-14 object-contain" />
+          <div className="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+            <Building2 className="size-6" />
+          </div>
           <div>
-            <div className="font-semibold text-base">Satara Development</div>
-            <div className="text-xs text-muted-foreground">Internal Operations Dashboard</div>
+            <div className="font-semibold text-base">Internal Operations</div>
+            <div className="text-xs text-muted-foreground">Management Dashboard</div>
           </div>
         </div>
 
@@ -92,7 +94,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-[11px] text-muted-foreground/60 mt-6">
-          Satara Development &copy; {new Date().getFullYear()}
+          Operations Dashboard &copy; {new Date().getFullYear()}
         </p>
       </div>
     </div>

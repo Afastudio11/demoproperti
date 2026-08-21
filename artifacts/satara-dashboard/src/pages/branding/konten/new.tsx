@@ -5,7 +5,7 @@ import { ChevronLeft } from "lucide-react";
 
 const CATEGORIES = ["edukasi","progress_proyek","testimoni","csr","company_culture","founder_story","behind_the_scene"];
 const CAT_LABELS: Record<string, string> = { edukasi: "Edukasi", progress_proyek: "Progress Proyek", testimoni: "Testimoni", csr: "CSR", company_culture: "Company Culture", founder_story: "Founder Story", behind_the_scene: "Behind The Scene" };
-const PROJECTS = ["SN1","SN2","SN3","SN4","Barru","Loka Resort","Satara Group","Tidak Spesifik"];
+const PROJECTS = ["SN1","SN2","SN3","SN4","Barru","Loka Resort","Property Group","Tidak Spesifik"];
 const PLATFORMS = ["Instagram","Facebook","TikTok","YouTube","Website"];
 const FORMATS = ["Foto","Video Pendek","Video Panjang","Reels","Story","Carousel","Blog Post"];
 const PICS = ["Content Creator","Graphic Designer","Videographer","Copywriter"];

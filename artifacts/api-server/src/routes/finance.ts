@@ -26,7 +26,7 @@ import {
   projectsTable,
 } from "@workspace/db";
 import { eq, desc, sql, and, lte, gte, lt } from "drizzle-orm";
-import { createDeepSeekClient, DEEPSEEK_MODEL, SATARA_SYSTEM_PROMPT } from "../lib/deepseek";
+import { createDeepSeekClient, DEEPSEEK_MODEL, APP_SYSTEM_PROMPT } from "../lib/deepseek";
 import { recordFinanceCashflow } from "../lib/finance-sync";
 // pdf-parse is CJS — require is available via the ESM banner in build.mjs
 const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number; info: any }> =
@@ -1846,7 +1846,7 @@ router.post("/finance/ekspansi/analisis", async (req, res) => {
 
     const deepseek = createDeepSeekClient();
     const prompt = scenarioType === "kpp_baru"
-      ? `Analisis kelayakan pengambilan KPP baru untuk Satara Development.
+      ? `Analisis kelayakan pengambilan KPP baru untuk Property Development.
 
 DATA KEUANGAN TERKINI:
 - Outstanding KPP existing: Rp ${(totalKppOutstanding / 1e9).toFixed(2)} M
@@ -1861,7 +1861,7 @@ SKENARIO YANG DIANALISIS:
 - Bank yang dituju: ${inputData.bankTarget}
 
 Berikan analisis singkat: verdict (AMAN/PERLU PERHATIAN/TIDAK DISARANKAN), lalu 3-5 poin analisis dalam Bahasa Indonesia. Format: verdict di baris pertama, lalu poin-poin.`
-      : `Analisis kapasitas ekspansi proyek baru Satara Development.
+      : `Analisis kapasitas ekspansi proyek baru Property Development.
 
 DATA KEUANGAN TERKINI:
 - Net cashflow rata-rata per bulan: Rp ${(monthlyNetCashflow / 1e6).toFixed(0)} Jt
@@ -1879,7 +1879,7 @@ Hitung ROI, payback period, dan dampak ke cashflow existing. Berikan verdict (LA
     const response = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
-        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "system", content: APP_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       max_tokens: 600,
@@ -1911,10 +1911,10 @@ router.post("/finance/ai-recommendation", async (req, res) => {
     const response = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
-        { role: "system", content: SATARA_SYSTEM_PROMPT },
+        { role: "system", content: APP_SYSTEM_PROMPT },
         {
           role: "user",
-          content: `Berikut data keuangan Satara Development bulan ini:
+          content: `Berikut data keuangan Property Development bulan ini:
 - Net Cashflow: Rp ${(Number(netCashflow) / 1e6).toFixed(0)} Jt ${Number(netCashflow) >= 0 ? "(positif)" : "(negatif)"}
 - Outstanding KPP: Rp ${(Number(outstandingKpp) / 1e9).toFixed(2)} M
 - Total Hutang Outstanding: Rp ${(Number(totalHutang) / 1e9).toFixed(2)} M

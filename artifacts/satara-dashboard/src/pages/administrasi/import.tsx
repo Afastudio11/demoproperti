@@ -172,7 +172,7 @@ export default function ImportPage() {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm">2. Mapping Kolom</CardTitle></CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">Cocokkan kolom dari file CSV ke field sistem Satara</p>
+            <p className="text-xs text-muted-foreground mb-3">Cocokkan kolom dari file CSV ke field sistem Property</p>
             <div className="grid grid-cols-2 gap-2">
               {CUSTOMER_FIELDS.map(field => (
                 <div key={field} className="flex items-center gap-2">

@@ -19,14 +19,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    try {
-      const cached = localStorage.getItem("satara_user");
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshUser = useCallback(async () => {
@@ -36,13 +29,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await res.json();
         const updatedUser = { ...data, allowedModules: data.allowedModules ?? [] };
         setUser(updatedUser);
-        localStorage.setItem("satara_user", JSON.stringify(updatedUser));
-      } else if (res.status === 401 || res.status === 403) {
+        localStorage.setItem("app_user", JSON.stringify(updatedUser));
+      } else {
         setUser(null);
-        localStorage.removeItem("satara_user");
+        localStorage.removeItem("app_user");
       }
     } catch {
-      // Keep current user state on network error (e.g., during backend deployments/restarts)
+      setUser(null);
+      localStorage.removeItem("app_user");
     }
   }, []);
 
@@ -64,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await res.json();
     const updatedUser = { ...data, allowedModules: data.allowedModules ?? [] };
     setUser(updatedUser);
-    localStorage.setItem("satara_user", JSON.stringify(updatedUser));
+    localStorage.setItem("app_user", JSON.stringify(updatedUser));
   }
 
   async function logout() {
@@ -74,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Suppress network error during logout, proceed to clear local state
     }
     setUser(null);
-    localStorage.removeItem("satara_user");
+    localStorage.removeItem("app_user");
   }
 
   return (

@@ -52,7 +52,7 @@ export default function PublicPaymentProof() {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-xl rounded-xl border bg-white shadow-lg overflow-hidden">
         <div className="bg-black text-white px-6 py-5">
-          <div className="text-xs uppercase tracking-wider opacity-70">Satara Development</div>
+          <div className="text-xs uppercase tracking-wider opacity-70">Property Operations</div>
           <h1 className="text-xl font-bold mt-1">Verifikasi Bukti Pembayaran</h1>
         </div>
 
@@ -116,7 +116,7 @@ export default function PublicPaymentProof() {
             {data.notes && <div className="text-xs text-slate-500 border-t pt-4">{data.notes}</div>}
 
             <div className="text-[10px] text-slate-400 border-t pt-3">
-              Dokumen ini diterbitkan oleh sistem internal Satara Development. Keaslian dokumen dapat diverifikasi melalui QR Code yang tercetak pada PDF resmi.
+              Dokumen ini diterbitkan oleh sistem internal operasional properti. Keaslian dokumen dapat diverifikasi melalui QR Code yang tercetak pada PDF resmi.
             </div>
           </div>
         ) : null}

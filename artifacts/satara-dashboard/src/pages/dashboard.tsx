@@ -2,11 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import {
   useGetDashboardSummary,
   useGetDashboardAlerts,
-  useListLandProspects,
   useListLegalDocuments,
   useListHandovers,
 } from "@workspace/api-client-react";
-import SulselAcquisitionMap from "@/components/sulsel-acquisition-map";
 import {
   AlertCircle, TrendingUp, TrendingDown, Users, Building2, Activity,
   FilePlus, UserPlus, MapPin, Search, Target, BarChart3,
@@ -17,7 +15,6 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { KABUPATEN_DATA, getGradeLabel, getGradeBg, getGradeColor } from "@/data/slis-scoring";
 
 /* ─── helpers ─── */
 const fmtRp = (n: number) => {
@@ -31,13 +28,6 @@ const LEVEL_COLOR: Record<string, string> = {
   red: "bg-red-500", yellow: "bg-amber-400", green: "bg-emerald-400",
   kritis: "bg-red-500", warning: "bg-amber-400",
 };
-
-const STAGE_LABEL: Record<string, string> = {
-  prospek_baru: "Prospek", survey: "Survey", analisis_kompetitor: "Analisis",
-  negosiasi: "Negosiasi", legal_checking: "Legal", pks_mou: "PKS/MoU", ditolak: "Ditolak",
-};
-
-const TOP_KAB = [...KABUPATEN_DATA].sort((a, b) => b.score - a.score).slice(0, 8);
 
 /* ─── sub-components ─── */
 function StatCard({ title, value, icon: Icon, trend, change, sub, color }: {
@@ -119,7 +109,6 @@ export default function Dashboard() {
   /* Existing queries */
   const { data: summary } = useGetDashboardSummary();
   const { data: alerts } = useGetDashboardAlerts();
-  const { data: prospects } = useListLandProspects({});
   const { data: legalDocs } = useListLegalDocuments({});
   const { data: handovers } = useListHandovers({});
 
@@ -171,18 +160,6 @@ export default function Dashboard() {
   });
 
   /* ── Derived data ── */
-
-  // Land / Akuisisi
-  const prospectsArr = prospects ?? [];
-  const totalSurvey = prospectsArr.filter((p: any) => p.status !== "prospek_baru").length;
-  const totalAkuisisi = prospectsArr.filter((p: any) => p.status === "pks_mou").length;
-  const pipelineGroups = Object.entries(STAGE_LABEL)
-    .filter(([k]) => k !== "ditolak")
-    .map(([key, label]) => ({
-      key, label,
-      count: prospectsArr.filter((p: any) => p.status === key).length,
-    }));
-  const maxPipeCount = Math.max(...pipelineGroups.map(g => g.count), 1);
 
   // Planning / Perencanaan
   const projArr = Array.isArray(projects) ? projects : [];
@@ -241,15 +218,15 @@ export default function Dashboard() {
 
   // Produksi
   const prod = prodData?.summary ?? {};
-  const critMat: any[] = prodData?.criticalMaterials ?? [];
-  const prodAlerts: any[] = prodData?.alerts ?? [];
+  const critMat: any[] = Array.isArray(prodData?.criticalMaterials) ? prodData.criticalMaterials : [];
+  const prodAlerts: any[] = Array.isArray(prodData?.alerts) ? prodData.alerts : [];
   const hasProductionData = (prod.totalUnits ?? 0) > 0;
 
   // Finance
   const fin = finData ?? {};
   const finScore = fin.financeScore ?? 0;
   const finStatus = finScore >= 80 ? "SEHAT" : finScore >= 60 ? "WASPADA" : "KRITIS";
-  const finAlerts: any[] = fin.alerts ?? [];
+  const finAlerts: any[] = Array.isArray(fin.alerts) ? fin.alerts : [];
   const hasFinanceData = !!finData && (
     (fin.cashIn ?? 0) > 0 ||
     (fin.cashOut ?? 0) > 0 ||
@@ -262,7 +239,7 @@ export default function Dashboard() {
   // HR
   const hcScore = hrData?.hcScore ?? 0;
   const hcStatus = hrData?.hcStatus ?? "KRITIS";
-  const flightRisks: any[] = hrData?.flightRiskAlerts ?? [];
+  const flightRisks: any[] = Array.isArray(hrData?.flightRiskAlerts) ? hrData.flightRiskAlerts : [];
   const hrBreakdown = hrData?.hcBreakdown ?? {};
   const hasHrOperationalData = !!hrData && (
     (hrData.openPositions ?? 0) > 0 ||
@@ -274,12 +251,12 @@ export default function Dashboard() {
   );
 
   // Legal
-  const legalArr = (legalDocs ?? []).filter(scopeByActiveProject);
+  const legalArr = (Array.isArray(legalDocs) ? legalDocs : []).filter(scopeByActiveProject);
   const legalApproved = legalArr.filter((d: any) => d.status === "approved").length;
   const legalPending = legalArr.filter((d: any) => d.status === "pending" || d.status === "in_progress").length;
 
   // Serah Terima
-  const handoverArr = handovers ?? [];
+  const handoverArr = Array.isArray(handovers) ? handovers : [];
   const bastCount = handoverArr.filter((h: any) => h.bastGenerated).length;
   const avgKepuasan = handoverArr.length > 0
     ? (handoverArr.reduce((s: number, h: any) => s + (h.skorKepuasan ?? 0), 0) / handoverArr.length).toFixed(1)
@@ -378,7 +355,7 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Executive Overview</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Ringkasan keputusan, risiko, dan kesehatan seluruh divisi Satara Development</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Ringkasan keputusan, risiko, dan kesehatan seluruh divisi Property Development</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="h-9 gap-1.5 bg-card hover:bg-card/80 border-border/50" onClick={() => navigate("/projects")}>
@@ -430,82 +407,72 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Map + Executive Risk Brief ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-card text-card-foreground rounded-xl border overflow-hidden">
+      {/* ── Executive Risk Brief & Financial Snapshot ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-card text-card-foreground rounded-xl border">
           <div className="flex items-center justify-between p-4 border-b border-border/50">
-            <h3 className="font-medium text-sm">Peta Sulawesi Selatan — Proyek Aktif & Prospek Lahan</h3>
+            <h3 className="font-medium text-sm">Risk & Eskalasi</h3>
+            <AlertCircle className="size-4 text-muted-foreground" />
           </div>
-          <div className="px-3 pb-3 pt-2" style={{ height: 400 }}>
-            <SulselAcquisitionMap readOnly projects={projArr} />
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border bg-muted/30 p-2">
+                <div className="text-[10px] text-muted-foreground">Status</div>
+                <div className={cn("text-sm font-semibold mt-0.5",
+                  executiveFinanceStatus === "Stabil" ? "text-emerald-600"
+                  : executiveFinanceStatus === "Waspada" ? "text-amber-500"
+                  : "text-red-500")}>{executiveFinanceStatus}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-2">
+                <div className="text-[10px] text-muted-foreground">Kritis</div>
+                <div className={cn("text-sm font-semibold mt-0.5", criticalRiskCount > 0 ? "text-red-500" : "text-muted-foreground")}>{criticalRiskCount}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-2">
+                <div className="text-[10px] text-muted-foreground">Warning</div>
+                <div className={cn("text-sm font-semibold mt-0.5", warningRiskCount > 0 ? "text-amber-500" : "text-muted-foreground")}>{warningRiskCount}</div>
+              </div>
+            </div>
+
+            {executiveRisks.length > 0 ? (
+              <div className="space-y-2 pt-1">
+                {executiveRisks.slice(0, 6).map((risk) => (
+                  <Link key={risk.id} href={risk.href}>
+                    <div className="flex items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+                      <div className={cn("size-2 rounded-full mt-1.5 shrink-0", risk.level === "kritis" ? "bg-red-500" : "bg-amber-400")} />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{risk.source}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{risk.message}</div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-emerald-600 justify-center py-4">
+                <CheckCircle2 className="size-4" />
+                <span className="text-sm font-medium">Tidak ada risiko aktif lintas modul</span>
+              </div>
+            )}
           </div>
         </div>
-        <div className="flex flex-col gap-4">
-          <div className="bg-card text-card-foreground rounded-xl border">
-            <div className="flex items-center justify-between p-4 border-b border-border/50">
-              <h3 className="font-medium text-sm">Risk & Eskalasi</h3>
-              <AlertCircle className="size-4 text-muted-foreground" />
-            </div>
-            <div className="p-4 space-y-3">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg border bg-muted/30 p-2">
-                  <div className="text-[10px] text-muted-foreground">Status</div>
-                  <div className={cn("text-sm font-semibold mt-0.5",
-                    executiveFinanceStatus === "Stabil" ? "text-emerald-600"
-                    : executiveFinanceStatus === "Waspada" ? "text-amber-500"
-                    : "text-red-500")}>{executiveFinanceStatus}</div>
-                </div>
-                <div className="rounded-lg border bg-muted/30 p-2">
-                  <div className="text-[10px] text-muted-foreground">Kritis</div>
-                  <div className={cn("text-sm font-semibold mt-0.5", criticalRiskCount > 0 ? "text-red-500" : "text-muted-foreground")}>{criticalRiskCount}</div>
-                </div>
-                <div className="rounded-lg border bg-muted/30 p-2">
-                  <div className="text-[10px] text-muted-foreground">Warning</div>
-                  <div className={cn("text-sm font-semibold mt-0.5", warningRiskCount > 0 ? "text-amber-500" : "text-muted-foreground")}>{warningRiskCount}</div>
-                </div>
-              </div>
 
-              {executiveRisks.length > 0 ? (
-                <div className="space-y-2 pt-1">
-                  {executiveRisks.slice(0, 6).map((risk) => (
-                    <Link key={risk.id} href={risk.href}>
-                      <div className="flex items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
-                        <div className={cn("size-2 rounded-full mt-1.5 shrink-0", risk.level === "kritis" ? "bg-red-500" : "bg-amber-400")} />
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium truncate">{risk.source}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{risk.message}</div>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-emerald-600 justify-center py-4">
-                  <CheckCircle2 className="size-4" />
-                  <span className="text-sm font-medium">Tidak ada risiko aktif lintas modul</span>
-                </div>
-              )}
-            </div>
+        <div className="bg-card text-card-foreground rounded-xl border">
+          <div className="flex items-center justify-between p-4 border-b border-border/50">
+            <h3 className="font-medium text-sm">Snapshot Keuangan</h3>
+            <Landmark className="size-4 text-muted-foreground" />
           </div>
-
-          <div className="bg-card text-card-foreground rounded-xl border">
-            <div className="flex items-center justify-between p-4 border-b border-border/50">
-              <h3 className="font-medium text-sm">Snapshot Keuangan</h3>
-              <Landmark className="size-4 text-muted-foreground" />
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <MiniKpi label="Finance Score" value={finScore ? `${finScore}/100` : "—"}
+                color={finScore >= 80 ? "text-emerald-600" : finScore >= 60 ? "text-amber-500" : "text-red-500"} />
+              <MiniKpi label="Net Cashflow" value={fin.netCashflow ? fmtRp(fin.netCashflow) : "—"}
+                color={(fin.netCashflow ?? 0) >= 0 ? "text-emerald-600" : "text-red-500"} />
             </div>
-            <div className="p-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <MiniKpi label="Finance Score" value={finScore ? `${finScore}/100` : "—"}
-                  color={finScore >= 80 ? "text-emerald-600" : finScore >= 60 ? "text-amber-500" : "text-red-500"} />
-                <MiniKpi label="Net Cashflow" value={fin.netCashflow ? fmtRp(fin.netCashflow) : "—"}
-                  color={(fin.netCashflow ?? 0) >= 0 ? "text-emerald-600" : "text-red-500"} />
-              </div>
-              <Link href="/finance/forecast">
-                <span className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5">
-                  Lihat forecast cashflow di Finance <ChevronRight className="size-3" />
-                </span>
-              </Link>
-            </div>
+            <Link href="/finance/forecast">
+              <span className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5">
+                Lihat forecast cashflow di Finance <ChevronRight className="size-3" />
+              </span>
+            </Link>
           </div>
         </div>
       </div>
@@ -784,145 +751,69 @@ export default function Dashboard() {
       </div>
 
       {/* ── Monitoring Siteplan Proyek ── */}
-      {siteplanList.filter((sp: any) => activeProjectIds.has(sp.projectId)).length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Map className="size-5" />
-              <h2 className="text-base font-semibold">Monitoring Siteplan Proyek</h2>
-            </div>
-            <Link href="/produksi/siteplan">
-              <button className="flex items-center gap-1 text-[11px] text-foreground hover:text-foreground/70 font-medium transition-colors">
-                Buka Monitoring Lengkap <span className="ml-0.5">→</span>
-              </button>
-            </Link>
-          </div>
-          <div className={`grid gap-4 ${siteplanList.filter((sp: any) => activeProjectIds.has(sp.projectId)).length === 1 ? "grid-cols-1 max-w-md" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-            {siteplanList.filter((sp: any) => activeProjectIds.has(sp.projectId)).slice(0, 3).map((sp: any) => {
-              const proj = (projArr as any[]).find((p: any) => p.id === sp.projectId);
-              return (
-                <Link key={sp.id} href={`/produksi/siteplan`}>
-                  <div className="bg-card border rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors group">
-                    <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-                      <span className="text-xs font-semibold truncate">{proj?.nama ?? `Proyek #${sp.projectId}`}</span>
-                      <span className="text-[10px] text-muted-foreground group-hover:text-primary transition-colors">Lihat →</span>
-                    </div>
-                    <div className="relative bg-muted/20 overflow-hidden" style={{ aspectRatio: "16/9", maxHeight: 160 }}>
-                      {sp.imageDataUrl ? (
-                        <img
-                          src={sp.imageDataUrl}
-                          alt="Siteplan"
-                          className="w-full h-full object-contain select-none"
-                          style={{
-                            opacity: (sp.imageTransform?.opacity ?? 0.86),
-                            transform: `translate(${sp.imageTransform?.x ?? 0}%, ${sp.imageTransform?.y ?? 0}%) scale(${sp.imageTransform?.scale ?? 1})`,
-                            transformOrigin: "center",
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Map className="size-8 text-muted-foreground/30" />
-                        </div>
-                      )}
-                      {sp.shapeCount > 0 && (
-                        <div className="absolute bottom-1.5 right-1.5 bg-background/80 rounded px-1.5 py-0.5 text-[9px] font-medium">
-                          {sp.shapeCount} shape
-                        </div>
-                      )}
-                    </div>
-                    <div className="px-3 py-2 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>Sumber: <span className="font-medium text-foreground">{sp.source === "upload" ? "Upload" : "Akuisisi"}</span></span>
-                      <span className="ml-auto text-[10px]">Produksi &gt; Monitoring Siteplan</span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {(() => {
+        const safeSiteplans = Array.isArray(siteplanList) ? siteplanList : [];
+        const filteredSiteplans = safeSiteplans.filter((sp: any) => activeProjectIds.has(sp.projectId));
+        if (filteredSiteplans.length === 0) return null;
 
-      {/* ── CEO Land Intelligence — Modul 7 ── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <MapPin className="size-5" />
-            <h2 className="text-base font-semibold">CEO Land Intelligence — Modul 7</h2>
-          </div>
-          <Link href="/slis">
-            <button className="flex items-center gap-1 text-[11px] text-foreground hover:text-foreground/70 font-medium transition-colors">
-              Lihat SLIS Intelligence <span className="ml-0.5">→</span>
-            </button>
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          {[
-            { label: "Lahan Tersurvey", value: totalSurvey, icon: Search, color: "text-blue-600", bg: "bg-blue-50 border-blue-200" },
-            { label: "Lahan Akuisisi", value: totalAkuisisi, icon: MapPin, color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200" },
-            { label: "Total Prospek Aktif", value: prospectsArr.length, icon: BarChart3, color: "text-foreground", bg: "bg-muted/30 border-border" },
-            { label: "Prospek Negosiasi", value: prospectsArr.filter((p: any) => p.status === "negosiasi").length, icon: Target, color: "text-amber-600", bg: "bg-amber-50 border-amber-200" },
-          ].map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} className={cn("rounded-xl border p-3", bg)}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
-                <Icon className={cn("size-4", color)} />
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Map className="size-5" />
+                <h2 className="text-base font-semibold">Monitoring Siteplan Proyek</h2>
               </div>
-              <div className={cn("text-2xl font-black", color)}>{value}</div>
+              <Link href="/produksi/siteplan">
+                <button className="flex items-center gap-1 text-[11px] text-foreground hover:text-foreground/70 font-medium transition-colors">
+                  Buka Monitoring Lengkap <span className="ml-0.5">→</span>
+                </button>
+              </Link>
             </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-card border rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-              <h3 className="font-medium text-sm">Ranking Kabupaten Sulsel</h3>
-              <span className="text-[10px] text-muted-foreground">SLIS — Top 8</span>
-            </div>
-            <div className="p-3 space-y-1.5">
-              {TOP_KAB.map((kab, i) => (
-                <div key={kab.id} className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground w-5 shrink-0">#{i + 1}</span>
-                  <div className="size-2 rounded-full shrink-0" style={{ backgroundColor: getGradeColor(kab.grade) }} />
-                  <span className="flex-1 text-[11px] font-medium truncate">{kab.name}</span>
-                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-medium", getGradeBg(kab.grade))}>
-                    {getGradeLabel(kab.grade)}
-                  </span>
-                  <span className="text-[12px] font-black w-8 text-right">{kab.score}</span>
-                  <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${kab.score}%`, backgroundColor: getGradeColor(kab.grade) }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="bg-card border rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-              <h3 className="font-medium text-sm">Pipeline Akuisisi</h3>
-              <span className="text-[10px] text-muted-foreground">{prospectsArr.length} prospek total</span>
-            </div>
-            <div className="p-3 space-y-2">
-              {pipelineGroups.map(({ key, label, count }) => (
-                <div key={key} className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground w-24 shrink-0 truncate">{label}</span>
-                  <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
-                    <div
-                      className={cn("h-full rounded transition-all flex items-center px-1.5",
-                        key === "pks_mou" ? "bg-emerald-500" : key === "legal_checking" ? "bg-orange-500"
-                        : key === "negosiasi" ? "bg-amber-400" : key === "analisis_kompetitor" ? "bg-slate-500"
-                        : key === "survey" ? "bg-blue-500" : "bg-slate-400")}
-                      style={{ width: count > 0 ? `${Math.max((count / maxPipeCount) * 100, 8)}%` : "0%" }}>
-                      {count > 0 && <span className="text-[9px] font-bold text-white">{count}</span>}
+            <div className={`grid gap-4 ${filteredSiteplans.length === 1 ? "grid-cols-1 max-w-md" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+              {filteredSiteplans.slice(0, 3).map((sp: any) => {
+                const proj = (projArr as any[]).find((p: any) => p.id === sp.projectId);
+                return (
+                  <Link key={sp.id} href={`/produksi/siteplan`}>
+                    <div className="bg-card border rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors group">
+                      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                        <span className="text-xs font-semibold truncate">{proj?.nama ?? `Proyek #${sp.projectId}`}</span>
+                        <span className="text-[10px] text-muted-foreground group-hover:text-primary transition-colors">Lihat →</span>
+                      </div>
+                      <div className="relative bg-muted/20 overflow-hidden" style={{ aspectRatio: "16/9", maxHeight: 160 }}>
+                        {sp.imageDataUrl ? (
+                          <img
+                            src={sp.imageDataUrl}
+                            alt="Siteplan"
+                            className="w-full h-full object-contain select-none"
+                            style={{
+                              opacity: (sp.imageTransform?.opacity ?? 0.86),
+                              transform: `translate(${sp.imageTransform?.x ?? 0}%, ${sp.imageTransform?.y ?? 0}%) scale(${sp.imageTransform?.scale ?? 1})`,
+                              transformOrigin: "center",
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Map className="size-8 text-muted-foreground/30" />
+                          </div>
+                        )}
+                        {sp.shapeCount > 0 && (
+                          <div className="absolute bottom-1.5 right-1.5 bg-background/80 rounded px-1.5 py-0.5 text-[9px] font-medium">
+                            {sp.shapeCount} shape
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-3 py-2 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>Sumber: <span className="font-medium text-foreground">{sp.source === "upload" ? "Upload" : "Akuisisi"}</span></span>
+                        <span className="ml-auto text-[10px]">Produksi &gt; Monitoring Siteplan</span>
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-[11px] font-semibold w-4 text-right">{count}</span>
-                </div>
-              ))}
-              {prospectsArr.length === 0 && (
-                <p className="text-[11px] text-muted-foreground text-center py-4">Belum ada data prospek</p>
-              )}
+                  </Link>
+                );
+              })}
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
     </div>
   );
 }

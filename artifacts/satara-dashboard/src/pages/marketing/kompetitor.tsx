@@ -60,10 +60,10 @@ export default function KompetitorPage() {
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const sataraPrices = (absorptions as any[]).map(a => ({ min: 0, max: 0 }));
-  const avgSataraPrice = 200000000;
+  const ownPrices = (absorptions as any[]).map(a => ({ min: 0, max: 0 }));
+  const avgOwnPrice = 200000000;
 
-  const alerts = (competitors as any[]).filter(c => c.hargaMin && c.hargaMin < avgSataraPrice && (c.progress ?? 0) > 60);
+  const alerts = (competitors as any[]).filter(c => c.hargaMin && c.hargaMin < avgOwnPrice && (c.progress ?? 0) > 60);
   const scatterData = [
     ...(competitors as any[]).map(c => ({ nama: c.namaKompetitor, harga: c.hargaMin ?? 0, progress: c.progress ?? 0, total: c.totalUnit ?? 10, type: "kompetitor" })),
   ];
@@ -124,7 +124,7 @@ export default function KompetitorPage() {
                   <Input type="number" min="0" max="100" className="h-8 text-xs" value={form.progress} onChange={e => set("progress", e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Proyek Terdekat (Satara)</Label>
+                  <Label className="text-xs">Proyek Terdekat (Property)</Label>
                   <Select value={form.projectId} onValueChange={v => set("projectId", v)}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih proyek" /></SelectTrigger>
                     <SelectContent>{(projects as any[]).map((p:any) => <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>)}</SelectContent>
